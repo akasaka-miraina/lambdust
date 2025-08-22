@@ -68,7 +68,7 @@ impl EffectPolicies {
             enable_automatic_rollback: false,
         }
     }
-    
+
     /// Creates effect policies optimized for high concurrency.
     pub fn high_concurrency() -> Self {
         Self {

@@ -9,12 +9,12 @@
 //! - Performance monitoring and optimization
 
 use super::{
-    ModuleId, Module, ModuleError,
-    enhanced_module_system::{EnhancedModuleSystem, AutoLoadingConfig},
-    runtime_integration::{LibraryInstantiator, LibraryInstance, ImportSpecResolver},
-    dynamic_loader::{DynamicLibraryLoader, HotReloadManager, FileMonitorConfig},
+    Module, ModuleError, ModuleId,
+    dynamic_loader::{DynamicLibraryLoader, FileMonitorConfig, HotReloadManager},
     enhanced_dependency_resolver::EnhancedDependencyResolver,
-    r7rs_compliance::{R7RSLibrarySystem, ComplianceConfig},
+    enhanced_module_system::{AutoLoadingConfig, EnhancedModuleSystem},
+    r7rs_compliance::{ComplianceConfig, R7RSLibrarySystem},
+    runtime_integration::{ImportSpecResolver, LibraryInstance, LibraryInstantiator},
 };
 use crate::ast::{Expr, Spanned};
 use crate::diagnostics::{Error, Result, Span};
@@ -22,7 +22,7 @@ use crate::eval::Value;
 use crate::runtime::GlobalEnvironmentManager;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 /// Comprehensive library system providing complete functionality.
 #[derive(Debug)]
@@ -123,7 +123,7 @@ impl ComprehensiveLibrarySystem {
 
         let hot_reload_manager = if config.enable_hot_reload {
             Some(HotReloadManager::new(DynamicLibraryLoader::with_config(
-                config.file_monitoring.clone()
+                config.file_monitoring.clone(),
             )))
         } else {
             None
@@ -144,15 +144,21 @@ impl ComprehensiveLibrarySystem {
     /// Loads and instantiates a library with comprehensive error handling.
     pub fn load_library(&mut self, module_id: &ModuleId) -> Result<Arc<LibraryInstance>> {
         let start_time = Instant::now();
-        self.error_context.push_operation(&format!("load_library: {}", super::format_module_id(module_id)));
+        self.error_context.push_operation(&format!(
+            "load_library: {}",
+            super::format_module_id(module_id)
+        ));
 
         let result = self.load_library_impl(module_id);
-        
+
         let duration = start_time.elapsed();
-        self.performance_monitor.record_operation("load_library", duration, result.is_ok());
-        
+        self.performance_monitor
+            .record_operation("load_library", duration, result.is_ok());
+
         if let Ok(ref instance) = result {
-            self.performance_monitor.loading_times.insert(module_id.clone(), duration);
+            self.performance_monitor
+                .loading_times
+                .insert(module_id.clone(), duration);
         }
 
         self.error_context.pop_operation();
@@ -172,25 +178,40 @@ impl ComprehensiveLibrarySystem {
             let compliance_report = self.r7rs_system.validate_library_compliance(&module)?;
             if !compliance_report.is_compliant {
                 return Err(Box::new(Error::from(ModuleError::CompilationError(
-                    format!("Library fails R7RS compliance: {}", compliance_report.summary())
+                    format!(
+                        "Library fails R7RS compliance: {}",
+                        compliance_report.summary()
+                    ),
                 ))));
             }
         }
 
         // Perform enhanced dependency analysis
-        let (resolved_module, dependency_graph) = self.dependency_resolver.resolve_dependencies_enhanced((*module).clone())?;
+        let (resolved_module, dependency_graph) = self
+            .dependency_resolver
+            .resolve_dependencies_enhanced((*module).clone())?;
 
         // Check for circular dependencies
         if !dependency_graph.detected_cycles.is_empty() {
-            let cycle_descriptions: Vec<String> = dependency_graph.detected_cycles
+            let cycle_descriptions: Vec<String> = dependency_graph
+                .detected_cycles
                 .iter()
-                .map(|cycle| format!("{} ({})", 
-                    cycle.cycle_path.iter().map(super::format_module_id).collect::<Vec<_>>().join(" -> "),
-                    cycle.impact_description()))
+                .map(|cycle| {
+                    format!(
+                        "{} ({})",
+                        cycle
+                            .cycle_path
+                            .iter()
+                            .map(super::format_module_id)
+                            .collect::<Vec<_>>()
+                            .join(" -> "),
+                        cycle.impact_description()
+                    )
+                })
                 .collect();
-            
+
             return Err(Box::new(Error::from(ModuleError::CircularDependency(
-                dependency_graph.detected_cycles[0].cycle_path.clone()
+                dependency_graph.detected_cycles[0].cycle_path.clone(),
             ))));
         }
 
@@ -210,21 +231,28 @@ impl ComprehensiveLibrarySystem {
     }
 
     /// Processes an import specification with comprehensive error handling.
-    pub fn process_import(&mut self, import_expr: &Spanned<Expr>) -> Result<HashMap<String, Value>> {
+    pub fn process_import(
+        &mut self,
+        import_expr: &Spanned<Expr>,
+    ) -> Result<HashMap<String, Value>> {
         let start_time = Instant::now();
         self.error_context.push_operation("process_import");
 
         let result = self.process_import_impl(import_expr);
 
         let duration = start_time.elapsed();
-        self.performance_monitor.record_operation("process_import", duration, result.is_ok());
+        self.performance_monitor
+            .record_operation("process_import", duration, result.is_ok());
 
         self.error_context.pop_operation();
         result
     }
 
     /// Core implementation of import processing.
-    fn process_import_impl(&mut self, import_expr: &Spanned<Expr>) -> Result<HashMap<String, Value>> {
+    fn process_import_impl(
+        &mut self,
+        import_expr: &Spanned<Expr>,
+    ) -> Result<HashMap<String, Value>> {
         // Resolve the import specification
         let import_resolution = ImportSpecResolver::resolve_import_spec(import_expr)?;
 
@@ -238,7 +266,8 @@ impl ComprehensiveLibrarySystem {
         export_expr: &Spanned<Expr>,
         library_env: &HashMap<String, Value>,
     ) -> Result<Vec<super::r7rs_compliance::ExportBinding>> {
-        self.r7rs_system.process_export_spec(export_expr, library_env)
+        self.r7rs_system
+            .process_export_spec(export_expr, library_env)
     }
 
     /// Enables hot-reload support for development.
@@ -269,14 +298,20 @@ impl ComprehensiveLibrarySystem {
                         reloaded.push(module_id);
                     }
                     super::dynamic_loader::ReloadEvent::ReloadFailed { module_id, error } => {
-                        eprintln!("Hot-reload failed for {}: {}", super::format_module_id(&module_id), error);
+                        eprintln!(
+                            "Hot-reload failed for {}: {}",
+                            super::format_module_id(&module_id),
+                            error
+                        );
                     }
                     _ => {}
                 }
             }
 
             // Also check for file modifications
-            let modifications = manager.loader().check_for_modifications(self.core_system.instantiator())?;
+            let modifications = manager
+                .loader()
+                .check_for_modifications(self.core_system.instantiator())?;
             reloaded.extend(modifications);
 
             Ok(reloaded)
@@ -326,14 +361,14 @@ impl ComprehensiveLibrarySystem {
     fn validate_module_id(&self, module_id: &ModuleId) -> Result<()> {
         if module_id.components.is_empty() {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                "Module ID cannot have empty components".to_string()
+                "Module ID cannot have empty components".to_string(),
             ))));
         }
 
         for component in &module_id.components {
             if component.is_empty() {
                 return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                    "Module ID components cannot be empty".to_string()
+                    "Module ID components cannot be empty".to_string(),
                 ))));
             }
         }
@@ -347,7 +382,9 @@ impl ComprehensiveLibrarySystem {
     }
 
     /// Gets dependency resolution statistics.
-    pub fn get_dependency_stats(&self) -> &super::enhanced_dependency_resolver::ResolutionStatistics {
+    pub fn get_dependency_stats(
+        &self,
+    ) -> &super::enhanced_dependency_resolver::ResolutionStatistics {
         self.dependency_resolver.get_statistics()
     }
 
@@ -395,22 +432,25 @@ impl ErrorContext {
     /// Gets a formatted error context.
     fn format_context(&self) -> String {
         let mut context = String::new();
-        
+
         if let Some(ref op) = self.current_operation {
             context.push_str(&format!("Operation: {op}\n"));
         }
-        
+
         if !self.operation_stack.is_empty() {
-            context.push_str(&format!("Call stack: {}\n", self.operation_stack.join(" -> ")));
+            context.push_str(&format!(
+                "Call stack: {}\n",
+                self.operation_stack.join(" -> ")
+            ));
         }
-        
+
         if !self.context_info.is_empty() {
             context.push_str("Context:\n");
             for (key, value) in &self.context_info {
                 context.push_str(&format!("  {key}: {value}\n"));
             }
         }
-        
+
         context
     }
 }
@@ -497,7 +537,7 @@ pub struct PerformanceSummary {
 impl SystemStatus {
     /// Checks if the entire system is healthy.
     pub fn is_healthy(&self) -> bool {
-        self.core_system_health && 
+        self.core_system_health &&
         self.error_rate() < 0.1 && // Less than 10% error rate
         self.total_libraries > 0
     }
@@ -521,16 +561,28 @@ impl SystemStatus {
              • Error Rate: {:.1}%\n\
              • Average Operation Time: {:.2}ms\n\
              • R7RS Compliance: {}",
-            if self.is_healthy() { "Healthy" } else { "Issues Detected" },
+            if self.is_healthy() {
+                "Healthy"
+            } else {
+                "Issues Detected"
+            },
             self.total_libraries,
             self.instantiated_libraries,
             self.cached_modules,
-            if self.hot_reload_enabled { "Enabled" } else { "Disabled" },
+            if self.hot_reload_enabled {
+                "Enabled"
+            } else {
+                "Disabled"
+            },
             self.active_dynamic_libraries,
             self.performance_stats.cache_hit_ratio * 100.0,
             self.performance_stats.error_rate * 100.0,
             self.performance_stats.average_operation_time.as_secs_f64() * 1000.0,
-            if self.r7rs_compliance_enabled { "Enabled" } else { "Disabled" }
+            if self.r7rs_compliance_enabled {
+                "Enabled"
+            } else {
+                "Disabled"
+            }
         )
     }
 }
@@ -544,7 +596,7 @@ impl Default for ComprehensiveLibrarySystem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::module_system::{ModuleNamespace, ModuleSource, ModuleMetadata};
+    use crate::module_system::{ModuleMetadata, ModuleNamespace, ModuleSource};
 
     fn create_test_module(name: &str) -> Module {
         Module {
@@ -573,10 +625,10 @@ mod tests {
             verbose_diagnostics: true,
             ..Default::default()
         };
-        
+
         let system = ComprehensiveLibrarySystem::with_config(config);
         assert!(system.is_ok());
-        
+
         let system = system.unwrap();
         assert!(!system.config.enable_hot_reload);
         assert!(system.config.enable_performance_monitoring);
@@ -586,12 +638,13 @@ mod tests {
     fn test_system_status() {
         let system = ComprehensiveLibrarySystem::new().unwrap();
         let status = system.get_system_status();
-        
+
         // Basic sanity checks
-        assert!(status.total_libraries >= 0);
+        // Verify status is valid (total_libraries is unsigned, so always >= 0)
+        assert!(status.instantiated_libraries <= status.total_libraries);
         assert!(status.performance_stats.cache_hit_ratio >= 0.0);
         assert!(status.performance_stats.cache_hit_ratio <= 1.0);
-        
+
         let summary = status.summary();
         assert!(summary.contains("Comprehensive Library System Status"));
     }
@@ -599,14 +652,14 @@ mod tests {
     #[test]
     fn test_module_id_validation() {
         let system = ComprehensiveLibrarySystem::new().unwrap();
-        
+
         // Valid module ID
         let valid_id = ModuleId {
             components: vec!["test".to_string(), "module".to_string()],
             namespace: ModuleNamespace::User,
         };
         assert!(system.validate_module_id(&valid_id).is_ok());
-        
+
         // Invalid module ID (empty components)
         let invalid_id = ModuleId {
             components: vec![],
@@ -618,10 +671,10 @@ mod tests {
     #[test]
     fn test_performance_monitoring() {
         let mut monitor = PerformanceMonitor::default();
-        
+
         monitor.record_operation("test_op", Duration::from_millis(100), true);
         monitor.record_operation("test_op", Duration::from_millis(200), false);
-        
+
         let summary = monitor.get_summary();
         assert_eq!(summary.total_operations, 2);
         assert_eq!(summary.cache_hit_ratio, 0.5);
@@ -631,14 +684,14 @@ mod tests {
     #[test]
     fn test_error_context() {
         let mut context = ErrorContext::default();
-        
+
         context.push_operation("test_operation");
         context.add_context("module_id".to_string(), "test-module".to_string());
-        
+
         let formatted = context.format_context();
         assert!(formatted.contains("Operation: test_operation"));
         assert!(formatted.contains("module_id: test-module"));
-        
+
         context.pop_operation();
         assert!(context.current_operation.is_none());
     }

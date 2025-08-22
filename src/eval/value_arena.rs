@@ -21,7 +21,7 @@
 
 use crate::ast::Literal;
 use crate::diagnostics::{Error, Result, Span};
-use crate::eval::value::{Value, Procedure, CaseLambdaProcedure, Continuation, Frame};
+use crate::eval::value::{CaseLambdaProcedure, Continuation, Frame, Procedure, Value};
 use crate::utils::SymbolId;
 use bumpalo::Bump;
 use std::cell::RefCell;
@@ -65,19 +65,19 @@ pub struct ValueArena {
     medium_arena: Bump,
     /// Long-lived values (global definitions)
     long_arena: Bump,
-    
+
     /// Value storage indices
     value_storage: RefCell<Vec<ValueEntry>>,
     /// Generation counter for safety
     generation: AtomicU32,
     /// Allocation counter for statistics
     allocation_count: AtomicU64,
-    
+
     /// Deduplication caches for common values
     literal_cache: RefCell<HashMap<LiteralHash, ValueRef>>,
     symbol_cache: RefCell<HashMap<SymbolId, ValueRef>>,
     pair_cache: RefCell<HashMap<PairHash, ValueRef>>,
-    
+
     /// Arena configuration
     config: ArenaConfig,
 }
@@ -91,7 +91,7 @@ pub struct ArenaConfig {
     pub max_cache_size: usize,
     /// Short arena capacity (KB)
     pub short_arena_capacity: usize,
-    /// Medium arena capacity (KB)  
+    /// Medium arena capacity (KB)
     pub medium_arena_capacity: usize,
     /// Long arena capacity (KB)
     pub long_arena_capacity: usize,
@@ -120,7 +120,7 @@ struct ValueEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ArenaType {
     Short,
-    Medium, 
+    Medium,
     Long,
 }
 
@@ -131,30 +131,28 @@ enum ArenaType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArenaValue {
     // ============= PRIMITIVE VALUES =============
-    
     /// Literal values (optimized storage)
     Literal(Literal),
-    
+
     /// Symbols (direct storage, no allocation)
     Symbol(SymbolId),
-    
+
     /// Keywords (interned strings)
     Keyword(String),
-    
+
     /// The empty list
     Nil,
-    
+
     /// Unspecified value
     Unspecified,
-    
+
     // ============= COMPOUND VALUES =============
-    
     /// Cons pair with arena references
     Pair(ValueRef, ValueRef),
-    
+
     /// Vector with arena-allocated elements
     Vector(Vec<ValueRef>),
-    
+
     /// Procedure with arena-allocated environment
     Procedure {
         /// Formal parameters for the procedure
@@ -166,7 +164,7 @@ pub enum ArenaValue {
         /// Optional procedure name for debugging
         name: Option<String>,
     },
-    
+
     /// Continuation with arena-allocated stack
     Continuation {
         /// Reference to the continuation stack
@@ -176,12 +174,11 @@ pub enum ArenaValue {
         /// Unique continuation identifier
         id: u64,
     },
-    
+
     // ============= ARENA-SPECIFIC VALUES =============
-    
     /// Reference to original Value for gradual migration
     ValueRef(Arc<Value>),
-    
+
     /// Large object stored externally (fallback)
     External(Arc<Value>),
 }
@@ -193,7 +190,7 @@ struct LiteralHash {
     content_hash: u64,
 }
 
-/// Hash key for pair deduplication  
+/// Hash key for pair deduplication
 #[derive(Debug, Hash, PartialEq, Eq)]
 struct PairHash {
     car_ref: ValueRef,
@@ -205,7 +202,7 @@ impl ValueArena {
     pub fn new() -> Self {
         Self::with_config(ArenaConfig::default())
     }
-    
+
     /// Create a new arena with specific configuration
     pub fn with_config(config: ArenaConfig) -> Self {
         Self {
@@ -221,22 +218,22 @@ impl ValueArena {
             config,
         }
     }
-    
+
     /// Allocate a short-lived value (expression evaluation)
     pub fn alloc_short(&self, value: ArenaValue) -> Result<ValueRef> {
         self.alloc_value(value, ArenaType::Short)
     }
-    
+
     /// Allocate a medium-lived value (function calls)
     pub fn alloc_medium(&self, value: ArenaValue) -> Result<ValueRef> {
         self.alloc_value(value, ArenaType::Medium)
     }
-    
+
     /// Allocate a long-lived value (global definitions)
     pub fn alloc_long(&self, value: ArenaValue) -> Result<ValueRef> {
         self.alloc_value(value, ArenaType::Long)
     }
-    
+
     /// Smart allocation based on value type
     pub fn alloc_smart(&self, value: ArenaValue) -> Result<ValueRef> {
         let arena_type = match &value {
@@ -249,14 +246,14 @@ impl ValueArena {
             // Default to medium for unknown types
             _ => ArenaType::Medium,
         };
-        
+
         self.alloc_value(value, arena_type)
     }
-    
+
     /// Internal allocation implementation
     fn alloc_value(&self, value: ArenaValue, arena_type: ArenaType) -> Result<ValueRef> {
         self.allocation_count.fetch_add(1, Ordering::Relaxed);
-        
+
         // Check deduplication cache if enabled
         if self.config.enable_deduplication {
             if let Some(cached_ref) = self.check_cache(&value) {
@@ -265,7 +262,7 @@ impl ValueArena {
                 }
             }
         }
-        
+
         // Select appropriate arena
         let arena_data: &'static ArenaValue = unsafe {
             let arena = match arena_type {
@@ -273,20 +270,20 @@ impl ValueArena {
                 ArenaType::Medium => &self.medium_arena,
                 ArenaType::Long => &self.long_arena,
             };
-            
+
             // Safety: The arena outlives all references to this data
             std::mem::transmute(arena.alloc(value.clone()))
         };
-        
+
         let current_gen = self.generation.fetch_add(1, Ordering::SeqCst);
         let mut storage = self.value_storage.borrow_mut();
-        
+
         let index = storage.len() as u32;
         let value_ref = ValueRef {
             index,
             generation: current_gen,
         };
-        
+
         storage.push(ValueEntry {
             data: arena_data,
             generation: current_gen,
@@ -294,49 +291,60 @@ impl ValueArena {
             valid: true,
             ref_count: 1,
         });
-        
+
         // Update caches if enabled
         if self.config.enable_deduplication {
             self.update_cache(&value, value_ref);
         }
-        
+
         Ok(value_ref)
     }
-    
+
     /// Resolve a ValueRef to its data
     pub fn resolve(&self, value_ref: ValueRef) -> Result<&ArenaValue> {
-        let storage = self.value_storage.borrow();
-        
+        let storage = self.value_storage.try_borrow().map_err(|_| {
+            Box::new(Error::runtime_error(
+                "Cannot borrow value storage".to_string(),
+                Some(Span::new(0, 0)),
+            ))
+        })?;
+
         if value_ref.index as usize >= storage.len() {
             return Err(Box::new(Error::runtime_error(
-                format!("Invalid value reference: index {} out of bounds", value_ref.index),
-                Some(Span::new(0, 0))
+                format!(
+                    "Invalid value reference: index {} out of bounds",
+                    value_ref.index
+                ),
+                Some(Span::new(0, 0)),
             )));
         }
-        
+
         let entry = &storage[value_ref.index as usize];
-        
+
         if !entry.valid || entry.generation != value_ref.generation {
             return Err(Box::new(Error::runtime_error(
                 "Invalid value reference: generation mismatch or invalidated".to_string(),
-                Some(Span::new(0, 0))
+                Some(Span::new(0, 0)),
             )));
         }
-        
+
         Ok(entry.data)
     }
-    
+
     /// Check if a ValueRef is still valid
     pub fn is_valid_ref(&self, value_ref: ValueRef) -> bool {
-        let storage = self.value_storage.borrow();
+        let storage = match self.value_storage.try_borrow() {
+            Ok(storage) => storage,
+            Err(_) => return false,
+        };
         if value_ref.index as usize >= storage.len() {
             return false;
         }
-        
+
         let entry = &storage[value_ref.index as usize];
         entry.valid && entry.generation == value_ref.generation
     }
-    
+
     /// Increment reference count for a value
     pub fn ref_inc(&self, value_ref: ValueRef) {
         if let Ok(mut storage) = self.value_storage.try_borrow_mut() {
@@ -347,7 +355,7 @@ impl ValueArena {
             }
         }
     }
-    
+
     /// Decrement reference count for a value
     pub fn ref_dec(&self, value_ref: ValueRef) {
         if let Ok(mut storage) = self.value_storage.try_borrow_mut() {
@@ -358,16 +366,19 @@ impl ValueArena {
             }
         }
     }
-    
+
     /// Get memory usage statistics
-    pub fn memory_stats(&self) -> ArenaMemoryStats {
-        let storage = self.value_storage.borrow();
-        
+    pub fn memory_stats(&self) -> Option<ArenaMemoryStats> {
+        let storage = self.value_storage.try_borrow().ok()?;
+        let literal_cache = self.literal_cache.try_borrow().ok()?;
+        let symbol_cache = self.symbol_cache.try_borrow().ok()?;
+        let pair_cache = self.pair_cache.try_borrow().ok()?;
+
         let mut short_count = 0;
         let mut medium_count = 0;
         let mut long_count = 0;
         let mut valid_count = 0;
-        
+
         for entry in storage.iter() {
             if entry.valid {
                 valid_count += 1;
@@ -378,8 +389,8 @@ impl ValueArena {
                 }
             }
         }
-        
-        ArenaMemoryStats {
+
+        Some(ArenaMemoryStats {
             short_count,
             medium_count,
             long_count,
@@ -388,25 +399,25 @@ impl ValueArena {
             short_memory: self.short_arena.allocated_bytes(),
             medium_memory: self.medium_arena.allocated_bytes(),
             long_memory: self.long_arena.allocated_bytes(),
-            literal_cache_size: self.literal_cache.borrow().len(),
-            symbol_cache_size: self.symbol_cache.borrow().len(),
-            pair_cache_size: self.pair_cache.borrow().len(),
+            literal_cache_size: literal_cache.len(),
+            symbol_cache_size: symbol_cache.len(),
+            pair_cache_size: pair_cache.len(),
             allocation_count: self.allocation_count.load(Ordering::Relaxed),
-        }
+        })
     }
-    
+
     /// Clear short-lived arena (expression evaluation cleanup)
     pub fn clear_short(&mut self) {
         self.short_arena.reset();
         self.invalidate_arena_entries(ArenaType::Short);
     }
-    
+
     /// Clear medium-lived arena (function call cleanup)
     pub fn clear_medium(&mut self) {
         self.medium_arena.reset();
         self.invalidate_arena_entries(ArenaType::Medium);
     }
-    
+
     /// Clear all arenas
     pub fn clear_all(&mut self) {
         self.short_arena.reset();
@@ -419,34 +430,34 @@ impl ValueArena {
         self.generation.store(0, Ordering::SeqCst);
         self.allocation_count.store(0, Ordering::SeqCst);
     }
-    
+
     /// Perform arena compaction to reclaim unused space
     pub fn compact(&mut self) -> Result<CompactionStats> {
         if !self.config.enable_compaction {
             return Ok(CompactionStats::default());
         }
-        
-        let stats = self.memory_stats();
+
+        let stats = self.memory_stats().unwrap();
         let utilization = stats.valid_count as f64 / stats.total_allocated as f64;
-        
+
         if utilization >= self.config.compaction_threshold {
             return Ok(CompactionStats::default());
         }
-        
+
         // TODO: Implement sophisticated compaction algorithm
         // For now, just clear invalid entries
         let mut storage = self.value_storage.borrow_mut();
         let before_count = storage.len();
         storage.retain(|entry| entry.valid);
         let after_count = storage.len();
-        
+
         Ok(CompactionStats {
             entries_removed: before_count - after_count,
-            memory_reclaimed: 0, // TODO: Calculate actual memory reclaimed
+            memory_reclaimed: 0,   // TODO: Calculate actual memory reclaimed
             compaction_time_ms: 0, // TODO: Measure compaction time
         })
     }
-    
+
     /// Convert ArenaValue to standard Value for compatibility
     pub fn to_standard_value(&self, arena_value: &ArenaValue) -> Result<Value> {
         match arena_value {
@@ -473,12 +484,12 @@ impl ValueArena {
                 // For complex types, fall back to external storage
                 Err(Box::new(Error::runtime_error(
                     "Cannot convert complex arena value to standard value".to_string(),
-                    Some(Span::new(0, 0))
+                    Some(Span::new(0, 0)),
                 )))
             }
         }
     }
-    
+
     /// Convert standard Value to ArenaValue for arena allocation
     pub fn from_standard_value(&self, value: &Value) -> ArenaValue {
         match value {
@@ -491,33 +502,38 @@ impl ValueArena {
             _ => ArenaValue::External(Arc::new(value.clone())),
         }
     }
-    
+
     // ============= PRIVATE HELPER METHODS =============
-    
+
     /// Check deduplication cache for existing value
     fn check_cache(&self, value: &ArenaValue) -> Option<ValueRef> {
         match value {
             ArenaValue::Literal(lit) => {
                 let hash = self.hash_literal(lit);
-                self.literal_cache.borrow().get(&hash).copied()
+                self.literal_cache.try_borrow().ok()?.get(&hash).copied()
             }
-            ArenaValue::Symbol(id) => {
-                self.symbol_cache.borrow().get(id).copied()
-            }
+            ArenaValue::Symbol(id) => self.symbol_cache.try_borrow().ok()?.get(id).copied(),
             ArenaValue::Pair(car, cdr) => {
-                let hash = PairHash { car_ref: *car, cdr_ref: *cdr };
-                self.pair_cache.borrow().get(&hash).copied()
+                let hash = PairHash {
+                    car_ref: *car,
+                    cdr_ref: *cdr,
+                };
+                self.pair_cache.try_borrow().ok()?.get(&hash).copied()
             }
             _ => None,
         }
     }
-    
+
     /// Update deduplication cache with new value
     fn update_cache(&self, value: &ArenaValue, value_ref: ValueRef) {
-        if self.literal_cache.borrow().len() >= self.config.max_cache_size {
-            return; // Cache is full
+        if let Ok(cache) = self.literal_cache.try_borrow() {
+            if cache.len() >= self.config.max_cache_size {
+                return; // Cache is full
+            }
+        } else {
+            return; // Can't access cache
         }
-        
+
         match value {
             ArenaValue::Literal(lit) => {
                 let hash = self.hash_literal(lit);
@@ -527,17 +543,20 @@ impl ValueArena {
                 self.symbol_cache.borrow_mut().insert(*id, value_ref);
             }
             ArenaValue::Pair(car, cdr) => {
-                let hash = PairHash { car_ref: *car, cdr_ref: *cdr };
+                let hash = PairHash {
+                    car_ref: *car,
+                    cdr_ref: *cdr,
+                };
                 self.pair_cache.borrow_mut().insert(hash, value_ref);
             }
             _ => {}
         }
     }
-    
+
     /// Create hash for literal deduplication
     fn hash_literal(&self, literal: &Literal) -> LiteralHash {
         use std::collections::hash_map::DefaultHasher;
-        
+
         let discriminant = match literal {
             Literal::ExactInteger(_) | Literal::Integer(_) => 0,
             Literal::InexactReal(_) => 1,
@@ -552,14 +571,17 @@ impl ValueArena {
             Literal::Nil => 10,
             Literal::Unspecified => 11,
         };
-        
+
         let mut hasher = DefaultHasher::new();
         literal.hash(&mut hasher);
         let content_hash = hasher.finish();
-        
-        LiteralHash { discriminant, content_hash }
+
+        LiteralHash {
+            discriminant,
+            content_hash,
+        }
     }
-    
+
     /// Invalidate entries from specific arena type
     fn invalidate_arena_entries(&self, arena_type: ArenaType) {
         if let Ok(mut storage) = self.value_storage.try_borrow_mut() {
@@ -617,7 +639,7 @@ impl ArenaMemoryStats {
     pub fn total_memory(&self) -> usize {
         self.short_memory + self.medium_memory + self.long_memory
     }
-    
+
     /// Memory utilization percentage
     pub fn utilization(&self) -> f64 {
         if self.total_allocated == 0 {
@@ -626,7 +648,7 @@ impl ArenaMemoryStats {
             self.valid_count as f64 / self.total_allocated as f64
         }
     }
-    
+
     /// Average memory per value
     pub fn avg_memory_per_value(&self) -> f64 {
         if self.valid_count == 0 {
@@ -642,9 +664,9 @@ impl Default for ArenaConfig {
         Self {
             enable_deduplication: true,
             max_cache_size: 10_000,
-            short_arena_capacity: 256,  // 256KB
+            short_arena_capacity: 256,   // 256KB
             medium_arena_capacity: 1024, // 1MB
-            long_arena_capacity: 4096,  // 4MB
+            long_arena_capacity: 4096,   // 4MB
             enable_compaction: true,
             compaction_threshold: 0.7,
         }
@@ -659,7 +681,8 @@ impl Default for ValueArena {
 
 impl fmt::Display for ArenaMemoryStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,
+        write!(
+            f,
             "Arena Stats: {} values ({:.1}KB total), {:.1}% utilization, {} allocations\n\
              Short: {} values ({:.1}KB), Medium: {} values ({:.1}KB), Long: {} values ({:.1}KB)\n\
              Caches: {} literals, {} symbols, {} pairs",
@@ -682,7 +705,8 @@ impl fmt::Display for ArenaMemoryStats {
 
 impl fmt::Display for CompactionStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,
+        write!(
+            f,
             "Compaction: {} entries removed, {:.1}KB reclaimed, {}ms",
             self.entries_removed,
             self.memory_reclaimed as f64 / 1024.0,
@@ -698,90 +722,94 @@ unsafe impl Sync for ValueArena {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_arena_basic_allocation() {
         let arena = ValueArena::new();
-        
+
         let nil_value = ArenaValue::Nil;
         let value_ref = arena.alloc_short(nil_value.clone()).unwrap();
-        
+
         let resolved = arena.resolve(value_ref).unwrap();
         assert_eq!(resolved, &nil_value);
     }
-    
+
     #[test]
     fn test_arena_deduplication() {
         let mut config = ArenaConfig::default();
         config.enable_deduplication = true;
         let arena = ValueArena::with_config(config);
-        
+
         let symbol_id = SymbolId::new(42);
         let symbol_value = ArenaValue::Symbol(symbol_id);
-        
+
         let ref1 = arena.alloc_short(symbol_value.clone()).unwrap();
         let ref2 = arena.alloc_short(symbol_value).unwrap();
-        
+
         // Should return the same reference due to deduplication
         assert_eq!(ref1, ref2);
     }
-    
+
     #[test]
     fn test_arena_smart_allocation() {
         let arena = ValueArena::new();
-        
+
         // Literals should go to short arena
-        let literal_ref = arena.alloc_smart(ArenaValue::Literal(Literal::integer(42))).unwrap();
+        let literal_ref = arena
+            .alloc_smart(ArenaValue::Literal(Literal::integer(42)))
+            .unwrap();
         assert!(arena.is_valid_ref(literal_ref));
-        
+
         // Procedures should go to long arena
-        let proc_ref = arena.alloc_smart(ArenaValue::Procedure {
-            formals: crate::ast::Formals::Fixed(vec![]),
-            body: vec![],
-            environment_ref: literal_ref,
-            name: Some("test".to_string()),
-        }).unwrap();
+        let proc_ref = arena
+            .alloc_smart(ArenaValue::Procedure {
+                formals: crate::ast::Formals::Fixed(vec![]),
+                body: vec![],
+                environment_ref: literal_ref,
+                name: Some("test".to_string()),
+            })
+            .unwrap();
         assert!(arena.is_valid_ref(proc_ref));
     }
-    
+
     #[test]
     fn test_arena_memory_stats() {
         let arena = ValueArena::new();
-        
-        let initial_stats = arena.memory_stats();
+
+        let initial_stats = arena.memory_stats().unwrap();
         assert_eq!(initial_stats.valid_count, 0);
-        
+
         let _ref1 = arena.alloc_short(ArenaValue::Nil).unwrap();
         let _ref2 = arena.alloc_medium(ArenaValue::Unspecified).unwrap();
-        
-        let stats = arena.memory_stats();
+
+        let stats = arena.memory_stats().unwrap();
         assert_eq!(stats.valid_count, 2);
         assert_eq!(stats.short_count, 1);
         assert_eq!(stats.medium_count, 1);
     }
-    
+
     #[test]
     fn test_value_conversion() {
         let arena = ValueArena::new();
-        
+
         // Test conversion from standard Value to ArenaValue
         let standard_value = Value::integer(42);
         let arena_value = arena.from_standard_value(&standard_value);
-        
+
         // Test conversion back to standard Value
         let converted_back = arena.to_standard_value(&arena_value).unwrap();
         assert_eq!(standard_value, converted_back);
     }
-    
+
     #[test]
     fn test_invalid_reference_detection() {
         let arena = ValueArena::new();
-        
+
         let invalid_ref = ValueRef {
             index: 999,
             generation: 0,
         };
-        
+
         assert!(!arena.is_valid_ref(invalid_ref));
         assert!(arena.resolve(invalid_ref).is_err());
     }

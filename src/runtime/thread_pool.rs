@@ -4,12 +4,12 @@
 //! for Scheme evaluation with proper isolation and communication between
 //! evaluator threads.
 
-use super::{EvaluatorMessage, EvaluatorHandle, GlobalEnvironmentManager, EffectCoordinator};
 use super::evaluator::EvaluatorWorker;
+use super::{EffectCoordinator, EvaluatorHandle, EvaluatorMessage, GlobalEnvironmentManager};
 use crate::diagnostics::Result;
-use crossbeam::channel::{self, Sender, Receiver};
+use crossbeam::channel::{self, Receiver, Sender};
 use std::sync::{Arc, RwLock};
-use std::thread::{self, ThreadId, JoinHandle};
+use std::thread::{self, JoinHandle, ThreadId};
 use std::time::{Duration, Instant};
 
 /// Thread pool for managing multiple Scheme evaluator threads.
@@ -131,7 +131,8 @@ impl ThreadPool {
             return Err(crate::diagnostics::Error::runtime_error(
                 "Thread pool size must be greater than 0".to_string(),
                 None,
-            ).boxed());
+            )
+            .boxed());
         }
 
         let work_queue = Arc::new(crossbeam::queue::SegQueue::new());
@@ -183,7 +184,7 @@ impl ThreadPool {
         pool_stats: Arc<RwLock<ThreadPoolStats>>,
     ) -> Result<WorkerThread> {
         let (worker_sender, worker_receiver) = channel::unbounded();
-        
+
         // Clone what we need for the thread
         let worker_global_env = global_env.clone();
         let worker_effect_coordinator = effect_coordinator.clone();
@@ -229,16 +230,13 @@ impl ThreadPool {
         pool_stats: Arc<RwLock<ThreadPoolStats>>,
     ) -> Result<()> {
         let thread_id = thread::current().id();
-        
+
         // Register this thread with the effect coordinator
         effect_coordinator.register_thread(thread_id);
-        
+
         // Create local evaluator
-        let (evaluator_worker, _) = EvaluatorWorker::new(
-            worker_id,
-            global_env.clone(),
-            effect_coordinator.clone(),
-        );
+        let (evaluator_worker, _) =
+            EvaluatorWorker::new(worker_id, global_env.clone(), effect_coordinator.clone());
 
         // Main worker loop
         loop {
@@ -257,12 +255,12 @@ impl ThreadPool {
 
             if let Some(msg) = message {
                 let start_time = Instant::now();
-                
+
                 // Process the message
                 let result = Self::process_worker_message(msg, &evaluator_worker);
-                
+
                 let elapsed = start_time.elapsed();
-                
+
                 // Update statistics
                 Self::update_worker_stats(&pool_stats, elapsed, result.is_ok());
             } else {
@@ -273,7 +271,7 @@ impl ThreadPool {
 
         // Unregister from effect coordinator
         effect_coordinator.unregister_thread(thread_id);
-        
+
         Ok(())
     }
 
@@ -285,14 +283,21 @@ impl ThreadPool {
         // For now, we'll handle messages directly here
         // In a full implementation, this would delegate to the evaluator worker
         match message {
-            EvaluatorMessage::Evaluate { expr: _, span: _, sender } => {
+            EvaluatorMessage::Evaluate {
+                expr: _,
+                span: _,
+                sender,
+            } => {
                 // Placeholder evaluation - just return unspecified
                 let _ = sender.send(Ok(crate::eval::Value::Unspecified));
             }
             EvaluatorMessage::DefineGlobal { name: _, value: _ } => {
                 // Placeholder - global definitions would be handled here
             }
-            EvaluatorMessage::ImportModule { import_spec: _, sender } => {
+            EvaluatorMessage::ImportModule {
+                import_spec: _,
+                sender,
+            } => {
                 // Placeholder - module import would be handled here
                 let _ = sender.send(Ok(std::collections::HashMap::new()));
             }
@@ -300,7 +305,7 @@ impl ThreadPool {
                 // Worker-level shutdown would be handled here
             }
         }
-        
+
         Ok(())
     }
 
@@ -311,19 +316,20 @@ impl ThreadPool {
         success: bool,
     ) {
         let mut stats = pool_stats.write().unwrap();
-        
+
         if success {
             stats.total_tasks_completed += 1;
         } else {
             stats.total_tasks_failed += 1;
         }
-        
+
         // Update average task time (simple moving average)
         let total_completed = stats.total_tasks_completed;
         if total_completed > 0 {
             let current_avg = stats.average_task_time;
             stats.average_task_time = Duration::from_nanos(
-                (current_avg.as_nanos() as u64 * (total_completed - 1) + elapsed.as_nanos() as u64) / total_completed
+                (current_avg.as_nanos() as u64 * (total_completed - 1) + elapsed.as_nanos() as u64)
+                    / total_completed,
             );
         } else {
             stats.average_task_time = elapsed;
@@ -332,16 +338,20 @@ impl ThreadPool {
 
     /// Submits work to the thread pool.
     pub fn submit_work(&self, message: EvaluatorMessage) -> Result<()> {
-        if self.shutdown_signal.load(std::sync::atomic::Ordering::Relaxed) {
+        if self
+            .shutdown_signal
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
             return Err(crate::diagnostics::Error::runtime_error(
                 "Cannot submit work to shutdown thread pool".to_string(),
                 None,
-            ).boxed());
+            )
+            .boxed());
         }
 
         // Add to global work queue for work stealing
         self.work_queue.push(message);
-        
+
         // Update submitted task count
         {
             let mut stats = self.stats.write().unwrap();
@@ -357,13 +367,14 @@ impl ThreadPool {
             return Err(crate::diagnostics::Error::runtime_error(
                 "No workers available in thread pool".to_string(),
                 None,
-            ).boxed());
+            )
+            .boxed());
         }
 
         // For now, just use the first worker
         // In a full implementation, this would use load balancing
         let worker = &self.workers[0];
-        
+
         Ok(EvaluatorHandle {
             thread_id: worker.thread_id.unwrap_or_else(|| thread::current().id()),
             sender: worker.sender.clone(),
@@ -378,15 +389,16 @@ impl ThreadPool {
 
     /// Gets current thread pool statistics.
     pub fn statistics(&self) -> ThreadPoolStats {
-        let stats = self.stats.read().unwrap();
+        let stats = self.stats.try_read().unwrap();
         stats.clone()
     }
 
     /// Shuts down the thread pool gracefully.
     pub async fn shutdown(mut self) -> Result<()> {
         // Signal shutdown to all workers
-        self.shutdown_signal.store(true, std::sync::atomic::Ordering::Relaxed);
-        
+        self.shutdown_signal
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+
         // Send shutdown messages to all workers
         for worker in &self.workers {
             let _ = worker.sender.send(EvaluatorMessage::Shutdown);
@@ -414,12 +426,14 @@ impl ThreadPool {
 
     /// Checks if the thread pool is running.
     pub fn is_running(&self) -> bool {
-        !self.shutdown_signal.load(std::sync::atomic::Ordering::Relaxed)
+        !self
+            .shutdown_signal
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Gets the number of active workers.
     pub fn active_worker_count(&self) -> usize {
-        let stats = self.stats.read().unwrap();
+        let stats = self.stats.try_read().unwrap();
         stats.active_workers
     }
 
@@ -432,8 +446,9 @@ impl ThreadPool {
 impl Drop for ThreadPool {
     fn drop(&mut self) {
         // Signal shutdown
-        self.shutdown_signal.store(true, std::sync::atomic::Ordering::Relaxed);
-        
+        self.shutdown_signal
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+
         // Try to join remaining threads
         let workers = std::mem::take(&mut self.workers);
         for mut worker in workers {

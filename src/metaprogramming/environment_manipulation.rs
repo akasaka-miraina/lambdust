@@ -13,10 +13,10 @@
 //! - Memory pressure: memory_pressure.rs
 
 // Re-export all migrated structures for backward compatibility
-pub use super::environment_management::*;
 pub use super::environment_hierarchy::*;
+pub use super::environment_management::*;
 pub use super::environment_tracking::*;
-pub use super::module_management::*;
-pub use super::memory_management::*;
 pub use super::gc_policy::*;
+pub use super::memory_management::*;
 pub use super::memory_pressure::*;
+pub use super::module_management::*;

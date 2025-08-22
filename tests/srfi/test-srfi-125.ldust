@@ -1,0 +1,573 @@
+#!/usr/bin/env lambdust
+;; Test file: SRFI-125 Hash Tables
+;; Purpose: Comprehensive test suite for SRFI-125 hash table procedures
+;; Tests all hash table operations, mutation, conversion, and edge cases
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test))
+
+;; =============================================================================
+;; BASIC FUNCTIONALITY TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-125 Basic Hash Table Operations"
+  
+  (test "make-hash-table creates empty hash tables"
+    (define ht1 (make-hash-table))
+    (assert-true (hash-table? ht1))
+    (assert-true (hash-table-empty? ht1))
+    (assert-equal 0 (hash-table-size ht1))
+    
+    ;; Hash tables with same constructor are different objects
+    (define ht2 (make-hash-table))
+    (assert-true (hash-table? ht2))
+    (assert-false (eq? ht1 ht2)))
+  
+  (test "hash-table constructor with initial data"
+    (define ht (hash-table default-comparator 'a 1 'b 2 'c 3))
+    (assert-true (hash-table? ht))
+    (assert-false (hash-table-empty? ht))
+    (assert-equal 3 (hash-table-size ht))
+    
+    ;; Verify initial data
+    (assert-true (hash-table-contains? ht 'a))
+    (assert-true (hash-table-contains? ht 'b))
+    (assert-true (hash-table-contains? ht 'c))
+    (assert-equal 1 (hash-table-ref ht 'a))
+    (assert-equal 2 (hash-table-ref ht 'b))
+    (assert-equal 3 (hash-table-ref ht 'c)))
+  
+  (test "hash-table? predicate correctly identifies hash tables"
+    (define ht (make-hash-table))
+    (assert-true (hash-table? ht))
+    
+    ;; Non-hash-tables should return #f
+    (assert-false (hash-table? 42))
+    (assert-false (hash-table? "string"))
+    (assert-false (hash-table? '(1 2 3)))
+    (assert-false (hash-table? #t))
+    (assert-false (hash-table? #f))
+    (assert-false (hash-table? '()))
+    (assert-false (hash-table? #(1 2 3)))
+    (assert-false (hash-table? (lambda (x) x)))
+    (assert-false (hash-table? +)))
+  
+  (test "alist->hash-table conversion"
+    (define alist '((a . 1) (b . 2) (c . 3)))
+    (define ht (alist->hash-table alist))
+    (assert-true (hash-table? ht))
+    (assert-equal 3 (hash-table-size ht))
+    
+    ;; Verify converted data
+    (assert-equal 1 (hash-table-ref ht 'a))
+    (assert-equal 2 (hash-table-ref ht 'b))
+    (assert-equal 3 (hash-table-ref ht 'c))
+    
+    ;; Empty alist
+    (define empty-ht (alist->hash-table '()))
+    (assert-true (hash-table? empty-ht))
+    (assert-true (hash-table-empty? empty-ht))))
+
+;; =============================================================================
+;; ACCESS AND MUTATION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-125 Hash Table Access and Mutation"
+  
+  (test "hash-table-ref and hash-table-set! basic operations"
+    (define ht (make-hash-table))
+    
+    ;; Set some values
+    (hash-table-set! ht 'key1 "value1")
+    (hash-table-set! ht 'key2 100)
+    (hash-table-set! ht 42 'number-key)
+    
+    ;; Retrieve values
+    (assert-equal "value1" (hash-table-ref ht 'key1))
+    (assert-equal 100 (hash-table-ref ht 'key2))
+    (assert-equal 'number-key (hash-table-ref ht 42))
+    
+    ;; Size should be updated
+    (assert-equal 3 (hash-table-size ht))
+    
+    ;; Contains check
+    (assert-true (hash-table-contains? ht 'key1))
+    (assert-true (hash-table-contains? ht 'key2))
+    (assert-true (hash-table-contains? ht 42))
+    (assert-false (hash-table-contains? ht 'nonexistent)))
+  
+  (test "hash-table-ref with failure values"
+    (define ht (make-hash-table))
+    (hash-table-set! ht 'existing "value")
+    
+    ;; Existing key
+    (assert-equal "value" (hash-table-ref ht 'existing 'default))
+    
+    ;; Non-existing key with default
+    (assert-equal 'default (hash-table-ref ht 'nonexistent 'default))
+    (assert-equal #f (hash-table-ref ht 'nonexistent #f))
+    (assert-equal 999 (hash-table-ref ht 'nonexistent 999))
+    
+    ;; hash-table-ref/default
+    (assert-equal "value" (hash-table-ref/default ht 'existing 'default))
+    (assert-equal 'default (hash-table-ref/default ht 'nonexistent 'default)))
+  
+  (test "hash-table-set! multiple key-value pairs"
+    (define ht (make-hash-table))
+    
+    ;; Set multiple pairs at once
+    (hash-table-set! ht 'a 1 'b 2 'c 3 'd 4)
+    
+    (assert-equal 4 (hash-table-size ht))
+    (assert-equal 1 (hash-table-ref ht 'a))
+    (assert-equal 2 (hash-table-ref ht 'b))
+    (assert-equal 3 (hash-table-ref ht 'c))
+    (assert-equal 4 (hash-table-ref ht 'd))
+    
+    ;; Update existing values
+    (hash-table-set! ht 'a 10 'b 20)
+    (assert-equal 4 (hash-table-size ht))  ; Size unchanged
+    (assert-equal 10 (hash-table-ref ht 'a))
+    (assert-equal 20 (hash-table-ref ht 'b)))
+  
+  (test "hash-table-delete! operations"
+    (define ht (hash-table default-comparator 'a 1 'b 2 'c 3 'd 4))
+    (assert-equal 4 (hash-table-size ht))
+    
+    ;; Delete single key
+    (define deleted-count (hash-table-delete! ht 'a))
+    (assert-equal 1 deleted-count)
+    (assert-equal 3 (hash-table-size ht))
+    (assert-false (hash-table-contains? ht 'a))
+    
+    ;; Delete multiple keys
+    (define deleted-count2 (hash-table-delete! ht 'b 'c 'nonexistent))
+    (assert-equal 2 deleted-count2)  ; Only 'b and 'c existed
+    (assert-equal 1 (hash-table-size ht))
+    (assert-false (hash-table-contains? ht 'b))
+    (assert-false (hash-table-contains? ht 'c))
+    (assert-true (hash-table-contains? ht 'd))
+    
+    ;; Delete from empty areas
+    (define deleted-count3 (hash-table-delete! ht 'nonexistent))
+    (assert-equal 0 deleted-count3)
+    (assert-equal 1 (hash-table-size ht)))
+  
+  (test "hash-table-intern! operation"
+    (define ht (make-hash-table))
+    
+    ;; Intern new key
+    (define result1 (hash-table-intern! ht 'new-key "new-value"))
+    (assert-equal "new-value" result1)
+    (assert-equal "new-value" (hash-table-ref ht 'new-key))
+    (assert-equal 1 (hash-table-size ht))
+    
+    ;; Intern existing key (should return existing value, not change it)
+    (define result2 (hash-table-intern! ht 'new-key "different-value"))
+    (assert-equal "new-value" result2)  ; Returns existing value
+    (assert-equal "new-value" (hash-table-ref ht 'new-key))  ; Value unchanged
+    (assert-equal 1 (hash-table-size ht)))
+  
+  (test "hash-table-clear! operation"
+    (define ht (hash-table default-comparator 'a 1 'b 2 'c 3))
+    (assert-equal 3 (hash-table-size ht))
+    (assert-false (hash-table-empty? ht))
+    
+    ;; Clear the hash table
+    (hash-table-clear! ht)
+    (assert-equal 0 (hash-table-size ht))
+    (assert-true (hash-table-empty? ht))
+    (assert-false (hash-table-contains? ht 'a))
+    (assert-false (hash-table-contains? ht 'b))
+    (assert-false (hash-table-contains? ht 'c))
+    
+    ;; Can still be used after clearing
+    (hash-table-set! ht 'new-key "new-value")
+    (assert-equal 1 (hash-table-size ht))
+    (assert-equal "new-value" (hash-table-ref ht 'new-key))))
+
+;; =============================================================================
+;; WHOLE TABLE OPERATIONS TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-125 Whole Table Operations"
+  
+  (test "hash-table-size and hash-table-empty?"
+    (define ht (make-hash-table))
+    
+    ;; Initially empty
+    (assert-equal 0 (hash-table-size ht))
+    (assert-true (hash-table-empty? ht))
+    
+    ;; Add elements
+    (hash-table-set! ht 'a 1)
+    (assert-equal 1 (hash-table-size ht))
+    (assert-false (hash-table-empty? ht))
+    
+    (hash-table-set! ht 'b 2)
+    (hash-table-set! ht 'c 3)
+    (assert-equal 3 (hash-table-size ht))
+    
+    ;; Remove elements
+    (hash-table-delete! ht 'b)
+    (assert-equal 2 (hash-table-size ht))
+    
+    ;; Clear all
+    (hash-table-clear! ht)
+    (assert-equal 0 (hash-table-size ht))
+    (assert-true (hash-table-empty? ht)))
+  
+  (test "hash-table-keys operation"
+    (define ht (make-hash-table))
+    
+    ;; Empty table
+    (define empty-keys (hash-table-keys ht))
+    (assert-true (null? empty-keys))
+    
+    ;; Non-empty table
+    (hash-table-set! ht 'a 1 'b 2 'c 3)
+    (define keys (hash-table-keys ht))
+    (assert-equal 3 (length keys))
+    
+    ;; All keys should be present (order not guaranteed)
+    (assert-true (member 'a keys))
+    (assert-true (member 'b keys))
+    (assert-true (member 'c keys))
+    
+    ;; No duplicates
+    (assert-equal (length keys) (length (delete-duplicates keys))))
+  
+  (test "hash-table-values operation"
+    (define ht (make-hash-table))
+    
+    ;; Empty table
+    (define empty-values (hash-table-values ht))
+    (assert-true (null? empty-values))
+    
+    ;; Non-empty table
+    (hash-table-set! ht 'a 10 'b 20 'c 30)
+    (define values (hash-table-values ht))
+    (assert-equal 3 (length values))
+    
+    ;; All values should be present (order not guaranteed)
+    (assert-true (member 10 values))
+    (assert-true (member 20 values))
+    (assert-true (member 30 values)))
+  
+  (test "hash-table-entries operation"
+    (define ht (make-hash-table))
+    
+    ;; Non-empty table
+    (hash-table-set! ht 'x 100 'y 200)
+    (define entries (hash-table-entries ht))
+    
+    ;; entries returns list of (keys values)
+    (assert-equal 2 (length entries))
+    (define keys-list (car entries))
+    (define values-list (cadr entries))
+    
+    (assert-equal 2 (length keys-list))
+    (assert-equal 2 (length values-list))
+    (assert-true (member 'x keys-list))
+    (assert-true (member 'y keys-list))
+    (assert-true (member 100 values-list))
+    (assert-true (member 200 values-list)))
+  
+  (test "hash-table-pop! operation"
+    (define ht (make-hash-table))
+    
+    ;; Add some data
+    (hash-table-set! ht 'key1 "value1")
+    (hash-table-set! ht 'key2 "value2")
+    (assert-equal 2 (hash-table-size ht))
+    
+    ;; Pop arbitrary element
+    (define popped (hash-table-pop! ht))
+    (assert-equal 2 (length popped))  ; Should return (key value) pair
+    (assert-equal 1 (hash-table-size ht))
+    
+    ;; The popped key should no longer be in table
+    (define popped-key (car popped))
+    (define popped-value (cadr popped))
+    (assert-false (hash-table-contains? ht popped-key))
+    
+    ;; Pop last element
+    (define popped2 (hash-table-pop! ht))
+    (assert-equal 2 (length popped2))
+    (assert-equal 0 (hash-table-size ht))
+    (assert-true (hash-table-empty? ht))))
+
+;; =============================================================================
+;; CONVERSION AND COPYING TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-125 Conversion and Copying"
+  
+  (test "hash-table->alist conversion"
+    (define ht (hash-table default-comparator 'a 1 'b 2 'c 3))
+    (define alist (hash-table->alist ht))
+    
+    ;; Should be proper alist
+    (assert-equal 3 (length alist))
+    (assert-true (every (lambda (pair) 
+                          (and (pair? pair) 
+                               (symbol? (car pair))
+                               (number? (cdr pair))))
+                        alist))
+    
+    ;; Should contain all original data
+    (assert-true (member '(a . 1) alist))
+    (assert-true (member '(b . 2) alist))
+    (assert-true (member '(c . 3) alist))
+    
+    ;; Round-trip conversion
+    (define ht2 (alist->hash-table alist))
+    (assert-equal (hash-table-size ht) (hash-table-size ht2))
+    (assert-equal 1 (hash-table-ref ht2 'a))
+    (assert-equal 2 (hash-table-ref ht2 'b))
+    (assert-equal 3 (hash-table-ref ht2 'c)))
+  
+  (test "hash-table-copy operation"
+    (define ht1 (hash-table default-comparator 'x 10 'y 20))
+    (define ht2 (hash-table-copy ht1))
+    
+    ;; Copy should be different object
+    (assert-false (eq? ht1 ht2))
+    
+    ;; But with same contents
+    (assert-equal (hash-table-size ht1) (hash-table-size ht2))
+    (assert-equal (hash-table-ref ht1 'x) (hash-table-ref ht2 'x))
+    (assert-equal (hash-table-ref ht1 'y) (hash-table-ref ht2 'y))
+    
+    ;; Modifications to one shouldn't affect the other
+    (hash-table-set! ht1 'z 30)
+    (assert-true (hash-table-contains? ht1 'z))
+    (assert-false (hash-table-contains? ht2 'z))
+    
+    (hash-table-set! ht2 'w 40)
+    (assert-false (hash-table-contains? ht1 'w))
+    (assert-true (hash-table-contains? ht2 'w)))
+  
+  (test "hash-table-empty-copy operation"
+    (define ht1 (hash-table default-comparator 'a 1 'b 2))
+    (define ht2 (hash-table-empty-copy ht1))
+    
+    ;; Should be different object
+    (assert-false (eq? ht1 ht2))
+    
+    ;; But empty
+    (assert-true (hash-table-empty? ht2))
+    (assert-equal 0 (hash-table-size ht2))
+    
+    ;; Original should be unchanged
+    (assert-equal 2 (hash-table-size ht1))
+    
+    ;; Can add to empty copy
+    (hash-table-set! ht2 'new-key "new-value")
+    (assert-equal 1 (hash-table-size ht2))
+    (assert-equal 2 (hash-table-size ht1))))
+
+;; =============================================================================
+;; HASH TABLE PROPERTIES AND METADATA TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-125 Hash Table Properties"
+  
+  (test "hash-table-mutable? predicate"
+    (define ht (make-hash-table))
+    
+    ;; All hash tables in our implementation are mutable
+    (assert-true (hash-table-mutable? ht))
+    
+    ;; Test with populated table
+    (hash-table-set! ht 'key "value")
+    (assert-true (hash-table-mutable? ht)))
+  
+  (test "hash-table=? equality predicate"
+    (define ht1 (hash-table default-comparator 'a 1 'b 2))
+    (define ht2 (hash-table default-comparator 'a 1 'b 2))
+    (define ht3 (hash-table-copy ht1))
+    
+    ;; Same reference
+    (assert-true (hash-table=? ht1 ht1))
+    
+    ;; Different tables with same content
+    ;; Note: Our implementation uses reference equality for simplicity
+    ;; In a full implementation, this would check content equality
+    (assert-false (hash-table=? ht1 ht2))
+    (assert-false (hash-table=? ht1 ht3))
+    
+    ;; Multiple arguments
+    (assert-true (hash-table=? ht1 ht1 ht1)))
+  
+  (test "hash table identity and mutation"
+    (define ht (make-hash-table))
+    (define alias ht)
+    
+    ;; Same object
+    (assert-true (eq? ht alias))
+    
+    ;; Mutation through one reference affects both
+    (hash-table-set! ht 'key1 "value1")
+    (assert-equal "value1" (hash-table-ref alias 'key1))
+    
+    (hash-table-set! alias 'key2 "value2")
+    (assert-equal "value2" (hash-table-ref ht 'key2))
+    
+    ;; Both references see same size
+    (assert-equal (hash-table-size ht) (hash-table-size alias))))
+
+;; =============================================================================
+;; EDGE CASES AND ERROR HANDLING TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-125 Edge Cases and Error Handling"
+  
+  (test "hash tables with special values"
+    (define ht (make-hash-table))
+    
+    ;; Keys and values can be various types
+    (hash-table-set! ht #f "false-key")
+    (hash-table-set! ht '() "empty-list-key")
+    (hash-table-set! ht 0 "zero-key")
+    (hash-table-set! ht "" "empty-string-key")
+    
+    ;; Special values as values
+    (hash-table-set! ht 'false-value #f)
+    (hash-table-set! ht 'empty-list-value '())
+    (hash-table-set! ht 'zero-value 0)
+    
+    ;; All should be retrievable
+    (assert-equal "false-key" (hash-table-ref ht #f))
+    (assert-equal "empty-list-key" (hash-table-ref ht '()))
+    (assert-equal "zero-key" (hash-table-ref ht 0))
+    (assert-equal "empty-string-key" (hash-table-ref ht ""))
+    
+    (assert-equal #f (hash-table-ref ht 'false-value))
+    (assert-equal '() (hash-table-ref ht 'empty-list-value))
+    (assert-equal 0 (hash-table-ref ht 'zero-value)))
+  
+  (test "error cases for hash table operations"
+    (define ht (make-hash-table))
+    
+    ;; hash-table-ref on non-existent key without default should error
+    (assert-error (hash-table-ref ht 'nonexistent))
+    
+    ;; Operations on non-hash-table should error
+    (assert-error (hash-table-ref 42 'key))
+    (assert-error (hash-table-set! "not-a-table" 'key 'value))
+    (assert-error (hash-table-contains? '(1 2 3) 'key))
+    (assert-error (hash-table-size #t))
+    (assert-error (hash-table-empty? 'not-a-table))
+    
+    ;; Wrong number of arguments
+    (assert-error (hash-table-ref))
+    (assert-error (hash-table-set!))
+    (assert-error (hash-table-set! ht 'key))  ; Missing value
+    (assert-error (hash-table-contains?))
+    (assert-error (hash-table-contains? ht))
+    
+    ;; hash-table-pop! on empty table should error
+    (assert-error (hash-table-pop! ht)))
+  
+  (test "hash table with complex nested structures"
+    (define ht (make-hash-table))
+    
+    ;; Complex keys and values
+    (define complex-key '((nested . list) (with . pairs)))
+    (define complex-value #((vector with) (nested structures)))
+    
+    (hash-table-set! ht complex-key complex-value)
+    (assert-true (hash-table-contains? ht complex-key))
+    (assert-equal complex-value (hash-table-ref ht complex-key))
+    
+    ;; Hash table as value
+    (define inner-ht (hash-table default-comparator 'inner-key "inner-value"))
+    (hash-table-set! ht 'table-key inner-ht)
+    
+    (define retrieved-table (hash-table-ref ht 'table-key))
+    (assert-true (hash-table? retrieved-table))
+    (assert-equal "inner-value" (hash-table-ref retrieved-table 'inner-key)))
+  
+  (test "large hash table operations"
+    ;; Test with many entries to check performance and correctness
+    (define ht (make-hash-table))
+    (define n 100)
+    
+    ;; Fill with many entries
+    (do ((i 0 (+ i 1)))
+        ((>= i n))
+      (hash-table-set! ht i (* i i)))
+    
+    ;; Verify size
+    (assert-equal n (hash-table-size ht))
+    (assert-false (hash-table-empty? ht))
+    
+    ;; Verify all entries
+    (do ((i 0 (+ i 1)))
+        ((>= i n))
+      (assert-true (hash-table-contains? ht i))
+      (assert-equal (* i i) (hash-table-ref ht i)))
+    
+    ;; Delete half the entries
+    (do ((i 0 (+ i 2)))
+        ((>= i n))
+      (hash-table-delete! ht i))
+    
+    ;; Verify remaining entries
+    (assert-equal (quotient n 2) (hash-table-size ht))
+    (do ((i 1 (+ i 2)))
+        ((>= i n))
+      (assert-true (hash-table-contains? ht i))
+      (assert-equal (* i i) (hash-table-ref ht i)))))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(define (run-srfi-125-tests)
+  (run-test-suite "SRFI-125 Basic Hash Table Operations")
+  (run-test-suite "SRFI-125 Hash Table Access and Mutation")
+  (run-test-suite "SRFI-125 Whole Table Operations")
+  (run-test-suite "SRFI-125 Conversion and Copying")
+  (run-test-suite "SRFI-125 Hash Table Properties")
+  (run-test-suite "SRFI-125 Edge Cases and Error Handling")
+  
+  (display "\n=== SRFI-125 Hash Tables Test Suite Complete ===\n")
+  (test-summary))
+
+;; Helper procedures for testing
+(define (every pred lst)
+  "Check if predicate is true for all elements"
+  (if (null? lst)
+      #t
+      (if (pred (car lst))
+          (every pred (cdr lst))
+          #f)))
+
+(define (member item lst)
+  "Check if item is member of list"
+  (cond
+    ((null? lst) #f)
+    ((equal? item (car lst)) #t)
+    (else (member item (cdr lst)))))
+
+(define (delete-duplicates lst)
+  "Remove duplicate elements from list"
+  (if (null? lst)
+      '()
+      (if (member (car lst) (cdr lst))
+          (delete-duplicates (cdr lst))
+          (cons (car lst) (delete-duplicates (cdr lst))))))
+
+;; Simple comparator for testing
+(define default-comparator
+  (make-comparator (lambda (x) #t)  ; type-test
+                   equal?           ; equality
+                   #f               ; comparison (not needed)
+                   #f))             ; hash (use default)
+
+;; Run tests if this file is executed directly
+(when (and (defined? 'command-line) (not (null? (command-line))))
+  (run-srfi-125-tests))

@@ -4,9 +4,9 @@
 //! from dynamic to static to dependent typing, maintaining R7RS compatibility.
 
 use super::{DependentType, SchemeIntegration};
-use crate::eval::{Value, Environment};
 use crate::ast::{Expr, Literal};
 use crate::diagnostics::{Error, Result};
+use crate::eval::{Environment, Value};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -30,12 +30,16 @@ pub enum GradualType {
     Dynamic,
     /// Contract type with runtime predicate.
     Contract {
+        /// Name of the contract type
         name: String,
+        /// Runtime predicate for contract checking
         predicate: Value,
     },
     /// Static type.
     Static {
+        /// Name of the static type
         name: String,
+        /// Type parameters for parameterized types
         parameters: Vec<GradualType>,
     },
     /// Dependent type.
@@ -44,7 +48,9 @@ pub enum GradualType {
     Variable(String),
     /// Function type.
     Function {
+        /// Parameter types of the function
         parameters: Vec<GradualType>,
+        /// Return type of the function
         return_type: Box<GradualType>,
     },
 }
@@ -145,7 +151,7 @@ impl GradualTypingSystem {
             type_equivalence_cache: HashMap::new(),
             migration_rules: HashMap::new(),
         };
-        
+
         system.initialize_migration_rules();
         system.initialize_r7rs_contracts();
         Ok(system)
@@ -161,9 +167,9 @@ impl GradualTypingSystem {
                 converter: "dynamic_to_contracts".to_string(),
                 constraints: vec![],
                 cost: 2,
-            }
+            },
         );
-        
+
         // Contracts -> Static: Conditional, medium cost
         self.migration_rules.insert(
             (TypingLevel::Contracts, TypingLevel::Static),
@@ -172,9 +178,9 @@ impl GradualTypingSystem {
                 converter: "contracts_to_static".to_string(),
                 constraints: vec!["all_contracts_deterministic".to_string()],
                 cost: 5,
-            }
+            },
         );
-        
+
         // Static -> Dependent: Conditional, high cost
         self.migration_rules.insert(
             (TypingLevel::Static, TypingLevel::Dependent),
@@ -183,9 +189,9 @@ impl GradualTypingSystem {
                 converter: "static_to_dependent".to_string(),
                 constraints: vec!["no_recursive_types".to_string()],
                 cost: 8,
-            }
+            },
         );
-        
+
         // Downward migrations (generally discouraged but allowed)
         self.migration_rules.insert(
             (TypingLevel::Contracts, TypingLevel::Dynamic),
@@ -194,9 +200,9 @@ impl GradualTypingSystem {
                 converter: "contracts_to_dynamic".to_string(),
                 constraints: vec!["safety_warning".to_string()],
                 cost: 1,
-            }
+            },
         );
-        
+
         self.migration_rules.insert(
             (TypingLevel::Static, TypingLevel::Contracts),
             MigrationRule {
@@ -204,9 +210,9 @@ impl GradualTypingSystem {
                 converter: "static_to_contracts".to_string(),
                 constraints: vec!["safety_warning".to_string()],
                 cost: 3,
-            }
+            },
         );
-        
+
         self.migration_rules.insert(
             (TypingLevel::Dependent, TypingLevel::Static),
             MigrationRule {
@@ -214,9 +220,9 @@ impl GradualTypingSystem {
                 converter: "dependent_to_static".to_string(),
                 constraints: vec!["type_erasure_warning".to_string()],
                 cost: 6,
-            }
+            },
         );
-        
+
         // Skip-level migrations
         self.migration_rules.insert(
             (TypingLevel::Dynamic, TypingLevel::Static),
@@ -225,9 +231,9 @@ impl GradualTypingSystem {
                 converter: "dynamic_to_static_via_contracts".to_string(),
                 constraints: vec!["intermediate_contracts_required".to_string()],
                 cost: 7,
-            }
+            },
         );
-        
+
         self.migration_rules.insert(
             (TypingLevel::Dynamic, TypingLevel::Dependent),
             MigrationRule {
@@ -235,7 +241,7 @@ impl GradualTypingSystem {
                 converter: "dynamic_to_dependent_via_static".to_string(),
                 constraints: vec!["full_type_annotation_required".to_string()],
                 cost: 10,
-            }
+            },
         );
     }
 
@@ -261,11 +267,11 @@ impl GradualTypingSystem {
             ("procedure?", "procedure"),
             ("port?", "port"),
         ];
-        
+
         for (predicate_name, type_name) in predicates {
             self.contracts.insert(
                 type_name.to_string(),
-                Value::symbol_from_str(predicate_name)
+                Value::symbol_from_str(predicate_name),
             );
         }
     }
@@ -273,30 +279,39 @@ impl GradualTypingSystem {
     /// Set the current typing level with migration validation.
     pub fn set_typing_level(&mut self, level: TypingLevel) -> Result<()> {
         // Check if migration is allowed
-        if let Some(rule) = self.migration_rules.get(&(self.current_level.clone(), level.clone())) {
+        if let Some(rule) = self
+            .migration_rules
+            .get(&(self.current_level.clone(), level.clone()))
+        {
             if !rule.allowed {
                 return Err(Box::new(Error::type_error(
-                    format!("Migration from {:?} to {:?} is not allowed", self.current_level, level),
-                    crate::diagnostics::Span::default()
+                    format!(
+                        "Migration from {:?} to {:?} is not allowed",
+                        self.current_level, level
+                    ),
+                    crate::diagnostics::Span::default(),
                 )));
             }
-            
+
             // Validate constraints
             for constraint in &rule.constraints {
                 self.validate_migration_constraint(constraint)?;
             }
-            
+
             // Perform the migration
             let current_level = self.current_level.clone();
             self.migrate_types(&current_level, &level)?;
-            
+
             self.migration_path.push(level.clone());
             self.current_level = level;
             Ok(())
         } else {
             Err(Box::new(Error::type_error(
-                format!("No migration rule defined from {:?} to {:?}", self.current_level, level),
-                crate::diagnostics::Span::default()
+                format!(
+                    "No migration rule defined from {:?} to {:?}",
+                    self.current_level, level
+                ),
+                crate::diagnostics::Span::default(),
             )))
         }
     }
@@ -310,55 +325,59 @@ impl GradualTypingSystem {
                     if !self.is_contract_deterministic(contract) {
                         return Err(Box::new(Error::type_error(
                             format!("Contract '{}' is non-deterministic", name),
-                            crate::diagnostics::Span::default()
+                            crate::diagnostics::Span::default(),
                         )));
                     }
                 }
                 Ok(())
-            },
+            }
             "no_recursive_types" => {
                 // Check for recursive type definitions
                 for (name, gradual_type) in &self.type_environment {
                     if self.has_recursive_reference(gradual_type, name) {
                         return Err(Box::new(Error::type_error(
                             format!("Type '{}' contains recursive references", name),
-                            crate::diagnostics::Span::default()
+                            crate::diagnostics::Span::default(),
                         )));
                     }
                 }
                 Ok(())
-            },
+            }
             "safety_warning" => {
                 // Just log a warning for downward migrations
                 eprintln!("Warning: Downward type migration may reduce safety guarantees");
                 Ok(())
-            },
+            }
             "type_erasure_warning" => {
                 eprintln!("Warning: Migration will erase dependent type information");
                 Ok(())
-            },
+            }
             "intermediate_contracts_required" => {
                 // For skip-level migrations, ensure intermediate contracts exist
                 if self.contracts.is_empty() {
                     return Err(Box::new(Error::type_error(
-                        "Skip-level migration requires intermediate contract definitions".to_string(),
-                        crate::diagnostics::Span::default()
+                        "Skip-level migration requires intermediate contract definitions"
+                            .to_string(),
+                        crate::diagnostics::Span::default(),
                     )));
                 }
                 Ok(())
-            },
+            }
             "full_type_annotation_required" => {
                 // Check that all bindings have type annotations
                 for (name, gradual_type) in &self.type_environment {
                     if matches!(gradual_type, GradualType::Dynamic) {
                         return Err(Box::new(Error::type_error(
-                            format!("Variable '{}' requires explicit type annotation for dependent typing", name),
-                            crate::diagnostics::Span::default()
+                            format!(
+                                "Variable '{}' requires explicit type annotation for dependent typing",
+                                name
+                            ),
+                            crate::diagnostics::Span::default(),
                         )));
                     }
                 }
                 Ok(())
-            },
+            }
             _ => {
                 eprintln!("Warning: Unknown migration constraint '{}'", constraint);
                 Ok(())
@@ -370,37 +389,32 @@ impl GradualTypingSystem {
     fn migrate_types(&mut self, from: &TypingLevel, to: &TypingLevel) -> Result<()> {
         let mut new_environment = HashMap::new();
         let old_environment = self.type_environment.clone();
-        
+
         for (name, gradual_type) in &old_environment {
             let migrated_type = self.migrate_gradual_type(gradual_type, from, to)?;
             new_environment.insert(name.clone(), migrated_type);
         }
-        
+
         self.type_environment = new_environment;
         Ok(())
     }
 
     /// Migrate a single gradual type between typing levels.
-    fn migrate_gradual_type(&mut self, gradual_type: &GradualType, from: &TypingLevel, to: &TypingLevel) -> Result<GradualType> {
+    fn migrate_gradual_type(
+        &mut self,
+        gradual_type: &GradualType,
+        from: &TypingLevel,
+        to: &TypingLevel,
+    ) -> Result<GradualType> {
         match (from, to) {
             (TypingLevel::Dynamic, TypingLevel::Contracts) => {
                 self.dynamic_to_contracts(gradual_type)
-            },
-            (TypingLevel::Contracts, TypingLevel::Static) => {
-                self.contracts_to_static(gradual_type)
-            },
-            (TypingLevel::Static, TypingLevel::Dependent) => {
-                self.static_to_dependent(gradual_type)
-            },
-            (TypingLevel::Contracts, TypingLevel::Dynamic) => {
-                Ok(GradualType::Dynamic)
-            },
-            (TypingLevel::Static, TypingLevel::Contracts) => {
-                self.static_to_contracts(gradual_type)
-            },
-            (TypingLevel::Dependent, TypingLevel::Static) => {
-                self.dependent_to_static(gradual_type)
-            },
+            }
+            (TypingLevel::Contracts, TypingLevel::Static) => self.contracts_to_static(gradual_type),
+            (TypingLevel::Static, TypingLevel::Dependent) => self.static_to_dependent(gradual_type),
+            (TypingLevel::Contracts, TypingLevel::Dynamic) => Ok(GradualType::Dynamic),
+            (TypingLevel::Static, TypingLevel::Contracts) => self.static_to_contracts(gradual_type),
+            (TypingLevel::Dependent, TypingLevel::Static) => self.dependent_to_static(gradual_type),
             _ => {
                 // Multi-step migration
                 self.multi_step_migration(gradual_type, from, to)
@@ -417,7 +431,7 @@ impl GradualTypingSystem {
                     name: "any".to_string(),
                     predicate: Value::symbol_from_str("any/c"),
                 })
-            },
+            }
             other => Ok(other.clone()), // Already has more specific type information
         }
     }
@@ -439,12 +453,12 @@ impl GradualTypingSystem {
                     "procedure" => "Procedure",
                     _ => "Any", // Fallback
                 };
-                
+
                 Ok(GradualType::Static {
                     name: static_name.to_string(),
                     parameters: vec![],
                 })
-            },
+            }
             other => Ok(other.clone()),
         }
     }
@@ -481,9 +495,9 @@ impl GradualTypingSystem {
                     },
                     _ => DependentType::Universe(0), // Fallback
                 };
-                
+
                 Ok(GradualType::Dependent(dependent_type))
-            },
+            }
             other => Ok(other.clone()),
         }
     }
@@ -500,12 +514,12 @@ impl GradualTypingSystem {
                     "Symbol" => "symbol?",
                     _ => "any/c",
                 };
-                
+
                 Ok(GradualType::Contract {
                     name: name.clone(),
                     predicate: Value::symbol_from_str(predicate_name),
                 })
-            },
+            }
             other => Ok(other.clone()),
         }
     }
@@ -513,53 +527,63 @@ impl GradualTypingSystem {
     /// Convert dependent type back to static type.
     fn dependent_to_static(&self, gradual_type: &GradualType) -> Result<GradualType> {
         match gradual_type {
-            GradualType::Dependent(dep_type) => {
-                match dep_type {
-                    DependentType::Inductive { name, .. } => {
-                        Ok(GradualType::Static {
-                            name: name.clone(),
-                            parameters: vec![],
-                        })
-                    },
-                    DependentType::Universe(_) => {
-                        Ok(GradualType::Static {
-                            name: "Type".to_string(),
-                            parameters: vec![],
-                        })
-                    },
-                    _ => {
-                        Ok(GradualType::Static {
-                            name: "Complex".to_string(),
-                            parameters: vec![],
-                        })
-                    }
-                }
+            GradualType::Dependent(dep_type) => match dep_type {
+                DependentType::Inductive { name, .. } => Ok(GradualType::Static {
+                    name: name.clone(),
+                    parameters: vec![],
+                }),
+                DependentType::Universe(_) => Ok(GradualType::Static {
+                    name: "Type".to_string(),
+                    parameters: vec![],
+                }),
+                _ => Ok(GradualType::Static {
+                    name: "Complex".to_string(),
+                    parameters: vec![],
+                }),
             },
             other => Ok(other.clone()),
         }
     }
 
     /// Perform multi-step migration through intermediate levels.
-    fn multi_step_migration(&mut self, gradual_type: &GradualType, from: &TypingLevel, to: &TypingLevel) -> Result<GradualType> {
+    fn multi_step_migration(
+        &mut self,
+        gradual_type: &GradualType,
+        from: &TypingLevel,
+        to: &TypingLevel,
+    ) -> Result<GradualType> {
         // Define the canonical path: Dynamic -> Contracts -> Static -> Dependent
         let path = match (from, to) {
             (TypingLevel::Dynamic, TypingLevel::Static) => {
-                vec![TypingLevel::Dynamic, TypingLevel::Contracts, TypingLevel::Static]
-            },
+                vec![
+                    TypingLevel::Dynamic,
+                    TypingLevel::Contracts,
+                    TypingLevel::Static,
+                ]
+            }
             (TypingLevel::Dynamic, TypingLevel::Dependent) => {
-                vec![TypingLevel::Dynamic, TypingLevel::Contracts, TypingLevel::Static, TypingLevel::Dependent]
-            },
+                vec![
+                    TypingLevel::Dynamic,
+                    TypingLevel::Contracts,
+                    TypingLevel::Static,
+                    TypingLevel::Dependent,
+                ]
+            }
             (TypingLevel::Contracts, TypingLevel::Dependent) => {
-                vec![TypingLevel::Contracts, TypingLevel::Static, TypingLevel::Dependent]
-            },
+                vec![
+                    TypingLevel::Contracts,
+                    TypingLevel::Static,
+                    TypingLevel::Dependent,
+                ]
+            }
             _ => return Ok(gradual_type.clone()), // No multi-step needed
         };
-        
+
         let mut current_type = gradual_type.clone();
-        for i in 0..path.len()-1 {
-            current_type = self.migrate_gradual_type(&current_type, &path[i], &path[i+1])?;
+        for i in 0..path.len() - 1 {
+            current_type = self.migrate_gradual_type(&current_type, &path[i], &path[i + 1])?;
         }
-        
+
         Ok(current_type)
     }
 
@@ -577,12 +601,19 @@ impl GradualTypingSystem {
                 if name == type_name {
                     return true;
                 }
-                parameters.iter().any(|param| self.has_recursive_reference(param, type_name))
-            },
-            GradualType::Function { parameters, return_type } => {
-                parameters.iter().any(|param| self.has_recursive_reference(param, type_name)) ||
-                self.has_recursive_reference(return_type, type_name)
-            },
+                parameters
+                    .iter()
+                    .any(|param| self.has_recursive_reference(param, type_name))
+            }
+            GradualType::Function {
+                parameters,
+                return_type,
+            } => {
+                parameters
+                    .iter()
+                    .any(|param| self.has_recursive_reference(param, type_name))
+                    || self.has_recursive_reference(return_type, type_name)
+            }
             _ => false,
         }
     }
@@ -605,41 +636,41 @@ impl GradualTypingSystem {
     /// Validate a value against a contract predicate.
     pub fn validate_contract(&mut self, context: &ContractContext) -> Result<bool> {
         let cache_key = format!("{:?}:{:?}", context.value, context.predicate);
-        
+
         // Check cache first
         if let Some(cached_result) = self.contract_cache.get(&cache_key) {
             return Ok(*cached_result);
         }
 
         let validation_result = self.perform_contract_validation(context)?;
-        
+
         // Cache the result for future use
         self.contract_cache.insert(cache_key, validation_result);
-        
+
         Ok(validation_result)
     }
 
     /// Perform the actual contract validation.
     fn perform_contract_validation(&self, context: &ContractContext) -> Result<bool> {
         use crate::eval::Value;
-        
+
         match &context.predicate {
             Value::Symbol(_symbol_id) => {
                 // For now, we'll handle symbol predicates by pattern matching
                 // In a full implementation, we'd use a symbol table to resolve the name
                 self.validate_symbolic_predicate(&context.predicate, &context.value)
-            },
-            
+            }
+
             Value::Procedure(_) => {
                 // Handle user-defined contract procedures
                 self.validate_procedure_contract(context)
-            },
-            
+            }
+
             _ => {
                 // Invalid contract predicate
                 Err(Box::new(Error::type_error(
                     format!("Invalid contract predicate: {:?}", context.predicate),
-                    crate::diagnostics::Span::default()
+                    crate::diagnostics::Span::default(),
                 )))
             }
         }
@@ -649,7 +680,7 @@ impl GradualTypingSystem {
     fn validate_symbolic_predicate(&self, predicate: &Value, value: &Value) -> Result<bool> {
         // Since we can't easily convert SymbolId back to string without a symbol table,
         // we'll use a different approach: compare against known symbolic predicates
-        
+
         let built_in_predicates = vec![
             (Value::symbol_from_str("number?"), self.is_number(value)),
             (Value::symbol_from_str("integer?"), self.is_integer(value)),
@@ -666,27 +697,33 @@ impl GradualTypingSystem {
             (Value::symbol_from_str("null?"), self.is_null(value)),
             (Value::symbol_from_str("list?"), self.is_list(value)),
             (Value::symbol_from_str("vector?"), self.is_vector(value)),
-            (Value::symbol_from_str("procedure?"), self.is_procedure(value)),
+            (
+                Value::symbol_from_str("procedure?"),
+                self.is_procedure(value),
+            ),
             (Value::symbol_from_str("port?"), self.is_port(value)),
             (Value::symbol_from_str("any/c"), true), // Universal contract
         ];
-        
+
         for (pred_symbol, result) in built_in_predicates {
             if pred_symbol == *predicate {
                 return Ok(result);
             }
         }
-        
+
         // Unknown predicate - assume false for safety
         Ok(false)
     }
 
     // Helper methods for type checking
     fn is_number(&self, value: &Value) -> bool {
-        matches!(value, Value::Literal(crate::ast::Literal::ExactInteger(_))
-                     | Value::Literal(crate::ast::Literal::InexactReal(_))
-                     | Value::Literal(crate::ast::Literal::Rational { .. })
-                     | Value::Literal(crate::ast::Literal::Complex { .. }))
+        matches!(
+            value,
+            Value::Literal(crate::ast::Literal::ExactInteger(_))
+                | Value::Literal(crate::ast::Literal::InexactReal(_))
+                | Value::Literal(crate::ast::Literal::Rational { .. })
+                | Value::Literal(crate::ast::Literal::Complex { .. })
+        )
     }
 
     fn is_integer(&self, value: &Value) -> bool {
@@ -694,31 +731,46 @@ impl GradualTypingSystem {
     }
 
     fn is_rational(&self, value: &Value) -> bool {
-        matches!(value, Value::Literal(crate::ast::Literal::Rational { .. })
-                     | Value::Literal(crate::ast::Literal::ExactInteger(_)))
+        matches!(
+            value,
+            Value::Literal(crate::ast::Literal::Rational { .. })
+                | Value::Literal(crate::ast::Literal::ExactInteger(_))
+        )
     }
 
     fn is_real(&self, value: &Value) -> bool {
-        matches!(value, Value::Literal(crate::ast::Literal::ExactInteger(_))
-                     | Value::Literal(crate::ast::Literal::InexactReal(_))
-                     | Value::Literal(crate::ast::Literal::Rational { .. }))
+        matches!(
+            value,
+            Value::Literal(crate::ast::Literal::ExactInteger(_))
+                | Value::Literal(crate::ast::Literal::InexactReal(_))
+                | Value::Literal(crate::ast::Literal::Rational { .. })
+        )
     }
 
     fn is_complex(&self, value: &Value) -> bool {
-        matches!(value, Value::Literal(crate::ast::Literal::Complex { .. })
-                     | Value::Literal(crate::ast::Literal::ExactInteger(_))
-                     | Value::Literal(crate::ast::Literal::InexactReal(_))
-                     | Value::Literal(crate::ast::Literal::Rational { .. }))
+        matches!(
+            value,
+            Value::Literal(crate::ast::Literal::Complex { .. })
+                | Value::Literal(crate::ast::Literal::ExactInteger(_))
+                | Value::Literal(crate::ast::Literal::InexactReal(_))
+                | Value::Literal(crate::ast::Literal::Rational { .. })
+        )
     }
 
     fn is_exact(&self, value: &Value) -> bool {
-        matches!(value, Value::Literal(crate::ast::Literal::ExactInteger(_))
-                     | Value::Literal(crate::ast::Literal::Rational { .. }))
+        matches!(
+            value,
+            Value::Literal(crate::ast::Literal::ExactInteger(_))
+                | Value::Literal(crate::ast::Literal::Rational { .. })
+        )
     }
 
     fn is_inexact(&self, value: &Value) -> bool {
-        matches!(value, Value::Literal(crate::ast::Literal::InexactReal(_))
-                     | Value::Literal(crate::ast::Literal::Complex { .. }))
+        matches!(
+            value,
+            Value::Literal(crate::ast::Literal::InexactReal(_))
+                | Value::Literal(crate::ast::Literal::Complex { .. })
+        )
     }
 
     fn is_string(&self, value: &Value) -> bool {
@@ -754,7 +806,10 @@ impl GradualTypingSystem {
     }
 
     fn is_procedure(&self, value: &Value) -> bool {
-        matches!(value, Value::Procedure(_) | Value::CaseLambda(_) | Value::Primitive(_))
+        matches!(
+            value,
+            Value::Procedure(_) | Value::CaseLambda(_) | Value::Primitive(_)
+        )
     }
 
     fn is_port(&self, value: &Value) -> bool {
@@ -764,61 +819,82 @@ impl GradualTypingSystem {
     /// Validate against built-in R7RS predicates.
     fn validate_builtin_predicate(&self, predicate_name: &str, value: &Value) -> Result<bool> {
         use crate::eval::Value;
-        
+
         let result = match predicate_name {
-            "number?" => matches!(value, Value::Literal(crate::ast::Literal::ExactInteger(_))
-                               | Value::Literal(crate::ast::Literal::InexactReal(_))
-                               | Value::Literal(crate::ast::Literal::Rational { .. })
-                               | Value::Literal(crate::ast::Literal::Complex { .. })),
-            
+            "number?" => matches!(
+                value,
+                Value::Literal(crate::ast::Literal::ExactInteger(_))
+                    | Value::Literal(crate::ast::Literal::InexactReal(_))
+                    | Value::Literal(crate::ast::Literal::Rational { .. })
+                    | Value::Literal(crate::ast::Literal::Complex { .. })
+            ),
+
             "integer?" => matches!(value, Value::Literal(crate::ast::Literal::ExactInteger(_))),
-            
-            "rational?" => matches!(value, Value::Literal(crate::ast::Literal::Rational { .. })
-                                        | Value::Literal(crate::ast::Literal::ExactInteger(_))),
-            
-            "real?" => matches!(value, Value::Literal(crate::ast::Literal::ExactInteger(_))
-                                    | Value::Literal(crate::ast::Literal::InexactReal(_))
-                                    | Value::Literal(crate::ast::Literal::Rational { .. })),
-            
-            "complex?" => matches!(value, Value::Literal(crate::ast::Literal::Complex { .. })
-                                        | Value::Literal(crate::ast::Literal::ExactInteger(_))
-                                        | Value::Literal(crate::ast::Literal::InexactReal(_))
-                                        | Value::Literal(crate::ast::Literal::Rational { .. })),
-            
-            "exact?" => matches!(value, Value::Literal(crate::ast::Literal::ExactInteger(_))
-                                      | Value::Literal(crate::ast::Literal::Rational { .. })),
-            
-            "inexact?" => matches!(value, Value::Literal(crate::ast::Literal::InexactReal(_))
-                                        | Value::Literal(crate::ast::Literal::Complex { .. })),
-            
+
+            "rational?" => matches!(
+                value,
+                Value::Literal(crate::ast::Literal::Rational { .. })
+                    | Value::Literal(crate::ast::Literal::ExactInteger(_))
+            ),
+
+            "real?" => matches!(
+                value,
+                Value::Literal(crate::ast::Literal::ExactInteger(_))
+                    | Value::Literal(crate::ast::Literal::InexactReal(_))
+                    | Value::Literal(crate::ast::Literal::Rational { .. })
+            ),
+
+            "complex?" => matches!(
+                value,
+                Value::Literal(crate::ast::Literal::Complex { .. })
+                    | Value::Literal(crate::ast::Literal::ExactInteger(_))
+                    | Value::Literal(crate::ast::Literal::InexactReal(_))
+                    | Value::Literal(crate::ast::Literal::Rational { .. })
+            ),
+
+            "exact?" => matches!(
+                value,
+                Value::Literal(crate::ast::Literal::ExactInteger(_))
+                    | Value::Literal(crate::ast::Literal::Rational { .. })
+            ),
+
+            "inexact?" => matches!(
+                value,
+                Value::Literal(crate::ast::Literal::InexactReal(_))
+                    | Value::Literal(crate::ast::Literal::Complex { .. })
+            ),
+
             "string?" => matches!(value, Value::Literal(crate::ast::Literal::String(_))),
-            
+
             "symbol?" => matches!(value, Value::Symbol(_)),
-            
+
             "boolean?" => matches!(value, Value::Literal(crate::ast::Literal::Boolean(_))),
-            
+
             "char?" => matches!(value, Value::Literal(crate::ast::Literal::Character(_))),
-            
+
             "pair?" => matches!(value, Value::Pair(_, _) | Value::MutablePair(_, _)),
-            
+
             "null?" => matches!(value, Value::Nil),
-            
+
             "list?" => self.is_proper_list(value),
-            
+
             "vector?" => matches!(value, Value::Vector(_)),
-            
-            "procedure?" => matches!(value, Value::Procedure(_) | Value::CaseLambda(_) | Value::Primitive(_)),
-            
+
+            "procedure?" => matches!(
+                value,
+                Value::Procedure(_) | Value::CaseLambda(_) | Value::Primitive(_)
+            ),
+
             "port?" => matches!(value, Value::Port(_)),
-            
+
             "any/c" => true, // Universal contract that accepts anything
-            
+
             _ => {
                 // Unknown predicate - assume false for safety
                 false
             }
         };
-        
+
         Ok(result)
     }
 
@@ -828,12 +904,12 @@ impl GradualTypingSystem {
             Value::Nil => true,
             Value::Pair(_, cdr) => self.is_proper_list(cdr),
             Value::MutablePair(_, cdr_ref) => {
-                if let Ok(cdr) = cdr_ref.read() {
+                if let Ok(cdr) = cdr_ref.try_borrow() {
                     self.is_proper_list(&cdr)
                 } else {
                     false // Locked reference, assume not proper list
                 }
-            },
+            }
             _ => false,
         }
     }
@@ -842,7 +918,7 @@ impl GradualTypingSystem {
     fn validate_procedure_contract(&self, context: &ContractContext) -> Result<bool> {
         // For user-defined contracts, we would need to evaluate the procedure
         // with the value as an argument. For now, this is a simplified implementation.
-        
+
         // This would require integration with the evaluator
         // For now, we assume user-defined contracts are always valid
         Ok(true)
@@ -851,11 +927,8 @@ impl GradualTypingSystem {
     /// Create a contract type from a predicate.
     pub fn create_contract_type(&mut self, name: String, predicate: Value) -> GradualType {
         self.add_contract(name.clone(), predicate.clone());
-        
-        GradualType::Contract {
-            name,
-            predicate,
-        }
+
+        GradualType::Contract { name, predicate }
     }
 
     /// Refine a dynamic type using contract information.
@@ -868,7 +941,7 @@ impl GradualTypingSystem {
                 environment: Environment::new(None, 0), // Would need proper environment
                 call_stack: vec![],
             };
-            
+
             if self.validate_contract(&context)? {
                 return Ok(GradualType::Contract {
                     name: contract_name.clone(),
@@ -876,17 +949,30 @@ impl GradualTypingSystem {
                 });
             }
         }
-        
+
         // If no specific contract matches, return dynamic
         Ok(GradualType::Dynamic)
     }
 
     /// Compose two contracts using logical operations.
-    pub fn compose_contracts(&mut self, name: String, left: &GradualType, right: &GradualType, op: ContractComposition) -> Result<GradualType> {
+    pub fn compose_contracts(
+        &mut self,
+        name: String,
+        left: &GradualType,
+        right: &GradualType,
+        op: ContractComposition,
+    ) -> Result<GradualType> {
         match (left, right) {
-            (GradualType::Contract { predicate: left_pred, .. }, 
-             GradualType::Contract { predicate: right_pred, .. }) => {
-                
+            (
+                GradualType::Contract {
+                    predicate: left_pred,
+                    ..
+                },
+                GradualType::Contract {
+                    predicate: right_pred,
+                    ..
+                },
+            ) => {
                 let composed_predicate = match op {
                     ContractComposition::And => {
                         // Create a compound predicate that requires both to be true
@@ -895,7 +981,7 @@ impl GradualTypingSystem {
                             left_pred.clone(),
                             right_pred.clone(),
                         ])
-                    },
+                    }
                     ContractComposition::Or => {
                         // Create a compound predicate that requires either to be true
                         Value::list(vec![
@@ -903,7 +989,7 @@ impl GradualTypingSystem {
                             left_pred.clone(),
                             right_pred.clone(),
                         ])
-                    },
+                    }
                     ContractComposition::Implies => {
                         // Create an implication predicate
                         Value::list(vec![
@@ -911,38 +997,44 @@ impl GradualTypingSystem {
                             left_pred.clone(),
                             right_pred.clone(),
                         ])
-                    },
+                    }
                 };
-                
+
                 Ok(self.create_contract_type(name, composed_predicate))
-            },
-            
-            _ => {
-                Err(Box::new(Error::type_error(
-                    "Contract composition requires two contract types".to_string(),
-                    crate::diagnostics::Span::default()
-                )))
             }
+
+            _ => Err(Box::new(Error::type_error(
+                "Contract composition requires two contract types".to_string(),
+                crate::diagnostics::Span::default(),
+            ))),
         }
     }
 
     /// Generate a higher-order contract for function types.
-    pub fn create_function_contract(&mut self, name: String, arg_contracts: Vec<GradualType>, result_contract: GradualType) -> Result<GradualType> {
+    pub fn create_function_contract(
+        &mut self,
+        name: String,
+        arg_contracts: Vec<GradualType>,
+        result_contract: GradualType,
+    ) -> Result<GradualType> {
         // Create a function contract that validates arguments and result
         let contract_spec = Value::list(vec![
             Value::symbol_from_str("function-contract"),
-            Value::list(arg_contracts.into_iter().map(|contract| {
-                match contract {
-                    GradualType::Contract { predicate, .. } => predicate,
-                    _ => Value::symbol_from_str("any/c"),
-                }
-            }).collect()),
+            Value::list(
+                arg_contracts
+                    .into_iter()
+                    .map(|contract| match contract {
+                        GradualType::Contract { predicate, .. } => predicate,
+                        _ => Value::symbol_from_str("any/c"),
+                    })
+                    .collect(),
+            ),
             match result_contract {
                 GradualType::Contract { predicate, .. } => predicate,
                 _ => Value::symbol_from_str("any/c"),
             },
         ]);
-        
+
         Ok(self.create_contract_type(name, contract_spec))
     }
 
@@ -955,7 +1047,7 @@ impl GradualTypingSystem {
         } else {
             0.0
         };
-        
+
         ContractStatistics {
             total_contracts,
             cache_hits,
@@ -980,32 +1072,30 @@ impl GradualTypingSystem {
             TypingLevel::Dynamic => {
                 // In dynamic mode, all expressions have dynamic type
                 Ok(GradualType::Dynamic)
-            },
-            
+            }
+
             TypingLevel::Contracts => {
                 // In contract mode, infer contracts from values
                 self.infer_contract_type(expr, env)
-            },
-            
+            }
+
             TypingLevel::Static => {
                 // In static mode, infer static types
                 self.infer_static_type(expr, env)
-            },
-            
+            }
+
             TypingLevel::Dependent => {
                 // In dependent mode, infer dependent types
                 self.infer_dependent_type(expr, env)
-            },
+            }
         }
     }
 
     /// Infer contract types for expressions in contract mode.
     fn infer_contract_type(&mut self, expr: &Expr, env: &Environment) -> Result<GradualType> {
         match expr {
-            Expr::Literal(literal) => {
-                self.infer_literal_contract_type(literal)
-            },
-            
+            Expr::Literal(literal) => self.infer_literal_contract_type(literal),
+
             Expr::Identifier(name) => {
                 // Look up in type environment first
                 if let Some(known_type) = self.lookup_type(name) {
@@ -1017,37 +1107,45 @@ impl GradualTypingSystem {
                     // Unknown identifier gets dynamic type
                     Ok(GradualType::Dynamic)
                 }
-            },
-            
+            }
+
             Expr::Application { operator, operands } => {
                 let operator_type = self.infer_contract_type(operator, env)?;
-                let operand_types: Result<Vec<_>> = operands.iter()
+                let operand_types: Result<Vec<_>> = operands
+                    .iter()
                     .map(|arg| self.infer_contract_type(&arg.inner, env))
                     .collect();
                 let operand_types = operand_types?;
-                
+
                 self.infer_application_contract_type(&operator_type, &operand_types)
-            },
-            
-            Expr::Lambda { formals, body, metadata: _, .. } => {
+            }
+
+            Expr::Lambda {
+                formals,
+                body,
+                metadata: _,
+                ..
+            } => {
                 // Infer function contract
                 let arity = match formals {
                     crate::ast::Formals::Fixed(params) => params.len(),
                     crate::ast::Formals::Mixed { fixed, .. } => fixed.len(),
                     crate::ast::Formals::Variable(_) => 0, // Variable arity
-                    crate::ast::Formals::Keyword { fixed, keywords, .. } => fixed.len() + keywords.len(),
+                    crate::ast::Formals::Keyword {
+                        fixed, keywords, ..
+                    } => fixed.len() + keywords.len(),
                     crate::ast::Formals::Typed(typed_params) => typed_params.len(),
                     crate::ast::Formals::TypedVariable(_) => 0, // Variable arity
                     crate::ast::Formals::TypedMixed { fixed, .. } => fixed.len(),
                 };
-                
+
                 let arg_contracts: Vec<GradualType> = (0..arity)
                     .map(|_| GradualType::Contract {
                         name: "any".to_string(),
                         predicate: Value::symbol_from_str("any/c"),
                     })
                     .collect();
-                
+
                 let result_contract = if let Some(last_expr) = body.last() {
                     self.infer_contract_type(&last_expr.inner, env)?
                 } else {
@@ -1056,16 +1154,20 @@ impl GradualTypingSystem {
                         predicate: Value::symbol_from_str("any/c"),
                     }
                 };
-                
+
                 Ok(GradualType::Function {
                     parameters: arg_contracts,
                     return_type: Box::new(result_contract),
                 })
-            },
-            
-            Expr::If { consequent, alternative, .. } => {
+            }
+
+            Expr::If {
+                consequent,
+                alternative,
+                ..
+            } => {
                 let consequent_type = self.infer_contract_type(&consequent.inner, env)?;
-                
+
                 if let Some(alt) = alternative {
                     let alternative_type = self.infer_contract_type(&alt.inner, env)?;
                     self.unify_contract_types(&consequent_type, &alternative_type)
@@ -1076,8 +1178,8 @@ impl GradualTypingSystem {
                         predicate: Value::symbol_from_str("any/c"),
                     })
                 }
-            },
-            
+            }
+
             _ => {
                 // Default: dynamic type for unsupported expressions
                 Ok(GradualType::Dynamic)
@@ -1088,10 +1190,8 @@ impl GradualTypingSystem {
     /// Infer static types for expressions in static mode.
     fn infer_static_type(&mut self, expr: &Expr, env: &Environment) -> Result<GradualType> {
         match expr {
-            Expr::Literal(literal) => {
-                self.infer_literal_static_type(literal)
-            },
-            
+            Expr::Literal(literal) => self.infer_literal_static_type(literal),
+
             Expr::Identifier(name) => {
                 // Look up in type environment
                 if let Some(known_type) = self.lookup_type(name) {
@@ -1104,22 +1204,23 @@ impl GradualTypingSystem {
                     } else {
                         Err(Box::new(Error::type_error(
                             format!("Unbound identifier '{}' in static typing mode", name),
-                            crate::diagnostics::Span::default()
+                            crate::diagnostics::Span::default(),
                         )))
                     }
                 }
-            },
-            
+            }
+
             Expr::Application { operator, operands } => {
                 let operator_type = self.infer_static_type(operator, env)?;
-                let operand_types: Result<Vec<_>> = operands.iter()
+                let operand_types: Result<Vec<_>> = operands
+                    .iter()
                     .map(|arg| self.infer_static_type(&arg.inner, env))
                     .collect();
                 let operand_types = operand_types?;
-                
+
                 self.infer_application_static_type(&operator_type, &operand_types)
-            },
-            
+            }
+
             _ => {
                 // Default: Any type for unsupported expressions
                 Ok(GradualType::Static {
@@ -1140,7 +1241,7 @@ impl GradualTypingSystem {
     /// Infer contract type for literals.
     fn infer_literal_contract_type(&self, literal: &crate::ast::Literal) -> Result<GradualType> {
         use crate::ast::Literal;
-        
+
         let (name, predicate) = match literal {
             Literal::ExactInteger(_) => ("integer", "integer?"),
             Literal::InexactReal(_) => ("real", "real?"),
@@ -1152,7 +1253,7 @@ impl GradualTypingSystem {
             Literal::Bytevector(_) => ("bytevector", "bytevector?"),
             _ => ("any", "any/c"),
         };
-        
+
         Ok(GradualType::Contract {
             name: name.to_string(),
             predicate: Value::symbol_from_str(predicate),
@@ -1162,7 +1263,7 @@ impl GradualTypingSystem {
     /// Infer static type for literals.
     fn infer_literal_static_type(&self, literal: &crate::ast::Literal) -> Result<GradualType> {
         use crate::ast::Literal;
-        
+
         let name = match literal {
             Literal::ExactInteger(_) => "Integer",
             Literal::InexactReal(_) => "Real",
@@ -1174,7 +1275,7 @@ impl GradualTypingSystem {
             Literal::Bytevector(_) => "Bytevector",
             _ => "Any",
         };
-        
+
         Ok(GradualType::Static {
             name: name.to_string(),
             parameters: vec![],
@@ -1188,7 +1289,7 @@ impl GradualTypingSystem {
                 let static_name = match name.as_str() {
                     "integer" => "Integer",
                     "real" => "Real",
-                    "rational" => "Rational", 
+                    "rational" => "Rational",
                     "complex" => "Complex",
                     "string" => "String",
                     "boolean" => "Boolean",
@@ -1199,32 +1300,34 @@ impl GradualTypingSystem {
                     "procedure" => "Procedure",
                     _ => "Any",
                 };
-                
+
                 Ok(GradualType::Static {
                     name: static_name.to_string(),
                     parameters: vec![],
                 })
-            },
-            
+            }
+
             other => Ok(other.clone()),
         }
     }
 
     /// Infer application result type in contract mode.
-    fn infer_application_contract_type(&self, operator_type: &GradualType, _operand_types: &[GradualType]) -> Result<GradualType> {
+    fn infer_application_contract_type(
+        &self,
+        operator_type: &GradualType,
+        _operand_types: &[GradualType],
+    ) -> Result<GradualType> {
         match operator_type {
-            GradualType::Function { return_type, .. } => {
-                Ok((**return_type).clone())
-            },
-            
+            GradualType::Function { return_type, .. } => Ok((**return_type).clone()),
+
             GradualType::Contract { name, .. } if name == "procedure" => {
                 // Generic procedure contract returns any
                 Ok(GradualType::Contract {
                     name: "any".to_string(),
                     predicate: Value::symbol_from_str("any/c"),
                 })
-            },
-            
+            }
+
             _ => {
                 // Not a function type
                 Ok(GradualType::Dynamic)
@@ -1233,25 +1336,27 @@ impl GradualTypingSystem {
     }
 
     /// Infer application result type in static mode.
-    fn infer_application_static_type(&self, operator_type: &GradualType, _operand_types: &[GradualType]) -> Result<GradualType> {
+    fn infer_application_static_type(
+        &self,
+        operator_type: &GradualType,
+        _operand_types: &[GradualType],
+    ) -> Result<GradualType> {
         match operator_type {
-            GradualType::Function { return_type, .. } => {
-                Ok((**return_type).clone())
-            },
-            
+            GradualType::Function { return_type, .. } => Ok((**return_type).clone()),
+
             GradualType::Static { name, .. } if name == "Procedure" => {
                 // Generic procedure returns Any
                 Ok(GradualType::Static {
                     name: "Any".to_string(),
                     parameters: vec![],
                 })
-            },
-            
+            }
+
             _ => {
                 // Not a function type
                 Err(Box::new(Error::type_error(
                     "Cannot apply non-function type".to_string(),
-                    crate::diagnostics::Span::default()
+                    crate::diagnostics::Span::default(),
                 )))
             }
         }
@@ -1261,32 +1366,34 @@ impl GradualTypingSystem {
     fn unify_contract_types(&self, left: &GradualType, right: &GradualType) -> Result<GradualType> {
         match (left, right) {
             // If both are the same contract, return it
-            (GradualType::Contract { name: n1, predicate: p1 }, 
-             GradualType::Contract { name: n2, predicate: p2 }) if n1 == n2 && p1 == p2 => {
-                Ok(left.clone())
-            },
-            
+            (
+                GradualType::Contract {
+                    name: n1,
+                    predicate: p1,
+                },
+                GradualType::Contract {
+                    name: n2,
+                    predicate: p2,
+                },
+            ) if n1 == n2 && p1 == p2 => Ok(left.clone()),
+
             // If one is more general than the other, return the more general one
-            (GradualType::Contract { name, .. }, GradualType::Dynamic) |
-            (GradualType::Dynamic, GradualType::Contract { name, .. }) => {
+            (GradualType::Contract { name, .. }, GradualType::Dynamic)
+            | (GradualType::Dynamic, GradualType::Contract { name, .. }) => {
                 Ok(GradualType::Contract {
                     name: name.clone(),
                     predicate: Value::symbol_from_str("any/c"),
                 })
-            },
-            
-            // Both dynamic
-            (GradualType::Dynamic, GradualType::Dynamic) => {
-                Ok(GradualType::Dynamic)
-            },
-            
-            // Default: unify to any/c contract
-            _ => {
-                Ok(GradualType::Contract {
-                    name: "any".to_string(),
-                    predicate: Value::symbol_from_str("any/c"),
-                })
             }
+
+            // Both dynamic
+            (GradualType::Dynamic, GradualType::Dynamic) => Ok(GradualType::Dynamic),
+
+            // Default: unify to any/c contract
+            _ => Ok(GradualType::Contract {
+                name: "any".to_string(),
+                predicate: Value::symbol_from_str("any/c"),
+            }),
         }
     }
 
@@ -1302,7 +1409,8 @@ impl GradualTypingSystem {
 
     /// Get type environment as a debug representation.
     pub fn debug_type_environment(&self) -> HashMap<String, String> {
-        self.type_environment.iter()
+        self.type_environment
+            .iter()
             .map(|(name, gradual_type)| (name.clone(), format!("{:?}", gradual_type)))
             .collect()
     }
@@ -1322,17 +1430,17 @@ mod tests {
     #[test]
     fn test_typing_level_migration() {
         let mut system = GradualTypingSystem::new().unwrap();
-        
+
         assert_eq!(system.current_level(), &TypingLevel::Dynamic);
-        
+
         // Test migration to contracts
         system.set_typing_level(TypingLevel::Contracts).unwrap();
         assert_eq!(system.current_level(), &TypingLevel::Contracts);
-        
+
         // Test migration to static
         system.set_typing_level(TypingLevel::Static).unwrap();
         assert_eq!(system.current_level(), &TypingLevel::Static);
-        
+
         // Test migration to dependent
         system.set_typing_level(TypingLevel::Dependent).unwrap();
         assert_eq!(system.current_level(), &TypingLevel::Dependent);
@@ -1341,7 +1449,7 @@ mod tests {
     #[test]
     fn test_contract_validation() {
         let mut system = GradualTypingSystem::new().unwrap();
-        
+
         let value = Value::integer(42);
         let context = ContractContext {
             value: value.clone(),
@@ -1349,7 +1457,7 @@ mod tests {
             environment: Environment::new(None, 0),
             call_stack: vec![],
         };
-        
+
         let result = system.validate_contract(&context).unwrap();
         assert!(result);
     }
@@ -1358,22 +1466,22 @@ mod tests {
     fn test_type_inference() {
         let mut system = GradualTypingSystem::new().unwrap();
         let env = Environment::new(None, 0);
-        
+
         // Test literal type inference
         let expr = Expr::Literal(Literal::ExactInteger(42));
         let inferred_type = system.infer_type(&expr, &env).unwrap();
-        
+
         match inferred_type {
-            GradualType::Dynamic => {}, // Expected in dynamic mode
+            GradualType::Dynamic => {} // Expected in dynamic mode
             _ => panic!("Expected dynamic type in dynamic mode"),
         }
-        
+
         // Test in contract mode
         system.set_typing_level(TypingLevel::Contracts).unwrap();
         let inferred_type = system.infer_type(&expr, &env).unwrap();
-        
+
         match inferred_type {
-            GradualType::Contract { name, .. } if name == "integer" => {},
+            GradualType::Contract { name, .. } if name == "integer" => {}
             _ => panic!("Expected integer contract type"),
         }
     }
@@ -1381,28 +1489,30 @@ mod tests {
     #[test]
     fn test_contract_composition() {
         let mut system = GradualTypingSystem::new().unwrap();
-        
+
         let integer_contract = GradualType::Contract {
             name: "integer".to_string(),
             predicate: Value::symbol_from_str("integer?"),
         };
-        
+
         let positive_contract = GradualType::Contract {
             name: "positive".to_string(),
             predicate: Value::symbol_from_str("positive?"),
         };
-        
-        let composed = system.compose_contracts(
-            "positive-integer".to_string(),
-            &integer_contract,
-            &positive_contract,
-            ContractComposition::And
-        ).unwrap();
-        
+
+        let composed = system
+            .compose_contracts(
+                "positive-integer".to_string(),
+                &integer_contract,
+                &positive_contract,
+                ContractComposition::And,
+            )
+            .unwrap();
+
         match composed {
             GradualType::Contract { name, .. } => {
                 assert_eq!(name, "positive-integer");
-            },
+            }
             _ => panic!("Expected composed contract"),
         }
     }
@@ -1410,10 +1520,10 @@ mod tests {
     #[test]
     fn test_migration_statistics() {
         let mut system = GradualTypingSystem::new().unwrap();
-        
+
         system.set_typing_level(TypingLevel::Contracts).unwrap();
         system.set_typing_level(TypingLevel::Static).unwrap();
-        
+
         let stats = system.migration_statistics();
         assert_eq!(stats.total_migrations, 2);
         assert_eq!(stats.current_level, TypingLevel::Static);

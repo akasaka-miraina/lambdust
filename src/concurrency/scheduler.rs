@@ -3,18 +3,18 @@
 //! This module provides a sophisticated scheduler that can handle
 //! different types of tasks with varying priorities and execution requirements.
 
-use crate::eval::Value;
-use crate::diagnostics::{Error, Result};
 use super::ConcurrencyError;
-use std::sync::{Arc, Mutex};
-use std::collections::BinaryHeap;
-use std::cmp::Ordering;
-use std::time::{Duration, Instant};
-use std::thread;
-use std::sync::atomic::{AtomicBool, AtomicUsize, AtomicU64, Ordering as AtomicOrdering};
+use crate::diagnostics::{Error, Result};
+use crate::eval::Value;
 use crossbeam::deque::{Injector, Stealer, Worker};
 use crossbeam::queue::SegQueue;
 use num_cpus;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering as AtomicOrdering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 
 /// Task priority levels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -153,16 +153,15 @@ impl PartialOrd for Task {
 impl Ord for Task {
     fn cmp(&self, other: &Self) -> Ordering {
         // Higher priority tasks come first
-        self.priority.cmp(&other.priority).reverse()
-            .then_with(|| {
-                // Earlier deadlines come first
-                match (self.deadline, other.deadline) {
-                    (Some(a), Some(b)) => a.cmp(&b),
-                    (Some(_), None) => Ordering::Less,
-                    (None, Some(_)) => Ordering::Greater,
-                    (None, None) => self.created_at.cmp(&other.created_at),
-                }
-            })
+        self.priority.cmp(&other.priority).reverse().then_with(|| {
+            // Earlier deadlines come first
+            match (self.deadline, other.deadline) {
+                (Some(a), Some(b)) => a.cmp(&b),
+                (Some(_), None) => Ordering::Less,
+                (None, Some(_)) => Ordering::Greater,
+                (None, None) => self.created_at.cmp(&other.created_at),
+            }
+        })
     }
 }
 
@@ -231,28 +230,28 @@ impl Default for SchedulerConfig {
 /// Advanced work-stealing scheduler.
 pub struct WorkStealingScheduler {
     config: SchedulerConfig,
-    
+
     // Worker threads for CPU-bound tasks
     workers: Vec<WorkerThread>,
     worker_handles: Vec<thread::JoinHandle<()>>,
-    
+
     // I/O thread pool
     io_pool: tokio::runtime::Runtime,
-    
+
     // Global task queues
     global_queue: Arc<Injector<Task>>,
     priority_queue: Arc<Mutex<BinaryHeap<Task>>>,
     io_queue: Arc<SegQueue<Task>>,
-    
+
     // Scheduling state
     running: Arc<AtomicBool>,
     active_tasks: Arc<AtomicUsize>,
     completed_tasks: Arc<AtomicUsize>,
     failed_tasks: Arc<AtomicUsize>,
-    
+
     // Task results
     results: Arc<Mutex<std::collections::HashMap<TaskId, Result<Value>>>>,
-    
+
     // Profiling data
     profiler: Option<TaskProfiler>,
 }
@@ -316,7 +315,9 @@ impl WorkStealingScheduler {
             .worker_threads(config.num_io_threads)
             .enable_all()
             .build()
-            .map_err(|e| Error::runtime_error(format!("Failed to create I/O runtime: {e}"), None))?;
+            .map_err(|e| {
+                Error::runtime_error(format!("Failed to create I/O runtime: {e}"), None)
+            })?;
 
         let profiler = if config.profiling_enabled {
             Some(TaskProfiler {
@@ -346,14 +347,17 @@ impl WorkStealingScheduler {
     /// Starts the scheduler.
     pub fn start(&mut self) -> Result<()> {
         if self.running.load(AtomicOrdering::SeqCst) {
-            return Err(Box::new(Error::runtime_error("Scheduler already running".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "Scheduler already running".to_string(),
+                None,
+            )));
         }
 
         self.running.store(true, AtomicOrdering::SeqCst);
 
         // Start worker threads
         let stealers: Vec<_> = self.workers.iter().map(|w| w.stealer.clone()).collect();
-        
+
         for (i, worker) in self.workers.drain(..).enumerate() {
             let global_queue = self.global_queue.clone();
             let priority_queue = self.priority_queue.clone();
@@ -363,7 +367,10 @@ impl WorkStealingScheduler {
             let completed_tasks = self.completed_tasks.clone();
             let failed_tasks = self.failed_tasks.clone();
             let results = self.results.clone();
-            let profiler = self.profiler.as_ref().map(|p| Arc::new(Mutex::new(p.task_metrics.lock().unwrap().clone())));
+            let profiler = self
+                .profiler
+                .as_ref()
+                .map(|p| Arc::new(Mutex::new(p.task_metrics.lock().unwrap().clone())));
 
             let handle = thread::Builder::new()
                 .name(format!("worker-{i}"))
@@ -380,11 +387,13 @@ impl WorkStealingScheduler {
                             failed_tasks,
                             results,
                             profiler,
-                        }
+                        },
                     );
                 })
-                .map_err(|e| Error::runtime_error(format!("Failed to start worker thread: {e}"), None))?;
-            
+                .map_err(|e| {
+                    Error::runtime_error(format!("Failed to start worker thread: {e}"), None)
+                })?;
+
             self.worker_handles.push(handle);
         }
 
@@ -397,8 +406,9 @@ impl WorkStealingScheduler {
 
         // Wait for worker threads to finish
         for handle in self.worker_handles.drain(..) {
-            handle.join()
-                .map_err(|_| Error::runtime_error("Failed to join worker thread".to_string(), None))?;
+            handle.join().map_err(|_| {
+                Error::runtime_error("Failed to join worker thread".to_string(), None)
+            })?;
         }
 
         // Shutdown I/O runtime
@@ -411,7 +421,7 @@ impl WorkStealingScheduler {
     /// Submits a task for execution.
     pub fn submit(&self, task: Task) -> TaskId {
         let task_id = task.id();
-        
+
         // Record task creation if profiling is enabled
         if let Some(ref profiler) = self.profiler {
             let metrics = TaskMetrics {
@@ -422,14 +432,20 @@ impl WorkStealingScheduler {
                 execution_time: None,
                 queue_time: None,
             };
-            profiler.task_metrics.lock().unwrap().insert(task_id, metrics);
+            profiler
+                .task_metrics
+                .lock()
+                .unwrap()
+                .insert(task_id, metrics);
         }
 
         match task.mode() {
             ExecutionMode::Io => {
                 self.io_queue.push(task);
             }
-            ExecutionMode::RealTime | ExecutionMode::Compute if task.priority() >= Priority::High => {
+            ExecutionMode::RealTime | ExecutionMode::Compute
+                if task.priority() >= Priority::High =>
+            {
                 self.priority_queue.lock().unwrap().push(task);
             }
             _ => {
@@ -449,7 +465,7 @@ impl WorkStealingScheduler {
     /// Waits for a task to complete and returns its result.
     pub async fn wait_for_task(&self, task_id: TaskId, timeout: Option<Duration>) -> Result<Value> {
         let start = Instant::now();
-        
+
         loop {
             if let Some(result) = self.get_result(task_id) {
                 return result;
@@ -457,7 +473,7 @@ impl WorkStealingScheduler {
 
             if let Some(timeout) = timeout {
                 if start.elapsed() > timeout {
-                    return Err(ConcurrencyError::Timeout.into())
+                    return Err(ConcurrencyError::Timeout.into());
                 }
             }
 
@@ -480,12 +496,17 @@ impl WorkStealingScheduler {
     /// Worker thread main loop.
     fn worker_loop(worker: WorkerThread, ctx: WorkerContext) {
         while ctx.running.load(AtomicOrdering::SeqCst) {
-            let task = Self::find_task(&worker, &ctx.global_queue, &ctx.priority_queue, &ctx.stealers);
-            
+            let task = Self::find_task(
+                &worker,
+                &ctx.global_queue,
+                &ctx.priority_queue,
+                &ctx.stealers,
+            );
+
             if let Some(task) = task {
                 let task_id = task.id();
                 let start_time = Instant::now();
-                
+
                 // Update profiling metrics
                 if let Some(ref profiler) = ctx.profiler {
                     if let Ok(mut metrics) = profiler.lock() {
@@ -500,10 +521,10 @@ impl WorkStealingScheduler {
                 // Execute the task
                 let result = task.execute();
                 let execution_time = start_time.elapsed();
-                
+
                 // Store result
                 ctx.results.lock().unwrap().insert(task_id, result.clone());
-                
+
                 // Update counters
                 ctx.active_tasks.fetch_sub(1, AtomicOrdering::SeqCst);
                 if result.is_ok() {
@@ -511,7 +532,7 @@ impl WorkStealingScheduler {
                 } else {
                     ctx.failed_tasks.fetch_add(1, AtomicOrdering::SeqCst);
                 }
-                
+
                 // Update profiling metrics
                 if let Some(ref profiler) = ctx.profiler {
                     if let Ok(mut metrics) = profiler.lock() {
@@ -581,24 +602,27 @@ pub struct SchedulerStats {
 }
 
 /// Global scheduler instance.
-static GLOBAL_SCHEDULER: std::sync::OnceLock<Arc<Mutex<Option<WorkStealingScheduler>>>> = std::sync::OnceLock::new();
+static GLOBAL_SCHEDULER: std::sync::OnceLock<Arc<Mutex<Option<WorkStealingScheduler>>>> =
+    std::sync::OnceLock::new();
 
 /// Gets the global scheduler.
 pub fn global_scheduler() -> Arc<Mutex<Option<WorkStealingScheduler>>> {
-    GLOBAL_SCHEDULER.get_or_init(|| Arc::new(Mutex::new(None))).clone()
+    GLOBAL_SCHEDULER
+        .get_or_init(|| Arc::new(Mutex::new(None)))
+        .clone()
 }
 
 /// Initializes the global scheduler.
 pub fn initialize() -> Result<()> {
     let scheduler_guard = global_scheduler();
     let mut scheduler_opt = scheduler_guard.lock().unwrap();
-    
+
     if scheduler_opt.is_none() {
         let mut scheduler = WorkStealingScheduler::new(SchedulerConfig::default())?;
         scheduler.start()?;
         *scheduler_opt = Some(scheduler);
     }
-    
+
     Ok(())
 }
 
@@ -606,11 +630,11 @@ pub fn initialize() -> Result<()> {
 pub async fn shutdown() -> Result<()> {
     let scheduler_guard = global_scheduler();
     let mut scheduler_opt = scheduler_guard.lock().unwrap();
-    
+
     if let Some(mut scheduler) = scheduler_opt.take() {
         scheduler.stop()?;
     }
-    
+
     Ok(())
 }
 
@@ -621,12 +645,15 @@ where
 {
     let scheduler_guard = global_scheduler();
     let scheduler_opt = scheduler_guard.lock().unwrap();
-    
+
     if let Some(ref scheduler) = *scheduler_opt {
         let task = Task::new(work);
         Ok(scheduler.submit(task))
     } else {
-        Err(Box::new(Error::runtime_error("Scheduler not initialized".to_string(), None)))
+        Err(Box::new(Error::runtime_error(
+            "Scheduler not initialized".to_string(),
+            None,
+        )))
     }
 }
 
@@ -637,11 +664,14 @@ where
 {
     let scheduler_guard = global_scheduler();
     let scheduler_opt = scheduler_guard.lock().unwrap();
-    
+
     if let Some(ref scheduler) = *scheduler_opt {
         let task = Task::new(work).with_priority(priority);
         Ok(scheduler.submit(task))
     } else {
-        Err(Box::new(Error::runtime_error("Scheduler not initialized".to_string(), None)))
+        Err(Box::new(Error::runtime_error(
+            "Scheduler not initialized".to_string(),
+            None,
+        )))
     }
 }

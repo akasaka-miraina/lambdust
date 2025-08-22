@@ -3,18 +3,18 @@
 //! This module provides a comprehensive actor system with lightweight
 //! processes, message passing, supervisor hierarchies, and fault tolerance.
 
-use crate::eval::Value;
-use crate::diagnostics::{Error, Result, error::helpers};
 use super::ConcurrencyError;
-use std::sync::{Arc, Mutex as StdMutex};
+use crate::diagnostics::{Error, Result, error::helpers};
+use crate::eval::Value;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
-use tokio::task::JoinHandle;
-use tokio::sync::{mpsc, oneshot};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex as StdMutex};
+use std::time::{Duration, Instant};
+use tokio::sync::{mpsc, oneshot};
+use tokio::task::JoinHandle;
 
 /// Unique identifier for actors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ActorId(pub u64);
 
 impl Default for ActorId {
@@ -78,7 +78,11 @@ impl Message {
     }
 
     /// Creates a new message with a reply channel.
-    pub fn with_reply(sender: Option<ActorId>, payload: Value, reply_to: oneshot::Sender<Value>) -> Self {
+    pub fn with_reply(
+        sender: Option<ActorId>,
+        payload: Value,
+        reply_to: oneshot::Sender<Value>,
+    ) -> Self {
         Self {
             sender,
             payload,
@@ -90,7 +94,8 @@ impl Message {
     /// Sends a reply if a reply channel exists.
     pub fn reply(self, response: Value) -> Result<()> {
         if let Some(reply_to) = self.reply_to {
-            reply_to.send(response)
+            reply_to
+                .send(response)
                 .map_err(|_| helpers::runtime_error_simple("Failed to send reply"))
         } else {
             Err(helpers::runtime_error_simple("No reply channel available"))
@@ -115,14 +120,16 @@ impl ActorRef {
     /// Sends a message to the actor.
     pub fn tell(&self, message: Value) -> Result<()> {
         let msg = Message::new(None, message);
-        self.sender.send(msg)
+        self.sender
+            .send(msg)
             .map_err(|_| ConcurrencyError::ActorNotFound(self.id.to_string()).boxed())
     }
 
     /// Sends a message from another actor.
     pub fn tell_from(&self, sender: ActorId, message: Value) -> Result<()> {
         let msg = Message::new(Some(sender), message);
-        self.sender.send(msg)
+        self.sender
+            .send(msg)
             .map_err(|_| ConcurrencyError::ActorNotFound(self.id.to_string()).boxed())
     }
 
@@ -130,8 +137,9 @@ impl ActorRef {
     pub async fn ask(&self, message: Value, timeout: Duration) -> Result<Value> {
         let (reply_tx, reply_rx) = oneshot::channel();
         let msg = Message::with_reply(None, message, reply_tx);
-        
-        self.sender.send(msg)
+
+        self.sender
+            .send(msg)
             .map_err(|_| ConcurrencyError::ActorNotFound(self.id.to_string()).boxed())?;
 
         tokio::time::timeout(timeout, reply_rx)
@@ -208,8 +216,15 @@ impl ActorContext {
     }
 
     /// Spawns a child actor.
-    pub async fn spawn_child<A: Actor>(&mut self, actor: A, name: Option<String>) -> Result<ActorRef> {
-        let actor_ref = self.system.spawn_actor(actor, name, Some(self.actor_ref())).await?;
+    pub async fn spawn_child<A: Actor>(
+        &mut self,
+        actor: A,
+        name: Option<String>,
+    ) -> Result<ActorRef> {
+        let actor_ref = self
+            .system
+            .spawn_actor(actor, name, Some(self.actor_ref()))
+            .await?;
         self.children.insert(actor_ref.id(), actor_ref.clone());
         Ok(actor_ref)
     }
@@ -245,7 +260,7 @@ impl ActorContext {
 }
 
 /// Supervision strategy for handling child actor failures.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum SupervisionStrategy {
     /// Restart the failed actor
     Restart,
@@ -293,7 +308,10 @@ impl std::fmt::Debug for ActorSystem {
         f.debug_struct("ActorSystem")
             .field("config", &self.config)
             .field("actors", &"<HashMap>")
-            .field("root_guardian", &self.root_guardian.as_ref().map(|_| "<ActorRef>"))
+            .field(
+                "root_guardian",
+                &self.root_guardian.as_ref().map(|_| "<ActorRef>"),
+            )
             .finish()
     }
 }
@@ -332,7 +350,7 @@ impl ActorSystem {
     ) -> Result<ActorRef> {
         let id = ActorId::new();
         let (tx, mut rx) = mpsc::unbounded_channel();
-        
+
         let actor_ref = ActorRef {
             id,
             sender: tx,
@@ -406,7 +424,8 @@ impl ActorSystem {
 
         if let Some(info) = actor_info {
             info.actor_ref.stop()?;
-            info.join_handle.await
+            info.join_handle
+                .await
                 .map_err(|e| Error::runtime_error(format!("Failed to stop actor: {e}"), None))?;
         }
 
@@ -416,7 +435,7 @@ impl ActorSystem {
     /// Handles actor failure according to supervision strategy.
     async fn handle_actor_failure(&self, actor_id: ActorId, error: Box<Error>) {
         let strategy = self.config.default_supervision_strategy.clone();
-        
+
         match strategy {
             SupervisionStrategy::Restart => {
                 // TODO: Implement actor restart logic
@@ -547,7 +566,9 @@ static GLOBAL_ACTOR_SYSTEM: std::sync::OnceLock<Arc<ActorSystem>> = std::sync::O
 
 /// Gets the global actor system.
 pub fn global_actor_system() -> Arc<ActorSystem> {
-    GLOBAL_ACTOR_SYSTEM.get_or_init(ActorSystem::new_default).clone()
+    GLOBAL_ACTOR_SYSTEM
+        .get_or_init(ActorSystem::new_default)
+        .clone()
 }
 
 /// Initializes the actor system.
@@ -572,5 +593,4 @@ impl crate::utils::SymbolId {
         // In practice, you'd use a proper symbol interner
         Self(s.len()) // Placeholder implementation
     }
-
 }

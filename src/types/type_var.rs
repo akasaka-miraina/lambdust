@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Global type variable counter for generating unique type variables.
 static TYPE_VAR_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -12,7 +12,9 @@ fn next_type_var_id() -> u64 {
 /// Type variable with unique identifier and optional name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeVar {
+    /// Unique identifier for this type variable
     pub id: u64,
+    /// Optional human-readable name for debugging
     pub name: Option<String>,
 }
 
@@ -30,7 +32,7 @@ impl TypeVar {
             name: None,
         }
     }
-    
+
     /// Creates a new type variable with a name.
     pub fn with_name(name: impl Into<String>) -> Self {
         Self {
@@ -38,12 +40,12 @@ impl TypeVar {
             name: Some(name.into()),
         }
     }
-    
+
     /// Creates a fresh type variable (alias for new).
     pub fn fresh() -> Self {
         Self::new()
     }
-    
+
     /// Creates a type variable with a specific ID (for testing).
     pub fn with_id(id: u64) -> Self {
         Self { id, name: None }

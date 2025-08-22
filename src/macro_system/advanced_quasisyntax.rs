@@ -24,12 +24,15 @@
 //! ```
 
 use super::{
-    syntax_objects::{SyntaxObject, LexicalContext, syntax_utils},
-    quasisyntax::{QuasisyntaxTemplate, QuasisyntaxContext, QuasisyntaxExpansionResult as BasicQuasisyntaxExpansionResult},
     advanced_hygiene::{HygieneResolver, Mark, MarkSet},
     macro_time_computation::{MacroTimeEnvironment, MacroTimeValue, Phase},
-    unified_expander::{UnifiedMacroTransformer, MacroTransformerType},
+    quasisyntax::{
+        QuasisyntaxContext, QuasisyntaxExpansionResult as BasicQuasisyntaxExpansionResult,
+        QuasisyntaxTemplate,
+    },
     syntax_case::SyntaxBindings,
+    syntax_objects::{LexicalContext, SyntaxObject, syntax_utils},
+    unified_expander::{MacroTransformerType, UnifiedMacroTransformer},
 };
 use crate::ast::{Expr, Literal};
 use crate::diagnostics::{Error, Result, Span, Spanned};
@@ -200,21 +203,40 @@ impl AdvancedQuasisyntaxProcessor {
             AdvancedQuasisyntaxTemplate::Basic(basic) => {
                 self.process_basic_template(basic, bindings, context, span)
             }
-            AdvancedQuasisyntaxTemplate::Composition { templates, combiner } => {
-                self.process_template_composition(templates, combiner, bindings, context, span)
-            }
-            AdvancedQuasisyntaxTemplate::Conditional { condition, then_template, else_template } => {
-                self.process_conditional_template(condition, then_template, else_template, bindings, context, span)
-            }
-            AdvancedQuasisyntaxTemplate::ComputedGeneration { generator, context: gen_context } => {
-                self.process_computed_generation(generator, gen_context, bindings, context, span)
-            }
-            AdvancedQuasisyntaxTemplate::AdvancedSplicing { splice_expr, transform } => {
-                self.process_advanced_splicing(splice_expr, transform.as_ref().map(|t| t.as_ref()), bindings, context, span)
-            }
-            AdvancedQuasisyntaxTemplate::MetaTemplate { meta_expr, generation_level } => {
-                self.process_meta_template(meta_expr, *generation_level, bindings, context, span)
-            }
+            AdvancedQuasisyntaxTemplate::Composition {
+                templates,
+                combiner,
+            } => self.process_template_composition(templates, combiner, bindings, context, span),
+            AdvancedQuasisyntaxTemplate::Conditional {
+                condition,
+                then_template,
+                else_template,
+            } => self.process_conditional_template(
+                condition,
+                then_template,
+                else_template,
+                bindings,
+                context,
+                span,
+            ),
+            AdvancedQuasisyntaxTemplate::ComputedGeneration {
+                generator,
+                context: gen_context,
+            } => self.process_computed_generation(generator, gen_context, bindings, context, span),
+            AdvancedQuasisyntaxTemplate::AdvancedSplicing {
+                splice_expr,
+                transform,
+            } => self.process_advanced_splicing(
+                splice_expr,
+                transform.as_ref().map(|t| t.as_ref()),
+                bindings,
+                context,
+                span,
+            ),
+            AdvancedQuasisyntaxTemplate::MetaTemplate {
+                meta_expr,
+                generation_level,
+            } => self.process_meta_template(meta_expr, *generation_level, bindings, context, span),
         };
 
         // Update statistics
@@ -257,17 +279,13 @@ impl AdvancedQuasisyntaxProcessor {
         }
 
         match combiner {
-            TemplateCombiner::Append => {
-                Ok(QuasisyntaxExpansionResult::Multiple(all_results))
-            }
+            TemplateCombiner::Append => Ok(QuasisyntaxExpansionResult::Multiple(all_results)),
 
             TemplateCombiner::List => {
                 // Create a single list containing all results
-                let list_elements: Vec<Spanned<Expr>> = all_results
-                    .into_iter()
-                    .map(|s| s.to_spanned())
-                    .collect();
-                
+                let list_elements: Vec<Spanned<Expr>> =
+                    all_results.into_iter().map(|s| s.to_spanned()).collect();
+
                 let list_syntax = SyntaxObject::new(
                     Expr::List(list_elements),
                     span,
@@ -283,7 +301,11 @@ impl AdvancedQuasisyntaxProcessor {
                         car: Box::new(curr.to_spanned()),
                         cdr: Box::new(acc.to_spanned()),
                     };
-                    SyntaxObject::new(pair_expr, span, context.base_context.lexical_context().clone())
+                    SyntaxObject::new(
+                        pair_expr,
+                        span,
+                        context.base_context.lexical_context().clone(),
+                    )
                 });
 
                 if let Some(nested) = result {
@@ -302,7 +324,7 @@ impl AdvancedQuasisyntaxProcessor {
             TemplateCombiner::Interleave(separator) => {
                 let sep_result = self.process_template(separator, bindings, context, span)?;
                 let separator_syntax = sep_result.into_single()?;
-                
+
                 let mut interleaved = Vec::new();
                 for (i, syntax) in all_results.into_iter().enumerate() {
                     if i > 0 {
@@ -310,7 +332,7 @@ impl AdvancedQuasisyntaxProcessor {
                     }
                     interleaved.push(syntax);
                 }
-                
+
                 Ok(QuasisyntaxExpansionResult::Multiple(interleaved))
             }
         }
@@ -343,12 +365,10 @@ impl AdvancedQuasisyntaxProcessor {
         // Evaluate condition at compile-time
         self.stats.conditional_generations += 1;
         let condition_result = self.process_template(condition, bindings, context, span)?;
-        
+
         // Convert result to boolean
         let is_true = match condition_result {
-            QuasisyntaxExpansionResult::Single(syntax) => {
-                self.syntax_to_boolean(&syntax)?
-            }
+            QuasisyntaxExpansionResult::Single(syntax) => self.syntax_to_boolean(&syntax)?,
             _ => false,
         };
 
@@ -363,7 +383,7 @@ impl AdvancedQuasisyntaxProcessor {
         };
 
         let result = self.process_template(chosen_template, bindings, context, span);
-        
+
         // Restore previous phase
         context.macro_env.exit_phase(previous_phase);
         context.generation_depth -= 1;
@@ -384,20 +404,19 @@ impl AdvancedQuasisyntaxProcessor {
 
         // Process the generator template to get a macro-time value
         let mut gen_context_mut = gen_context.clone();
-        let generator_result = self.process_template(generator, bindings, &mut gen_context_mut, span)?;
-        
+        let generator_result =
+            self.process_template(generator, bindings, &mut gen_context_mut, span)?;
+
         // Convert result to syntax and then evaluate at compile-time
         let syntax = generator_result.into_single()?;
         let mut macro_env = context.macro_env.clone();
         let mut hygiene_env = self.hygiene_resolver.clone();
-        
+
         let macro_time_value = macro_env.compile_time_eval(&syntax, &mut hygiene_env)?;
-        
+
         // Convert macro-time value back to syntax
         match macro_time_value {
-            MacroTimeValue::Syntax(syntax) => {
-                Ok(QuasisyntaxExpansionResult::Single(syntax))
-            }
+            MacroTimeValue::Syntax(syntax) => Ok(QuasisyntaxExpansionResult::Single(syntax)),
             MacroTimeValue::SyntaxList(syntaxes) => {
                 Ok(QuasisyntaxExpansionResult::Multiple(syntaxes))
             }
@@ -419,15 +438,13 @@ impl AdvancedQuasisyntaxProcessor {
                     Expr::Identifier(value_str.clone())
                 };
                 Ok(QuasisyntaxExpansionResult::Single(Box::new(
-                    SyntaxObject::new(expr, span, context.base_context.lexical_context().clone())
+                    SyntaxObject::new(expr, span, context.base_context.lexical_context().clone()),
                 )))
             }
-            _ => {
-                Err(Box::new(Error::MacroError {
-                    message: "Cannot convert macro-time value to syntax".to_string(),
-                    span,
-                }))
-            }
+            _ => Err(Box::new(Error::MacroError {
+                message: "Cannot convert macro-time value to syntax".to_string(),
+                span,
+            })),
         }
     }
 
@@ -469,10 +486,10 @@ impl AdvancedQuasisyntaxProcessor {
         } else {
             // Recursive case: generate a template that generates a template
             let inner_result = self.process_template(meta_expr, bindings, context, span)?;
-            
+
             // Convert result to advanced template
             let advanced_template = self.result_to_advanced_template(inner_result, span)?;
-            
+
             // Return as template for further processing
             Ok(QuasisyntaxExpansionResult::Template(advanced_template))
         }
@@ -497,15 +514,13 @@ impl AdvancedQuasisyntaxProcessor {
                         Ok(AdvancedQuasisyntaxTemplate::Basic(basic))
                     })
                     .collect();
-                
+
                 Ok(AdvancedQuasisyntaxTemplate::Composition {
                     templates: templates?,
                     combiner: TemplateCombiner::Append,
                 })
             }
-            QuasisyntaxExpansionResult::Template(template) => {
-                Ok(template)
-            }
+            QuasisyntaxExpansionResult::Template(template) => Ok(template),
         }
     }
 
@@ -525,12 +540,10 @@ impl AdvancedQuasisyntaxProcessor {
                     .collect();
                 Ok(QuasisyntaxTemplate::List(templates?))
             }
-            _ => {
-                Err(Box::new(Error::MacroError {
-                    message: "Cannot convert macro-time value to template".to_string(),
-                    span: Span::new(0, 0),
-                }))
-            }
+            _ => Err(Box::new(Error::MacroError {
+                message: "Cannot convert macro-time value to template".to_string(),
+                span: Span::new(0, 0),
+            })),
         }
     }
 
@@ -556,15 +569,23 @@ impl AdvancedQuasisyntaxProcessor {
         // This would integrate with the existing quasisyntax system
         // For now, create a simple syntax object
         match template {
-            QuasisyntaxTemplate::Literal(lit) => {
-                Ok(SyntaxObject::new(Expr::Literal(lit.clone()), span, context.lexical_context().clone()))
-            }
-            QuasisyntaxTemplate::Identifier(name) => {
-                Ok(SyntaxObject::new(Expr::Identifier(name.clone()), span, context.lexical_context().clone()))
-            }
+            QuasisyntaxTemplate::Literal(lit) => Ok(SyntaxObject::new(
+                Expr::Literal(lit.clone()),
+                span,
+                context.lexical_context().clone(),
+            )),
+            QuasisyntaxTemplate::Identifier(name) => Ok(SyntaxObject::new(
+                Expr::Identifier(name.clone()),
+                span,
+                context.lexical_context().clone(),
+            )),
             _ => {
                 // Simplified - would need full quasisyntax expansion
-                Ok(SyntaxObject::new(Expr::Literal(Literal::Nil), span, context.lexical_context().clone()))
+                Ok(SyntaxObject::new(
+                    Expr::Literal(Literal::Nil),
+                    span,
+                    context.lexical_context().clone(),
+                ))
             }
         }
     }
@@ -610,12 +631,10 @@ impl QuasisyntaxExpansionResult {
                     }))
                 }
             }
-            QuasisyntaxExpansionResult::Template(_) => {
-                Err(Box::new(Error::MacroError {
-                    message: "Expected syntax result, got template".to_string(),
-                    span: Span::new(0, 0),
-                }))
-            }
+            QuasisyntaxExpansionResult::Template(_) => Err(Box::new(Error::MacroError {
+                message: "Expected syntax result, got template".to_string(),
+                span: Span::new(0, 0),
+            })),
         }
     }
 
@@ -661,7 +680,10 @@ pub mod advanced_quasisyntax_interface {
         templates: Vec<AdvancedQuasisyntaxTemplate>,
         combiner: TemplateCombiner,
     ) -> Result<AdvancedQuasisyntaxTemplate> {
-        Ok(AdvancedQuasisyntaxTemplate::Composition { templates, combiner })
+        Ok(AdvancedQuasisyntaxTemplate::Composition {
+            templates,
+            combiner,
+        })
     }
 
     /// Creates a conditional generation template
@@ -722,29 +744,24 @@ mod tests {
         let mut context = AdvancedGenerationContext::new();
         let bindings = HashMap::new();
 
-        let template = AdvancedQuasisyntaxTemplate::Basic(
-            QuasisyntaxTemplate::Identifier("test".to_string())
-        );
+        let template =
+            AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Identifier("test".to_string()));
 
-        let result = processor.process_template(
-            &template,
-            &bindings,
-            &mut context,
-            Span::new(0, 4),
-        ).unwrap();
-        
+        let result = processor
+            .process_template(&template, &bindings, &mut context, Span::new(0, 4))
+            .unwrap();
+
         let syntax = result.into_single().unwrap();
-        assert_eq!(syntax.identifier_name(), Some("test".to_string()))
+        assert_eq!(syntax.identifier_name(), Some("test"))
     }
 
     #[test]
     fn test_macro_time_eval_template() {
-        let condition = AdvancedQuasisyntaxTemplate::Basic(
-            QuasisyntaxTemplate::Literal(Literal::Boolean(true))
-        );
-        let then_template = AdvancedQuasisyntaxTemplate::Basic(
-            QuasisyntaxTemplate::Identifier("test".to_string())
-        );
+        let condition = AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Literal(
+            Literal::Boolean(true),
+        ));
+        let then_template =
+            AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Identifier("test".to_string()));
 
         let conditional = AdvancedQuasisyntaxTemplate::Conditional {
             condition: Box::new(condition),
@@ -756,24 +773,18 @@ mod tests {
         let mut context = AdvancedGenerationContext::new();
         let bindings = HashMap::new();
 
-        let result = processor.process_template(
-            &conditional,
-            &bindings,
-            &mut context,
-            Span::new(0, 4),
-        );
-        
+        let result =
+            processor.process_template(&conditional, &bindings, &mut context, Span::new(0, 4));
+
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_template_composition() {
-        let template1 = AdvancedQuasisyntaxTemplate::Basic(
-            QuasisyntaxTemplate::Identifier("x".to_string())
-        );
-        let template2 = AdvancedQuasisyntaxTemplate::Basic(
-            QuasisyntaxTemplate::Identifier("y".to_string())
-        );
+        let template1 =
+            AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Identifier("x".to_string()));
+        let template2 =
+            AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Identifier("y".to_string()));
 
         let composition = AdvancedQuasisyntaxTemplate::Composition {
             templates: vec![template1, template2],
@@ -784,16 +795,13 @@ mod tests {
         let mut context = AdvancedGenerationContext::new();
         let bindings = HashMap::new();
 
-        let result = processor.process_template(
-            &composition,
-            &bindings,
-            &mut context,
-            Span::new(0, 4),
-        ).unwrap();
-        
+        let result = processor
+            .process_template(&composition, &bindings, &mut context, Span::new(0, 4))
+            .unwrap();
+
         let syntax = result.into_single().unwrap();
         assert!(syntax.is_list());
-        
+
         if let Some(list) = syntax.as_list() {
             assert_eq!(list.len(), 2);
             assert!(list[0].is_identifier());
@@ -803,15 +811,13 @@ mod tests {
 
     #[test]
     fn test_conditional_generation() {
-        let condition = AdvancedQuasisyntaxTemplate::Basic(
-            QuasisyntaxTemplate::Literal(Literal::Boolean(true))
-        );
-        let then_template = AdvancedQuasisyntaxTemplate::Basic(
-            QuasisyntaxTemplate::Identifier("then".to_string())
-        );
-        let else_template = AdvancedQuasisyntaxTemplate::Basic(
-            QuasisyntaxTemplate::Identifier("else".to_string())
-        );
+        let condition = AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Literal(
+            Literal::Boolean(true),
+        ));
+        let then_template =
+            AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Identifier("then".to_string()));
+        let else_template =
+            AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Identifier("else".to_string()));
 
         let conditional = AdvancedQuasisyntaxTemplate::Conditional {
             condition: Box::new(condition),
@@ -823,41 +829,36 @@ mod tests {
         let mut context = AdvancedGenerationContext::new();
         let bindings = HashMap::new();
 
-        let result = processor.process_template(
-            &conditional,
-            &bindings,
-            &mut context,
-            Span::new(0, 4),
-        ).unwrap();
-        
+        let result = processor
+            .process_template(&conditional, &bindings, &mut context, Span::new(0, 4))
+            .unwrap();
+
         let syntax = result.into_single().unwrap();
-        assert_eq!(syntax.identifier_name(), Some("then".to_string()));
+        assert_eq!(syntax.identifier_name(), Some("then"));
     }
 
     #[test]
     fn test_advanced_interface() {
         use advanced_quasisyntax_interface::*;
-        
-        let template1 = AdvancedQuasisyntaxTemplate::Basic(
-            QuasisyntaxTemplate::Identifier("x".to_string())
-        );
-        let template2 = AdvancedQuasisyntaxTemplate::Basic(
-            QuasisyntaxTemplate::Identifier("y".to_string())
-        );
-        
-        let composition = make_template_composition(
-            vec![template1, template2],
-            TemplateCombiner::Append,
-        );
-        
+
+        let template1 =
+            AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Identifier("x".to_string()));
+        let template2 =
+            AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Identifier("y".to_string()));
+
+        let composition =
+            make_template_composition(vec![template1, template2], TemplateCombiner::Append);
+
         assert!(composition.is_ok());
-        
+
         let conditional = make_conditional_generation(
-            AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Literal(Literal::Boolean(true))),
+            AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Literal(Literal::Boolean(
+                true,
+            ))),
             AdvancedQuasisyntaxTemplate::Basic(QuasisyntaxTemplate::Identifier("yes".to_string())),
             None,
         );
-        
+
         assert!(conditional.is_ok());
     }
 }

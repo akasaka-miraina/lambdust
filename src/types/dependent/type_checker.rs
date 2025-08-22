@@ -9,13 +9,13 @@
 
 use crate::diagnostics::{Error, Result, Span};
 use crate::types::dependent::{
-    DependentType, DependentTerm, UniverseLevel, TypingContext, Normalizer,
+    DependentTerm, DependentType, Normalizer, TypingContext, UniverseLevel,
     constraint_solver::{ConstraintSolver, TypeConstraint, TypeVariable, VariableKind},
 };
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, RwLock, Mutex};
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Bidirectional type checking mode for efficiency
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -44,8 +44,11 @@ pub struct TypeCheckingContext {
 /// Cached type checking result
 #[derive(Debug, Clone)]
 pub struct TypeCheckResult {
+    /// Type inferred for the checked term (if successful)
     pub inferred_type: Option<DependentType>,
+    /// Constraints generated during type checking
     pub constraints: Vec<TypeConstraint>,
+    /// Source location for error reporting
     pub span: Span,
 }
 
@@ -82,11 +85,17 @@ pub struct DependentTypeChecker {
 /// Statistics for performance monitoring
 #[derive(Debug, Default)]
 pub struct TypeCheckerStatistics {
+    /// Number of terms processed by the type checker
     pub terms_checked: usize,
+    /// Number of successful cache lookups
     pub cache_hits: usize,
+    /// Number of cache misses requiring computation
     pub cache_misses: usize,
+    /// Number of type checks performed in parallel
     pub parallel_checks: usize,
+    /// Number of constraint generation operations
     pub constraint_generations: usize,
+    /// Number of normalization steps performed
     pub normalization_steps: usize,
 }
 
@@ -194,15 +203,17 @@ impl DependentTypeChecker {
         expected_type: &DependentType,
         span: Span,
     ) -> Result<()> {
-        let result = self.check_term_internal(term, Some(expected_type), CheckingMode::Checking, span)?;
-        
+        let result =
+            self.check_term_internal(term, Some(expected_type), CheckingMode::Checking, span)?;
+
         if let Some(inferred) = result.inferred_type {
             // Add equality constraint between inferred and expected types
-            self.constraint_solver.add_constraint(TypeConstraint::Equal {
-                left: inferred,
-                right: expected_type.clone(),
-                span,
-            });
+            self.constraint_solver
+                .add_constraint(TypeConstraint::Equal {
+                    left: inferred,
+                    right: expected_type.clone(),
+                    span,
+                });
         }
 
         // Add generated constraints to solver
@@ -210,7 +221,7 @@ impl DependentTypeChecker {
 
         // Solve constraints
         let stats = self.constraint_solver.solve_constraints()?;
-        
+
         // Update statistics
         {
             let mut checker_stats = self.stats.lock().unwrap();
@@ -221,21 +232,17 @@ impl DependentTypeChecker {
     }
 
     /// Infer the type of a term (bidirectional inference)
-    pub fn infer_term_type(
-        &mut self,
-        term: &DependentTerm,
-        span: Span,
-    ) -> Result<DependentType> {
+    pub fn infer_term_type(&mut self, term: &DependentTerm, span: Span) -> Result<DependentType> {
         let result = self.check_term_internal(term, None, CheckingMode::Inference, span)?;
-        
+
         match result.inferred_type {
             Some(ty) => {
                 // Add generated constraints to solver
                 self.constraint_solver.add_constraints(result.constraints);
-                
+
                 // Solve constraints
                 self.constraint_solver.solve_constraints()?;
-                
+
                 Ok(ty)
             }
             None => Err(Box::new(Error::type_error(
@@ -287,7 +294,9 @@ impl DependentTypeChecker {
 
         let result = match mode {
             CheckingMode::Inference => self.infer_term_type_internal(term, span)?,
-            CheckingMode::Checking => self.check_term_type_internal(term, expected_type.unwrap(), span)?,
+            CheckingMode::Checking => {
+                self.check_term_type_internal(term, expected_type.unwrap(), span)?
+            }
             CheckingMode::Synthesis => self.synthesize_term_type_internal(term, span)?,
         };
 
@@ -305,31 +314,30 @@ impl DependentTypeChecker {
         span: Span,
     ) -> Result<TypeCheckResult> {
         match term {
-            DependentTerm::Variable(name) => {
-                match self.context.lookup_variable(name) {
-                    Some(ty) => Ok(TypeCheckResult {
-                        inferred_type: Some(ty.clone()),
-                        constraints: vec![],
-                        span,
-                    }),
-                    None => Err(Box::new(Error::type_error(
-                        format!("Unbound variable: {}", name),
-                        span,
-                    ))),
-                }
-            }
-
-            DependentTerm::Lambda { param, param_type, body } => {
-                // λx:A.t : (x:A) → B where t:B in context extended with x:A
-                self.context.bind_variable(param.clone(), (**param_type).clone());
-                
-                let body_result = self.check_term_internal(
-                    body,
-                    None,
-                    CheckingMode::Inference,
+            DependentTerm::Variable(name) => match self.context.lookup_variable(name) {
+                Some(ty) => Ok(TypeCheckResult {
+                    inferred_type: Some(ty.clone()),
+                    constraints: vec![],
                     span,
-                )?;
-                
+                }),
+                None => Err(Box::new(Error::type_error(
+                    format!("Unbound variable: {}", name),
+                    span,
+                ))),
+            },
+
+            DependentTerm::Lambda {
+                param,
+                param_type,
+                body,
+            } => {
+                // λx:A.t : (x:A) → B where t:B in context extended with x:A
+                self.context
+                    .bind_variable(param.clone(), (**param_type).clone());
+
+                let body_result =
+                    self.check_term_internal(body, None, CheckingMode::Inference, span)?;
+
                 self.context.unbind_variable(param);
 
                 if let Some(body_type) = body_result.inferred_type {
@@ -351,16 +359,16 @@ impl DependentTypeChecker {
             }
 
             DependentTerm::Application { function, argument } => {
-                let func_result = self.check_term_internal(
-                    function,
-                    None,
-                    CheckingMode::Inference,
-                    span,
-                )?;
+                let func_result =
+                    self.check_term_internal(function, None, CheckingMode::Inference, span)?;
 
                 if let Some(func_type) = func_result.inferred_type {
                     match func_type {
-                        DependentType::Pi { var, domain, codomain } => {
+                        DependentType::Pi {
+                            var,
+                            domain,
+                            codomain,
+                        } => {
                             // Check argument has domain type
                             let arg_result = self.check_term_internal(
                                 argument,
@@ -423,23 +431,15 @@ impl DependentTypeChecker {
             }
 
             DependentTerm::Pair { first, second } => {
-                let first_result = self.check_term_internal(
-                    first,
-                    None,
-                    CheckingMode::Inference,
-                    span,
-                )?;
+                let first_result =
+                    self.check_term_internal(first, None, CheckingMode::Inference, span)?;
 
-                let second_result = self.check_term_internal(
-                    second,
-                    None,
-                    CheckingMode::Inference,
-                    span,
-                )?;
+                let second_result =
+                    self.check_term_internal(second, None, CheckingMode::Inference, span)?;
 
-                if let (Some(first_type), Some(second_type)) = 
-                    (first_result.inferred_type, second_result.inferred_type) {
-                    
+                if let (Some(first_type), Some(second_type)) =
+                    (first_result.inferred_type, second_result.inferred_type)
+                {
                     let fresh_var = self.context.fresh_var();
                     let mut constraints = first_result.constraints;
                     constraints.extend(second_result.constraints);
@@ -462,12 +462,8 @@ impl DependentTypeChecker {
             }
 
             DependentTerm::Projection { pair, is_first } => {
-                let pair_result = self.check_term_internal(
-                    pair,
-                    None,
-                    CheckingMode::Inference,
-                    span,
-                )?;
+                let pair_result =
+                    self.check_term_internal(pair, None, CheckingMode::Inference, span)?;
 
                 if let Some(pair_type) = pair_result.inferred_type {
                     match pair_type {
@@ -527,13 +523,11 @@ impl DependentTypeChecker {
                 }
             }
 
-            DependentTerm::Constructor { result_type, .. } => {
-                Ok(TypeCheckResult {
-                    inferred_type: Some((**result_type).clone()),
-                    constraints: vec![],
-                    span,
-                })
-            }
+            DependentTerm::Constructor { result_type, .. } => Ok(TypeCheckResult {
+                inferred_type: Some((**result_type).clone()),
+                constraints: vec![],
+                span,
+            }),
 
             DependentTerm::Match { return_type, .. } => {
                 // Pattern matching requires complex analysis
@@ -612,7 +606,11 @@ impl DependentTypeChecker {
     ) -> Result<DependentType> {
         // Complex substitution operation - simplified for now
         match ty {
-            DependentType::Pi { var: pi_var, domain, codomain } => {
+            DependentType::Pi {
+                var: pi_var,
+                domain,
+                codomain,
+            } => {
                 if pi_var == var {
                     // Variable is bound, no substitution in codomain
                     Ok(DependentType::Pi {
@@ -628,7 +626,11 @@ impl DependentTypeChecker {
                     })
                 }
             }
-            DependentType::Sigma { var: sigma_var, first, second } => {
+            DependentType::Sigma {
+                var: sigma_var,
+                first,
+                second,
+            } => {
                 if sigma_var == var {
                     Ok(DependentType::Sigma {
                         var: sigma_var.clone(),
@@ -649,7 +651,7 @@ impl DependentTypeChecker {
 
     /// Check cache for type checking result
     fn check_cache(&self, key: &TypeCheckKey) -> Option<TypeCheckResult> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.try_read().unwrap();
         cache.get(key).cloned()
     }
 
@@ -702,7 +704,7 @@ impl DependentTypeChecker {
         Self {
             context: self.context.clone(),
             constraint_solver: ConstraintSolver::new(), // Fresh solver per thread
-            cache: self.cache.clone(), // Shared cache
+            cache: self.cache.clone(),                  // Shared cache
             normalizer: self.normalizer.clone(),
             parallel_enabled: false, // Disable nested parallelism
             max_depth: self.max_depth,
@@ -741,7 +743,6 @@ impl Default for DependentTypeChecker {
     }
 }
 
-
 impl Clone for TypeCheckerStatistics {
     fn clone(&self) -> Self {
         Self {
@@ -771,10 +772,10 @@ mod tests {
         let mut context = TypeCheckingContext::new();
         let ty = DependentType::Universe(0);
         context.bind_variable("x".to_string(), ty.clone());
-        
+
         assert_eq!(context.lookup_variable("x"), Some(&ty));
         assert_eq!(context.size(), 1);
-        
+
         context.unbind_variable("x");
         assert_eq!(context.lookup_variable("x"), None);
         assert_eq!(context.size(), 0);
@@ -793,11 +794,13 @@ mod tests {
     fn test_simple_variable_inference() {
         let mut checker = DependentTypeChecker::new();
         let ty = DependentType::Universe(0);
-        checker.get_context_mut().bind_variable("x".to_string(), ty.clone());
-        
+        checker
+            .get_context_mut()
+            .bind_variable("x".to_string(), ty.clone());
+
         let term = DependentTerm::Variable("x".to_string());
         let inferred = checker.infer_term_type(&term, Span::new(0, 0)).unwrap();
-        
+
         assert_eq!(inferred, ty);
     }
 }

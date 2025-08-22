@@ -41,13 +41,13 @@
 //!
 //! Universe levels support arithmetic operations:
 //! - max(i, j): maximum of two levels
-//! - i + 1: successor level  
+//! - i + 1: successor level
 //! - ⊔ (lub): least upper bound of level sets
 
-use super::core::{DependentType, DependentTerm, TypingContext, UniverseLevel};
+use super::core::{DependentTerm, DependentType, TypingContext, UniverseLevel};
 use crate::diagnostics::{Error, Result, Span};
-use std::collections::{HashMap, HashSet, BTreeSet};
-use std::cmp::{max, Ordering};
+use std::cmp::{Ordering, max};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt;
 
 /// Universe hierarchy manager.
@@ -71,7 +71,7 @@ pub struct UniverseHierarchy {
 pub enum LevelConstraint {
     /// Level variable has a lower bound: α ≥ i
     LowerBound(String, UniverseLevel),
-    /// Level variable has an upper bound: α ≤ i  
+    /// Level variable has an upper bound: α ≤ i
     UpperBound(String, UniverseLevel),
     /// Two level variables are equal: α = β
     Equal(String, String),
@@ -111,7 +111,7 @@ impl UniverseHierarchy {
     pub fn with_max_level(max_level: UniverseLevel) -> Self {
         let mut hierarchy = Self::new();
         hierarchy.max_level = max_level;
-        
+
         // Initialize cumulativity graph
         for i in 0..=max_level {
             let mut higher_levels = BTreeSet::new();
@@ -120,7 +120,7 @@ impl UniverseHierarchy {
             }
             hierarchy.cumulativity_graph.insert(i, higher_levels);
         }
-        
+
         hierarchy
     }
 
@@ -139,30 +139,29 @@ impl UniverseHierarchy {
         if level > self.max_level {
             // Add cumulativity relationships for the new level
             for i in 0..=self.max_level {
-                self.cumulativity_graph
-                    .get_mut(&i)
-                    .unwrap()
-                    .insert(level);
+                self.cumulativity_graph.get_mut(&i).unwrap().insert(level);
             }
-            
+
             // Add cumulativity entry for the new level
             let mut higher_levels = BTreeSet::new();
-            for j in (level + 1)..=(level + 10) { // Extend a bit further
+            for j in (level + 1)..=(level + 10) {
+                // Extend a bit further
                 higher_levels.insert(j);
             }
             self.cumulativity_graph.insert(level, higher_levels);
-            
+
             self.max_level = level;
         }
     }
 
     /// Check if level1 can be lifted to level2 (cumulativity).
     pub fn can_lift(&self, level1: UniverseLevel, level2: UniverseLevel) -> bool {
-        level1 <= level2 || 
-        self.cumulativity_graph
-            .get(&level1)
-            .map(|higher| higher.contains(&level2))
-            .unwrap_or(false)
+        level1 <= level2
+            || self
+                .cumulativity_graph
+                .get(&level1)
+                .map(|higher| higher.contains(&level2))
+                .unwrap_or(false)
     }
 
     /// Get the minimal level that can contain both input levels.
@@ -183,7 +182,9 @@ impl UniverseHierarchy {
                 // Type_i : Type_{i+1}
                 Ok(level + 1)
             }
-            DependentType::Pi { domain, codomain, .. } => {
+            DependentType::Pi {
+                domain, codomain, ..
+            } => {
                 let domain_level = self.infer_universe_level(domain)?;
                 let codomain_level = self.infer_universe_level(codomain)?;
                 // Π-type lives in the maximum of its component levels
@@ -199,7 +200,11 @@ impl UniverseHierarchy {
                 // Identity type lives in the same universe as its base type
                 self.infer_universe_level(ty)
             }
-            DependentType::Inductive { universe_level, constructors, .. } => {
+            DependentType::Inductive {
+                universe_level,
+                constructors,
+                ..
+            } => {
                 // Check that all constructors respect the declared level
                 let mut max_constructor_level = *universe_level;
                 for (_, ctor_type) in constructors {
@@ -225,14 +230,15 @@ impl UniverseHierarchy {
             match constraint {
                 LevelConstraint::LowerBound(var, level) => {
                     let current = self.level_assignments.get(var).copied().unwrap_or(0);
-                    self.level_assignments.insert(var.clone(), max(current, *level));
+                    self.level_assignments
+                        .insert(var.clone(), max(current, *level));
                 }
                 LevelConstraint::UpperBound(var, level) => {
                     let current = self.level_assignments.get(var).copied().unwrap_or(*level);
                     if current > *level {
                         return Err(Box::new(Error::type_error(
                             format!("Level constraint violation: {var} > {level}"),
-                            Span::new(0, 0)
+                            Span::new(0, 0),
                         )));
                     }
                     self.level_assignments.insert(var.clone(), current);
@@ -247,7 +253,8 @@ impl UniverseHierarchy {
                 LevelConstraint::Maximum(var, var1, var2) => {
                     let level1 = self.level_assignments.get(var1).copied().unwrap_or(0);
                     let level2 = self.level_assignments.get(var2).copied().unwrap_or(0);
-                    self.level_assignments.insert(var.clone(), max(level1, level2));
+                    self.level_assignments
+                        .insert(var.clone(), max(level1, level2));
                 }
                 LevelConstraint::Successor(var, base_var) => {
                     let base_level = self.level_assignments.get(base_var).copied().unwrap_or(0);
@@ -270,7 +277,7 @@ impl UniverseHierarchy {
             if self.has_cycle(var, &HashSet::new())? {
                 return Err(Box::new(Error::type_error(
                     format!("Cyclic universe level dependency involving {var}"),
-                    Span::new(0, 0)
+                    Span::new(0, 0),
                 )));
             }
         }
@@ -280,7 +287,7 @@ impl UniverseHierarchy {
             if self.universe_contains_itself(level)? {
                 return Err(Box::new(Error::type_error(
                     format!("Universe level {level} contains itself"),
-                    Span::new(0, 0)
+                    Span::new(0, 0),
                 )));
             }
         }
@@ -310,9 +317,11 @@ impl UniverseHierarchy {
                 }
                 LevelConstraint::Maximum(v, v1, v2) => {
                     if v == var
-                        && (self.has_cycle(v1, &new_visited)? || self.has_cycle(v2, &new_visited)?) {
-                            return Ok(true);
-                        }
+                        && (self.has_cycle(v1, &new_visited)?
+                            || self.has_cycle(v2, &new_visited)?)
+                    {
+                        return Ok(true);
+                    }
                 }
                 LevelConstraint::Successor(v, base) => {
                     if v == var && self.has_cycle(base, &new_visited)? {
@@ -346,7 +355,7 @@ impl UniverseHierarchy {
             for var in level_vars.iter().skip(1) {
                 expr = LevelExpression::Maximum(
                     Box::new(expr),
-                    Box::new(LevelExpression::Variable(var.clone()))
+                    Box::new(LevelExpression::Variable(var.clone())),
                 );
             }
             expr
@@ -362,12 +371,12 @@ impl UniverseHierarchy {
         match expr {
             LevelExpression::Concrete(level) => Ok(*level),
             LevelExpression::Variable(var) => {
-                self.level_assignments.get(var)
-                    .copied()
-                    .ok_or_else(|| Box::new(Error::type_error(
+                self.level_assignments.get(var).copied().ok_or_else(|| {
+                    Box::new(Error::type_error(
                         format!("Unbound level variable: {var}"),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))
+                })
             }
             LevelExpression::Maximum(expr1, expr2) => {
                 let level1 = self.evaluate_level_expression(expr1)?;
@@ -398,19 +407,19 @@ impl UniverseHierarchy {
             LevelExpression::Maximum(expr1, expr2) => {
                 let norm1 = self.normalize_level_expression(expr1);
                 let norm2 = self.normalize_level_expression(expr2);
-                
+
                 match (&norm1, &norm2) {
                     (LevelExpression::Concrete(l1), LevelExpression::Concrete(l2)) => {
                         LevelExpression::Concrete(max(*l1, *l2))
                     }
-                    _ => LevelExpression::Maximum(Box::new(norm1), Box::new(norm2))
+                    _ => LevelExpression::Maximum(Box::new(norm1), Box::new(norm2)),
                 }
             }
             LevelExpression::Successor(expr) => {
                 let norm = self.normalize_level_expression(expr);
                 match norm {
                     LevelExpression::Concrete(level) => LevelExpression::Concrete(level + 1),
-                    _ => LevelExpression::Successor(Box::new(norm))
+                    _ => LevelExpression::Successor(Box::new(norm)),
                 }
             }
             LevelExpression::Infinity => expr.clone(),
@@ -434,7 +443,7 @@ impl PolymorphicType {
     pub fn new(
         level_params: Vec<String>,
         body: DependentType,
-        constraints: Vec<LevelConstraint>
+        constraints: Vec<LevelConstraint>,
     ) -> Self {
         Self {
             level_params,
@@ -447,13 +456,16 @@ impl PolymorphicType {
     pub fn instantiate(
         &self,
         level_args: &[UniverseLevel],
-        hierarchy: &mut UniverseHierarchy
+        hierarchy: &mut UniverseHierarchy,
     ) -> Result<DependentType> {
         if level_args.len() != self.level_params.len() {
             return Err(Box::new(Error::type_error(
-                format!("Level arity mismatch: expected {}, got {}", 
-                       self.level_params.len(), level_args.len()),
-                Span::new(0, 0)
+                format!(
+                    "Level arity mismatch: expected {}, got {}",
+                    self.level_params.len(),
+                    level_args.len()
+                ),
+                Span::new(0, 0),
             )));
         }
 
@@ -471,7 +483,7 @@ impl PolymorphicType {
                         if level < *bound {
                             return Err(Box::new(Error::type_error(
                                 format!("Level constraint violation: {var} = {level} < {bound}"),
-                                Span::new(0, 0)
+                                Span::new(0, 0),
                             )));
                         }
                     }
@@ -481,7 +493,7 @@ impl PolymorphicType {
                         if level > *bound {
                             return Err(Box::new(Error::type_error(
                                 format!("Level constraint violation: {var} = {level} > {bound}"),
-                                Span::new(0, 0)
+                                Span::new(0, 0),
                             )));
                         }
                     }
@@ -499,11 +511,15 @@ impl PolymorphicType {
         &self,
         ty: &DependentType,
         assignments: &HashMap<String, UniverseLevel>,
-        hierarchy: &UniverseHierarchy
+        hierarchy: &UniverseHierarchy,
     ) -> Result<DependentType> {
         match ty {
             DependentType::Universe(level) => Ok(DependentType::Universe(*level)),
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 let new_domain = self.substitute_levels(domain, assignments, hierarchy)?;
                 let new_codomain = self.substitute_levels(codomain, assignments, hierarchy)?;
                 Ok(DependentType::Pi {
@@ -525,21 +541,31 @@ impl PolymorphicType {
                 let new_ty = self.substitute_levels(ty, assignments, hierarchy)?;
                 Ok(DependentType::Identity {
                     ty: Box::new(new_ty),
-                    left: left.clone(), // Would need term-level substitution
+                    left: left.clone(),   // Would need term-level substitution
                     right: right.clone(), // Would need term-level substitution
                 })
             }
-            DependentType::Inductive { name, parameters, universe_level, constructors, induction_principle } => {
+            DependentType::Inductive {
+                name,
+                parameters,
+                universe_level,
+                constructors,
+                induction_principle,
+            } => {
                 let mut new_constructors = HashMap::new();
                 for (ctor_name, ctor_type) in constructors {
                     new_constructors.insert(
                         ctor_name.clone(),
-                        self.substitute_levels(ctor_type, assignments, hierarchy)?
+                        self.substitute_levels(ctor_type, assignments, hierarchy)?,
                     );
                 }
-                
+
                 let new_induction = if let Some(ind_prin) = induction_principle {
-                    Some(Box::new(self.substitute_levels(ind_prin, assignments, hierarchy)?))
+                    Some(Box::new(self.substitute_levels(
+                        ind_prin,
+                        assignments,
+                        hierarchy,
+                    )?))
                 } else {
                     None
                 };
@@ -569,7 +595,10 @@ impl UniverseOperations {
     }
 
     /// Find the minimal universe level that can contain a type.
-    pub fn minimal_universe(ty: &DependentType, hierarchy: &UniverseHierarchy) -> Result<UniverseLevel> {
+    pub fn minimal_universe(
+        ty: &DependentType,
+        hierarchy: &UniverseHierarchy,
+    ) -> Result<UniverseLevel> {
         hierarchy.infer_universe_level(ty)
     }
 
@@ -577,16 +606,16 @@ impl UniverseOperations {
     pub fn lift_to_universe(
         ty: &DependentType,
         target_level: UniverseLevel,
-        hierarchy: &UniverseHierarchy
+        hierarchy: &UniverseHierarchy,
     ) -> Result<DependentType> {
         let current_level = hierarchy.infer_universe_level(ty)?;
-        
+
         if hierarchy.can_lift(current_level, target_level) {
             Ok(ty.clone()) // Type can be used at the higher level
         } else {
             Err(Box::new(Error::type_error(
                 format!("Cannot lift type from level {current_level} to {target_level}"),
-                Span::new(0, 0)
+                Span::new(0, 0),
             )))
         }
     }
@@ -616,7 +645,7 @@ impl UniverseOperations {
     pub fn check_closure(
         operations: &[DependentType],
         max_level: UniverseLevel,
-        hierarchy: &UniverseHierarchy
+        hierarchy: &UniverseHierarchy,
     ) -> Result<bool> {
         for operation in operations {
             let level = hierarchy.infer_universe_level(operation)?;
@@ -638,8 +667,12 @@ impl Default for UniverseHierarchy {
 // Display implementations
 impl fmt::Display for UniverseHierarchy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "UniverseHierarchy[max: {}, constraints: {}]", 
-               self.max_level, self.constraints.len())
+        write!(
+            f,
+            "UniverseHierarchy[max: {}, constraints: {}]",
+            self.max_level,
+            self.constraints.len()
+        )
     }
 }
 
@@ -661,7 +694,9 @@ impl fmt::Display for LevelConstraint {
             LevelConstraint::LowerBound(var, level) => write!(f, "{} ≥ {}", var, level),
             LevelConstraint::UpperBound(var, level) => write!(f, "{} ≤ {}", var, level),
             LevelConstraint::Equal(var1, var2) => write!(f, "{} = {}", var1, var2),
-            LevelConstraint::Maximum(var, var1, var2) => write!(f, "{} = max({}, {})", var, var1, var2),
+            LevelConstraint::Maximum(var, var1, var2) => {
+                write!(f, "{} = max({}, {})", var, var1, var2)
+            }
             LevelConstraint::Successor(var, base) => write!(f, "{} = {} + 1", var, base),
         }
     }
@@ -671,7 +706,9 @@ impl fmt::Display for PolymorphicType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "∀")?;
         for (i, param) in self.level_params.iter().enumerate() {
-            if i > 0 { write!(f, " ")?; }
+            if i > 0 {
+                write!(f, " ")?;
+            }
             write!(f, "{}", param)?;
         }
         write!(f, ". {}", self.body)
@@ -699,7 +736,7 @@ mod tests {
     fn test_universe_hierarchy_creation() {
         let hierarchy = UniverseHierarchy::new();
         assert_eq!(hierarchy.max_level(), 0);
-        
+
         let hierarchy_with_levels = UniverseHierarchy::with_max_level(5);
         assert_eq!(hierarchy_with_levels.max_level(), 5);
     }
@@ -707,12 +744,12 @@ mod tests {
     #[test]
     fn test_cumulativity() {
         let hierarchy = UniverseHierarchy::with_max_level(5);
-        
+
         // Lower levels can be lifted to higher levels
         assert!(hierarchy.can_lift(0, 1));
         assert!(hierarchy.can_lift(2, 4));
         assert!(hierarchy.can_lift(3, 3)); // Same level
-        
+
         // But not the reverse
         assert!(!hierarchy.can_lift(4, 2));
     }
@@ -720,7 +757,7 @@ mod tests {
     #[test]
     fn test_least_upper_bound() {
         let hierarchy = UniverseHierarchy::new();
-        
+
         assert_eq!(hierarchy.least_upper_bound(2, 3), 3);
         assert_eq!(hierarchy.least_upper_bound(5, 1), 5);
         assert_eq!(hierarchy.least_upper_bound(4, 4), 4);
@@ -729,11 +766,11 @@ mod tests {
     #[test]
     fn test_universe_level_inference() {
         let hierarchy = UniverseHierarchy::new();
-        
+
         // Type_i : Type_{i+1}
         let type_0 = DependentType::Universe(0);
         assert_eq!(hierarchy.infer_universe_level(&type_0).unwrap(), 1);
-        
+
         let type_3 = DependentType::Universe(3);
         assert_eq!(hierarchy.infer_universe_level(&type_3).unwrap(), 4);
     }
@@ -741,15 +778,15 @@ mod tests {
     #[test]
     fn test_level_constraints() {
         let mut hierarchy = UniverseHierarchy::new();
-        
+
         // Add constraint α ≥ 2
         hierarchy.add_constraint(LevelConstraint::LowerBound("α".to_string(), 2));
-        
-        // Add constraint α ≤ 5  
+
+        // Add constraint α ≤ 5
         hierarchy.add_constraint(LevelConstraint::UpperBound("α".to_string(), 5));
-        
+
         hierarchy.solve_constraints().unwrap();
-        
+
         let assignment = hierarchy.get_level_assignment("α").unwrap();
         assert!((2..=5).contains(&assignment));
     }
@@ -759,12 +796,12 @@ mod tests {
         let mut hierarchy = UniverseHierarchy::new();
         hierarchy.level_assignments.insert("α".to_string(), 3);
         hierarchy.level_assignments.insert("β".to_string(), 5);
-        
+
         let expr = LevelExpression::Maximum(
             Box::new(LevelExpression::Variable("α".to_string())),
-            Box::new(LevelExpression::Variable("β".to_string()))
+            Box::new(LevelExpression::Variable("β".to_string())),
         );
-        
+
         let result = hierarchy.evaluate_level_expression(&expr).unwrap();
         assert_eq!(result, 5); // max(3, 5) = 5
     }
@@ -777,12 +814,12 @@ mod tests {
             LevelConstraint::LowerBound("α".to_string(), 1),
             LevelConstraint::UpperBound("β".to_string(), 10),
         ];
-        
+
         let poly_type = PolymorphicType::new(level_params, body, constraints);
-        
+
         let mut hierarchy = UniverseHierarchy::with_max_level(20);
         let instance = poly_type.instantiate(&[2, 8], &mut hierarchy).unwrap();
-        
+
         // Should successfully instantiate with valid levels
         assert_eq!(instance, DependentType::Universe(0));
     }
@@ -790,7 +827,7 @@ mod tests {
     #[test]
     fn test_consistency_check() {
         let hierarchy = UniverseHierarchy::with_max_level(10);
-        
+
         // Basic hierarchy should be consistent
         assert!(hierarchy.check_consistency().is_ok());
     }
@@ -798,15 +835,19 @@ mod tests {
     #[test]
     fn test_tarski_universe() {
         let (universe_code, decoder_type) = UniverseOperations::tarski_universe(2);
-        
+
         match universe_code {
-            DependentType::Inductive { name, universe_level, .. } => {
+            DependentType::Inductive {
+                name,
+                universe_level,
+                ..
+            } => {
                 assert_eq!(name, "U_2");
                 assert_eq!(universe_level, 3); // Lives in Type_3
             }
             _ => panic!("Expected inductive type"),
         }
-        
+
         match decoder_type {
             DependentType::Pi { codomain, .. } => {
                 assert_eq!(codomain.as_ref(), &DependentType::Universe(2));
@@ -819,11 +860,11 @@ mod tests {
     fn test_level_expression_display() {
         let expr = LevelExpression::Maximum(
             Box::new(LevelExpression::Concrete(3)),
-            Box::new(LevelExpression::Successor(
-                Box::new(LevelExpression::Variable("α".to_string()))
-            ))
+            Box::new(LevelExpression::Successor(Box::new(
+                LevelExpression::Variable("α".to_string()),
+            ))),
         );
-        
+
         let display = format!("{}", expr);
         assert!(display.contains("max"));
         assert!(display.contains("α + 1"));
@@ -833,10 +874,10 @@ mod tests {
     fn test_universe_extension() {
         let mut hierarchy = UniverseHierarchy::with_max_level(3);
         assert_eq!(hierarchy.max_level(), 3);
-        
+
         hierarchy.extend_to_level(7);
         assert_eq!(hierarchy.max_level(), 7);
-        
+
         // Should be able to lift to the new level
         assert!(hierarchy.can_lift(3, 7));
     }

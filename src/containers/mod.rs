@@ -25,55 +25,57 @@
 
 use crate::eval::value::Value;
 
+pub mod bag;
+pub mod benchmarks;
+pub mod comparator;
+pub mod generator;
 pub mod hash_table;
 pub mod ideque;
-pub mod priority_queue;
-pub mod ordered_set;
 pub mod list_queue;
+pub mod ordered_set;
+pub mod priority_queue;
 pub mod random_access_list;
 pub mod set;
-pub mod bag;
-pub mod generator;
-pub mod comparator;
-pub mod benchmarks;
 
 // Container context optimization modules
 pub mod context_optimization;
 pub mod integration_utils;
 
 // Re-export main types for convenience
+pub use bag::{Bag, ThreadSafeBag};
+pub use benchmarks::{BenchmarkResult, ContainerBenchmarks, run_quick_benchmark};
+pub use comparator::{Comparator, HashComparator};
+pub use generator::{Generator, ThreadSafeGenerator};
 pub use hash_table::{HashTable, ThreadSafeHashTable};
 pub use ideque::{Ideque, PersistentIdeque};
-pub use priority_queue::{PriorityQueue, ThreadSafePriorityQueue};
-pub use ordered_set::{OrderedSet, ThreadSafeOrderedSet};
 pub use list_queue::{ListQueue, ThreadSafeListQueue};
-pub use random_access_list::{RandomAccessList, PersistentRandomAccessList, ThreadSafeRandomAccessList};
+pub use ordered_set::{OrderedSet, ThreadSafeOrderedSet};
+pub use priority_queue::{PriorityQueue, ThreadSafePriorityQueue};
+pub use random_access_list::{
+    PersistentRandomAccessList, RandomAccessList, ThreadSafeRandomAccessList,
+};
 pub use set::{Set, ThreadSafeSet};
-pub use bag::{Bag, ThreadSafeBag};
-pub use generator::{Generator, ThreadSafeGenerator};
-pub use comparator::{Comparator, HashComparator};
-pub use benchmarks::{ContainerBenchmarks, BenchmarkResult, run_quick_benchmark};
 
 // Container optimization exports
 pub use context_optimization::{
-    OptimizedContainer, ArenaVector, ArenaHashTable, ContainerPool, ContainerContext,
-    AccessPattern, OptimizationPriority, ContainerMetrics, PoolStats
+    AccessPattern, ArenaHashTable, ArenaVector, ContainerContext, ContainerMetrics, ContainerPool,
+    OptimizationPriority, OptimizedContainer, PoolStats,
 };
 pub use integration_utils::{
-    OptimizedContainerFactory, ContainerType, UsagePatternAnalyzer, ContainerMigrator,
-    OptimizationAdvisor, VectorUsageHint, HashTableUsageHint, UsageAnalysis, convenience
+    ContainerMigrator, ContainerType, HashTableUsageHint, OptimizationAdvisor,
+    OptimizedContainerFactory, UsageAnalysis, UsagePatternAnalyzer, VectorUsageHint, convenience,
 };
 
 /// Common traits for all container types
 pub trait Container {
     /// Returns the number of elements in the container
     fn len(&self) -> usize;
-    
+
     /// Returns true if the container is empty
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
-    
+
     /// Clears all elements from the container
     fn clear(&mut self);
 }
@@ -82,7 +84,7 @@ pub trait Container {
 pub trait Iterable<T> {
     /// Iterator type that yields items of type T
     type Iterator: Iterator<Item = T>;
-    
+
     /// Returns an iterator over the container's elements
     fn iter(&self) -> Self::Iterator;
 }
@@ -91,7 +93,7 @@ pub trait Iterable<T> {
 pub trait Persistent<T>: Clone {
     /// Returns a new container with the given element inserted
     fn insert(&self, element: T) -> Self;
-    
+
     /// Returns a new container with the given element removed
     fn remove(&self, element: &T) -> Self;
 }
@@ -100,10 +102,10 @@ pub trait Persistent<T>: Clone {
 pub trait Debuggable {
     /// Returns the debug name of the container, if set
     fn debug_name(&self) -> Option<&str>;
-    
+
     /// Sets the debug name of the container for easier identification
     fn set_debug_name(&mut self, name: impl Into<String>);
-    
+
     /// Clears the debug name
     fn clear_debug_name(&mut self);
 }
@@ -112,13 +114,13 @@ pub trait Debuggable {
 pub trait Capacity: Container {
     /// Returns the current capacity of the container
     fn capacity(&self) -> usize;
-    
+
     /// Reserves space for at least `additional` more elements
     fn reserve(&mut self, additional: usize);
-    
+
     /// Shrinks the container's capacity as much as possible
     fn shrink_to_fit(&mut self);
-    
+
     /// Returns the current load factor (elements/capacity)
     fn load_factor(&self) -> f64 {
         if self.capacity() == 0 {
@@ -133,10 +135,10 @@ pub trait Capacity: Container {
 pub mod load_factors {
     /// Default load factor for hash tables (0.75)
     pub const DEFAULT_LOAD_FACTOR: f64 = 0.75;
-    
+
     /// Maximum load factor before resize (0.9)
     pub const MAX_LOAD_FACTOR: f64 = 0.9;
-    
+
     /// Minimum load factor before shrink (0.25)
     pub const MIN_LOAD_FACTOR: f64 = 0.25;
 }
@@ -145,10 +147,10 @@ pub mod load_factors {
 pub mod capacities {
     /// Default initial capacity for hash tables
     pub const DEFAULT_HASH_TABLE_CAPACITY: usize = 16;
-    
+
     /// Default initial capacity for priority queues
     pub const DEFAULT_PRIORITY_QUEUE_CAPACITY: usize = 16;
-    
+
     /// Default initial capacity for list queues
     pub const DEFAULT_LIST_QUEUE_CAPACITY: usize = 32;
 }
@@ -163,25 +165,25 @@ pub enum ContainerError {
         /// The actual length of the container
         length: usize,
     },
-    
+
     /// Empty container operation
     EmptyContainer {
         /// The operation that was attempted on an empty container
         operation: String,
     },
-    
+
     /// Key not found in associative container
     KeyNotFound {
         /// The key that was not found
         key: String,
     },
-    
+
     /// Invalid comparator
     InvalidComparator {
         /// Description of what makes the comparator invalid
         message: String,
     },
-    
+
     /// Capacity exceeded
     CapacityExceeded {
         /// The requested capacity that was too large
@@ -195,7 +197,10 @@ impl std::fmt::Display for ContainerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ContainerError::IndexOutOfBounds { index, length } => {
-                write!(f, "Index {index} out of bounds for container of length {length}")
+                write!(
+                    f,
+                    "Index {index} out of bounds for container of length {length}"
+                )
             }
             ContainerError::EmptyContainer { operation } => {
                 write!(f, "Cannot perform '{operation}' on empty container")
@@ -207,7 +212,10 @@ impl std::fmt::Display for ContainerError {
                 write!(f, "Invalid comparator: {message}")
             }
             ContainerError::CapacityExceeded { requested, maximum } => {
-                write!(f, "Requested capacity {requested} exceeds maximum {maximum}")
+                write!(
+                    f,
+                    "Requested capacity {requested} exceeds maximum {maximum}"
+                )
             }
         }
     }
@@ -221,7 +229,7 @@ pub type ContainerResult<T> = Result<T, ContainerError>;
 /// Utility functions for container operations
 pub mod utils {
     use super::*;
-    
+
     /// Calculates the next power of 2 greater than or equal to n
     pub fn next_power_of_two(n: usize) -> usize {
         if n == 0 {
@@ -233,25 +241,25 @@ pub mod utils {
         }
         power
     }
-    
+
     /// Calculates a hash value for a Scheme Value
     pub fn hash_value(value: &Value) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         value.hash(&mut hasher);
         hasher.finish()
     }
-    
+
     /// Compares two Scheme Values for ordering
     pub fn compare_values(a: &Value, b: &Value) -> std::cmp::Ordering {
         use std::cmp::Ordering;
-        
+
         // Type-based ordering first
         let type_order_a = value_type_order(a);
         let type_order_b = value_type_order(b);
-        
+
         match type_order_a.cmp(&type_order_b) {
             Ordering::Equal => {
                 // Same type, compare values
@@ -259,12 +267,8 @@ pub mod utils {
                     (Value::Literal(lit_a), Value::Literal(lit_b)) => {
                         compare_literals(lit_a, lit_b)
                     }
-                    (Value::Symbol(sym_a), Value::Symbol(sym_b)) => {
-                        sym_a.cmp(sym_b)
-                    }
-                    (Value::Keyword(k_a), Value::Keyword(k_b)) => {
-                        k_a.cmp(k_b)
-                    }
+                    (Value::Symbol(sym_a), Value::Symbol(sym_b)) => sym_a.cmp(sym_b),
+                    (Value::Keyword(k_a), Value::Keyword(k_b)) => k_a.cmp(k_b),
                     (Value::Nil, Value::Nil) => Ordering::Equal,
                     (Value::Unspecified, Value::Unspecified) => Ordering::Equal,
                     // For other types, use pointer comparison as fallback
@@ -274,7 +278,7 @@ pub mod utils {
             other => other,
         }
     }
-    
+
     fn value_type_order(value: &Value) -> u8 {
         match value {
             Value::Literal(_) => 0,
@@ -321,7 +325,7 @@ pub mod utils {
             #[cfg(feature = "async-runtime")]
             Value::DistributedNode(_) => 34,
             Value::MutableString(s) => {
-                match s.read() {
+                match s.try_borrow() {
                     Ok(chars) => {
                         use std::collections::hash_map::DefaultHasher;
                         use std::hash::{Hash, Hasher};
@@ -337,20 +341,19 @@ pub mod utils {
             Value::Generator(_) => 36,
             Value::Opaque(_) => 37,
             Value::Environment(_) => 38,
+            Value::Box(_) => 39,
         }
     }
-    
+
     fn compare_literals(a: &crate::ast::Literal, b: &crate::ast::Literal) -> std::cmp::Ordering {
         use crate::ast::Literal;
         use std::cmp::Ordering;
-        
+
         match (a, b) {
-            (a, b) if a.is_number() && b.is_number() => {
-                match (a.to_f64(), b.to_f64()) {
-                    (Some(n_a), Some(n_b)) => n_a.partial_cmp(&n_b).unwrap_or(Ordering::Equal),
-                    _ => Ordering::Equal
-                }
-            }
+            (a, b) if a.is_number() && b.is_number() => match (a.to_f64(), b.to_f64()) {
+                (Some(n_a), Some(n_b)) => n_a.partial_cmp(&n_b).unwrap_or(Ordering::Equal),
+                _ => Ordering::Equal,
+            },
             (Literal::String(s_a), Literal::String(s_b)) => s_a.cmp(s_b),
             (Literal::Character(c_a), Literal::Character(c_b)) => c_a.cmp(c_b),
             (Literal::Boolean(b_a), Literal::Boolean(b_b)) => b_a.cmp(b_b),
@@ -362,7 +365,10 @@ pub mod utils {
             }
             (Literal::Complex(complex_a), Literal::Complex(complex_b)) => {
                 match complex_a.real.partial_cmp(&complex_b.real) {
-                    Some(Ordering::Equal) => complex_a.imaginary.partial_cmp(&complex_b.imaginary).unwrap_or(Ordering::Equal),
+                    Some(Ordering::Equal) => complex_a
+                        .imaginary
+                        .partial_cmp(&complex_b.imaginary)
+                        .unwrap_or(Ordering::Equal),
                     Some(ord) => ord,
                     None => Ordering::Equal,
                 }
@@ -379,22 +385,23 @@ pub mod utils {
                     // Fallback to string comparison for different types
                     format!("{a_disc:?}").cmp(&format!("{b_disc:?}"))
                 }
-            },
+            }
         }
     }
-    
+
     /// Creates a list of Values from a vector
     pub fn values_to_list(values: Vec<Value>) -> Value {
-        values.into_iter().rev().fold(Value::Nil, |acc, val| {
-            Value::pair(val, acc)
-        })
+        values
+            .into_iter()
+            .rev()
+            .fold(Value::Nil, |acc, val| Value::pair(val, acc))
     }
-    
+
     /// Converts a Value list to a vector if it's a proper list
     pub fn list_to_values(list: &Value) -> Option<Vec<Value>> {
         list.as_list()
     }
-    
+
     /// Estimates memory usage of a Value (rough approximation)
     pub fn estimate_value_memory(value: &Value) -> usize {
         match value {
@@ -403,15 +410,15 @@ pub mod utils {
             Value::Keyword(k) => std::mem::size_of::<String>() + k.len(),
             Value::Nil | Value::Unspecified => 0,
             Value::Pair(a, b) => {
-                std::mem::size_of::<Value>() * 2 + 
-                estimate_value_memory(a) + 
-                estimate_value_memory(b)
+                std::mem::size_of::<Value>() * 2
+                    + estimate_value_memory(a)
+                    + estimate_value_memory(b)
             }
             Value::Vector(vec) => {
-                if let Ok(vec_ref) = vec.read() {
-                    std::mem::size_of::<Vec<Value>>() + 
-                    vec_ref.len() * std::mem::size_of::<Value>() +
-                    vec_ref.iter().map(estimate_value_memory).sum::<usize>()
+                if let Ok(vec_ref) = vec.try_borrow() {
+                    std::mem::size_of::<Vec<Value>>()
+                        + vec_ref.len() * std::mem::size_of::<Value>()
+                        + vec_ref.iter().map(estimate_value_memory).sum::<usize>()
                 } else {
                     std::mem::size_of::<Vec<Value>>()
                 }
@@ -420,11 +427,14 @@ pub mod utils {
             _ => std::mem::size_of::<Value>() + 64, // Base size + overhead
         }
     }
-    
+
     fn estimate_literal_memory(lit: &crate::ast::Literal) -> usize {
         use crate::ast::Literal;
         match lit {
-            Literal::ExactInteger(_) | Literal::Integer(_) | Literal::InexactReal(_) | Literal::Number(_) => std::mem::size_of::<f64>(),
+            Literal::ExactInteger(_)
+            | Literal::Integer(_)
+            | Literal::InexactReal(_)
+            | Literal::Number(_) => std::mem::size_of::<f64>(),
             Literal::String(s) => std::mem::size_of::<String>() + s.len(),
             Literal::InternedString(_) => std::mem::size_of::<usize>() * 2, // ID + Arc pointer
             Literal::Character(_) => std::mem::size_of::<char>(),
@@ -440,9 +450,9 @@ pub mod utils {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::utils::*;
-    
+    use super::*;
+
     #[test]
     fn test_next_power_of_two() {
         assert_eq!(next_power_of_two(0), 1);
@@ -453,30 +463,30 @@ mod tests {
         assert_eq!(next_power_of_two(16), 16);
         assert_eq!(next_power_of_two(17), 32);
     }
-    
+
     #[test]
     fn test_hash_value() {
         let v1 = Value::number(42.0);
         let v2 = Value::number(42.0);
         let v3 = Value::string("hello");
-        
+
         assert_eq!(hash_value(&v1), hash_value(&v2));
         assert_ne!(hash_value(&v1), hash_value(&v3));
     }
-    
+
     #[test]
     fn test_compare_values() {
         use std::cmp::Ordering;
-        
+
         let n1 = Value::number(1.0);
         let n2 = Value::number(2.0);
         let s1 = Value::string("a");
         let s2 = Value::string("b");
-        
+
         assert_eq!(compare_values(&n1, &n2), Ordering::Less);
         assert_eq!(compare_values(&n2, &n1), Ordering::Greater);
         assert_eq!(compare_values(&s1, &s2), Ordering::Less);
-        
+
         // Different types should be ordered by type
         assert_eq!(compare_values(&n1, &s1), Ordering::Less);
     }

@@ -6,7 +6,7 @@
 //! - Reduced string allocations
 //! - Better cache locality
 
-use super::{Token, TokenKind, Lexer, InternalLexer};
+use super::{InternalLexer, Lexer, Token, TokenKind};
 use crate::diagnostics::{Error, Result, Span};
 use crate::utils::{InternedString, StringInterner, memory_pool::global_pools};
 use std::sync::Arc;
@@ -71,7 +71,7 @@ impl OptimizedToken {
 
     /// Converts to a regular Token.
     pub fn to_token(&self) -> Token {
-        Token::new(self.kind.clone(), self.span, self.text().to_string())
+        Token::new(self.kind, self.span, self.text().to_string())
     }
 }
 
@@ -86,7 +86,11 @@ impl<'a> OptimizedLexer<'a> {
     }
 
     /// Creates a new optimized lexer with a shared string interner.
-    pub fn with_interner(source: &'a str, filename: Option<&'a str>, interner: Arc<StringInterner>) -> Self {
+    pub fn with_interner(
+        source: &'a str,
+        filename: Option<&'a str>,
+        interner: Arc<StringInterner>,
+    ) -> Self {
         Self {
             source,
             filename,
@@ -98,7 +102,7 @@ impl<'a> OptimizedLexer<'a> {
     pub fn tokenize_optimized(&mut self) -> Result<Vec<OptimizedToken>> {
         let tokens = global_pools::get_token_vec().take();
         let mut optimized_tokens = Vec::with_capacity(tokens.capacity());
-        
+
         // Use internal lexer instead of logos
         let mut internal_lexer = InternalLexer::new(self.source, self.filename);
         let regular_tokens = internal_lexer.tokenize()?;
@@ -125,26 +129,33 @@ impl<'a> OptimizedLexer<'a> {
                 let interned = self.interner.intern(text);
                 OptimizedToken::with_interned(kind, span, interned)
             }
-            
+
             // Don't intern literals as they're usually unique
-            TokenKind::IntegerNumber | TokenKind::RealNumber | 
-            TokenKind::RationalNumber | TokenKind::ComplexNumber |
-            TokenKind::String | TokenKind::Character => {
-                OptimizedToken::with_raw(kind, span, text.to_string())
-            }
-            
+            TokenKind::IntegerNumber
+            | TokenKind::RealNumber
+            | TokenKind::RationalNumber
+            | TokenKind::ComplexNumber
+            | TokenKind::String
+            | TokenKind::Character => OptimizedToken::with_raw(kind, span, text.to_string()),
+
             // Intern small, commonly repeated tokens
-            TokenKind::LeftParen | TokenKind::RightParen |
-            TokenKind::LeftBracket | TokenKind::RightBracket |
-            TokenKind::LeftBrace | TokenKind::RightBrace |
-            TokenKind::Quote | TokenKind::Quasiquote |
-            TokenKind::Unquote | TokenKind::UnquoteSplicing |
-            TokenKind::Dot | TokenKind::TypeAnnotation |
-            TokenKind::Boolean => {
+            TokenKind::LeftParen
+            | TokenKind::RightParen
+            | TokenKind::LeftBracket
+            | TokenKind::RightBracket
+            | TokenKind::LeftBrace
+            | TokenKind::RightBrace
+            | TokenKind::Quote
+            | TokenKind::Quasiquote
+            | TokenKind::Unquote
+            | TokenKind::UnquoteSplicing
+            | TokenKind::Dot
+            | TokenKind::TypeAnnotation
+            | TokenKind::Boolean => {
                 let interned = self.interner.intern(text);
                 OptimizedToken::with_interned(kind, span, interned)
             }
-            
+
             // For other tokens, use raw text
             _ => OptimizedToken::with_raw(kind, span, text.to_string()),
         }
@@ -191,7 +202,10 @@ pub struct OptimizationStats {
 }
 
 /// Benchmark helper to compare optimized vs regular lexer.
-pub fn benchmark_comparison(source: &str, iterations: usize) -> (std::time::Duration, std::time::Duration, OptimizationStats) {
+pub fn benchmark_comparison(
+    source: &str,
+    iterations: usize,
+) -> (std::time::Duration, std::time::Duration, OptimizationStats) {
     use std::time::Instant;
 
     // Benchmark regular lexer
@@ -228,15 +242,17 @@ mod tests {
         assert!(!tokens.is_empty());
 
         // Find identifier tokens
-        let foo_tokens: Vec<_> = tokens.iter()
+        let foo_tokens: Vec<_> = tokens
+            .iter()
             .filter(|t| t.kind == TokenKind::Identifier && t.text() == "foo")
             .collect();
-        
+
         assert_eq!(foo_tokens.len(), 2);
 
         // Both "foo" tokens should use the same interned string
-        if let (Some(first_interned), Some(second_interned)) = 
-            (foo_tokens[0].interned_text(), foo_tokens[1].interned_text()) {
+        if let (Some(first_interned), Some(second_interned)) =
+            (foo_tokens[0].interned_text(), foo_tokens[1].interned_text())
+        {
             assert_eq!(first_interned.id(), second_interned.id());
         }
     }
@@ -255,7 +271,7 @@ mod tests {
     #[test]
     fn test_compatibility_with_regular_lexer() {
         let source = "(+ 1 2 3)";
-        
+
         // Regular lexer
         let mut regular_lexer = Lexer::new(source, Some("test"));
         let regular_tokens = regular_lexer.tokenize().unwrap();
@@ -266,7 +282,7 @@ mod tests {
 
         // Should produce same tokens
         assert_eq!(regular_tokens.len(), optimized_tokens.len());
-        
+
         for (regular, optimized) in regular_tokens.iter().zip(optimized_tokens.iter()) {
             assert_eq!(regular.kind, optimized.kind);
             assert_eq!(regular.span, optimized.span);
@@ -277,10 +293,7 @@ mod tests {
     #[test]
     fn test_shared_interner() {
         let interner = Arc::new(StringInterner::new());
-        let sources = vec![
-            "(define test 1)",
-            "(define test 2)",
-        ];
+        let sources = vec!["(define test 1)", "(define test 2)"];
 
         let mut total_interned = 0;
         for source in sources {
@@ -302,13 +315,13 @@ mod tests {
               (if (= n 0)
                   1
                   (* n (factorial (- n 1)))))
-            
+
             (define pi 3.14159)
             (factorial 5)
         "#;
 
         let (regular_time, optimized_time, stats) = benchmark_comparison(source, 10);
-        
+
         // Should have completed both benchmarks
         assert!(regular_time.as_nanos() > 0);
         assert!(optimized_time.as_nanos() > 0);

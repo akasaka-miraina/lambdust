@@ -4,12 +4,12 @@
 //! allowing programs to inspect types, metadata, environments, and execution
 //! context at runtime.
 
-use crate::eval::{Value, Environment, StackTrace, StackFrame, PrimitiveProcedure};
 use crate::ast::{Formals, Literal};
 use crate::diagnostics::{Error, Result, Span};
+use crate::eval::{Environment, PrimitiveProcedure, StackFrame, StackTrace, Value};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::rc::Rc;
+use std::sync::Arc;
 
 /// Detailed type information for runtime values.
 #[derive(Debug, Clone, PartialEq)]
@@ -33,7 +33,7 @@ pub enum TypeInfo {
     Nil,
     /// Unspecified value type
     Unspecified,
-    
+
     /// Compound types
     /// Pair/cons cell type
     Pair,
@@ -41,7 +41,7 @@ pub enum TypeInfo {
     Vector,
     /// Hash table type
     Hashtable,
-    
+
     /// Advanced container types
     /// Advanced hash table with extended features
     AdvancedHashTable,
@@ -55,120 +55,122 @@ pub enum TypeInfo {
     ListQueue,
     /// Random access list type
     RandomAccessList,
-    /// Set type  
+    /// Set type
     Set,
     /// Bag (multiset) type
     Bag,
     /// Generator type (SRFI-121)
     Generator,
-    
+    /// Box type (SRFI-111)
+    Box,
+
     /// Procedure types
     /// User-defined procedure type
     Procedure {
         /// Procedure arity information
         arity: ArityInfo,
         /// Optional procedure name
-        name: Option<String>
+        name: Option<String>,
     },
     /// Case-lambda procedure type
     CaseLambda {
         /// Available clause arities
-        clauses: Vec<ArityInfo>
+        clauses: Vec<ArityInfo>,
     },
     /// Built-in primitive procedure type
     Primitive {
         /// Primitive procedure name
         name: String,
         /// Primitive arity information
-        arity: ArityInfo
+        arity: ArityInfo,
     },
     /// Continuation type
     Continuation {
         /// Continuation identifier
-        id: String
+        id: String,
     },
     /// Syntax/macro type
     Syntax {
         /// Optional syntax name
-        name: Option<String>
+        name: Option<String>,
     },
-    
+
     /// Advanced types
     /// I/O port type
     Port {
         /// Port operation mode
         mode: String,
         /// Port direction (input/output)
-        direction: String
+        direction: String,
     },
     /// Promise/delay type
     Promise {
         /// Whether promise has been forced
-        forced: bool
+        forced: bool,
     },
     /// Type object type
     Type {
         /// Type name
-        type_name: String
+        type_name: String,
     },
     /// Foreign/external type
     Foreign {
         /// Foreign type name
-        type_name: String
+        type_name: String,
     },
     /// Error object type
     ErrorObject {
         /// Error category
-        category: String
+        category: String,
     },
     /// Character set type
     CharSet,
     /// Parameter object type
     Parameter {
         /// Optional parameter name
-        name: Option<String>
+        name: Option<String>,
     },
     /// Record type
     Record {
         /// Record type name
-        type_name: String
+        type_name: String,
     },
-    
+
     /// Concurrency types
     /// Future/async computation type
     Future {
         /// Future execution status
-        status: String
+        status: String,
     },
     /// Communication channel type
     Channel {
         /// Optional channel capacity
-        capacity: Option<usize>
+        capacity: Option<usize>,
     },
     /// Mutual exclusion lock type
     Mutex {
         /// Whether mutex is currently locked
-        locked: bool
+        locked: bool,
     },
     /// Semaphore synchronization type
     Semaphore {
         /// Available permits
-        permits: usize
+        permits: usize,
     },
     /// Atomic counter type
     AtomicCounter {
         /// Current counter value
-        value: i64
+        value: i64,
     },
     /// Distributed computing node type
     DistributedNode {
         /// Node identifier
-        node_id: String
+        node_id: String,
     },
     /// Opaque/black-box type
     Opaque {
         /// Opaque type name
-        type_name: String
+        type_name: String,
     },
     /// Environment type for dynamic evaluation
     Environment,
@@ -180,11 +182,11 @@ pub enum ArityInfo {
     /// Fixed arity (exact number of arguments)
     Fixed(usize),
     /// Variable arity (minimum arguments + rest)
-    Variable { 
+    Variable {
         /// Minimum number of required arguments.
-        min: usize, 
+        min: usize,
         /// Whether there is a rest parameter.
-        rest: bool 
+        rest: bool,
     },
     /// Case-lambda style (multiple possible arities)
     Multiple(Vec<ArityInfo>),
@@ -221,7 +223,7 @@ pub struct EnvironmentInfo {
 }
 
 /// Classification of different environment contexts in the runtime system.
-/// 
+///
 /// Different environment types provide varying levels of access and security
 /// for executing code in different contexts.
 #[derive(Debug, Clone, PartialEq)]
@@ -241,7 +243,7 @@ pub enum EnvironmentType {
 }
 
 /// Detailed information about a single stack frame during execution.
-/// 
+///
 /// Provides debugging and introspection capabilities by capturing
 /// procedure context, bindings, and call information.
 #[derive(Debug, Clone)]
@@ -259,7 +261,7 @@ pub struct FrameInfo {
 }
 
 /// Runtime object introspection and analysis utility.
-/// 
+///
 /// Provides caching and efficient inspection of runtime values,
 /// including type analysis and metadata extraction.
 #[derive(Debug, Default)]
@@ -289,10 +291,15 @@ impl ObjectInspector {
 
         let type_info = match value {
             Value::Literal(Literal::Boolean(_)) => TypeInfo::Boolean,
-            Value::Literal(Literal::ExactInteger(_)) | Value::Literal(Literal::Integer(_)) | Value::Literal(Literal::InexactReal(_)) | Value::Literal(Literal::Number(_)) => TypeInfo::Number,
+            Value::Literal(Literal::ExactInteger(_))
+            | Value::Literal(Literal::Integer(_))
+            | Value::Literal(Literal::InexactReal(_))
+            | Value::Literal(Literal::Number(_)) => TypeInfo::Number,
             Value::Literal(Literal::Rational { .. }) => TypeInfo::Number,
             Value::Literal(Literal::Complex { .. }) => TypeInfo::Number,
-            Value::Literal(Literal::String(_)) | Value::Literal(Literal::InternedString(_)) => TypeInfo::String,
+            Value::Literal(Literal::String(_)) | Value::Literal(Literal::InternedString(_)) => {
+                TypeInfo::String
+            }
             Value::Literal(Literal::Character(_)) => TypeInfo::Character,
             Value::Literal(Literal::Bytevector(_)) => TypeInfo::Bytevector,
             Value::Literal(Literal::Nil) => TypeInfo::Nil,
@@ -311,7 +318,7 @@ impl ObjectInspector {
             Value::OrderedSet(_) => TypeInfo::OrderedSet,
             Value::ListQueue(_) => TypeInfo::ListQueue,
             Value::RandomAccessList(_) => TypeInfo::RandomAccessList,
-            
+
             Value::Procedure(proc) => {
                 let arity = self.analyze_formals(&proc.formals);
                 TypeInfo::Procedure {
@@ -319,14 +326,16 @@ impl ObjectInspector {
                     name: proc.name.clone(),
                 }
             }
-            
+
             Value::CaseLambda(case_lambda) => {
-                let clauses = case_lambda.clauses.iter()
+                let clauses = case_lambda
+                    .clauses
+                    .iter()
                     .map(|clause| self.analyze_formals(&clause.formals))
                     .collect();
                 TypeInfo::CaseLambda { clauses }
             }
-            
+
             Value::Primitive(prim) => {
                 let arity = self.analyze_primitive_arity(&prim.name);
                 TypeInfo::Primitive {
@@ -334,63 +343,59 @@ impl ObjectInspector {
                     arity,
                 }
             }
-            
-            Value::Continuation(cont) => {
-                TypeInfo::Continuation {
-                    id: format!("cont-{}", cont.id),
-                }
-            }
-            
+
+            Value::Continuation(cont) => TypeInfo::Continuation {
+                id: format!("cont-{}", cont.id),
+            },
+
             Value::Syntax(_syntax) => {
                 TypeInfo::Syntax {
                     name: None, // Placeholder - would extract actual name
                 }
             }
-            
-            Value::Port(port) => {
-                TypeInfo::Port {
-                    mode: format!("{:?}", port.mode),
-                    direction: format!("{:?}", port.direction),
-                }
-            }
-            
+
+            Value::Port(port) => TypeInfo::Port {
+                mode: format!("{:?}", port.mode),
+                direction: format!("{:?}", port.direction),
+            },
+
             Value::Promise(_promise) => {
                 let forced = false; // Placeholder - would check actual forced state
                 TypeInfo::Promise { forced }
             }
-            
+
             Value::Type(_type_val) => {
                 TypeInfo::Type {
                     type_name: "type".to_string(), // Placeholder - would extract actual type name
                 }
             }
-            
+
             Value::Foreign(_foreign) => {
                 TypeInfo::Foreign {
                     type_name: "foreign".to_string(), // Placeholder - would extract actual type name
                 }
             }
-            
+
             Value::ErrorObject(_error) => {
                 TypeInfo::ErrorObject {
                     category: "error".to_string(), // Placeholder - would extract actual category
                 }
             }
-            
+
             Value::CharSet(_) => TypeInfo::CharSet,
-            
+
             Value::Parameter(_param) => {
                 TypeInfo::Parameter {
                     name: None, // Placeholder - would extract actual parameter name
                 }
             }
-            
+
             Value::Record(_record) => {
                 TypeInfo::Record {
                     type_name: "record".to_string(), // Placeholder - would extract actual type name
                 }
             }
-            
+
             // Concurrency types (only available with async-runtime)
             #[cfg(feature = "async-runtime")]
             Value::Future(_future) => {
@@ -398,42 +403,42 @@ impl ObjectInspector {
                     status: "pending".to_string(), // Placeholder - would check actual status
                 }
             }
-            
+
             #[cfg(feature = "async-runtime")]
             Value::Channel(_channel) => {
                 TypeInfo::Channel {
                     capacity: None, // Placeholder - would extract actual capacity
                 }
             }
-            
+
             #[cfg(feature = "async-runtime")]
             Value::Mutex(_mutex) => {
                 TypeInfo::Mutex {
                     locked: false, // Placeholder - would check actual state
                 }
             }
-            
+
             #[cfg(feature = "async-runtime")]
             Value::Semaphore(_semaphore) => {
                 TypeInfo::Semaphore {
                     permits: 0, // Placeholder - would extract actual permits
                 }
             }
-            
+
             #[cfg(feature = "async-runtime")]
             Value::AtomicCounter(_counter) => {
                 TypeInfo::AtomicCounter {
                     value: 0, // Placeholder - would extract actual value
                 }
             }
-            
+
             #[cfg(feature = "async-runtime")]
             Value::DistributedNode(_node) => {
                 TypeInfo::DistributedNode {
                     node_id: "unknown".to_string(), // Placeholder - would extract actual node ID
                 }
             }
-            
+
             Value::MutableString(_) => TypeInfo::String,
 
             Value::Set(_) => TypeInfo::Set,
@@ -447,10 +452,9 @@ impl ObjectInspector {
                     type_name: "opaque".to_string(), // Placeholder - would extract actual type name
                 }
             }
-            
-            Value::Environment(_env) => {
-                TypeInfo::Environment
-            }
+
+            Value::Environment(_env) => TypeInfo::Environment,
+            Value::Box(_) => TypeInfo::Box,
         };
 
         // Cache the result
@@ -468,20 +472,26 @@ impl ObjectInspector {
         let metadata = match value {
             Value::Procedure(proc) => MetadataInfo {
                 source: proc.source,
-                documentation: proc.metadata.get("doc").and_then(|v| v.as_string().map(|s| s.to_string())),
+                documentation: proc
+                    .metadata
+                    .get("doc")
+                    .and_then(|v| v.as_string().map(|s| s.to_string())),
                 fields: proc.metadata.clone(),
                 created_at: std::time::SystemTime::now(), // Would be better to track actual creation time
                 type_annotations: vec!["procedure".to_string()],
             },
-            
+
             Value::CaseLambda(case_lambda) => MetadataInfo {
                 source: case_lambda.source,
-                documentation: case_lambda.metadata.get("doc").and_then(|v| v.as_string().map(|s| s.to_string())),
+                documentation: case_lambda
+                    .metadata
+                    .get("doc")
+                    .and_then(|v| v.as_string().map(|s| s.to_string())),
                 fields: case_lambda.metadata.clone(),
                 created_at: std::time::SystemTime::now(),
                 type_annotations: vec!["case-lambda".to_string()],
             },
-            
+
             Value::Primitive(_prim) => MetadataInfo {
                 source: None,
                 documentation: None, // Placeholder - would extract from actual primitive
@@ -489,7 +499,7 @@ impl ObjectInspector {
                 created_at: std::time::SystemTime::now(),
                 type_annotations: vec!["primitive".to_string()],
             },
-            
+
             _ => MetadataInfo {
                 source: None,
                 documentation: None,
@@ -533,14 +543,17 @@ impl ObjectInspector {
             "=" | "<" | ">" | "<=" | ">=" => ArityInfo::Variable { min: 2, rest: true },
             "cons" => ArityInfo::Fixed(2),
             "car" | "cdr" | "not" | "null?" | "pair?" => ArityInfo::Fixed(1),
-            "if" => ArityInfo::Variable { min: 2, rest: false }, // Special form, but for analysis
+            "if" => ArityInfo::Variable {
+                min: 2,
+                rest: false,
+            }, // Special form, but for analysis
             _ => ArityInfo::Variable { min: 0, rest: true }, // Unknown arity
         }
     }
 }
 
 /// Dynamic type inspection and hierarchy management system.
-/// 
+///
 /// Provides runtime type checking, subtype relationships, and
 /// type coercion capabilities for the reflection system.
 #[derive(Debug, Default)]
@@ -553,7 +566,7 @@ impl TypeInspector {
     /// Creates a new type inspector.
     pub fn new() -> Self {
         let mut type_hierarchy = HashMap::new();
-        
+
         // Initialize basic type hierarchy
         type_hierarchy.insert("value".to_string(), vec![]);
         type_hierarchy.insert("number".to_string(), vec!["value".to_string()]);
@@ -561,7 +574,7 @@ impl TypeInspector {
         type_hierarchy.insert("symbol".to_string(), vec!["value".to_string()]);
         type_hierarchy.insert("pair".to_string(), vec!["value".to_string()]);
         type_hierarchy.insert("procedure".to_string(), vec!["value".to_string()]);
-        
+
         Self { type_hierarchy }
     }
 
@@ -575,7 +588,9 @@ impl TypeInspector {
     pub fn get_type_name(&self, value: &Value) -> String {
         match value {
             Value::Literal(Literal::Boolean(_)) => "boolean".to_string(),
-            Value::Literal(Literal::ExactInteger(_)) | Value::Literal(Literal::InexactReal(_)) => "number".to_string(),
+            Value::Literal(Literal::ExactInteger(_)) | Value::Literal(Literal::InexactReal(_)) => {
+                "number".to_string()
+            }
             Value::Literal(Literal::String(_)) => "string".to_string(),
             Value::Literal(Literal::Character(_)) => "character".to_string(),
             Value::Symbol(_) => "symbol".to_string(),
@@ -596,7 +611,7 @@ impl TypeInspector {
         if subtype == supertype {
             return true;
         }
-        
+
         if let Some(parents) = self.type_hierarchy.get(subtype) {
             for parent in parents {
                 if self.is_subtype(parent, supertype) {
@@ -604,7 +619,7 @@ impl TypeInspector {
                 }
             }
         }
-        
+
         false
     }
 
@@ -619,9 +634,7 @@ impl TypeInspector {
             (Value::Literal(Literal::ExactInteger(n)), "string") => {
                 Ok(Value::string(n.to_string()))
             }
-            (Value::Literal(Literal::InexactReal(n)), "string") => {
-                Ok(Value::string(n.to_string()))
-            }
+            (Value::Literal(Literal::InexactReal(n)), "string") => Ok(Value::string(n.to_string())),
             (Value::Literal(Literal::String(s)), "number") => {
                 if let Ok(n) = s.parse::<f64>() {
                     Ok(Value::number(n))
@@ -632,14 +645,16 @@ impl TypeInspector {
                     )))
                 }
             }
-            (Value::Symbol(sym), "string") => {
-                match crate::utils::symbol_name(*sym) {
-                    Some(name) => Ok(Value::string(name)),
-                    None => Ok(Value::string(format!("symbol-{}", sym.0))),
-                }
-            }
+            (Value::Symbol(sym), "string") => match crate::utils::symbol_name(*sym) {
+                Some(name) => Ok(Value::string(name)),
+                None => Ok(Value::string(format!("symbol-{}", sym.0))),
+            },
             _ => Err(Box::new(Error::runtime_error(
-                format!("Cannot cast {} to {}", self.get_type_name(value), target_type),
+                format!(
+                    "Cannot cast {} to {}",
+                    self.get_type_name(value),
+                    target_type
+                ),
                 None,
             ))),
         }
@@ -647,7 +662,7 @@ impl TypeInspector {
 }
 
 /// Global metadata storage and access system for runtime objects.
-/// 
+///
 /// Provides persistent metadata attachment and retrieval for values
 /// across their lifetime in the runtime system.
 #[derive(Debug)]
@@ -695,7 +710,7 @@ impl MetadataAccess {
 }
 
 /// Comprehensive reflection and introspection system.
-/// 
+///
 /// Integrates all reflection capabilities including object inspection,
 /// type analysis, and metadata access for complete runtime introspection.
 #[derive(Debug)]
@@ -748,9 +763,11 @@ impl ReflectionSystem {
 
     /// Inspects a stack trace.
     pub fn inspect_stack_trace(&self, stack_trace: &StackTrace) -> Vec<FrameInfo> {
-        stack_trace.frames.iter().map(|frame| {
-            self.inspect_frame(frame)
-        }).collect()
+        stack_trace
+            .frames
+            .iter()
+            .map(|frame| self.inspect_frame(frame))
+            .collect()
     }
 
     /// Inspects a single stack frame.
@@ -777,65 +794,70 @@ impl ReflectionSystem {
     /// Installs reflection primitives into an environment.
     pub fn install_primitives(&self, env: &Rc<Environment>) -> Result<()> {
         // Type inspection primitives
-        env.define("type-of".to_string(), Value::Primitive(Arc::new(
-            PrimitiveProcedure {
+        env.define(
+            "type-of".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
                 name: "type-of".to_string(),
                 arity_min: 1,
                 arity_max: Some(1),
                 implementation: crate::eval::PrimitiveImpl::Native(primitive_type_of),
                 effects: vec![],
-            }
-        )));
+            })),
+        );
 
-        env.define("type-name".to_string(), Value::Primitive(Arc::new(
-            PrimitiveProcedure {
+        env.define(
+            "type-name".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
                 name: "type-name".to_string(),
                 implementation: crate::eval::PrimitiveImpl::Native(primitive_type_name),
                 arity_min: 1,
                 arity_max: Some(1),
                 effects: vec![],
-            }
-        )));
+            })),
+        );
 
         // Metadata access primitives
-        env.define("get-metadata".to_string(), Value::Primitive(Arc::new(
-            PrimitiveProcedure {
+        env.define(
+            "get-metadata".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
                 name: "get-metadata".to_string(),
                 implementation: crate::eval::PrimitiveImpl::Native(primitive_get_metadata),
                 arity_min: 2,
                 arity_max: Some(2),
                 effects: vec![],
-            }
-        )));
+            })),
+        );
 
         // Environment inspection primitives
-        env.define("environment-bindings".to_string(), Value::Primitive(Arc::new(
-            PrimitiveProcedure {
+        env.define(
+            "environment-bindings".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
                 name: "environment-bindings".to_string(),
                 implementation: crate::eval::PrimitiveImpl::Native(primitive_environment_bindings),
                 arity_min: 1,
                 arity_max: Some(1),
                 effects: vec![],
-            }
-        )));
+            })),
+        );
 
         // Stack trace primitives
-        env.define("current-stack-trace".to_string(), Value::Primitive(Arc::new(
-            PrimitiveProcedure {
+        env.define(
+            "current-stack-trace".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
                 name: "current-stack-trace".to_string(),
                 implementation: crate::eval::PrimitiveImpl::Native(primitive_current_stack_trace),
                 arity_min: 0,
                 arity_max: Some(0),
                 effects: vec![],
-            }
-        )));
+            })),
+        );
 
         Ok(())
     }
 }
 
 /// Comprehensive inspection results for a runtime value.
-/// 
+///
 /// Combines type information, metadata, environment context,
 /// and analysis results into a complete introspection report.
 #[derive(Debug, Clone)]
@@ -859,7 +881,7 @@ fn primitive_type_of(args: &[Value]) -> Result<Value> {
 
     let mut inspector = ObjectInspector::new();
     let type_info = inspector.get_type_info(&args[0]);
-    
+
     // Convert TypeInfo to a Scheme value representation
     let type_symbol = match type_info {
         TypeInfo::Boolean => "boolean",

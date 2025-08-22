@@ -9,15 +9,15 @@
 //! - Comparison contracts (</c, >/c, etc.)
 //! - Higher-order contract utilities
 
-use crate::contracts::{
-    ast::{ContractExpr, ComparisonOp, DependentBinding, FunctionCase},
-    blame::{BlameInfo, BlameTarget, BlameBoundary, BoundaryType},
-    predicates::{ContractPredicate, PredicateRegistry},
-    ContractError, ContractResult,
-};
-use crate::eval::Value;
 use crate::ast::{Expr, Literal};
+use crate::contracts::{
+    ContractError, ContractResult,
+    ast::{ComparisonOp, ContractExpr, DependentBinding, FunctionCase},
+    blame::{BlameBoundary, BlameInfo, BlameTarget, BoundaryType},
+    predicates::{ContractPredicate, PredicateRegistry},
+};
 use crate::diagnostics::{Span, Spanned};
+use crate::eval::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -69,7 +69,8 @@ impl CombinatorContext {
             return Err(ContractError::RuntimeError {
                 message: format!("Maximum recursion depth {} exceeded", self.max_depth),
                 location: self.blame.boundary.location,
-            }.into());
+            }
+            .into());
         }
         self.current_depth += 1;
         Ok(())
@@ -124,26 +125,35 @@ impl ContractCombinators {
             ContractExpr::Predicate { name, location } => {
                 self.evaluate_predicate(name, value, *location, context)
             }
-            ContractExpr::Flat { check_expr, location } => {
-                self.evaluate_flat_contract(check_expr, value, *location, context)
-            }
+            ContractExpr::Flat {
+                check_expr,
+                location,
+            } => self.evaluate_flat_contract(check_expr, value, *location, context),
             ContractExpr::Any { .. } => Ok(true),
             ContractExpr::None { .. } => Ok(false),
-            ContractExpr::Function { domain, codomain, location } => {
-                self.evaluate_function_contract(domain, codomain, value, *location, context)
-            }
-            ContractExpr::DependentFunction { bindings, codomain, location } => {
-                self.evaluate_dependent_function_contract(bindings, codomain, value, *location, context)
-            }
+            ContractExpr::Function {
+                domain,
+                codomain,
+                location,
+            } => self.evaluate_function_contract(domain, codomain, value, *location, context),
+            ContractExpr::DependentFunction {
+                bindings,
+                codomain,
+                location,
+            } => self.evaluate_dependent_function_contract(
+                bindings, codomain, value, *location, context,
+            ),
             ContractExpr::CaseFunction { cases, location } => {
                 self.evaluate_case_function_contract(cases, value, *location, context)
             }
-            ContractExpr::And { contracts, location } => {
-                self.evaluate_and_combinator(contracts, value, *location, context)
-            }
-            ContractExpr::Or { contracts, location } => {
-                self.evaluate_or_combinator(contracts, value, *location, context)
-            }
+            ContractExpr::And {
+                contracts,
+                location,
+            } => self.evaluate_and_combinator(contracts, value, *location, context),
+            ContractExpr::Or {
+                contracts,
+                location,
+            } => self.evaluate_or_combinator(contracts, value, *location, context),
             ContractExpr::Not { contract, location } => {
                 self.evaluate_not_combinator(contract, value, *location, context)
             }
@@ -153,45 +163,67 @@ impl ContractCombinators {
             ContractExpr::Between { min, max, location } => {
                 self.evaluate_between_combinator(min, max, value, *location, context)
             }
-            ContractExpr::Comparison { operator, value: comp_value, location } => {
+            ContractExpr::Comparison {
+                operator,
+                value: comp_value,
+                location,
+            } => {
                 self.evaluate_comparison_combinator(operator, comp_value, value, *location, context)
             }
-            ContractExpr::ListOf { element_contract, location } => {
-                self.evaluate_listof_combinator(element_contract, value, *location, context)
-            }
-            ContractExpr::VectorOf { element_contract, location } => {
-                self.evaluate_vectorof_combinator(element_contract, value, *location, context)
-            }
-            ContractExpr::Hash { key_contract, value_contract, location } => {
-                self.evaluate_hash_combinator(key_contract, value_contract, value, *location, context)
-            }
-            ContractExpr::Tuple { element_contracts, location } => {
-                self.evaluate_tuple_combinator(element_contracts, value, *location, context)
-            }
-            ContractExpr::List { element_contracts, location } => {
-                self.evaluate_list_combinator(element_contracts, value, *location, context)
-            }
-            ContractExpr::Vector { element_contracts, location } => {
-                self.evaluate_vector_combinator(element_contracts, value, *location, context)
-            }
-            ContractExpr::Recursive { name, contract, location } => {
-                self.evaluate_recursive_contract(name, contract, value, *location, context)
-            }
+            ContractExpr::ListOf {
+                element_contract,
+                location,
+            } => self.evaluate_listof_combinator(element_contract, value, *location, context),
+            ContractExpr::VectorOf {
+                element_contract,
+                location,
+            } => self.evaluate_vectorof_combinator(element_contract, value, *location, context),
+            ContractExpr::Hash {
+                key_contract,
+                value_contract,
+                location,
+            } => self.evaluate_hash_combinator(
+                key_contract,
+                value_contract,
+                value,
+                *location,
+                context,
+            ),
+            ContractExpr::Tuple {
+                element_contracts,
+                location,
+            } => self.evaluate_tuple_combinator(element_contracts, value, *location, context),
+            ContractExpr::List {
+                element_contracts,
+                location,
+            } => self.evaluate_list_combinator(element_contracts, value, *location, context),
+            ContractExpr::Vector {
+                element_contracts,
+                location,
+            } => self.evaluate_vector_combinator(element_contracts, value, *location, context),
+            ContractExpr::Recursive {
+                name,
+                contract,
+                location,
+            } => self.evaluate_recursive_contract(name, contract, value, *location, context),
             ContractExpr::Reference { name, location } => {
                 self.evaluate_contract_reference(name, value, *location, context)
             }
-            ContractExpr::Parametric { name, parameters, location } => {
-                self.evaluate_parametric_contract(name, parameters, value, *location, context)
+            ContractExpr::Parametric {
+                name,
+                parameters,
+                location,
+            } => self.evaluate_parametric_contract(name, parameters, value, *location, context),
+            ContractExpr::WithMessage {
+                contract,
+                message,
+                location,
+            } => self.evaluate_with_message_contract(contract, message, value, *location, context),
+            _ => Err(ContractError::RuntimeError {
+                message: format!("Unsupported contract type: {contract:?}"),
+                location: contract.location(),
             }
-            ContractExpr::WithMessage { contract, message, location } => {
-                self.evaluate_with_message_contract(contract, message, value, *location, context)
-            }
-            _ => {
-                Err(ContractError::RuntimeError {
-                    message: format!("Unsupported contract type: {contract:?}"),
-                    location: contract.location(),
-                }.into())
-            }
+            .into()),
         }
     }
 
@@ -204,11 +236,14 @@ impl ContractCombinators {
         location: Span,
         context: &CombinatorContext,
     ) -> ContractResult<bool> {
-        let predicate = context.predicates.lookup(name)
-            .ok_or_else(|| ContractError::RuntimeError {
-                message: format!("Unknown predicate: {name}"),
-                location,
-            })?;
+        let predicate =
+            context
+                .predicates
+                .lookup(name)
+                .ok_or_else(|| ContractError::RuntimeError {
+                    message: format!("Unknown predicate: {name}"),
+                    location,
+                })?;
 
         Ok(predicate.test(value))
     }
@@ -225,7 +260,8 @@ impl ContractCombinators {
         Err(ContractError::RuntimeError {
             message: "Flat contracts not yet implemented".to_string(),
             location,
-        }.into())
+        }
+        .into())
     }
 
     // ============= FUNCTION CONTRACT EVALUATION =============
@@ -405,7 +441,7 @@ impl ContractCombinators {
     ) -> ContractResult<bool> {
         match value {
             Value::Vector(vec) => {
-                if let Ok(vector) = vec.read() {
+                if let Ok(vector) = vec.try_borrow() {
                     for element in vector.iter() {
                         if !self.evaluate_contract(&element_contract.inner, element, context)? {
                             return Ok(false);
@@ -416,7 +452,8 @@ impl ContractCombinators {
                     Err(ContractError::RuntimeError {
                         message: "Failed to read vector".to_string(),
                         location,
-                    }.into())
+                    }
+                    .into())
                 }
             }
             _ => Ok(false), // Not a vector
@@ -433,7 +470,7 @@ impl ContractCombinators {
     ) -> ContractResult<bool> {
         match value {
             Value::Hashtable(hash) => {
-                if let Ok(hashtable) = hash.read() {
+                if let Ok(hashtable) = hash.try_borrow() {
                     for (key, val) in hashtable.iter() {
                         if !self.evaluate_contract(&key_contract.inner, key, context)? {
                             return Ok(false);
@@ -447,7 +484,8 @@ impl ContractCombinators {
                     Err(ContractError::RuntimeError {
                         message: "Failed to read hashtable".to_string(),
                         location,
-                    }.into())
+                    }
+                    .into())
                 }
             }
             _ => Ok(false), // Not a hashtable
@@ -495,7 +533,7 @@ impl ContractCombinators {
     ) -> ContractResult<bool> {
         match value {
             Value::Vector(vec) => {
-                if let Ok(vector) = vec.read() {
+                if let Ok(vector) = vec.try_borrow() {
                     if vector.len() != element_contracts.len() {
                         return Ok(false);
                     }
@@ -510,7 +548,8 @@ impl ContractCombinators {
                     Err(ContractError::RuntimeError {
                         message: "Failed to read vector".to_string(),
                         location,
-                    }.into())
+                    }
+                    .into())
                 }
             }
             _ => Ok(false), // Not a vector
@@ -528,11 +567,11 @@ impl ContractCombinators {
         context: &mut CombinatorContext,
     ) -> ContractResult<bool> {
         context.enter_recursion()?;
-        
+
         // Bind the recursive name to the contract
         // TODO: Implement proper recursive contract handling
         let result = self.evaluate_contract(&contract.inner, value, context);
-        
+
         context.exit_recursion();
         result
     }
@@ -549,7 +588,8 @@ impl ContractCombinators {
         Err(ContractError::RuntimeError {
             message: format!("Contract reference not implemented: {name}"),
             location,
-        }.into())
+        }
+        .into())
     }
 
     fn evaluate_parametric_contract(
@@ -565,7 +605,8 @@ impl ContractCombinators {
         Err(ContractError::RuntimeError {
             message: format!("Parametric contract not implemented: {name}"),
             location,
-        }.into())
+        }
+        .into())
     }
 
     fn evaluate_with_message_contract(
@@ -607,7 +648,8 @@ impl ContractCombinators {
                     return Err(ContractError::RuntimeError {
                         message: "Not a proper list".to_string(),
                         location: Span::new(0, 0), // TODO: Better error location
-                    }.into());
+                    }
+                    .into());
                 }
             }
         }
@@ -619,7 +661,9 @@ impl ContractCombinators {
 /// Creates a dummy contract for testing.
 fn dummy_contract() -> Spanned<ContractExpr> {
     Spanned::new(
-        ContractExpr::Any { location: Span::new(0, 0) },
+        ContractExpr::Any {
+            location: Span::new(0, 0),
+        },
         Span::new(0, 0),
     )
 }
@@ -627,13 +671,13 @@ fn dummy_contract() -> Spanned<ContractExpr> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contracts::{
-        predicates::PredicateRegistry,
-        blame::{BlameInfo, BlameTarget, BlameBoundary, BoundaryType},
-    };
-    use crate::eval::Value;
     use crate::ast::Literal;
+    use crate::contracts::{
+        blame::{BlameBoundary, BlameInfo, BlameTarget, BoundaryType},
+        predicates::PredicateRegistry,
+    };
     use crate::diagnostics::Span;
+    use crate::eval::Value;
     use std::sync::Arc;
 
     fn create_test_context() -> CombinatorContext {
@@ -657,7 +701,7 @@ mod tests {
             id: 1,
             parent: None,
         };
-        
+
         CombinatorContext::new(predicates, blame)
     }
 
@@ -673,10 +717,18 @@ mod tests {
         };
 
         let number_value = Value::Literal(Literal::Number(42.0));
-        let string_value = Value::Literal(Literal::String("hello".to_string()));
+        let string_value = Value::Literal(Literal::String(Box::new("hello".to_string())));
 
-        assert!(combinators.evaluate_contract(&number_contract, &number_value, &mut context).unwrap());
-        assert!(!combinators.evaluate_contract(&number_contract, &string_value, &mut context).unwrap());
+        assert!(
+            combinators
+                .evaluate_contract(&number_contract, &number_value, &mut context)
+                .unwrap()
+        );
+        assert!(
+            !combinators
+                .evaluate_contract(&number_contract, &string_value, &mut context)
+                .unwrap()
+        );
     }
 
     #[test]
@@ -708,11 +760,23 @@ mod tests {
 
         let positive_number = Value::Literal(Literal::Number(42.0));
         let negative_number = Value::Literal(Literal::Number(-5.0));
-        let string_value = Value::Literal(Literal::String("hello".to_string()));
+        let string_value = Value::Literal(Literal::String(Box::new("hello".to_string())));
 
-        assert!(combinators.evaluate_contract(&and_contract, &positive_number, &mut context).unwrap());
-        assert!(!combinators.evaluate_contract(&and_contract, &negative_number, &mut context).unwrap());
-        assert!(!combinators.evaluate_contract(&and_contract, &string_value, &mut context).unwrap());
+        assert!(
+            combinators
+                .evaluate_contract(&and_contract, &positive_number, &mut context)
+                .unwrap()
+        );
+        assert!(
+            !combinators
+                .evaluate_contract(&and_contract, &negative_number, &mut context)
+                .unwrap()
+        );
+        assert!(
+            !combinators
+                .evaluate_contract(&and_contract, &string_value, &mut context)
+                .unwrap()
+        );
     }
 
     #[test]
@@ -743,12 +807,24 @@ mod tests {
         };
 
         let number_value = Value::Literal(Literal::Number(42.0));
-        let string_value = Value::Literal(Literal::String("hello".to_string()));
+        let string_value = Value::Literal(Literal::String(Box::new("hello".to_string())));
         let boolean_value = Value::Literal(Literal::Boolean(true));
 
-        assert!(combinators.evaluate_contract(&or_contract, &number_value, &mut context).unwrap());
-        assert!(combinators.evaluate_contract(&or_contract, &string_value, &mut context).unwrap());
-        assert!(!combinators.evaluate_contract(&or_contract, &boolean_value, &mut context).unwrap());
+        assert!(
+            combinators
+                .evaluate_contract(&or_contract, &number_value, &mut context)
+                .unwrap()
+        );
+        assert!(
+            combinators
+                .evaluate_contract(&or_contract, &string_value, &mut context)
+                .unwrap()
+        );
+        assert!(
+            !combinators
+                .evaluate_contract(&or_contract, &boolean_value, &mut context)
+                .unwrap()
+        );
     }
 
     #[test]
@@ -771,10 +847,18 @@ mod tests {
         };
 
         let number_value = Value::Literal(Literal::Number(42.0));
-        let string_value = Value::Literal(Literal::String("hello".to_string()));
+        let string_value = Value::Literal(Literal::String(Box::new("hello".to_string())));
 
-        assert!(!combinators.evaluate_contract(&not_contract, &number_value, &mut context).unwrap());
-        assert!(combinators.evaluate_contract(&not_contract, &string_value, &mut context).unwrap());
+        assert!(
+            !combinators
+                .evaluate_contract(&not_contract, &number_value, &mut context)
+                .unwrap()
+        );
+        assert!(
+            combinators
+                .evaluate_contract(&not_contract, &string_value, &mut context)
+                .unwrap()
+        );
     }
 
     #[test]
@@ -797,35 +881,49 @@ mod tests {
         };
 
         // Create a list of numbers: (1 2 3)
-        let num1 = Arc::new(Value::Literal(Literal::Number(1.0)));
-        let num2 = Arc::new(Value::Literal(Literal::Number(2.0)));
-        let num3 = Arc::new(Value::Literal(Literal::Number(3.0)));
-        
+        let num1 = Box::new(Value::Literal(Literal::Number(1.0)));
+        let num2 = Box::new(Value::Literal(Literal::Number(2.0)));
+        let num3 = Box::new(Value::Literal(Literal::Number(3.0)));
+
         let list_123 = Value::Pair(
             num1,
-            Arc::new(Value::Pair(
+            Box::new(Value::Pair(
                 num2,
-                Arc::new(Value::Pair(num3, Arc::new(Value::Nil))),
+                Box::new(Value::Pair(num3, Box::new(Value::Nil))),
             )),
         );
 
         // Create a list with mixed types: (1 "hello" 3)
         let mixed_list = Value::Pair(
-            Arc::new(Value::Literal(Literal::Number(1.0))),
-            Arc::new(Value::Pair(
-                Arc::new(Value::Literal(Literal::String("hello".to_string()))),
-                Arc::new(Value::Pair(
-                    Arc::new(Value::Literal(Literal::Number(3.0))),
-                    Arc::new(Value::Nil),
+            Box::new(Value::Literal(Literal::Number(1.0))),
+            Box::new(Value::Pair(
+                Box::new(Value::Literal(Literal::String(Box::new(
+                    "hello".to_string(),
+                )))),
+                Box::new(Value::Pair(
+                    Box::new(Value::Literal(Literal::Number(3.0))),
+                    Box::new(Value::Nil),
                 )),
             )),
         );
 
         let empty_list = Value::Nil;
 
-        assert!(combinators.evaluate_contract(&listof_contract, &list_123, &mut context).unwrap());
-        assert!(!combinators.evaluate_contract(&listof_contract, &mixed_list, &mut context).unwrap());
-        assert!(combinators.evaluate_contract(&listof_contract, &empty_list, &mut context).unwrap());
+        assert!(
+            combinators
+                .evaluate_contract(&listof_contract, &list_123, &mut context)
+                .unwrap()
+        );
+        assert!(
+            !combinators
+                .evaluate_contract(&listof_contract, &mixed_list, &mut context)
+                .unwrap()
+        );
+        assert!(
+            combinators
+                .evaluate_contract(&listof_contract, &empty_list, &mut context)
+                .unwrap()
+        );
     }
 
     #[test]

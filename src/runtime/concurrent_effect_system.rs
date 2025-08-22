@@ -1,13 +1,13 @@
 //! Concurrent effect system for coordinating effects across threads.
 
+use super::effect_dependency_graph::EffectDependencyGraph;
+use super::effect_transaction::{EffectTransaction, TransactionState};
 use crate::effects::Effect;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
 use std::thread::ThreadId;
-use std::time::{SystemTime, Duration};
-use super::effect_transaction::{EffectTransaction, TransactionState};
-use super::effect_dependency_graph::EffectDependencyGraph;
+use std::time::{Duration, SystemTime};
 
 /// Concurrent effect system for coordinating effects across threads.
 #[derive(Debug)]
@@ -47,7 +47,7 @@ impl ConcurrentEffectSystem {
         effects: Vec<Effect>,
     ) -> Result<u64, String> {
         let id = self.transaction_sequence.fetch_add(1, Ordering::SeqCst);
-        
+
         let transaction = EffectTransaction {
             id,
             initiator_thread: initiator,
@@ -57,17 +57,17 @@ impl ConcurrentEffectSystem {
             created_at: SystemTime::now(),
             timeout: Duration::from_secs(30),
         };
-        
+
         let mut transactions = self.active_transactions.write().unwrap();
         transactions.insert(id, transaction);
-        
+
         Ok(id)
     }
-    
+
     /// Commits a transaction.
     pub fn commit_transaction(&self, transaction_id: u64) -> Result<(), String> {
         let mut transactions = self.active_transactions.write().unwrap();
-        
+
         if let Some(transaction) = transactions.get_mut(&transaction_id) {
             transaction.state = TransactionState::Committed;
             Ok(())
@@ -75,11 +75,11 @@ impl ConcurrentEffectSystem {
             Err(format!("Transaction {transaction_id} not found"))
         }
     }
-    
+
     /// Aborts a transaction.
     pub fn abort_transaction(&self, transaction_id: u64) -> Result<(), String> {
         let mut transactions = self.active_transactions.write().unwrap();
-        
+
         if let Some(transaction) = transactions.get_mut(&transaction_id) {
             transaction.state = TransactionState::Aborted;
             Ok(())
@@ -87,7 +87,7 @@ impl ConcurrentEffectSystem {
             Err(format!("Transaction {transaction_id} not found"))
         }
     }
-    
+
     /// Waits for coordination completion.
     pub fn wait_for_coordination_completion(
         &self,
@@ -95,10 +95,10 @@ impl ConcurrentEffectSystem {
         timeout: Duration,
     ) -> Result<bool, String> {
         let start_time = SystemTime::now();
-        
+
         loop {
             {
-                let transactions = self.active_transactions.read().unwrap();
+                let transactions = self.active_transactions.try_read().unwrap();
                 if let Some(transaction) = transactions.get(&transaction_id) {
                     match transaction.state {
                         TransactionState::Committed => return Ok(true),
@@ -111,20 +111,20 @@ impl ConcurrentEffectSystem {
                     return Err(format!("Transaction {transaction_id} not found"));
                 }
             }
-            
+
             if start_time.elapsed().unwrap_or(Duration::from_secs(0)) > timeout {
                 return Err("Coordination timeout".to_string());
             }
-            
+
             std::thread::sleep(Duration::from_millis(10));
         }
     }
-    
+
     /// Cleans up transactions for a thread.
     pub fn cleanup_thread_transactions(&self, thread_id: ThreadId) {
         let mut transactions = self.active_transactions.write().unwrap();
         transactions.retain(|_, transaction| {
-            transaction.initiator_thread != thread_id 
+            transaction.initiator_thread != thread_id
                 && !transaction.participating_threads.contains(&thread_id)
         });
     }

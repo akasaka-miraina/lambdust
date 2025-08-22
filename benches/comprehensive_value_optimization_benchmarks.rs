@@ -12,27 +12,27 @@
 //! - Semantic equivalence validation
 //! - Production load testing
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-use lambdust::eval::value::Value;
-use lambdust::eval::value_optimization_core::{ValueOptimizer, OptimizationConfig};
-use lambdust::eval::comprehensive_performance_verification::{
-    PerformanceVerificationSuite, VerificationConfig
-};
-use lambdust::eval::arc_allocation_tracker::{
-    enable_global_tracking, disable_global_tracking, reset_global_tracking, get_global_stats
-};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use lambdust::ast::Literal;
+use lambdust::eval::arc_allocation_tracker::{
+    disable_global_tracking, enable_global_tracking, get_global_stats, reset_global_tracking,
+};
+use lambdust::eval::comprehensive_performance_verification::{
+    PerformanceVerificationSuite, VerificationConfig,
+};
+use lambdust::eval::value::Value;
+use lambdust::eval::value_optimization_core::{OptimizationConfig, ValueOptimizer};
 use lambdust::utils::SymbolId;
-use std::time::{Duration, Instant};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 /// Benchmarks immediate value creation (hot path)
 fn bench_immediate_value_creation(c: &mut Criterion) {
     let mut group = c.benchmark_group("immediate_value_creation");
     group.throughput(Throughput::Elements(1));
-    
+
     let optimizer = ValueOptimizer::default();
-    
+
     // Boolean values
     group.bench_function("legacy_boolean", |b| {
         b.iter(|| {
@@ -40,14 +40,14 @@ fn bench_immediate_value_creation(c: &mut Criterion) {
             std::mem::drop(val);
         })
     });
-    
+
     group.bench_function("optimized_boolean", |b| {
         b.iter(|| {
             let val = black_box(optimizer.boolean(true));
             std::mem::drop(val);
         })
     });
-    
+
     // Integer values
     group.bench_function("legacy_integer", |b| {
         b.iter(|| {
@@ -55,14 +55,14 @@ fn bench_immediate_value_creation(c: &mut Criterion) {
             std::mem::drop(val);
         })
     });
-    
+
     group.bench_function("optimized_integer", |b| {
         b.iter(|| {
             let val = black_box(optimizer.integer(42));
             std::mem::drop(val);
         })
     });
-    
+
     // Character values
     group.bench_function("legacy_character", |b| {
         b.iter(|| {
@@ -70,14 +70,14 @@ fn bench_immediate_value_creation(c: &mut Criterion) {
             std::mem::drop(val);
         })
     });
-    
+
     group.bench_function("optimized_character", |b| {
         b.iter(|| {
             let val = black_box(optimizer.character('A'));
             std::mem::drop(val);
         })
     });
-    
+
     // Nil values
     group.bench_function("legacy_nil", |b| {
         b.iter(|| {
@@ -85,14 +85,14 @@ fn bench_immediate_value_creation(c: &mut Criterion) {
             std::mem::drop(val);
         })
     });
-    
+
     group.bench_function("optimized_nil", |b| {
         b.iter(|| {
             let val = black_box(ValueOptimizer::nil());
             std::mem::drop(val);
         })
     });
-    
+
     group.finish();
 }
 
@@ -100,9 +100,9 @@ fn bench_immediate_value_creation(c: &mut Criterion) {
 fn bench_compound_value_creation(c: &mut Criterion) {
     let mut group = c.benchmark_group("compound_value_creation");
     group.throughput(Throughput::Elements(1));
-    
+
     let optimizer = ValueOptimizer::default();
-    
+
     // Simple pairs
     group.bench_function("legacy_pair", |b| {
         b.iter(|| {
@@ -110,37 +110,37 @@ fn bench_compound_value_creation(c: &mut Criterion) {
             std::mem::drop(val);
         })
     });
-    
+
     group.bench_function("optimized_pair", |b| {
         b.iter(|| {
             let val = black_box(optimizer.pair(optimizer.integer(1), optimizer.integer(2)));
             std::mem::drop(val);
         })
     });
-    
+
     // Short lists
     group.bench_function("legacy_short_list", |b| {
         b.iter(|| {
             let val = black_box(Value::list(vec![
                 Value::integer(1),
                 Value::integer(2),
-                Value::integer(3)
+                Value::integer(3),
             ]));
             std::mem::drop(val);
         })
     });
-    
+
     group.bench_function("optimized_short_list", |b| {
         b.iter(|| {
             let val = black_box(optimizer.list(vec![
                 optimizer.integer(1),
                 optimizer.integer(2),
-                optimizer.integer(3)
+                optimizer.integer(3),
             ]));
             std::mem::drop(val);
         })
     });
-    
+
     // String values
     group.bench_function("legacy_string", |b| {
         b.iter(|| {
@@ -148,14 +148,14 @@ fn bench_compound_value_creation(c: &mut Criterion) {
             std::mem::drop(val);
         })
     });
-    
+
     group.bench_function("optimized_string", |b| {
         b.iter(|| {
             let val = black_box(optimizer.string("hello world"));
             std::mem::drop(val);
         })
     });
-    
+
     group.finish();
 }
 
@@ -163,63 +163,71 @@ fn bench_compound_value_creation(c: &mut Criterion) {
 fn bench_value_cloning(c: &mut Criterion) {
     let mut group = c.benchmark_group("value_cloning");
     group.throughput(Throughput::Elements(1));
-    
+
     let optimizer = ValueOptimizer::default();
-    
+
     // Immediate value cloning
     let legacy_int = Value::integer(42);
     let optimized_int = optimizer.integer(42);
-    
+
     group.bench_function("legacy_integer_clone", |b| {
         b.iter(|| {
             let cloned = black_box(legacy_int.clone());
             std::mem::drop(cloned);
         })
     });
-    
+
     group.bench_function("optimized_integer_clone", |b| {
         b.iter(|| {
             let cloned = black_box(optimized_int.clone());
             std::mem::drop(cloned);
         })
     });
-    
+
     // Compound value cloning
     let legacy_pair = Value::pair(Value::integer(1), Value::integer(2));
     let optimized_pair = optimizer.pair(optimizer.integer(1), optimizer.integer(2));
-    
+
     group.bench_function("legacy_pair_clone", |b| {
         b.iter(|| {
             let cloned = black_box(legacy_pair.clone());
             std::mem::drop(cloned);
         })
     });
-    
+
     group.bench_function("optimized_pair_clone", |b| {
         b.iter(|| {
             let cloned = black_box(optimized_pair.clone());
             std::mem::drop(cloned);
         })
     });
-    
+
     // List cloning
-    let legacy_list = Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)]);
-    let optimized_list = optimizer.list(vec![optimizer.integer(1), optimizer.integer(2), optimizer.integer(3)]);
-    
+    let legacy_list = Value::list(vec![
+        Value::integer(1),
+        Value::integer(2),
+        Value::integer(3),
+    ]);
+    let optimized_list = optimizer.list(vec![
+        optimizer.integer(1),
+        optimizer.integer(2),
+        optimizer.integer(3),
+    ]);
+
     group.bench_function("legacy_list_clone", |b| {
         b.iter(|| {
             let cloned = black_box(legacy_list.clone());
             std::mem::drop(cloned);
         })
     });
-    
+
     group.bench_function("optimized_list_clone", |b| {
         b.iter(|| {
             let cloned = black_box(optimized_list.clone());
             std::mem::drop(cloned);
         })
     });
-    
+
     group.finish();
 }
 
@@ -227,9 +235,9 @@ fn bench_value_cloning(c: &mut Criterion) {
 fn bench_value_access(c: &mut Criterion) {
     let mut group = c.benchmark_group("value_access");
     group.throughput(Throughput::Elements(1));
-    
+
     let optimizer = ValueOptimizer::default();
-    
+
     // Type predicate checks
     let values = vec![
         (Value::boolean(true), optimizer.boolean(true)),
@@ -237,7 +245,7 @@ fn bench_value_access(c: &mut Criterion) {
         (Value::Nil, ValueOptimizer::nil()),
         (Value::string("test"), optimizer.string("test")),
     ];
-    
+
     group.bench_function("legacy_type_predicates", |b| {
         b.iter(|| {
             for (val, _) in &values {
@@ -248,7 +256,7 @@ fn bench_value_access(c: &mut Criterion) {
             }
         })
     });
-    
+
     group.bench_function("optimized_type_predicates", |b| {
         b.iter(|| {
             for (_, val) in &values {
@@ -259,11 +267,19 @@ fn bench_value_access(c: &mut Criterion) {
             }
         })
     });
-    
+
     // List operations
-    let legacy_list = Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)]);
-    let optimized_list = optimizer.list(vec![optimizer.integer(1), optimizer.integer(2), optimizer.integer(3)]);
-    
+    let legacy_list = Value::list(vec![
+        Value::integer(1),
+        Value::integer(2),
+        Value::integer(3),
+    ]);
+    let optimized_list = optimizer.list(vec![
+        optimizer.integer(1),
+        optimizer.integer(2),
+        optimizer.integer(3),
+    ]);
+
     group.bench_function("legacy_list_access", |b| {
         b.iter(|| {
             black_box(legacy_list.as_list());
@@ -271,7 +287,7 @@ fn bench_value_access(c: &mut Criterion) {
             black_box(legacy_list.cdr());
         })
     });
-    
+
     group.bench_function("optimized_list_access", |b| {
         b.iter(|| {
             black_box(optimized_list.as_list());
@@ -279,7 +295,7 @@ fn bench_value_access(c: &mut Criterion) {
             black_box(optimized_list.cdr());
         })
     });
-    
+
     group.finish();
 }
 
@@ -287,13 +303,13 @@ fn bench_value_access(c: &mut Criterion) {
 fn bench_arc_allocation_patterns(c: &mut Criterion) {
     let mut group = c.benchmark_group("arc_allocation_patterns");
     group.throughput(Throughput::Elements(100));
-    
+
     enable_global_tracking();
-    
+
     group.bench_function("legacy_allocation_pattern", |b| {
         b.iter(|| {
             reset_global_tracking();
-            
+
             // Create a variety of values
             let mut values = Vec::new();
             for i in 0..100 {
@@ -305,16 +321,16 @@ fn bench_arc_allocation_patterns(c: &mut Criterion) {
                     values.push(Value::string(&format!("string_{}", i)));
                 }
             }
-            
+
             black_box(values);
         })
     });
-    
+
     group.bench_function("optimized_allocation_pattern", |b| {
         b.iter(|| {
             reset_global_tracking();
             let optimizer = ValueOptimizer::default();
-            
+
             // Create the same variety of values with optimizer
             let mut values = Vec::new();
             for i in 0..100 {
@@ -326,11 +342,11 @@ fn bench_arc_allocation_patterns(c: &mut Criterion) {
                     values.push(optimizer.string(&format!("string_{}", i)));
                 }
             }
-            
+
             black_box(values);
         })
     });
-    
+
     disable_global_tracking();
     group.finish();
 }
@@ -338,12 +354,12 @@ fn bench_arc_allocation_patterns(c: &mut Criterion) {
 /// Benchmarks memory usage patterns with different sizes
 fn bench_memory_usage_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group("memory_usage_scaling");
-    
+
     let optimizer = ValueOptimizer::default();
-    
+
     for size in [10, 100, 1000].iter() {
         group.throughput(Throughput::Elements(*size as u64));
-        
+
         group.bench_with_input(BenchmarkId::new("legacy_list", size), size, |b, &size| {
             b.iter(|| {
                 let values: Vec<Value> = (0..size).map(|i| Value::integer(i as i64)).collect();
@@ -351,15 +367,20 @@ fn bench_memory_usage_scaling(c: &mut Criterion) {
                 std::mem::drop(list);
             })
         });
-        
-        group.bench_with_input(BenchmarkId::new("optimized_list", size), size, |b, &size| {
-            b.iter(|| {
-                let values: Vec<Value> = (0..size).map(|i| optimizer.integer(i as i64)).collect();
-                let list = black_box(optimizer.list(values));
-                std::mem::drop(list);
-            })
-        });
-        
+
+        group.bench_with_input(
+            BenchmarkId::new("optimized_list", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let values: Vec<Value> =
+                        (0..size).map(|i| optimizer.integer(i as i64)).collect();
+                    let list = black_box(optimizer.list(values));
+                    std::mem::drop(list);
+                })
+            },
+        );
+
         group.bench_with_input(BenchmarkId::new("legacy_vector", size), size, |b, &size| {
             b.iter(|| {
                 let values: Vec<Value> = (0..size).map(|i| Value::integer(i as i64)).collect();
@@ -367,16 +388,21 @@ fn bench_memory_usage_scaling(c: &mut Criterion) {
                 std::mem::drop(vector);
             })
         });
-        
-        group.bench_with_input(BenchmarkId::new("optimized_vector", size), size, |b, &size| {
-            b.iter(|| {
-                let values: Vec<Value> = (0..size).map(|i| optimizer.integer(i as i64)).collect();
-                let vector = black_box(optimizer.vector(values));
-                std::mem::drop(vector);
-            })
-        });
+
+        group.bench_with_input(
+            BenchmarkId::new("optimized_vector", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let values: Vec<Value> =
+                        (0..size).map(|i| optimizer.integer(i as i64)).collect();
+                    let vector = black_box(optimizer.vector(values));
+                    std::mem::drop(vector);
+                })
+            },
+        );
     }
-    
+
     group.finish();
 }
 
@@ -384,9 +410,9 @@ fn bench_memory_usage_scaling(c: &mut Criterion) {
 fn bench_nested_structures(c: &mut Criterion) {
     let mut group = c.benchmark_group("nested_structures");
     group.throughput(Throughput::Elements(1));
-    
+
     let optimizer = ValueOptimizer::default();
-    
+
     group.bench_function("legacy_nested_pairs", |b| {
         b.iter(|| {
             let mut current = Value::Nil;
@@ -396,7 +422,7 @@ fn bench_nested_structures(c: &mut Criterion) {
             black_box(current);
         })
     });
-    
+
     group.bench_function("optimized_nested_pairs", |b| {
         b.iter(|| {
             let mut current = ValueOptimizer::nil();
@@ -406,39 +432,31 @@ fn bench_nested_structures(c: &mut Criterion) {
             black_box(current);
         })
     });
-    
+
     group.bench_function("legacy_mixed_structure", |b| {
         b.iter(|| {
             let vector = Value::vector(vec![
                 Value::integer(1),
                 Value::string("test"),
-                Value::pair(Value::integer(2), Value::integer(3))
+                Value::pair(Value::integer(2), Value::integer(3)),
             ]);
-            let list = Value::list(vec![
-                vector,
-                Value::boolean(true),
-                Value::Nil
-            ]);
+            let list = Value::list(vec![vector, Value::boolean(true), Value::Nil]);
             black_box(list);
         })
     });
-    
+
     group.bench_function("optimized_mixed_structure", |b| {
         b.iter(|| {
             let vector = optimizer.vector(vec![
                 optimizer.integer(1),
                 optimizer.string("test"),
-                optimizer.pair(optimizer.integer(2), optimizer.integer(3))
+                optimizer.pair(optimizer.integer(2), optimizer.integer(3)),
             ]);
-            let list = optimizer.list(vec![
-                vector,
-                optimizer.boolean(true),
-                ValueOptimizer::nil()
-            ]);
+            let list = optimizer.list(vec![vector, optimizer.boolean(true), ValueOptimizer::nil()]);
             black_box(list);
         })
     });
-    
+
     group.finish();
 }
 
@@ -446,13 +464,13 @@ fn bench_nested_structures(c: &mut Criterion) {
 fn bench_cache_efficiency(c: &mut Criterion) {
     let mut group = c.benchmark_group("cache_efficiency");
     group.throughput(Throughput::Elements(1000));
-    
+
     let optimizer = ValueOptimizer::default();
-    
+
     // Create arrays of values for cache testing
     let legacy_values: Vec<Value> = (0..1000).map(|i| Value::integer(i)).collect();
     let optimized_values: Vec<Value> = (0..1000).map(|i| optimizer.integer(i)).collect();
-    
+
     group.bench_function("legacy_sequential_access", |b| {
         b.iter(|| {
             let mut sum = 0i64;
@@ -464,7 +482,7 @@ fn bench_cache_efficiency(c: &mut Criterion) {
             black_box(sum);
         })
     });
-    
+
     group.bench_function("optimized_sequential_access", |b| {
         b.iter(|| {
             let mut sum = 0i64;
@@ -476,11 +494,12 @@ fn bench_cache_efficiency(c: &mut Criterion) {
             black_box(sum);
         })
     });
-    
+
     group.bench_function("legacy_random_access", |b| {
         b.iter(|| {
             let mut sum = 0i64;
-            for i in (0..1000).step_by(7) { // Irregular access pattern
+            for i in (0..1000).step_by(7) {
+                // Irregular access pattern
                 if let Some(n) = legacy_values[i % 1000].as_integer() {
                     sum += n;
                 }
@@ -488,11 +507,12 @@ fn bench_cache_efficiency(c: &mut Criterion) {
             black_box(sum);
         })
     });
-    
+
     group.bench_function("optimized_random_access", |b| {
         b.iter(|| {
             let mut sum = 0i64;
-            for i in (0..1000).step_by(7) { // Irregular access pattern
+            for i in (0..1000).step_by(7) {
+                // Irregular access pattern
                 if let Some(n) = optimized_values[i % 1000].as_integer() {
                     sum += n;
                 }
@@ -500,7 +520,7 @@ fn bench_cache_efficiency(c: &mut Criterion) {
             black_box(sum);
         })
     });
-    
+
     group.finish();
 }
 
@@ -509,7 +529,7 @@ fn bench_comprehensive_verification(c: &mut Criterion) {
     let mut group = c.benchmark_group("comprehensive_verification");
     group.measurement_time(Duration::from_secs(30)); // Allow more time for comprehensive testing
     group.sample_size(10); // Fewer samples since this is expensive
-    
+
     group.bench_function("full_verification_suite", |b| {
         b.iter(|| {
             let config = VerificationConfig {
@@ -521,16 +541,16 @@ fn bench_comprehensive_verification(c: &mut Criterion) {
                 enable_production_assessment: false, // Disable to reduce runtime
                 test_timeout: Duration::from_secs(10),
             };
-            
+
             let suite = PerformanceVerificationSuite::new(config);
             let report = black_box(suite.run_comprehensive_verification());
-            
+
             // Verify we got meaningful results
             assert!(report.memory_analysis.total_values_tested > 0);
             assert!(report.arc_analysis.total_arc_usage >= 0);
         })
     });
-    
+
     group.finish();
 }
 
@@ -538,18 +558,26 @@ fn bench_comprehensive_verification(c: &mut Criterion) {
 fn bench_string_caching(c: &mut Criterion) {
     let mut group = c.benchmark_group("string_caching");
     group.throughput(Throughput::Elements(100));
-    
+
     let mut config = OptimizationConfig::default();
     config.enable_caching = true;
     config.max_cache_size = 1000;
     let optimizer = ValueOptimizer::new(config);
-    
+
     // Common strings that should benefit from caching
     let test_strings = vec![
-        "hello", "world", "test", "cache", "optimization",
-        "hello", "world", "test", "cache", "optimization", // Repeats for cache hits
+        "hello",
+        "world",
+        "test",
+        "cache",
+        "optimization",
+        "hello",
+        "world",
+        "test",
+        "cache",
+        "optimization", // Repeats for cache hits
     ];
-    
+
     group.bench_function("cached_string_creation", |b| {
         b.iter(|| {
             for s in &test_strings {
@@ -558,7 +586,7 @@ fn bench_string_caching(c: &mut Criterion) {
             }
         })
     });
-    
+
     group.bench_function("uncached_string_creation", |b| {
         b.iter(|| {
             for s in &test_strings {
@@ -567,7 +595,7 @@ fn bench_string_caching(c: &mut Criterion) {
             }
         })
     });
-    
+
     group.finish();
 }
 
@@ -576,9 +604,9 @@ fn bench_load_testing(c: &mut Criterion) {
     let mut group = c.benchmark_group("load_testing");
     group.throughput(Throughput::Elements(10000));
     group.measurement_time(Duration::from_secs(10));
-    
+
     let optimizer = ValueOptimizer::default();
-    
+
     group.bench_function("legacy_high_load", |b| {
         b.iter(|| {
             let mut values = Vec::with_capacity(10000);
@@ -594,7 +622,7 @@ fn bench_load_testing(c: &mut Criterion) {
             black_box(values);
         })
     });
-    
+
     group.bench_function("optimized_high_load", |b| {
         b.iter(|| {
             let mut values = Vec::with_capacity(10000);
@@ -603,14 +631,15 @@ fn bench_load_testing(c: &mut Criterion) {
                     0 => values.push(optimizer.integer(i as i64)),
                     1 => values.push(optimizer.boolean(i % 2 == 0)),
                     2 => values.push(optimizer.string(&format!("item_{}", i))),
-                    3 => values.push(optimizer.pair(optimizer.integer(i as i64), ValueOptimizer::nil())),
+                    3 => values
+                        .push(optimizer.pair(optimizer.integer(i as i64), ValueOptimizer::nil())),
                     _ => unreachable!(),
                 }
             }
             black_box(values);
         })
     });
-    
+
     group.finish();
 }
 

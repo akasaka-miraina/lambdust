@@ -17,24 +17,23 @@
 //! 3. Blame tracking connects type errors to source locations
 //! 4. Optimization eliminates redundant checks when types guarantee safety
 
-use super::gradual_inference::{
-    GradualTypeInference, GradualInferenceResult, CastInsertion, 
-    GeneratedContract, TypeBoundary, CastReason, PerformanceImpact
-};
 use super::gradual::{Cast, consistent, is_gradual, is_static};
-use super::{Type, TypeVar, TypeScheme};
+use super::gradual_inference::{
+    CastInsertion, CastReason, GeneratedContract, GradualInferenceResult, GradualTypeInference,
+    PerformanceImpact, TypeBoundary,
+};
+use super::{Type, TypeScheme, TypeVar};
 use crate::contracts::{
-    ContractSystem, ContractExpr, ContractConfig, CompiledContract,
-    BlameInfo, BlameTracker, ContractError, ContractResult,
-    PredicateRegistry, ContractPredicate, CompilationContext,
-    BlameTarget, BlameBoundary, BoundaryType, PerformanceInfo,
-    PerformanceComplexity, CompilationMetadata, SizeInfo, OptimizationLevel
+    BlameBoundary, BlameInfo, BlameTarget, BlameTracker, BoundaryType, CompilationContext,
+    CompilationMetadata, CompiledContract, ContractConfig, ContractError, ContractExpr,
+    ContractPredicate, ContractResult, ContractSystem, OptimizationLevel, PerformanceComplexity,
+    PerformanceInfo, PredicateRegistry, SizeInfo,
 };
 use crate::diagnostics::{Error, Result, Span, Spanned};
 use crate::eval::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 // Import the gradual inference types we need
 use super::gradual_inference::ContractPriority;
@@ -162,15 +161,29 @@ pub enum ContractOptimization {
     /// No optimization applied
     None,
     /// Simplified predicate
-    SimplifiedPredicate { original: String, simplified: String },
+    SimplifiedPredicate {
+        /// Original predicate expression
+        original: String,
+        /// Simplified predicate expression
+        simplified: String,
+    },
     /// Specialized for known types
-    TypeSpecialization { specialized_types: Vec<Type> },
+    TypeSpecialization {
+        /// Types that the contract was specialized for
+        specialized_types: Vec<Type>,
+    },
     /// Combined with other contracts
-    Combined { combined_with: Vec<ContractExpr> },
+    Combined {
+        /// Other contracts that were combined
+        combined_with: Vec<ContractExpr>,
+    },
     /// Moved to compile time
     CompileTimeCheck,
     /// Replaced with type assertion
-    TypeAssertion { assertion_type: Type },
+    TypeAssertion {
+        /// Type used in the assertion
+        assertion_type: Type,
+    },
 }
 
 // Use ContractPriority from gradual_inference module instead of defining our own
@@ -295,7 +308,7 @@ pub struct BlameMapping {
 pub struct SourceContext {
     /// Function name (if applicable)
     pub function_name: Option<String>,
-    /// Variable name (if applicable)  
+    /// Variable name (if applicable)
     pub variable_name: Option<String>,
     /// Expression type
     pub expression_type: String,
@@ -574,7 +587,10 @@ pub enum ContractPattern {
     /// Predicate contract
     Predicate(String),
     /// Function contract
-    Function { arity: usize },
+    Function {
+        /// Number of function arguments
+        arity: usize,
+    },
     /// List contract
     List,
     /// Any contract
@@ -708,51 +724,52 @@ impl GradualContractIntegration {
             )?
         } else {
             (
-                generated_contracts.into_iter().map(|c| OptimizedContract {
-                    contract: c.contract.clone(),
-                    compiled: Arc::new(CompiledContract {
-                        id: 0,
-                        original: c.contract,
-                        checker: Arc::new(|_, _| Ok(true)),
-                        optimization_level: crate::contracts::OptimizationLevel::Standard,
-                        performance: PerformanceInfo {
-                            time_complexity: PerformanceComplexity::Constant,
-                            space_complexity: PerformanceComplexity::Constant,
-                            deterministic: true,
-                            operation_count: 1,
-                            inlinable: true,
-                        },
-                        dependencies: std::collections::HashSet::new(),
-                        metadata: CompilationMetadata {
-                            timestamp: std::time::SystemTime::now(),
-                            source_location: Span::new(0, 0),
-                            optimizations: Vec::new(),
-                            warnings: Vec::new(),
-                            size_info: SizeInfo {
-                                original_nodes: 1,
-                                compiled_operations: 1,
-                                estimated_memory: 64,
+                generated_contracts
+                    .into_iter()
+                    .map(|c| OptimizedContract {
+                        contract: c.contract.clone(),
+                        compiled: Arc::new(CompiledContract {
+                            id: 0,
+                            original: c.contract,
+                            checker: Arc::new(|_, _| Ok(true)),
+                            optimization_level: crate::contracts::OptimizationLevel::Standard,
+                            performance: PerformanceInfo {
+                                time_complexity: PerformanceComplexity::Constant,
+                                space_complexity: PerformanceComplexity::Constant,
+                                deterministic: true,
+                                operation_count: 1,
+                                inlinable: true,
                             },
-                        },
-                        predicate: Box::new(|_| true), // Legacy compatibility
-                        blame_info: c.blame.clone(),
-                        contract_name: "auto-generated".to_string(),
-                    }),
-                    optimization: ContractOptimization::None,
-                    performance_impact: PerformanceImpact::Minimal,
-                    blame: c.blame,
-                    priority: c.priority,
-                }).collect(),
+                            dependencies: std::collections::HashSet::new(),
+                            metadata: CompilationMetadata {
+                                timestamp: std::time::SystemTime::now(),
+                                source_location: Span::new(0, 0),
+                                optimizations: Vec::new(),
+                                warnings: Vec::new(),
+                                size_info: SizeInfo {
+                                    original_nodes: 1,
+                                    compiled_operations: 1,
+                                    estimated_memory: 64,
+                                },
+                            },
+                            predicate: Box::new(|_| true), // Legacy compatibility
+                            blame_info: c.blame.clone(),
+                            contract_name: "auto-generated".to_string(),
+                        }),
+                        optimization: ContractOptimization::None,
+                        performance_impact: PerformanceImpact::Minimal,
+                        blame: c.blame,
+                        priority: c.priority,
+                    })
+                    .collect(),
                 Vec::new(),
             )
         };
 
         // Create blame mappings
         let blame_mappings = if self.config.enable_blame_integration {
-            self.blame_coordinator.create_mappings(
-                &optimized_contracts,
-                &inference_result.casts,
-            )?
+            self.blame_coordinator
+                .create_mappings(&optimized_contracts, &inference_result.casts)?
         } else {
             Vec::new()
         };
@@ -770,7 +787,8 @@ impl GradualContractIntegration {
             optimization_time: Duration::from_millis(0), // Would measure actual time
             contracts_generated: optimized_contracts.len(),
             contracts_eliminated: eliminated_contracts.len(),
-            total_improvement: eliminated_contracts.iter()
+            total_improvement: eliminated_contracts
+                .iter()
                 .map(|c| c.performance_savings.time_per_execution)
                 .sum(),
         };
@@ -835,17 +853,23 @@ impl GradualContractIntegration {
 
     /// Checks if a contract can be specialized
     fn can_specialize_contract(&self, contract: &ContractExpr, type_: &Type) -> bool {
-        is_static(type_) && matches!(contract, ContractExpr::Function { .. } | ContractExpr::ListOf { .. })
+        is_static(type_)
+            && matches!(
+                contract,
+                ContractExpr::Function { .. } | ContractExpr::ListOf { .. }
+            )
     }
 
     /// Checks if a type satisfies a predicate
     fn type_satisfies_predicate(&self, type_: &Type, predicate: &str) -> bool {
-        matches!((type_, predicate), 
-            (Type::Number, "number?") | 
-            (Type::String, "string?") | 
-            (Type::Boolean, "boolean?") | 
-            (Type::Symbol, "symbol?") | 
-            (Type::Char, "char?"))
+        matches!(
+            (type_, predicate),
+            (Type::Number, "number?")
+                | (Type::String, "string?")
+                | (Type::Boolean, "boolean?")
+                | (Type::Symbol, "symbol?")
+                | (Type::Char, "char?")
+        )
     }
 
     /// Gets current configuration
@@ -883,22 +907,22 @@ impl ContractGenerator {
         vec![
             // Rule for number types
             GenerationRule {
-            type_pattern: TypePattern::Exact(Type::Number),
-            contract_template: ContractTemplate {
-                base_contract: ContractExpr::Predicate {
-                    name: "number?".to_string(),
-                    location: Span::new(0, 0),
+                type_pattern: TypePattern::Exact(Type::Number),
+                contract_template: ContractTemplate {
+                    base_contract: ContractExpr::Predicate {
+                        name: "number?".to_string(),
+                        location: Span::new(0, 0),
+                    },
+                    parameters: HashMap::new(),
+                    optimization_hints: vec![OptimizationHint {
+                        hint_type: OptimizationHintType::EliminateIfStatic,
+                        condition: "static type".to_string(),
+                        benefit: PerformanceBenefit::Moderate,
+                    }],
                 },
-                parameters: HashMap::new(),
-                optimization_hints: vec![OptimizationHint {
-                    hint_type: OptimizationHintType::EliminateIfStatic,
-                    condition: "static type".to_string(),
-                    benefit: PerformanceBenefit::Moderate,
-                }],
+                priority: 100,
+                conditions: vec![GenerationCondition::TypeAtBoundary],
             },
-            priority: 100,
-            conditions: vec![GenerationCondition::TypeAtBoundary],
-        },
             // More rules would be added here...
         ]
     }
@@ -954,10 +978,18 @@ impl ContractGenerator {
                         parent: None,
                     },
                     priority: match cast.performance_impact {
-                        PerformanceImpact::None => super::gradual_inference::ContractPriority::Optional,
-                        PerformanceImpact::Minimal => super::gradual_inference::ContractPriority::Optional,
-                        PerformanceImpact::Moderate => super::gradual_inference::ContractPriority::Important,
-                        PerformanceImpact::Significant => super::gradual_inference::ContractPriority::Critical,
+                        PerformanceImpact::None => {
+                            super::gradual_inference::ContractPriority::Optional
+                        }
+                        PerformanceImpact::Minimal => {
+                            super::gradual_inference::ContractPriority::Optional
+                        }
+                        PerformanceImpact::Moderate => {
+                            super::gradual_inference::ContractPriority::Important
+                        }
+                        PerformanceImpact::Significant => {
+                            super::gradual_inference::ContractPriority::Critical
+                        }
                     },
                 }))
             }
@@ -1003,14 +1035,19 @@ impl ContractGenerator {
                     location: Span::new(0, 0),
                 }
             }
-            Type::Function { params, return_type } => {
-                let param_contracts: Result<Vec<_>> = params.iter()
-                    .map(|p| self.type_to_contract(p))
-                    .collect();
+            Type::Function {
+                params,
+                return_type,
+            } => {
+                let param_contracts: Result<Vec<_>> =
+                    params.iter().map(|p| self.type_to_contract(p)).collect();
                 let return_contract = self.type_to_contract(return_type)?;
-                
+
                 ContractExpr::Function {
-                    domain: param_contracts?.into_iter().map(|c| Spanned::new(c, Span::new(0, 0))).collect(),
+                    domain: param_contracts?
+                        .into_iter()
+                        .map(|c| Spanned::new(c, Span::new(0, 0)))
+                        .collect(),
                     codomain: Box::new(Spanned::new(return_contract, Span::new(0, 0))),
                     location: Span::new(0, 0),
                 }
@@ -1093,26 +1130,28 @@ impl ContractOptimizer {
     ) -> Result<OptimizationResult> {
         // Check if contract can be eliminated
         if self.can_eliminate(&contract.contract, inferred_type) {
-            return Ok(OptimizationResult::Eliminated(Box::new(EliminatedContract {
-                original_contract: contract.contract.clone(),
-                elimination_reason: EliminationReason::TypeGuarantee,
-                type_evidence: TypeEvidence {
-                    static_types: vec![inferred_type.clone()],
-                    relationships: vec![],
-                    invariants: vec![],
-                    confidence: ConfidenceLevel::High,
+            return Ok(OptimizationResult::Eliminated(Box::new(
+                EliminatedContract {
+                    original_contract: contract.contract.clone(),
+                    elimination_reason: EliminationReason::TypeGuarantee,
+                    type_evidence: TypeEvidence {
+                        static_types: vec![inferred_type.clone()],
+                        relationships: vec![],
+                        invariants: vec![],
+                        confidence: ConfidenceLevel::High,
+                    },
+                    performance_savings: PerformanceSavings {
+                        time_per_execution: Duration::from_micros(10),
+                        memory_saved: 64,
+                        cpu_cycles_saved: 100,
+                    },
                 },
-                performance_savings: PerformanceSavings {
-                    time_per_execution: Duration::from_micros(10),
-                    memory_saved: 64,
-                    cpu_cycles_saved: 100,
-                },
-            })));
+            )));
         }
 
         // Apply optimizations
         let optimization = self.determine_optimization(&contract.contract, inferred_type);
-        
+
         Ok(OptimizationResult::Optimized(Box::new(OptimizedContract {
             contract: contract.contract.clone(),
             compiled: Arc::new(CompiledContract {
@@ -1163,14 +1202,18 @@ impl ContractOptimizer {
 
     /// Checks if type guarantees a predicate
     fn type_guarantees_predicate(&self, type_: &Type, predicate: &str) -> bool {
-        matches!((type_, predicate), 
-            (Type::Number, "number?") | 
-            (Type::String, "string?") | 
-            (Type::Boolean, "boolean?"))
+        matches!(
+            (type_, predicate),
+            (Type::Number, "number?") | (Type::String, "string?") | (Type::Boolean, "boolean?")
+        )
     }
 
     /// Determines optimization to apply
-    fn determine_optimization(&self, contract: &ContractExpr, type_: &Type) -> ContractOptimization {
+    fn determine_optimization(
+        &self,
+        contract: &ContractExpr,
+        type_: &Type,
+    ) -> ContractOptimization {
         if is_static(type_) {
             ContractOptimization::TypeSpecialization {
                 specialized_types: vec![type_.clone()],
@@ -1271,21 +1314,36 @@ impl PerformanceMonitor {
         } else {
             let len = self.history.len();
             Some(IntegrationMetrics {
-                generation_time: self.history.iter()
+                generation_time: self
+                    .history
+                    .iter()
                     .map(|h| h.metrics.generation_time)
-                    .sum::<Duration>() / len as u32,
-                optimization_time: self.history.iter()
+                    .sum::<Duration>()
+                    / len as u32,
+                optimization_time: self
+                    .history
+                    .iter()
                     .map(|h| h.metrics.optimization_time)
-                    .sum::<Duration>() / len as u32,
-                contracts_generated: self.history.iter()
+                    .sum::<Duration>()
+                    / len as u32,
+                contracts_generated: self
+                    .history
+                    .iter()
                     .map(|h| h.metrics.contracts_generated)
-                    .sum::<usize>() / len,
-                contracts_eliminated: self.history.iter()
+                    .sum::<usize>()
+                    / len,
+                contracts_eliminated: self
+                    .history
+                    .iter()
                     .map(|h| h.metrics.contracts_eliminated)
-                    .sum::<usize>() / len,
-                total_improvement: self.history.iter()
+                    .sum::<usize>()
+                    / len,
+                total_improvement: self
+                    .history
+                    .iter()
                     .map(|h| h.metrics.total_improvement)
-                    .sum::<Duration>() / len as u32,
+                    .sum::<Duration>()
+                    / len as u32,
             })
         }
     }
@@ -1324,7 +1382,7 @@ mod tests {
     fn test_contract_generation() {
         let config = GradualContractConfig::default();
         let mut generator = ContractGenerator::new(&config);
-        
+
         let cast = CastInsertion {
             location: Span::new(0, 10),
             cast: Cast::Downcast {
@@ -1335,11 +1393,9 @@ mod tests {
             performance_impact: PerformanceImpact::Minimal,
         };
 
-        let contracts = generator.generate_contracts(
-            &[cast],
-            &Type::Number,
-            &config,
-        ).unwrap();
+        let contracts = generator
+            .generate_contracts(&[cast], &Type::Number, &config)
+            .unwrap();
 
         assert!(!contracts.is_empty());
     }
@@ -1348,7 +1404,7 @@ mod tests {
     fn test_contract_optimization() {
         let config = GradualContractConfig::default();
         let mut optimizer = ContractOptimizer::new(&config);
-        
+
         let contract = GeneratedContract {
             contract: ContractExpr::Predicate {
                 name: "number?".to_string(),
@@ -1378,11 +1434,9 @@ mod tests {
         };
 
         // With static type, contract should be eliminable
-        let (optimized, eliminated) = optimizer.optimize_contracts(
-            &[contract],
-            &Type::Number,
-            &config,
-        ).unwrap();
+        let (optimized, eliminated) = optimizer
+            .optimize_contracts(&[contract], &Type::Number, &config)
+            .unwrap();
 
         // Contract should be eliminated because static type guarantees it
         assert_eq!(eliminated.len(), 1);
@@ -1392,28 +1446,47 @@ mod tests {
     #[test]
     fn test_blame_coordination() {
         let mut coordinator = BlameCoordinator::new(BlamePrecisionLevel::Medium);
-        
+
         let contract = OptimizedContract {
-            contract: ContractExpr::Predicate("number?".to_string()),
+            contract: ContractExpr::Predicate {
+                name: "number?".to_string(),
+                location: Span::new(0, 10),
+            },
             compiled: Arc::new(CompiledContract {
-                predicate: Box::new(|_| true),
-                blame_info: BlameInfo {
-                    positive: "test".to_string(),
-                    negative: "test".to_string(),
+                id: 1,
+                original: ContractExpr::Predicate {
+                    name: "number?".to_string(),
                     location: Span::new(0, 10),
-                    description: "test".to_string(),
                 },
+                checker: Arc::new(|_value, _blame| Ok(true)),
+                optimization_level: OptimizationLevel::Standard,
+                performance: PerformanceInfo {
+                    time_complexity: PerformanceComplexity::Constant,
+                    space_complexity: PerformanceComplexity::Constant,
+                    deterministic: true,
+                    operation_count: 1,
+                    inlinable: true,
+                },
+                dependencies: std::collections::HashSet::new(),
+                metadata: CompilationMetadata {
+                    timestamp: std::time::SystemTime::now(),
+                    source_location: Span::new(0, 10),
+                    optimizations: Vec::new(),
+                    warnings: Vec::new(),
+                    size_info: SizeInfo {
+                        original_nodes: 1,
+                        compiled_operations: 1,
+                        estimated_memory: 64,
+                    },
+                },
+                predicate: Box::new(|_| true),
+                blame_info: BlameInfo::default(),
                 contract_name: "test".to_string(),
             }),
             optimization: ContractOptimization::None,
             performance_impact: PerformanceImpact::Minimal,
-            blame: BlameInfo {
-                positive: "test".to_string(),
-                negative: "test".to_string(),
-                location: Span::new(0, 10),
-                description: "test".to_string(),
-            },
-            priority: ContractPriority::Medium,
+            blame: BlameInfo::default(),
+            priority: ContractPriority::Important,
         };
 
         let cast = CastInsertion {
@@ -1431,7 +1504,7 @@ mod tests {
     #[test]
     fn test_performance_monitoring() {
         let mut monitor = PerformanceMonitor::default();
-        
+
         let metrics = IntegrationMetrics {
             generation_time: Duration::from_millis(10),
             optimization_time: Duration::from_millis(5),
@@ -1441,7 +1514,7 @@ mod tests {
         };
 
         monitor.record_integration(&metrics);
-        
+
         assert_eq!(monitor.integration_metrics.contracts_generated, 3);
         assert_eq!(monitor.integration_metrics.contracts_eliminated, 1);
         assert_eq!(monitor.history.len(), 1);

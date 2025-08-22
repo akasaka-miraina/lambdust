@@ -8,7 +8,7 @@
 
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// High-performance complex number with optimized operations
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -37,23 +37,32 @@ impl Complex {
 
     /// Creates a complex number from polar coordinates (magnitude, angle)
     pub fn from_polar(magnitude: f64, angle: f64) -> Self {
-        Self::new(
-            magnitude * angle.cos(),
-            magnitude * angle.sin(),
-        )
+        Self::new(magnitude * angle.cos(), magnitude * angle.sin())
     }
 
     /// Zero complex number
-    pub const ZERO: Self = Self { real: 0.0, imaginary: 0.0 };
+    pub const ZERO: Self = Self {
+        real: 0.0,
+        imaginary: 0.0,
+    };
 
     /// One complex number
-    pub const ONE: Self = Self { real: 1.0, imaginary: 0.0 };
+    pub const ONE: Self = Self {
+        real: 1.0,
+        imaginary: 0.0,
+    };
 
     /// Imaginary unit (i)
-    pub const I: Self = Self { real: 0.0, imaginary: 1.0 };
+    pub const I: Self = Self {
+        real: 0.0,
+        imaginary: 1.0,
+    };
 
     /// Negative imaginary unit (-i)
-    pub const NEG_I: Self = Self { real: 0.0, imaginary: -1.0 };
+    pub const NEG_I: Self = Self {
+        real: 0.0,
+        imaginary: -1.0,
+    };
 
     /// Computes the magnitude (absolute value) of the complex number
     pub fn magnitude(&self) -> f64 {
@@ -254,12 +263,22 @@ impl Complex {
             if self.imaginary == 1.0 {
                 format!("{:.prec$}+i", self.real, prec = precision)
             } else {
-                format!("{:.prec$}+{:.prec$}i", self.real, self.imaginary, prec = precision)
+                format!(
+                    "{:.prec$}+{:.prec$}i",
+                    self.real,
+                    self.imaginary,
+                    prec = precision
+                )
             }
         } else if self.imaginary == -1.0 {
             format!("{:.prec$}-i", self.real, prec = precision)
         } else {
-            format!("{:.prec$}{:.prec$}i", self.real, self.imaginary, prec = precision)
+            format!(
+                "{:.prec$}{:.prec$}i",
+                self.real,
+                self.imaginary,
+                prec = precision
+            )
         }
     }
 }
@@ -447,7 +466,7 @@ mod tests {
         let c = Complex::new(1.0, 1.0);
         let c_squared = c.powf(2.0);
         let expected = Complex::new(0.0, 2.0);
-        
+
         assert!((c_squared.real - expected.real).abs() < 1e-10);
         assert!((c_squared.imaginary - expected.imaginary).abs() < 1e-10);
     }
@@ -457,7 +476,7 @@ mod tests {
         let c = Complex::new(-1.0, 0.0);
         let sqrt_c = c.sqrt();
         let expected = Complex::new(0.0, 1.0);
-        
+
         assert!((sqrt_c.real - expected.real).abs() < 1e-10);
         assert!((sqrt_c.imaginary - expected.imaginary).abs() < 1e-10);
     }
@@ -467,7 +486,7 @@ mod tests {
         let c = Complex::new(1.0, PI);
         let exp_c = c.exp();
         let ln_exp_c = exp_c.ln();
-        
+
         // exp and ln should be inverses (modulo 2πi)
         assert!((ln_exp_c.real - c.real).abs() < 1e-10);
         assert!((ln_exp_c.imaginary - c.imaginary).abs() < 1e-10);
@@ -478,7 +497,7 @@ mod tests {
         let c = Complex::new(0.5, 0.3);
         let sin_c = c.sin();
         let cos_c = c.cos();
-        
+
         // sin^2 + cos^2 = 1
         let identity = sin_c * sin_c + cos_c * cos_c;
         assert!((identity.real - 1.0).abs() < 1e-10);

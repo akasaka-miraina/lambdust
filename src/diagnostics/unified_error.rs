@@ -3,9 +3,11 @@
 //! This module provides a comprehensive, zero-cost abstraction for error handling
 //! that eliminates redundancy while maintaining performance and ergonomics.
 
-use crate::diagnostics::{Span, LambdustError, ErrorLabel, LightweightDiagnostic, DiagnosticLabel, DiagnosticSeverity};
-use std::fmt;
+use crate::diagnostics::{
+    DiagnosticLabel, DiagnosticSeverity, ErrorLabel, LambdustError, LightweightDiagnostic, Span,
+};
 use std::error::Error as StdError;
+use std::fmt;
 
 /// Unified result type for all Lambdust operations.
 pub type UnifiedResult<T, E = UnifiedError> = std::result::Result<T, E>;
@@ -82,10 +84,7 @@ pub struct ErrorContext {
 
 impl UnifiedError {
     /// Creates a new unified error with compile-time category verification.
-    pub fn new<C: IntoErrorCategory>(
-        category: C,
-        message: impl Into<String>,
-    ) -> Self {
+    pub fn new<C: IntoErrorCategory>(category: C, message: impl Into<String>) -> Self {
         Self {
             category: category.into_category(),
             message: message.into(),
@@ -109,7 +108,11 @@ impl UnifiedError {
     }
 
     /// Adds context information.
-    pub fn with_context(mut self, context_type: impl Into<String>, data: impl Into<String>) -> Self {
+    pub fn with_context(
+        mut self,
+        context_type: impl Into<String>,
+        data: impl Into<String>,
+    ) -> Self {
         self.context.push(ErrorContext {
             context_type: context_type.into(),
             data: data.into(),
@@ -119,7 +122,12 @@ impl UnifiedError {
     }
 
     /// Adds context with span information.
-    pub fn with_context_span(mut self, context_type: impl Into<String>, data: impl Into<String>, span: Span) -> Self {
+    pub fn with_context_span(
+        mut self,
+        context_type: impl Into<String>,
+        data: impl Into<String>,
+        span: Span,
+    ) -> Self {
         self.context.push(ErrorContext {
             context_type: context_type.into(),
             data: data.into(),
@@ -203,55 +211,79 @@ pub struct InternalError;
 pub struct ExceptionError;
 
 impl IntoErrorCategory for LexicalError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Lexical }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Lexical
+    }
 }
 
 impl IntoErrorCategory for SyntaxError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Syntax }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Syntax
+    }
 }
 
 impl IntoErrorCategory for TypeError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Type }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Type
+    }
 }
 
 impl IntoErrorCategory for RuntimeError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Runtime }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Runtime
+    }
 }
 
 impl IntoErrorCategory for JitError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Jit }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Jit
+    }
 }
 
 impl IntoErrorCategory for MacroError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Macro }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Macro
+    }
 }
 
 impl IntoErrorCategory for FfiError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Ffi }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Ffi
+    }
 }
 
 impl IntoErrorCategory for IoError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Io }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Io
+    }
 }
 
 impl IntoErrorCategory for ModuleError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Module }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Module
+    }
 }
 
 impl IntoErrorCategory for InternalError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Internal }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Internal
+    }
 }
 
 impl IntoErrorCategory for ExceptionError {
-    fn into_category(self) -> ErrorCategory { ErrorCategory::Exception }
+    fn into_category(self) -> ErrorCategory {
+        ErrorCategory::Exception
+    }
 }
 
 impl fmt::Display for UnifiedError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", 
+        write!(
+            f,
+            "{}: {}",
             match self.category {
                 ErrorCategory::Lexical => "Lexical error",
-                ErrorCategory::Syntax => "Syntax error", 
+                ErrorCategory::Syntax => "Syntax error",
                 ErrorCategory::Type => "Type error",
                 ErrorCategory::Runtime => "Runtime error",
                 ErrorCategory::Jit => "JIT error",
@@ -275,7 +307,9 @@ impl fmt::Display for UnifiedError {
 
 impl StdError for UnifiedError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        self.source.as_ref().map(|e| e.as_ref() as &(dyn StdError + 'static))
+        self.source
+            .as_ref()
+            .map(|e| e.as_ref() as &(dyn StdError + 'static))
     }
 }
 
@@ -283,32 +317,35 @@ impl LambdustError for UnifiedError {
     fn error_code(&self) -> &'static str {
         self.error_code()
     }
-    
+
     fn help(&self) -> Option<&str> {
         match self.category {
             ErrorCategory::Internal => Some("This is likely a bug in Lambdust. Please report it."),
             _ => None,
         }
     }
-    
+
     fn labels(&self) -> Vec<ErrorLabel> {
         let mut labels = Vec::new();
-        
+
         if let Some(span) = self.span {
             labels.push(ErrorLabel::primary(span, "here"));
         }
-        
+
         for context in &self.context {
             if let Some(span) = context.span {
                 labels.push(ErrorLabel::secondary(span, &context.data));
             }
         }
-        
+
         labels
     }
-    
+
     fn is_critical(&self) -> bool {
-        matches!(self.severity, ErrorSeverity::Critical | ErrorSeverity::Fatal)
+        matches!(
+            self.severity,
+            ErrorSeverity::Critical | ErrorSeverity::Fatal
+        )
     }
 }
 
@@ -316,18 +353,18 @@ impl LightweightDiagnostic for UnifiedError {
     fn code(&self) -> Option<&str> {
         Some(self.error_code())
     }
-    
+
     fn help(&self) -> Option<&str> {
         LambdustError::help(self)
     }
-    
+
     fn labels(&self) -> Vec<DiagnosticLabel> {
         LambdustError::labels(self)
             .into_iter()
             .map(|label| DiagnosticLabel::primary(label.span(), label.message()))
             .collect()
     }
-    
+
     fn severity(&self) -> DiagnosticSeverity {
         match self.severity {
             ErrorSeverity::Info => DiagnosticSeverity::Note,
@@ -341,8 +378,7 @@ impl LightweightDiagnostic for UnifiedError {
 // Conversion implementations for backward compatibility
 impl From<std::io::Error> for UnifiedError {
     fn from(err: std::io::Error) -> Self {
-        UnifiedError::new(IoError, err.to_string())
-            .with_severity(ErrorSeverity::Error)
+        UnifiedError::new(IoError, err.to_string()).with_severity(ErrorSeverity::Error)
     }
 }
 
@@ -415,11 +451,14 @@ mod tests {
     #[test]
     fn test_error_chaining() {
         let source_error = UnifiedError::new(RuntimeError, "Division by zero");
-        let main_error = UnifiedError::new(JitError, "Compilation failed")
-            .with_source(source_error);
+        let main_error =
+            UnifiedError::new(JitError, "Compilation failed").with_source(source_error);
 
         assert!(main_error.source.is_some());
-        assert_eq!(main_error.source.as_ref().unwrap().category, ErrorCategory::Runtime);
+        assert_eq!(
+            main_error.source.as_ref().unwrap().category,
+            ErrorCategory::Runtime
+        );
     }
 
     #[test]

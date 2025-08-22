@@ -18,20 +18,16 @@
 //! - **Church-Rosser Property**: Confluence of reduction
 //! - **Universe Hierarchy**: Consistency of Type_i : Type_{i+1}
 
-use std::fmt;
 use rand::prelude::*;
+use std::fmt;
 
 // Import the dependent type system modules
-use lambdust::types::dependent::core::{
-    DependentType, DependentTerm, TypingContext, UniverseLevel
-};
-use lambdust::types::dependent::definitional_equality::{
-    DefinitionalEqualityChecker
-};
-use lambdust::types::dependent::normalization::{
-    NormalizationEngine
-};
 use lambdust::diagnostics::Result;
+use lambdust::types::dependent::core::{
+    DependentTerm, DependentType, TypingContext, UniverseLevel,
+};
+use lambdust::types::dependent::definitional_equality::DefinitionalEqualityChecker;
+use lambdust::types::dependent::normalization::NormalizationEngine;
 
 /// Configuration for property-based testing
 #[derive(Debug, Clone)]
@@ -134,7 +130,7 @@ impl PropertyTestFramework {
     pub fn with_config(config: PropertyTestConfig) -> Self {
         let seed = config.seed.unwrap_or_else(|| rand::thread_rng().next_u64());
         let rng = StdRng::seed_from_u64(seed);
-        
+
         Self {
             config,
             rng,
@@ -175,7 +171,9 @@ impl PropertyTestFramework {
             } else {
                 self.statistics.total_tests_failed += 1;
                 if let Some(ref counterexample) = result.counterexample {
-                    self.statistics.counterexamples_found.push(counterexample.clone());
+                    self.statistics
+                        .counterexamples_found
+                        .push(counterexample.clone());
                 }
             }
         }
@@ -200,7 +198,7 @@ impl PropertyTestFramework {
             test_cases_run += 1;
 
             let equality_result = self.equality_checker.types_equal(&ty, &ty)?;
-            
+
             if !equality_result.is_equal {
                 counterexample = Some(format!("Reflexivity failed for type: {ty}"));
                 break;
@@ -208,9 +206,9 @@ impl PropertyTestFramework {
         }
 
         self.statistics.reflexivity_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Reflexivity (Types)".to_string(),
             passed: counterexample.is_none(),
@@ -227,17 +225,14 @@ impl PropertyTestFramework {
         let mut test_cases_run = 0;
         let mut counterexample = None;
 
-        let mut term_gen = DependentTermGenerator::new(
-            self.rng.clone(),
-            self.config.max_depth,
-        );
+        let mut term_gen = DependentTermGenerator::new(self.rng.clone(), self.config.max_depth);
 
         for _ in 0..self.config.test_cases {
             let term = term_gen.generate_term()?;
             test_cases_run += 1;
 
             let equality_result = self.equality_checker.terms_equal(&term, &term)?;
-            
+
             if !equality_result.is_equal {
                 counterexample = Some(format!("Reflexivity failed for term: {term}"));
                 break;
@@ -245,9 +240,9 @@ impl PropertyTestFramework {
         }
 
         self.statistics.reflexivity_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Reflexivity (Terms)".to_string(),
             passed: counterexample.is_none(),
@@ -277,7 +272,7 @@ impl PropertyTestFramework {
 
             let eq1 = self.equality_checker.types_equal(&ty1, &ty2)?;
             let eq2 = self.equality_checker.types_equal(&ty2, &ty1)?;
-            
+
             if eq1.is_equal != eq2.is_equal {
                 counterexample = Some(format!(
                     "Symmetry failed: {} ≡ {} is {}, but {} ≡ {} is {}",
@@ -288,9 +283,9 @@ impl PropertyTestFramework {
         }
 
         self.statistics.symmetry_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Symmetry (Types)".to_string(),
             passed: counterexample.is_none(),
@@ -307,16 +302,13 @@ impl PropertyTestFramework {
         let mut test_cases_run = 0;
         let counterexample = None;
 
-        let mut term_gen = DependentTermGenerator::new(
-            self.rng.clone(),
-            self.config.max_depth,
-        );
+        let mut term_gen = DependentTermGenerator::new(self.rng.clone(), self.config.max_depth);
 
         for _ in 0..self.config.test_cases {
             let term1 = term_gen.generate_term()?;
             // For symmetry testing, use simpler related terms that are more likely to be equal
             let term2 = match self.rng.gen_range(0..2) {
-                0 => term1.clone(), // Identical term
+                0 => term1.clone(),                                    // Identical term
                 1 => term_gen.generate_alpha_equivalent_term(&term1)?, // Alpha-equivalent
                 _ => unreachable!(),
             };
@@ -324,7 +316,7 @@ impl PropertyTestFramework {
 
             let eq1 = self.equality_checker.terms_equal(&term1, &term2)?;
             let eq2 = self.equality_checker.terms_equal(&term2, &term1)?;
-            
+
             // Symmetry should hold - if they're not equal both ways, that's a bug
             if eq1.is_equal != eq2.is_equal {
                 // Note: This is likely a bug in the equality checker itself
@@ -334,9 +326,9 @@ impl PropertyTestFramework {
         }
 
         self.statistics.symmetry_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Symmetry (Terms)".to_string(),
             passed: counterexample.is_none(),
@@ -368,7 +360,7 @@ impl PropertyTestFramework {
             let eq12 = self.equality_checker.types_equal(&ty1, &ty2)?;
             let eq23 = self.equality_checker.types_equal(&ty2, &ty3)?;
             let eq13 = self.equality_checker.types_equal(&ty1, &ty3)?;
-            
+
             // If ty1 ≡ ty2 and ty2 ≡ ty3, then ty1 ≡ ty3 must hold
             if eq12.is_equal && eq23.is_equal && !eq13.is_equal {
                 counterexample = Some(format!(
@@ -379,9 +371,9 @@ impl PropertyTestFramework {
         }
 
         self.statistics.transitivity_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Transitivity (Types)".to_string(),
             passed: counterexample.is_none(),
@@ -398,10 +390,7 @@ impl PropertyTestFramework {
         let mut test_cases_run = 0;
         let mut counterexample = None;
 
-        let mut term_gen = DependentTermGenerator::new(
-            self.rng.clone(),
-            self.config.max_depth,
-        );
+        let mut term_gen = DependentTermGenerator::new(self.rng.clone(), self.config.max_depth);
 
         for _ in 0..self.config.test_cases {
             let term1 = term_gen.generate_term()?;
@@ -412,7 +401,7 @@ impl PropertyTestFramework {
             let eq12 = self.equality_checker.terms_equal(&term1, &term2)?;
             let eq23 = self.equality_checker.terms_equal(&term2, &term3)?;
             let eq13 = self.equality_checker.terms_equal(&term1, &term3)?;
-            
+
             // If term1 ≡ term2 and term2 ≡ term3, then term1 ≡ term3 must hold
             if eq12.is_equal && eq23.is_equal && !eq13.is_equal {
                 counterexample = Some(format!(
@@ -423,9 +412,9 @@ impl PropertyTestFramework {
         }
 
         self.statistics.transitivity_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Transitivity (Terms)".to_string(),
             passed: counterexample.is_none(),
@@ -456,7 +445,7 @@ impl PropertyTestFramework {
             test_cases_run += 1;
 
             let equality_result = self.equality_checker.types_equal(&ty1, &ty2)?;
-            
+
             // If types are equal, substitution should preserve well-typedness
             // This is a placeholder - full implementation would require type checker
             if equality_result.is_equal {
@@ -466,9 +455,9 @@ impl PropertyTestFramework {
         }
 
         self.statistics.substitution_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Substitution Preservation".to_string(),
             passed: counterexample.is_none(),
@@ -489,13 +478,13 @@ impl PropertyTestFramework {
         // to test actual typing context weakening
         for _ in 0..self.config.test_cases {
             let mut context = TypingContext::new();
-            
+
             // Add some variables to context
             context.bind_variable("x".to_string(), DependentType::Universe(0));
             context.bind_variable("y".to_string(), DependentType::Universe(1));
-            
+
             test_cases_run += 1;
-            
+
             // Weakening should preserve lookups for existing variables
             if context.lookup_variable("x").is_none() {
                 counterexample = Some("Weakening failed: variable lookup lost".to_string());
@@ -504,9 +493,9 @@ impl PropertyTestFramework {
         }
 
         self.statistics.weakening_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Weakening Property".to_string(),
             passed: counterexample.is_none(),
@@ -523,10 +512,7 @@ impl PropertyTestFramework {
         let mut test_cases_run = 0;
         let mut counterexample = None;
 
-        let mut term_gen = DependentTermGenerator::new(
-            self.rng.clone(),
-            self.config.max_depth,
-        );
+        let mut term_gen = DependentTermGenerator::new(self.rng.clone(), self.config.max_depth);
 
         for _ in 0..self.config.test_cases {
             let term = term_gen.generate_term()?;
@@ -553,9 +539,9 @@ impl PropertyTestFramework {
         }
 
         self.statistics.normalization_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Strong Normalization".to_string(),
             passed: counterexample.is_none(),
@@ -572,10 +558,7 @@ impl PropertyTestFramework {
         let mut test_cases_run = 0;
         let mut counterexample = None;
 
-        let mut term_gen = DependentTermGenerator::new(
-            self.rng.clone(),
-            self.config.max_depth,
-        );
+        let mut term_gen = DependentTermGenerator::new(self.rng.clone(), self.config.max_depth);
 
         for _ in 0..self.config.test_cases {
             let term = term_gen.generate_term()?;
@@ -585,12 +568,11 @@ impl PropertyTestFramework {
             // and checking that results are equal
             let result1 = self.normalizer.normalize_term(&term)?;
             let result2 = self.normalizer.normalize_term(&term)?;
-            
-            let equality_result = self.equality_checker.terms_equal(
-                &result1.normalized,
-                &result2.normalized
-            )?;
-            
+
+            let equality_result = self
+                .equality_checker
+                .terms_equal(&result1.normalized, &result2.normalized)?;
+
             if !equality_result.is_equal {
                 counterexample = Some(format!(
                     "Church-Rosser property failed: term {term} has non-confluent reductions"
@@ -600,9 +582,9 @@ impl PropertyTestFramework {
         }
 
         self.statistics.confluence_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Church-Rosser Property".to_string(),
             passed: counterexample.is_none(),
@@ -621,26 +603,29 @@ impl PropertyTestFramework {
 
         for level in 0..self.config.max_universe_level {
             test_cases_run += 1;
-            
+
             let universe_i = DependentType::Universe(level);
             let universe_i_plus_1 = DependentType::Universe(level + 1);
-            
+
             // Universe level i should not be equal to level i+1
-            let equality_result = self.equality_checker.types_equal(&universe_i, &universe_i_plus_1)?;
-            
+            let equality_result = self
+                .equality_checker
+                .types_equal(&universe_i, &universe_i_plus_1)?;
+
             if equality_result.is_equal {
                 counterexample = Some(format!(
                     "Universe hierarchy violated: Type_{} ≡ Type_{}",
-                    level, level + 1
+                    level,
+                    level + 1
                 ));
                 break;
             }
         }
 
         self.statistics.universe_tests += test_cases_run;
-        
+
         let execution_time = start_time.elapsed().as_millis() as f64;
-        
+
         Ok(PropertyTestResult {
             property_name: "Universe Hierarchy Consistency".to_string(),
             passed: counterexample.is_none(),
@@ -670,9 +655,15 @@ impl DependentTypeGenerator {
             max_depth,
             max_universe_level,
             variable_names: vec![
-                "x".to_string(), "y".to_string(), "z".to_string(),
-                "a".to_string(), "b".to_string(), "c".to_string(),
-                "A".to_string(), "B".to_string(), "C".to_string(),
+                "x".to_string(),
+                "y".to_string(),
+                "z".to_string(),
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "A".to_string(),
+                "B".to_string(),
+                "C".to_string(),
             ],
             current_depth: 0,
         }
@@ -681,15 +672,19 @@ impl DependentTypeGenerator {
     /// Generate a random dependent type
     pub fn generate_type(&mut self) -> Result<DependentType> {
         if self.current_depth >= self.max_depth {
-            return Ok(DependentType::Universe(self.rng.gen_range(0..=self.max_universe_level)));
+            return Ok(DependentType::Universe(
+                self.rng.gen_range(0..=self.max_universe_level),
+            ));
         }
 
         self.current_depth += 1;
-        
+
         let result = match self.rng.gen_range(0..4) {
-            0 => Ok(DependentType::Universe(self.rng.gen_range(0..=self.max_universe_level))),
+            0 => Ok(DependentType::Universe(
+                self.rng.gen_range(0..=self.max_universe_level),
+            )),
             1 => self.generate_pi_type(),
-            2 => self.generate_sigma_type(), 
+            2 => self.generate_sigma_type(),
             3 => self.generate_identity_type(),
             _ => unreachable!(),
         };
@@ -701,9 +696,9 @@ impl DependentTypeGenerator {
     /// Generate a type related to the given type (for testing equality properties)
     pub fn generate_related_type(&mut self, original: &DependentType) -> Result<DependentType> {
         match self.rng.gen_range(0..3) {
-            0 => Ok(original.clone()), // Identical
+            0 => Ok(original.clone()),                          // Identical
             1 => self.generate_alpha_equivalent_type(original), // α-equivalent
-            2 => self.generate_type(), // Unrelated
+            2 => self.generate_type(),                          // Unrelated
             _ => unreachable!(),
         }
     }
@@ -713,8 +708,12 @@ impl DependentTypeGenerator {
         let var = self.choose_variable_name();
         let domain = Box::new(self.generate_type()?);
         let codomain = Box::new(self.generate_type()?);
-        
-        Ok(DependentType::Pi { var, domain, codomain })
+
+        Ok(DependentType::Pi {
+            var,
+            domain,
+            codomain,
+        })
     }
 
     /// Generate a Σ-type
@@ -722,7 +721,7 @@ impl DependentTypeGenerator {
         let var = self.choose_variable_name();
         let first = Box::new(self.generate_type()?);
         let second = Box::new(self.generate_type()?);
-        
+
         Ok(DependentType::Sigma { var, first, second })
     }
 
@@ -731,14 +730,21 @@ impl DependentTypeGenerator {
         let ty = Box::new(self.generate_type()?);
         let left = Box::new(DependentTerm::Variable(self.choose_variable_name()));
         let right = Box::new(DependentTerm::Variable(self.choose_variable_name()));
-        
+
         Ok(DependentType::Identity { ty, left, right })
     }
 
     /// Generate an α-equivalent version of a type
-    fn generate_alpha_equivalent_type(&mut self, original: &DependentType) -> Result<DependentType> {
+    fn generate_alpha_equivalent_type(
+        &mut self,
+        original: &DependentType,
+    ) -> Result<DependentType> {
         match original {
-            DependentType::Pi { var: _, domain, codomain } => {
+            DependentType::Pi {
+                var: _,
+                domain,
+                codomain,
+            } => {
                 let new_var = self.choose_variable_name();
                 Ok(DependentType::Pi {
                     var: new_var,
@@ -746,7 +752,11 @@ impl DependentTypeGenerator {
                     codomain: codomain.clone(),
                 })
             }
-            DependentType::Sigma { var: _, first, second } => {
+            DependentType::Sigma {
+                var: _,
+                first,
+                second,
+            } => {
                 let new_var = self.choose_variable_name();
                 Ok(DependentType::Sigma {
                     var: new_var,
@@ -772,8 +782,12 @@ impl DependentTermGenerator {
             rng,
             max_depth,
             variable_names: vec![
-                "x".to_string(), "y".to_string(), "z".to_string(),
-                "f".to_string(), "g".to_string(), "h".to_string(),
+                "x".to_string(),
+                "y".to_string(),
+                "z".to_string(),
+                "f".to_string(),
+                "g".to_string(),
+                "h".to_string(),
             ],
             current_depth: 0,
             typing_context: TypingContext::new(),
@@ -787,7 +801,7 @@ impl DependentTermGenerator {
         }
 
         self.current_depth += 1;
-        
+
         let result = match self.rng.gen_range(0..5) {
             0 => Ok(DependentTerm::Variable(self.choose_variable_name())),
             1 => self.generate_lambda_term(),
@@ -804,10 +818,10 @@ impl DependentTermGenerator {
     /// Generate a term related to the given term
     pub fn generate_related_term(&mut self, original: &DependentTerm) -> Result<DependentTerm> {
         match self.rng.gen_range(0..4) {
-            0 => Ok(original.clone()), // Identical
+            0 => Ok(original.clone()),                          // Identical
             1 => self.generate_alpha_equivalent_term(original), // α-equivalent
-            2 => Ok(original.clone()), // More identical cases for symmetry
-            3 => self.generate_term(), // Unrelated
+            2 => Ok(original.clone()),                          // More identical cases for symmetry
+            3 => self.generate_term(),                          // Unrelated
             _ => unreachable!(),
         }
     }
@@ -817,15 +831,19 @@ impl DependentTermGenerator {
         let param = self.choose_variable_name();
         let param_type = Box::new(DependentType::Universe(0)); // Simplified
         let body = Box::new(self.generate_term()?);
-        
-        Ok(DependentTerm::Lambda { param, param_type, body })
+
+        Ok(DependentTerm::Lambda {
+            param,
+            param_type,
+            body,
+        })
     }
 
     /// Generate an application term
     fn generate_application_term(&mut self) -> Result<DependentTerm> {
         let function = Box::new(self.generate_term()?);
         let argument = Box::new(self.generate_term()?);
-        
+
         Ok(DependentTerm::Application { function, argument })
     }
 
@@ -833,7 +851,7 @@ impl DependentTermGenerator {
     fn generate_pair_term(&mut self) -> Result<DependentTerm> {
         let first = Box::new(self.generate_term()?);
         let second = Box::new(self.generate_term()?);
-        
+
         Ok(DependentTerm::Pair { first, second })
     }
 
@@ -841,14 +859,21 @@ impl DependentTermGenerator {
     fn generate_projection_term(&mut self) -> Result<DependentTerm> {
         let pair = Box::new(self.generate_term()?);
         let is_first = self.rng.gen_bool(0.5);
-        
+
         Ok(DependentTerm::Projection { pair, is_first })
     }
 
     /// Generate an α-equivalent version of a term
-    fn generate_alpha_equivalent_term(&mut self, original: &DependentTerm) -> Result<DependentTerm> {
+    fn generate_alpha_equivalent_term(
+        &mut self,
+        original: &DependentTerm,
+    ) -> Result<DependentTerm> {
         match original {
-            DependentTerm::Lambda { param: _, param_type, body } => {
+            DependentTerm::Lambda {
+                param: _,
+                param_type,
+                body,
+            } => {
                 let new_param = self.choose_variable_name();
                 Ok(DependentTerm::Lambda {
                     param: new_param,
@@ -869,16 +894,19 @@ impl DependentTermGenerator {
 
 impl fmt::Display for PropertyTestResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {} ({} test cases, {:.2}ms)", 
-               self.property_name,
-               if self.passed { "PASSED" } else { "FAILED" },
-               self.test_cases_run,
-               self.execution_time_ms)?;
-        
+        write!(
+            f,
+            "{}: {} ({} test cases, {:.2}ms)",
+            self.property_name,
+            if self.passed { "PASSED" } else { "FAILED" },
+            self.test_cases_run,
+            self.execution_time_ms
+        )?;
+
         if let Some(ref counterexample) = self.counterexample {
             write!(f, "\n  Counterexample: {counterexample}")?;
         }
-        
+
         Ok(())
     }
 }
@@ -977,15 +1005,19 @@ mod tests {
         });
 
         let results = framework.run_all_properties().unwrap();
-        
+
         // All properties should pass
         for result in &results {
-            assert!(result.passed, "Property {} failed: {:?}", result.property_name, result.counterexample);
+            assert!(
+                result.passed,
+                "Property {} failed: {:?}",
+                result.property_name, result.counterexample
+            );
         }
 
         // Check that we ran all expected properties
         assert!(results.len() >= 9, "Should run at least 9 property tests");
-        
+
         // Verify statistics
         let stats = framework.get_statistics();
         assert!(stats.total_tests_run > 0);
@@ -996,17 +1028,17 @@ mod tests {
     fn test_type_generation() {
         let rng = StdRng::seed_from_u64(42);
         let mut type_gen = DependentTypeGenerator::new(rng, 3, 2);
-        
+
         // Generate several types
         for _ in 0..10 {
             let ty = type_gen.generate_type().unwrap();
             // Basic sanity check - type should be well-formed
             match ty {
                 DependentType::Universe(level) => assert!(level <= 2),
-                DependentType::Pi { .. } => {},
-                DependentType::Sigma { .. } => {},
-                DependentType::Identity { .. } => {},
-                DependentType::Inductive { .. } => {},
+                DependentType::Pi { .. } => {}
+                DependentType::Sigma { .. } => {}
+                DependentType::Identity { .. } => {}
+                DependentType::Inductive { .. } => {}
             }
         }
     }
@@ -1015,18 +1047,18 @@ mod tests {
     fn test_term_generation() {
         let rng = StdRng::seed_from_u64(42);
         let mut term_gen = DependentTermGenerator::new(rng, 3);
-        
+
         // Generate several terms
         for _ in 0..10 {
             let term = term_gen.generate_term().unwrap();
             // Basic sanity check - term should be well-formed
             match term {
-                DependentTerm::Variable(_) => {},
-                DependentTerm::Lambda { .. } => {},
-                DependentTerm::Application { .. } => {},
-                DependentTerm::Pair { .. } => {},
-                DependentTerm::Projection { .. } => {},
-                _ => {},
+                DependentTerm::Variable(_) => {}
+                DependentTerm::Lambda { .. } => {}
+                DependentTerm::Application { .. } => {}
+                DependentTerm::Pair { .. } => {}
+                DependentTerm::Projection { .. } => {}
+                _ => {}
             }
         }
     }

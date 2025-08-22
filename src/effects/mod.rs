@@ -12,19 +12,19 @@
 //! The system preserves Scheme semantics while enabling pure functional programming.
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{Value};
+use crate::eval::value::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-pub mod monad;
-pub mod handler;
-pub mod generational;
-pub mod lifting;
 pub mod advanced_monads;
-pub mod continuation_monad;
 pub mod builtin_monads;
+pub mod continuation_monad;
+pub mod generational;
+pub mod handler;
+pub mod lifting;
 pub mod list_monad;
+pub mod monad;
 pub mod parser_monad;
 
 // Individual structure modules
@@ -37,27 +37,26 @@ pub mod effect_system;
 /// Configuration for automatic effect lifting and transformation
 pub mod lifting_config;
 
-pub use monad::*;
-pub use handler::*;
-pub use generational::*;
-pub use lifting::*;
 pub use advanced_monads::*;
+pub use generational::*;
+pub use handler::*;
+pub use lifting::*;
+pub use monad::*;
 
 // Import continuation monad components selectively to avoid conflicts
 pub use continuation_monad::{
-    ContinuationMonad, ContinuationFunction, ContinuationComputation, 
-    EvaluationFrame, EffectfulComputation, run_continuation, escape_continuation
+    ContinuationComputation, ContinuationFunction, ContinuationMonad, EffectfulComputation,
+    EvaluationFrame, escape_continuation, run_continuation,
 };
 
 // Import builtin monads selectively to avoid conflicts
 pub use builtin_monads::{
-    Maybe, Either, IO, State, Reader, IOContext, FileMode, FileHandle,
-    ListMonad, ParserMonad
+    Either, FileHandle, FileMode, IO, IOContext, ListMonad, Maybe, ParserMonad, Reader, State,
 };
 
 // Import list and parser monads
-pub use list_monad::{List, ValueList, ListFunc};
-pub use parser_monad::{Parser, ParseResult, ParseError, Input, Position, ParserCache};
+pub use list_monad::{List, ListFunc, ValueList};
+pub use parser_monad::{Input, ParseError, ParseResult, Parser, ParserCache, Position};
 
 // Re-export with aliases to resolve conflicts
 pub use continuation_monad::ContIOAction;
@@ -83,6 +82,8 @@ pub enum Effect {
     IO,
     /// State effects (mutations that create new generations)
     State,
+    /// Mutation effects (direct mutations)
+    Mutation,
     /// Error effects (exceptions and error handling)
     Error,
     /// Custom effects with a name
@@ -97,10 +98,10 @@ pub enum Effect {
 pub trait EffectHandler: std::fmt::Debug {
     /// Handles an effect with the given arguments.
     fn handle(&self, effect: &Effect, args: &[Value]) -> Result<EffectResult>;
-    
+
     /// Returns the name of the effect this handler manages.
     fn effect_name(&self) -> &str;
-    
+
     /// Returns true if this handler can handle the given effect.
     fn can_handle(&self, effect: &Effect) -> bool;
 }
@@ -142,22 +143,22 @@ impl Effect {
     pub fn is_pure(&self) -> bool {
         matches!(self, Effect::Pure)
     }
-    
+
     /// Returns true if this effect represents IO.
     pub fn is_io(&self) -> bool {
         matches!(self, Effect::IO)
     }
-    
+
     /// Returns true if this effect represents state.
     pub fn is_state(&self) -> bool {
         matches!(self, Effect::State)
     }
-    
+
     /// Returns true if this effect represents errors.
     pub fn is_error(&self) -> bool {
         matches!(self, Effect::Error)
     }
-    
+
     /// Combines two effects, returning the more "impure" one.
     pub fn combine(&self, other: &Effect) -> Effect {
         match (self, other) {
@@ -168,17 +169,19 @@ impl Effect {
             (Effect::State, _) | (_, Effect::State) => Effect::State,
             (Effect::Custom(a), Effect::Custom(b)) if a == b => Effect::Custom(a.clone()),
             (Effect::Custom(a), _) => Effect::Custom(a.clone()),
+            (Effect::Mutation, _) | (_, Effect::Mutation) => Effect::Mutation,
         }
     }
-    
+
     /// Returns the "strength" of this effect for ordering.
     pub fn strength(&self) -> u8 {
         match self {
             Effect::Pure => 0,
             Effect::State => 1,
-            Effect::IO => 2,
-            Effect::Error => 3,
-            Effect::Custom(_) => 4,
+            Effect::Mutation => 2,
+            Effect::IO => 3,
+            Effect::Error => 4,
+            Effect::Custom(_) => 5,
         }
     }
 }
@@ -213,6 +216,7 @@ impl fmt::Display for Effect {
             Effect::Pure => write!(f, "Pure"),
             Effect::IO => write!(f, "IO"),
             Effect::State => write!(f, "State"),
+            Effect::Mutation => write!(f, "Mutation"),
             Effect::Error => write!(f, "Error"),
             Effect::Custom(name) => write!(f, "Custom({name})"),
         }

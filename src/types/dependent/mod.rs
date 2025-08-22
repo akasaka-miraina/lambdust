@@ -29,7 +29,7 @@
 //!
 //! The implementation follows the modular structure:
 //! - `core`: Core type definitions and judgements
-//! - `pi_types`: Π-types (dependent functions) 
+//! - `pi_types`: Π-types (dependent functions)
 //! - `sigma_types`: Σ-types (dependent pairs)
 //! - `identity_types`: Identity types and path semantics
 //! - `universe`: Type universe hierarchy
@@ -43,29 +43,29 @@
 //! - **Universe consistency**: Avoiding Russell's paradox
 
 pub mod core;
+pub mod identity_types;
 pub mod pi_types;
 pub mod sigma_types;
-pub mod identity_types;
 pub mod universe;
 
 // Re-export core types
-pub use core::{ProofObligation, DependentType, JitDependentType};
+pub use core::{DependentType, JitDependentType, ProofObligation};
 
 // Memory-optimized arena allocation system
 pub mod arena;
 
 // Advanced memory optimization modules
-pub mod optimized_core;
 pub mod memory_pool;
-pub mod performance_benchmark;
 pub mod migration_bridge;
+pub mod optimized_core;
+pub mod performance_benchmark;
 
 // High-performance type-level computation modules
 pub mod constraint_solver;
-pub mod type_checker;
+pub mod elaboration;
 pub mod inference_engine;
 pub mod normalization;
-pub mod elaboration;
+pub mod type_checker;
 
 // Advanced equality checking system
 pub mod definitional_equality;
@@ -74,134 +74,77 @@ pub mod definitional_equality;
 pub mod termination;
 
 // Scheme integration and gradual typing
-pub mod scheme_integration;
 pub mod gradual_typing;
+pub mod scheme_integration;
 
 // Re-export main types for convenience
 pub use core::*;
+pub use identity_types::*;
 pub use pi_types::*;
 pub use sigma_types::*;
-pub use identity_types::*;
 pub use universe::*;
 
 // Re-export arena allocation system
 pub use arena::{
-    TypeArena,
-    TypeRef,
-    TermRef,
-    DependentTypeData,
-    DependentTermData,
-    ArenaStats,
-    MatchBranchData,
-    PatternData,
+    ArenaStats, DependentTermData, DependentTypeData, MatchBranchData, PatternData, TermRef,
+    TypeArena, TypeRef,
 };
 
 // Re-export optimized core components
 pub use optimized_core::{
-    OptimizedDependentType,
-    OptimizedDependentTerm,
-    OptimizedTypingContext,
-    OptimizedNormalizer,
-    OptimizedMatchBranch,
-    OptimizedPattern,
+    OptimizedDependentTerm, OptimizedDependentType, OptimizedMatchBranch, OptimizedNormalizer,
+    OptimizedPattern, OptimizedTypingContext,
 };
 
 // Re-export memory pool system
 pub use memory_pool::{
-    MemoryPoolManager,
-    MemoryPoolStatistics,
-    AllocationType,
-    CompactionReport,
+    AllocationType, CompactionReport, MemoryPoolManager, MemoryPoolStatistics, PoolManagerConfig,
     PrefetchReport,
-    PoolManagerConfig,
 };
 
 // Re-export performance benchmarking
 pub use performance_benchmark::{
-    DependentTypeBenchmarkSuite,
-    BenchmarkResult,
-    BenchmarkSummary,
-    BenchmarkConfig,
+    BenchmarkConfig, BenchmarkResult, BenchmarkSummary, DependentTypeBenchmarkSuite,
     MemoryUsageStats,
 };
 
 // Re-export migration bridge
 pub use migration_bridge::{
-    MigrationBridge,
-    CompatibleTypingContext,
-    CompatibleNormalizer,
-    MigrationStats,
-    MigrationConfig,
-    global_migration_bridge,
-    configure_global_bridge,
+    CompatibleNormalizer, CompatibleTypingContext, MigrationBridge, MigrationConfig,
+    MigrationStats, configure_global_bridge, global_migration_bridge,
 };
 
 // Re-export advanced type system components (selectively to avoid conflicts)
 pub use constraint_solver::{
-    ConstraintSolver as DependentConstraintSolver,
-    TypeConstraint as DependentTypeConstraint,
-    TypeVariable as DependentTypeVariable,
+    ConstraintSolver as DependentConstraintSolver, SolverResult, SolverStatistics,
+    TypeConstraint as DependentTypeConstraint, TypeVariable as DependentTypeVariable,
     VariableKind as DependentVariableKind,
-    SolverResult,
-    SolverStatistics,
-};
-pub use type_checker::{
-    DependentTypeChecker,
-    TypeCheckingContext as DependentTypeCheckingContext,
-    TypeCheckerStatistics,
-    CheckingMode,
-};
-pub use inference_engine::{
-    TypeInferenceEngine,
-    InferenceMode,
-    InferenceResult,
-    InferenceStatistics,
-    TypeSchema,
-};
-pub use normalization::{
-    NormalizationEngine,
-    NormalizationStrategy,
-    NormalizationResult,
-    NormalizationStatistics,
-};
-pub use elaboration::{
-    ElaborationEngine,
-    ElaborationResult,
-    ElaborationStatistics,
-    ImplicitArgument,
-    TypeClassInstance,
-    ImplicitKind,
-};
-pub use scheme_integration::{
-    SchemeIntegration,
-};
-pub use gradual_typing::{
-    GradualTypingSystem,
-    TypingLevel,
-    GradualType,
 };
 pub use definitional_equality::{
-    DefinitionalEqualityChecker,
-    EqualityResult,
-    EqualityJustification,
-    EqualityWitness,
-    EqualityConfig,
-    EqualityStatistics,
+    DefinitionalEqualityChecker, EqualityConfig, EqualityJustification, EqualityResult,
+    EqualityStatistics, EqualityWitness,
 };
+pub use elaboration::{
+    ElaborationEngine, ElaborationResult, ElaborationStatistics, ImplicitArgument, ImplicitKind,
+    TypeClassInstance,
+};
+pub use gradual_typing::{GradualType, GradualTypingSystem, TypingLevel};
+pub use inference_engine::{
+    InferenceMode, InferenceResult, InferenceStatistics, TypeInferenceEngine, TypeSchema,
+};
+pub use normalization::{
+    NormalizationEngine, NormalizationResult, NormalizationStatistics, NormalizationStrategy,
+};
+pub use scheme_integration::SchemeIntegration;
 pub use termination::{
-    StrongNormalizationChecker,
-    ChurchRosserChecker,
-    TerminationConfluenceSystem,
-    ComplexityMeasure,
-    TerminationProof,
-    ConfluenceWitness,
-    TerminationMethod,
-    ReductionType,
-    TerminationConfig,
-    ConfluenceConfig,
+    ChurchRosserChecker, ComplexityMeasure, ConfluenceConfig, ConfluenceStatistics,
+    ConfluenceWitness, ReductionType, StrongNormalizationChecker, TerminationConfig,
+    TerminationConfluenceReport, TerminationConfluenceSystem, TerminationMethod, TerminationProof,
     TerminationStatistics,
-    ConfluenceStatistics,
-    TerminationConfluenceReport,
+};
+pub use type_checker::{
+    CheckingMode, DependentTypeChecker, TypeCheckerStatistics,
+    TypeCheckingContext as DependentTypeCheckingContext,
 };
 
 use crate::diagnostics::{Error, Result, Span};
@@ -252,46 +195,57 @@ impl MartinLofTypeSystem {
                 // Type₍ᵢ₎ : Type₍ᵢ₊₁₎
                 Ok(level + 1)
             }
-            DependentType::Pi { domain, codomain, var } => {
+            DependentType::Pi {
+                domain,
+                codomain,
+                var,
+            } => {
                 let domain_level = self.check_type_formation(domain)?;
-                
+
                 // Extend context with variable binding
                 self.context.bind_variable(var.clone(), (**domain).clone());
                 let codomain_level = self.check_type_formation(codomain)?;
                 self.context.unbind_variable(var);
-                
+
                 // Π-type lives in the maximum universe level
                 Ok(domain_level.max(codomain_level))
             }
             DependentType::Sigma { first, second, var } => {
                 let first_level = self.check_type_formation(first)?;
-                
-                // Extend context with variable binding  
+
+                // Extend context with variable binding
                 self.context.bind_variable(var.clone(), (**first).clone());
                 let second_level = self.check_type_formation(second)?;
                 self.context.unbind_variable(var);
-                
+
                 // Σ-type lives in the maximum universe level
                 Ok(first_level.max(second_level))
             }
             DependentType::Identity { ty, left, right } => {
                 let type_level = self.check_type_formation(ty)?;
-                
+
                 // Check that left and right terms have type ty
                 self.check_term_type(left, ty)?;
                 self.check_term_type(right, ty)?;
-                
+
                 // Identity type lives in the same universe as the base type
                 Ok(type_level)
             }
-            DependentType::Inductive { name, universe_level, constructors, .. } => {
+            DependentType::Inductive {
+                name,
+                universe_level,
+                constructors,
+                ..
+            } => {
                 // Check that all constructor types are well-formed
                 for (_, constructor_ty) in constructors {
                     let ctor_level = self.check_type_formation(constructor_ty)?;
                     if ctor_level > *universe_level {
                         return Err(Box::new(Error::type_error(
-                            format!("Constructor type level {ctor_level} exceeds inductive type level {universe_level}"),
-                            Span::new(0, 0)
+                            format!(
+                                "Constructor type level {ctor_level} exceeds inductive type level {universe_level}"
+                            ),
+                            Span::new(0, 0),
                         )));
                     }
                 }
@@ -303,38 +257,47 @@ impl MartinLofTypeSystem {
     /// Check that a term has a given type.
     ///
     /// This implements the typing judgement: Γ ⊢ t : A
-    pub fn check_term_type(&mut self, term: &DependentTerm, expected_type: &DependentType) -> Result<()> {
+    pub fn check_term_type(
+        &mut self,
+        term: &DependentTerm,
+        expected_type: &DependentType,
+    ) -> Result<()> {
         let inferred_type = self.infer_term_type(term)?;
-        
+
         if self.types_equal(&inferred_type, expected_type)? {
             Ok(())
         } else {
             Err(Box::new(Error::type_error(
                 format!("Type mismatch: expected {expected_type:?}, got {inferred_type:?}"),
-                Span::new(0, 0)
+                Span::new(0, 0),
             )))
         }
     }
 
     /// Infer the type of a term.
     ///
-    /// This implements type inference: Γ ⊢ t : ? 
+    /// This implements type inference: Γ ⊢ t : ?
     pub fn infer_term_type(&mut self, term: &DependentTerm) -> Result<DependentType> {
         match term {
             DependentTerm::Variable(name) => {
-                self.context.lookup_variable(name)
-                    .cloned()
-                    .ok_or_else(|| Box::new(Error::type_error(
+                self.context.lookup_variable(name).cloned().ok_or_else(|| {
+                    Box::new(Error::type_error(
                         format!("Unbound variable: {name}"),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))
+                })
             }
-            DependentTerm::Lambda { param, param_type, body } => {
+            DependentTerm::Lambda {
+                param,
+                param_type,
+                body,
+            } => {
                 // Infer type of lambda: λx:A.t has type (x:A) → B if t:B in context x:A
-                self.context.bind_variable(param.clone(), (**param_type).clone());
+                self.context
+                    .bind_variable(param.clone(), (**param_type).clone());
                 let body_type = self.infer_term_type(body)?;
                 self.context.unbind_variable(param);
-                
+
                 Ok(DependentType::Pi {
                     var: param.clone(),
                     domain: param_type.clone(),
@@ -344,23 +307,27 @@ impl MartinLofTypeSystem {
             DependentTerm::Application { function, argument } => {
                 let func_type = self.infer_term_type(function)?;
                 match func_type {
-                    DependentType::Pi { var, domain, codomain } => {
+                    DependentType::Pi {
+                        var,
+                        domain,
+                        codomain,
+                    } => {
                         // Check argument has domain type
                         self.check_term_type(argument, &domain)?;
-                        
+
                         // Substitute argument for variable in codomain
                         self.substitute_in_type(&codomain, &var, argument)
                     }
                     _ => Err(Box::new(Error::type_error(
                         "Cannot apply non-function type".to_string(),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))),
                 }
             }
             DependentTerm::Pair { first, second } => {
                 let first_type = self.infer_term_type(first)?;
                 let second_type = self.infer_term_type(second)?;
-                
+
                 // Create a Σ-type where second component doesn't depend on first
                 let fresh_var = self.fresh_var();
                 Ok(DependentType::Sigma {
@@ -377,16 +344,20 @@ impl MartinLofTypeSystem {
                             Ok(*first)
                         } else {
                             // Second projection requires substitution if dependent
-                            self.substitute_in_type(&second, &var, &DependentTerm::Projection {
-                                pair: pair.clone(),
-                                is_first: true,
-                            })
+                            self.substitute_in_type(
+                                &second,
+                                &var,
+                                &DependentTerm::Projection {
+                                    pair: pair.clone(),
+                                    is_first: true,
+                                },
+                            )
                         }
                     }
                     _ => Err(Box::new(Error::type_error(
                         "Cannot project from non-pair type".to_string(),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))),
                 }
             }
             DependentTerm::Refl { ty } => {
@@ -395,7 +366,7 @@ impl MartinLofTypeSystem {
                 // This needs to be `refl a` where `a : A`
                 Err(Box::new(Error::type_error(
                     "Incomplete refl term - need target".to_string(),
-                    Span::new(0, 0)
+                    Span::new(0, 0),
                 )))
             }
             DependentTerm::Constructor { result_type, .. } => {
@@ -413,11 +384,11 @@ impl MartinLofTypeSystem {
     /// Check if two types are definitionally equal.
     ///
     /// This implements the complete definitional equality relation: Γ ⊢ A ≡ B
-    /// 
+    ///
     /// Uses advanced equality checking that includes:
     /// - α-equivalence (variable renaming)
     /// - β-equivalence (computation/normalization)
-    /// - η-equivalence (extensional equality)  
+    /// - η-equivalence (extensional equality)
     /// - Definitional expansion (unfolding definitions)
     /// - Congruence (structural compatibility)
     pub fn types_equal(&mut self, ty1: &DependentType, ty2: &DependentType) -> Result<bool> {
@@ -429,7 +400,11 @@ impl MartinLofTypeSystem {
     ///
     /// This version returns not just whether types are equal, but also
     /// the mathematical justification for the equality.
-    pub fn types_equal_detailed(&mut self, ty1: &DependentType, ty2: &DependentType) -> Result<EqualityResult> {
+    pub fn types_equal_detailed(
+        &mut self,
+        ty1: &DependentType,
+        ty2: &DependentType,
+    ) -> Result<EqualityResult> {
         self.equality_checker.types_equal(ty1, ty2)
     }
 
@@ -442,7 +417,11 @@ impl MartinLofTypeSystem {
     }
 
     /// Check if two terms are definitionally equal with detailed justification.
-    pub fn terms_equal_detailed(&mut self, term1: &DependentTerm, term2: &DependentTerm) -> Result<EqualityResult> {
+    pub fn terms_equal_detailed(
+        &mut self,
+        term1: &DependentTerm,
+        term2: &DependentTerm,
+    ) -> Result<EqualityResult> {
         self.equality_checker.terms_equal(term1, term2)
     }
 
@@ -490,11 +469,20 @@ impl MartinLofTypeSystem {
     }
 
     /// Substitute a term for a variable in a type.
-    fn substitute_in_type(&self, ty: &DependentType, var: &str, term: &DependentTerm) -> Result<DependentType> {
+    fn substitute_in_type(
+        &self,
+        ty: &DependentType,
+        var: &str,
+        term: &DependentTerm,
+    ) -> Result<DependentType> {
         // This is a complex operation that requires careful handling of variable capture
         // For now, simplified implementation
         match ty {
-            DependentType::Pi { var: pi_var, domain, codomain } => {
+            DependentType::Pi {
+                var: pi_var,
+                domain,
+                codomain,
+            } => {
                 if pi_var == var {
                     // Variable is bound, no substitution in codomain
                     Ok(DependentType::Pi {
@@ -510,7 +498,11 @@ impl MartinLofTypeSystem {
                     })
                 }
             }
-            DependentType::Sigma { var: sigma_var, first, second } => {
+            DependentType::Sigma {
+                var: sigma_var,
+                first,
+                second,
+            } => {
                 if sigma_var == var {
                     Ok(DependentType::Sigma {
                         var: sigma_var.clone(),
@@ -538,9 +530,12 @@ impl Default for MartinLofTypeSystem {
 
 impl fmt::Display for MartinLofTypeSystem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Martin-Löf Type System [universes: {}, context size: {}]", 
-               self.universes.max_level(), 
-               self.context.size())
+        write!(
+            f,
+            "Martin-Löf Type System [universes: {}, context size: {}]",
+            self.universes.max_level(),
+            self.context.size()
+        )
     }
 }
 
@@ -566,13 +561,13 @@ mod tests {
     #[test]
     fn test_basic_pi_type_formation() {
         let mut system = MartinLofTypeSystem::new();
-        
+
         let pi_type = DependentType::Pi {
             var: "x".to_string(),
             domain: Box::new(DependentType::Universe(0)), // x : Type₀
             codomain: Box::new(DependentType::Universe(0)), // Type₀
         };
-        
+
         let level = system.check_type_formation(&pi_type).unwrap();
         assert_eq!(level, 1); // Lives in Type₁
     }

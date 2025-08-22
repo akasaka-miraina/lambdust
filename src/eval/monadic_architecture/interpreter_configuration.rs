@@ -5,10 +5,10 @@
 pub struct InterpreterConfiguration {
     /// Whether to enable async IO operations
     pub enable_async_io: bool,
-    
+
     /// Timeout for IO operations
     pub io_timeout_ms: u64,
-    
+
     /// Maximum concurrent IO operations
     pub max_concurrent_io: usize,
 }

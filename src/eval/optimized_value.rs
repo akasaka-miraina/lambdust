@@ -3,28 +3,28 @@
 //! This module provides a high-performance implementation of Scheme values using:
 //! - NaN-boxing for 64-bit value packing
 //! - Tagged unions to reduce memory usage
-//! - Inline storage for small values  
+//! - Inline storage for small values
 //! - Smart pointer optimization
 //! - Cache-friendly data layout
-//! 
+//!
 //! Arc Reduction Strategy (50% reduction achieved):
 //! - Original Value enum: 44+ Arc instances for complex values
 //! - OptimizedValue: ~22 Arc instances (50% reduction achieved)
-//! 
+//!
 //! Specific Optimizations:
 //! 1. Immediate Values (0 Arcs):
 //!    - nil, boolean, small integers, characters: stored inline in union
 //!    - Small symbols (≤32 bits): stored inline instead of heap allocation
-//! 
+//!
 //! 2. Compound Values (Arc reduction):
 //!    - Pairs: 2 Arcs → 0 Arcs (direct boxing with `Box<PairObj>`)
 //!    - Strings: `Arc<String>` → `Arc<str>` in boxed objects
-//! 
+//!
 //! 3. Complex Values (selective Arc usage):
 //!    - Vectors: 1 Arc for interior mutability (necessary for thread safety)
 //!    - Procedures: 1 Arc for sharing between closures (necessary)
 //!    - Advanced containers: 1 Arc each (necessary for concurrent access)
-//! 
+//!
 //! Memory Impact:
 //! - 50% reduction in Arc allocations for typical Scheme programs
 //! - Immediate values require no heap allocation
@@ -45,9 +45,8 @@ use std::sync::{Arc, RwLock};
 /// Type alias for environment bindings
 type EnvironmentBindings = Arc<RwLock<Vec<(Arc<str>, OptimizedValue)>>>;
 
-/// Generation counter for environments.  
+/// Generation counter for environments.
 pub type Generation = u64;
-
 
 /// A tag that identifies the type of value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -56,14 +55,14 @@ pub enum ValueTag {
     // Immediate values (NaN-boxed)
     Nil = 0,
     Boolean = 1,
-    Fixnum = 2,      // Small integers (-2^48 to 2^48-1)
-    Character = 3,   // Unicode characters  
+    Fixnum = 2,    // Small integers (-2^48 to 2^48-1)
+    Character = 3, // Unicode characters
     Unspecified = 4,
-    Symbol = 5,      // Small symbol IDs
-    
+    Symbol = 5, // Small symbol IDs
+
     // Pointer values (heap-allocated)
     String = 6,
-    Number = 7,      // Large numbers, floats
+    Number = 7, // Large numbers, floats
     Keyword = 8,
     Pair = 9,
     Vector = 10,
@@ -85,7 +84,7 @@ pub enum ValueTag {
 }
 
 /// An optimized Scheme value with reduced Arc usage and memory efficiency.
-/// 
+///
 /// This implementation achieves 50% Arc reduction through:
 /// - Immediate values (integers, booleans, characters, nil) stored inline
 /// - Pairs use direct boxing (2 Arcs → 0 Arcs per pair)
@@ -102,7 +101,7 @@ pub struct OptimizedValue {
 pub union ValueData {
     /// Inline storage for immediate values
     pub immediate: u64,
-    /// Pointer storage for allocated values  
+    /// Pointer storage for allocated values
     pub ptr: *const dyn ValueObj,
 }
 
@@ -110,13 +109,13 @@ impl Hash for OptimizedValue {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.tag.hash(state);
         match self.tag {
-            ValueTag::Nil | ValueTag::Unspecified => {},
-            ValueTag::Boolean | ValueTag::Fixnum | ValueTag::Character | ValueTag::Symbol => {
-                unsafe { self.data.immediate.hash(state); }
-            }
+            ValueTag::Nil | ValueTag::Unspecified => {}
+            ValueTag::Boolean | ValueTag::Fixnum | ValueTag::Character | ValueTag::Symbol => unsafe {
+                self.data.immediate.hash(state);
+            },
             _ => {
                 // For allocated values, hash based on their content via the hash_obj method
-                unsafe { 
+                unsafe {
                     let obj = &*self.data.ptr;
                     state.write_u64(obj.hash_obj());
                 }
@@ -125,21 +124,20 @@ impl Hash for OptimizedValue {
     }
 }
 
-
 /// Base trait for all allocated value objects.
 trait ValueObj: Send + Sync + std::any::Any {
     /// Get the ValueTag for this object
     fn tag(&self) -> ValueTag;
-    
+
     /// Clone this object
     fn clone_obj(&self) -> Box<dyn ValueObj>;
-    
+
     /// Check equality with another object
     fn eq_obj(&self, other: &dyn ValueObj) -> bool;
-    
+
     /// Hash this object - simplified to return a u64 hash
     fn hash_obj(&self) -> u64;
-    
+
     /// Display this object
     fn fmt_obj(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
@@ -156,7 +154,7 @@ struct NumberObj {
     value: f64,
 }
 
-/// Symbol value object  
+/// Symbol value object
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct SymbolObj {
     id: SymbolId,
@@ -175,7 +173,7 @@ struct PairObj {
     cdr: OptimizedValue,
 }
 
-/// Vector value object  
+/// Vector value object
 #[derive(Debug, Clone)]
 struct VectorObj {
     elements: Arc<RwLock<Vec<OptimizedValue>>>,
@@ -261,10 +259,7 @@ pub struct OptimizedEnvironment {
 #[derive(Debug, Clone)]
 pub enum PrimitiveImpl {
     RustFn(fn(&[OptimizedValue]) -> crate::diagnostics::Result<OptimizedValue>),
-    ForeignFn {
-        library: String,
-        symbol: String,
-    },
+    ForeignFn { library: String, symbol: String },
 }
 
 impl OptimizedValue {
@@ -276,16 +271,18 @@ impl OptimizedValue {
             data: ValueData { immediate: 0 },
         }
     }
-    
+
     /// Creates a boolean value (inline storage)
     #[inline]
     pub fn boolean(b: bool) -> Self {
         Self {
             tag: ValueTag::Boolean,
-            data: ValueData { immediate: b as u64 },
+            data: ValueData {
+                immediate: b as u64,
+            },
         }
     }
-    
+
     /// Creates a small integer value (inline storage)
     /// Can store integers from -2^31 to 2^31-1
     #[inline]
@@ -294,23 +291,27 @@ impl OptimizedValue {
         if n >= i32::MIN as i64 && n <= i32::MAX as i64 {
             Self {
                 tag: ValueTag::Fixnum,
-                data: ValueData { immediate: n as u32 as u64 },
+                data: ValueData {
+                    immediate: n as u32 as u64,
+                },
             }
         } else {
             // Fall back to heap-allocated number for large integers
             Self::number(n as f64)
         }
     }
-    
+
     /// Creates a character value (inline storage)
     #[inline]
     pub fn character(ch: char) -> Self {
         Self {
             tag: ValueTag::Character,
-            data: ValueData { immediate: ch as u32 as u64 },
+            data: ValueData {
+                immediate: ch as u32 as u64,
+            },
         }
     }
-    
+
     /// Creates an unspecified value (inline storage)
     #[inline]
     pub fn unspecified() -> Self {
@@ -319,7 +320,7 @@ impl OptimizedValue {
             data: ValueData { immediate: 0 },
         }
     }
-    
+
     /// Creates a string value (heap-allocated)
     pub fn string(s: impl Into<String>) -> Self {
         let string_obj = Box::new(StringObj {
@@ -327,10 +328,12 @@ impl OptimizedValue {
         });
         Self {
             tag: ValueTag::String,
-            data: ValueData { ptr: Box::into_raw(string_obj) as *const dyn ValueObj },
+            data: ValueData {
+                ptr: Box::into_raw(string_obj) as *const dyn ValueObj,
+            },
         }
     }
-    
+
     /// Creates a number value (heap-allocated for large numbers and floats)
     pub fn number(n: f64) -> Self {
         // Try to store as fixnum if it's a small integer
@@ -340,11 +343,13 @@ impl OptimizedValue {
             let number_obj = Box::new(NumberObj { value: n });
             Self {
                 tag: ValueTag::Number,
-                data: ValueData { ptr: Box::into_raw(number_obj) as *const dyn ValueObj },
+                data: ValueData {
+                    ptr: Box::into_raw(number_obj) as *const dyn ValueObj,
+                },
             }
         }
     }
-    
+
     /// Creates a symbol value (inline storage for small IDs)
     pub fn symbol(id: SymbolId) -> Self {
         let id_bits = id.id() as u64;
@@ -359,20 +364,24 @@ impl OptimizedValue {
             let symbol_obj = Box::new(SymbolObj { id });
             Self {
                 tag: ValueTag::Symbol,
-                data: ValueData { ptr: Box::into_raw(symbol_obj) as *const dyn ValueObj },
+                data: ValueData {
+                    ptr: Box::into_raw(symbol_obj) as *const dyn ValueObj,
+                },
             }
         }
     }
-    
+
     /// Creates a pair value (heap-allocated with direct boxing - no Arc)
     pub fn pair(car: OptimizedValue, cdr: OptimizedValue) -> Self {
         let pair_obj = Box::new(PairObj { car, cdr });
         Self {
             tag: ValueTag::Pair,
-            data: ValueData { ptr: Box::into_raw(pair_obj) as *const dyn ValueObj },
+            data: ValueData {
+                ptr: Box::into_raw(pair_obj) as *const dyn ValueObj,
+            },
         }
     }
-    
+
     /// Creates a vector value (heap-allocated with Arc for interior mutability)
     pub fn vector(elements: Vec<OptimizedValue>) -> Self {
         let vector_obj = Box::new(VectorObj {
@@ -380,10 +389,12 @@ impl OptimizedValue {
         });
         Self {
             tag: ValueTag::Vector,
-            data: ValueData { ptr: Box::into_raw(vector_obj) as *const dyn ValueObj },
+            data: ValueData {
+                ptr: Box::into_raw(vector_obj) as *const dyn ValueObj,
+            },
         }
     }
-    
+
     /// Creates a bytevector value (heap-allocated with Arc)
     pub fn bytevector(bytes: Vec<u8>) -> Self {
         let bytevector_obj = Box::new(BytevectorObj {
@@ -391,28 +402,30 @@ impl OptimizedValue {
         });
         Self {
             tag: ValueTag::Bytevector,
-            data: ValueData { ptr: Box::into_raw(bytevector_obj) as *const dyn ValueObj },
+            data: ValueData {
+                ptr: Box::into_raw(bytevector_obj) as *const dyn ValueObj,
+            },
         }
     }
-    
+
     /// Checks if this value is truthy in Scheme semantics
     #[inline]
     pub fn is_truthy(&self) -> bool {
         !matches!(self.tag, ValueTag::Boolean) || unsafe { self.data.immediate != 0 }
     }
-    
-    /// Checks if this value is falsy in Scheme semantics  
+
+    /// Checks if this value is falsy in Scheme semantics
     #[inline]
     pub fn is_falsy(&self) -> bool {
         matches!(self.tag, ValueTag::Boolean) && unsafe { self.data.immediate == 0 }
     }
-    
+
     /// Checks if this value is a number
     #[inline]
     pub fn is_number(&self) -> bool {
         matches!(self.tag, ValueTag::Fixnum | ValueTag::Number)
     }
-    
+
     /// Converts to f64 if this is a number
     pub fn as_number(&self) -> Option<f64> {
         match self.tag {
@@ -427,7 +440,7 @@ impl OptimizedValue {
             _ => None,
         }
     }
-    
+
     /// Converts to i64 if this is an integer
     pub fn as_integer(&self) -> Option<i64> {
         match self.tag {
@@ -446,7 +459,7 @@ impl OptimizedValue {
             _ => None,
         }
     }
-    
+
     /// Gets string content if this is a string
     pub fn as_string(&self) -> Option<&str> {
         match self.tag {
@@ -457,7 +470,7 @@ impl OptimizedValue {
             _ => None,
         }
     }
-    
+
     /// Gets symbol ID if this is a symbol
     pub fn as_symbol(&self) -> Option<SymbolId> {
         match self.tag {
@@ -475,19 +488,20 @@ impl OptimizedValue {
             _ => None,
         }
     }
-    
+
     /// Creates a list from a vector of values
     pub fn list(values: Vec<OptimizedValue>) -> Self {
-        values.into_iter().rev().fold(Self::nil(), |acc, val| {
-            Self::pair(val, acc)
-        })
+        values
+            .into_iter()
+            .rev()
+            .fold(Self::nil(), |acc, val| Self::pair(val, acc))
     }
-    
+
     /// Converts this value to a proper list if possible
     pub fn as_list(&self) -> Option<Vec<OptimizedValue>> {
         let mut result = Vec::new();
         let mut current = self;
-        
+
         loop {
             match current.tag {
                 ValueTag::Nil => return Some(result),
@@ -500,13 +514,13 @@ impl OptimizedValue {
             }
         }
     }
-    
+
     /// Canonical true value
     #[inline]
     pub fn t() -> Self {
         Self::boolean(true)
     }
-    
+
     /// Canonical false value
     #[inline]
     pub fn f() -> Self {
@@ -580,9 +594,11 @@ impl fmt::Display for OptimizedValue {
             ValueTag::Vector => {
                 let obj = unsafe { &*(self.data.ptr as *const VectorObj) };
                 write!(f, "#(")?;
-                if let Ok(elements) = obj.elements.read() {
+                if let Ok(elements) = obj.elements.try_read() {
                     for (i, element) in elements.iter().enumerate() {
-                        if i > 0 { write!(f, " ")?; }
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
                         write!(f, "{element}")?;
                     }
                 }
@@ -600,7 +616,9 @@ impl OptimizedValue {
             ValueTag::Nil => Ok(()),
             ValueTag::Pair => {
                 let obj = unsafe { &*(self.data.ptr as *const PairObj) };
-                if !first { write!(f, " ")?; }
+                if !first {
+                    write!(f, " ")?;
+                }
                 write!(f, "{car}", car = obj.car)?;
                 match obj.cdr.tag {
                     ValueTag::Nil => Ok(()),
@@ -618,12 +636,12 @@ impl PartialEq for OptimizedValue {
         if self.tag != other.tag {
             return false;
         }
-        
+
         match self.tag {
             ValueTag::Nil | ValueTag::Unspecified => true,
-            ValueTag::Boolean | ValueTag::Fixnum | ValueTag::Character => {
-                unsafe { self.data.immediate == other.data.immediate }
-            }
+            ValueTag::Boolean | ValueTag::Fixnum | ValueTag::Character => unsafe {
+                self.data.immediate == other.data.immediate
+            },
             _ => {
                 let self_obj = unsafe { &*self.data.ptr };
                 let other_obj = unsafe { &*other.data.ptr };
@@ -635,13 +653,15 @@ impl PartialEq for OptimizedValue {
 
 impl Eq for OptimizedValue {}
 
-
 // Implement Drop to properly clean up allocated objects
 impl Drop for OptimizedValue {
     fn drop(&mut self) {
         match self.tag {
-            ValueTag::Nil | ValueTag::Boolean | ValueTag::Fixnum | 
-            ValueTag::Character | ValueTag::Unspecified => {
+            ValueTag::Nil
+            | ValueTag::Boolean
+            | ValueTag::Fixnum
+            | ValueTag::Character
+            | ValueTag::Unspecified => {
                 // No allocation to clean up
             }
             _ => {
@@ -658,8 +678,12 @@ impl Drop for OptimizedValue {
 // Implement the ValueObj trait for all object types
 
 impl ValueObj for StringObj {
-    fn tag(&self) -> ValueTag { ValueTag::String }
-    fn clone_obj(&self) -> Box<dyn ValueObj> { Box::new(self.clone()) }
+    fn tag(&self) -> ValueTag {
+        ValueTag::String
+    }
+    fn clone_obj(&self) -> Box<dyn ValueObj> {
+        Box::new(self.clone())
+    }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
         if let Some(other_str) = (other as &dyn std::any::Any).downcast_ref::<StringObj>() {
             self == other_str
@@ -680,8 +704,12 @@ impl ValueObj for StringObj {
 }
 
 impl ValueObj for NumberObj {
-    fn tag(&self) -> ValueTag { ValueTag::Number }
-    fn clone_obj(&self) -> Box<dyn ValueObj> { Box::new(self.clone()) }
+    fn tag(&self) -> ValueTag {
+        ValueTag::Number
+    }
+    fn clone_obj(&self) -> Box<dyn ValueObj> {
+        Box::new(self.clone())
+    }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
         if let Some(other_num) = (other as &dyn std::any::Any).downcast_ref::<NumberObj>() {
             self == other_num
@@ -703,8 +731,12 @@ impl ValueObj for NumberObj {
 }
 
 impl ValueObj for SymbolObj {
-    fn tag(&self) -> ValueTag { ValueTag::Symbol }
-    fn clone_obj(&self) -> Box<dyn ValueObj> { Box::new(self.clone()) }
+    fn tag(&self) -> ValueTag {
+        ValueTag::Symbol
+    }
+    fn clone_obj(&self) -> Box<dyn ValueObj> {
+        Box::new(self.clone())
+    }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
         if let Some(other_sym) = (other as &dyn std::any::Any).downcast_ref::<SymbolObj>() {
             self == other_sym
@@ -729,8 +761,12 @@ impl ValueObj for SymbolObj {
 }
 
 impl ValueObj for PairObj {
-    fn tag(&self) -> ValueTag { ValueTag::Pair }
-    fn clone_obj(&self) -> Box<dyn ValueObj> { Box::new(self.clone()) }
+    fn tag(&self) -> ValueTag {
+        ValueTag::Pair
+    }
+    fn clone_obj(&self) -> Box<dyn ValueObj> {
+        Box::new(self.clone())
+    }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
         if let Some(other_pair) = (other as &dyn std::any::Any).downcast_ref::<PairObj>() {
             self.car == other_pair.car && self.cdr == other_pair.cdr
@@ -752,11 +788,17 @@ impl ValueObj for PairObj {
 }
 
 impl ValueObj for VectorObj {
-    fn tag(&self) -> ValueTag { ValueTag::Vector }
-    fn clone_obj(&self) -> Box<dyn ValueObj> { Box::new(self.clone()) }
+    fn tag(&self) -> ValueTag {
+        ValueTag::Vector
+    }
+    fn clone_obj(&self) -> Box<dyn ValueObj> {
+        Box::new(self.clone())
+    }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
         if let Some(other_vec) = (other as &dyn std::any::Any).downcast_ref::<VectorObj>() {
-            if let (Ok(self_elements), Ok(other_elements)) = (self.elements.read(), other_vec.elements.read()) {
+            if let (Ok(self_elements), Ok(other_elements)) =
+                (self.elements.try_read(), other_vec.elements.try_read())
+            {
                 *self_elements == *other_elements
             } else {
                 false
@@ -769,7 +811,7 @@ impl ValueObj for VectorObj {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
         let mut hasher = DefaultHasher::new();
-        if let Ok(elements) = self.elements.read() {
+        if let Ok(elements) = self.elements.try_read() {
             for element in elements.iter() {
                 element.hash(&mut hasher);
             }
@@ -778,9 +820,11 @@ impl ValueObj for VectorObj {
     }
     fn fmt_obj(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#(")?;
-        if let Ok(elements) = self.elements.read() {
+        if let Ok(elements) = self.elements.try_read() {
             for (i, element) in elements.iter().enumerate() {
-                if i > 0 { write!(f, " ")?; }
+                if i > 0 {
+                    write!(f, " ")?;
+                }
                 write!(f, "{element}")?;
             }
         }
@@ -789,8 +833,12 @@ impl ValueObj for VectorObj {
 }
 
 impl ValueObj for BytevectorObj {
-    fn tag(&self) -> ValueTag { ValueTag::Bytevector }
-    fn clone_obj(&self) -> Box<dyn ValueObj> { Box::new(self.clone()) }
+    fn tag(&self) -> ValueTag {
+        ValueTag::Bytevector
+    }
+    fn clone_obj(&self) -> Box<dyn ValueObj> {
+        Box::new(self.clone())
+    }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
         if let Some(other_bv) = (other as &dyn std::any::Any).downcast_ref::<BytevectorObj>() {
             self == other_bv
@@ -808,7 +856,9 @@ impl ValueObj for BytevectorObj {
     fn fmt_obj(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "#u8(")?;
         for (i, byte) in self.bytes.iter().enumerate() {
-            if i > 0 { write!(f, " ")?; }
+            if i > 0 {
+                write!(f, " ")?;
+            }
             write!(f, "{byte}")?;
         }
         write!(f, ")")
@@ -825,18 +875,18 @@ impl OptimizedEnvironment {
             name: None,
         }
     }
-    
+
     /// Looks up a variable in this environment or its parents
     pub fn lookup(&self, name: &str) -> Option<OptimizedValue> {
         // Check local bindings first
-        if let Ok(bindings) = self.bindings.read() {
+        if let Ok(bindings) = self.bindings.try_read() {
             for (var_name, value) in bindings.iter() {
                 if var_name.as_ref() == name {
                     return Some(value.clone());
                 }
             }
         }
-        
+
         // Check parent environments
         if let Some(parent) = &self.parent {
             parent.lookup(name)
@@ -844,7 +894,7 @@ impl OptimizedEnvironment {
             None
         }
     }
-    
+
     /// Defines a variable in this environment
     pub fn define(&self, name: String, value: OptimizedValue) {
         if let Ok(mut bindings) = self.bindings.write() {
@@ -854,7 +904,7 @@ impl OptimizedEnvironment {
             bindings.push((Arc::from(name.as_str()), value));
         }
     }
-    
+
     /// Sets a variable in this environment or its parents
     pub fn set(&self, name: &str, value: OptimizedValue) -> bool {
         // Check local bindings first
@@ -866,7 +916,7 @@ impl OptimizedEnvironment {
                 }
             }
         }
-        
+
         // Check parent environments
         if let Some(parent) = &self.parent {
             parent.set(name, value)
@@ -874,7 +924,7 @@ impl OptimizedEnvironment {
             false
         }
     }
-    
+
     /// Extends this environment with a new generation
     pub fn extend(&self, generation: Generation) -> Arc<OptimizedEnvironment> {
         Arc::new(OptimizedEnvironment::new(
@@ -882,10 +932,10 @@ impl OptimizedEnvironment {
             generation,
         ))
     }
-    
+
     /// Gets all variable names in this environment
     pub fn variable_names(&self) -> Vec<String> {
-        if let Ok(bindings) = self.bindings.read() {
+        if let Ok(bindings) = self.bindings.try_read() {
             bindings.iter().map(|(name, _)| name.to_string()).collect()
         } else {
             Vec::new()
@@ -904,7 +954,7 @@ unsafe impl Sync for OptimizedEnvironment {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_immediate_values() {
         let nil = OptimizedValue::nil();
@@ -912,70 +962,70 @@ mod tests {
         let f_val = OptimizedValue::boolean(false);
         let num = OptimizedValue::fixnum(42i64);
         let ch = OptimizedValue::character('A');
-        
+
         assert!(nil.tag == ValueTag::Nil);
-        assert!(t_val.is_truthy());  
+        assert!(t_val.is_truthy());
         assert!(f_val.is_falsy());
         assert_eq!(num.as_integer(), Some(42));
         assert_eq!(ch.tag, ValueTag::Character);
     }
-    
-    #[test] 
+
+    #[test]
     fn test_string_values() {
         let s1 = OptimizedValue::string("hello");
         let s2 = OptimizedValue::string("hello");
         let s3 = OptimizedValue::string("world");
-        
+
         assert_eq!(s1.as_string(), Some("hello"));
         assert_eq!(s1, s2); // Should be equal
         assert_ne!(s1, s3); // Should not be equal
     }
-    
+
     #[test]
     fn test_number_optimization() {
         let small_int = OptimizedValue::number(42.0);
         let large_int = OptimizedValue::number(1e10);
         let float_val = OptimizedValue::number(3.4);
-        
+
         // Small integers should be stored as fixnum
         assert_eq!(small_int.tag, ValueTag::Fixnum);
         assert_eq!(small_int.as_integer(), Some(42));
-        
+
         // Large numbers should be stored as Number objects
         assert_eq!(large_int.tag, ValueTag::Number);
         assert_eq!(float_val.tag, ValueTag::Number);
     }
-    
+
     #[test]
     fn test_list_operations() {
         let list = OptimizedValue::list(vec![
             OptimizedValue::fixnum(1i64),
-            OptimizedValue::fixnum(2i64), 
+            OptimizedValue::fixnum(2i64),
             OptimizedValue::fixnum(3i64),
         ]);
-        
+
         let as_vec = list.as_list().unwrap();
         assert_eq!(as_vec.len(), 3);
         assert_eq!(as_vec[0].as_integer(), Some(1));
         assert_eq!(as_vec[1].as_integer(), Some(2));
         assert_eq!(as_vec[2].as_integer(), Some(3));
     }
-    
+
     #[test]
     fn test_environment_operations() {
         let env = OptimizedEnvironment::new(None, 0);
-        
+
         env.define("x".to_string(), OptimizedValue::fixnum(42i64));
         env.define("y".to_string(), OptimizedValue::string("hello"));
-        
+
         assert_eq!(env.lookup("x").unwrap().as_integer(), Some(42));
         assert_eq!(env.lookup("y").unwrap().as_string(), Some("hello"));
         assert!(env.lookup("z").is_none());
-        
+
         // Test setting existing variable
         assert!(env.set("x", OptimizedValue::fixnum(24i64)));
         assert_eq!(env.lookup("x").unwrap().as_integer(), Some(24));
-        
+
         // Test setting non-existent variable
         assert!(!env.set("z", OptimizedValue::fixnum(99i64)));
     }

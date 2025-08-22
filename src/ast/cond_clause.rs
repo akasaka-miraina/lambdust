@@ -8,7 +8,7 @@ use super::Expr;
 /// A clause in a cond expression.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CondClause {
-    /// Test condition expression 
+    /// Test condition expression
     pub test: Spanned<Expr>,
     /// Body expressions to evaluate if test is true
     pub body: Vec<Spanned<Expr>>,

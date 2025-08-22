@@ -76,9 +76,9 @@ impl ErrorContext {
             Error::InternalError { message } => Error::InternalError {
                 message: format!("{context_str}: {message}"),
             },
-            Error::Exception { exception, span } => Error::Exception {
-                exception,
-                span,
+            Error::Exception { exception, span } => Error::Exception { exception, span },
+            Error::Threading { message } => Error::Threading {
+                message: format!("{context_str}: {message}"),
             },
         }
     }

@@ -3,9 +3,9 @@
 //! This module provides conversion functionality from AST type expressions
 //! to the semantic type system representations used by the type checker.
 
-use crate::ast::{TypeExpr, TypeConstraint as AstConstraint, VariantCase};
+use crate::ast::{TypeConstraint as AstConstraint, TypeExpr, VariantCase};
 use crate::diagnostics::{Error, Result, Spanned};
-use crate::types::{Type, TypeVar, Constraint, Row, Effect, Kind};
+use crate::types::{Constraint, Effect, Kind, Row, Type, TypeVar};
 use std::collections::HashMap;
 
 /// Context for type expression evaluation, tracking type variables and constraints.
@@ -25,7 +25,7 @@ impl TypeExprContext {
             next_var_id: 0,
         }
     }
-    
+
     /// Creates a type variable for the given name, reusing existing ones.
     pub fn get_or_create_type_var(&mut self, name: &str) -> TypeVar {
         if let Some(var) = self.type_vars.get(name) {
@@ -36,14 +36,14 @@ impl TypeExprContext {
             var
         }
     }
-    
+
     /// Creates a fresh anonymous type variable.
     pub fn fresh_type_var(&mut self) -> TypeVar {
         let var = TypeVar::new();
         self.next_var_id += 1;
         var
     }
-    
+
     /// Enters a new scope for type variables (for forall/exists binding).
     pub fn enter_scope(&self) -> Self {
         Self {
@@ -51,10 +51,11 @@ impl TypeExprContext {
             next_var_id: self.next_var_id,
         }
     }
-    
+
     /// Bind type variables in the current scope.
     pub fn bind_vars(&mut self, names: &[String]) -> Vec<TypeVar> {
-        names.iter()
+        names
+            .iter()
             .map(|name| self.get_or_create_type_var(name))
             .collect()
     }
@@ -75,10 +76,7 @@ pub fn evaluate_type_expr(
 }
 
 /// Internal implementation of type expression evaluation.
-fn evaluate_type_expr_inner(
-    type_expr: &TypeExpr,
-    context: &mut TypeExprContext,
-) -> Result<Type> {
+fn evaluate_type_expr_inner(type_expr: &TypeExpr, context: &mut TypeExprContext) -> Result<Type> {
     match type_expr {
         TypeExpr::Identifier(name) => {
             // Map common type names to built-in types
@@ -101,72 +99,79 @@ fn evaluate_type_expr_inner(
                 }
             }
         }
-        
+
         TypeExpr::Variable(name) => {
             let var = context.get_or_create_type_var(name);
             Ok(Type::Variable(var))
         }
-        
-        TypeExpr::Function { params, return_type } => {
-            let param_types = params.iter()
+
+        TypeExpr::Function {
+            params,
+            return_type,
+        } => {
+            let param_types = params
+                .iter()
                 .map(|param| evaluate_type_expr(param, context))
                 .collect::<Result<Vec<_>>>()?;
             let ret_type = evaluate_type_expr(return_type, context)?;
-            
+
             Ok(Type::Function {
                 params: param_types,
                 return_type: Box::new(ret_type),
             })
         }
-        
+
         TypeExpr::Pair { first, second } => {
             let first_type = evaluate_type_expr(first, context)?;
             let second_type = evaluate_type_expr(second, context)?;
             Ok(Type::Pair(Box::new(first_type), Box::new(second_type)))
         }
-        
+
         TypeExpr::List { element_type } => {
             let elem_type = evaluate_type_expr(element_type, context)?;
             Ok(Type::List(Box::new(elem_type)))
         }
-        
+
         TypeExpr::Vector { element_type } => {
             let elem_type = evaluate_type_expr(element_type, context)?;
             Ok(Type::Vector(Box::new(elem_type)))
         }
-        
+
         TypeExpr::Forall { vars, body } => {
             let mut new_context = context.enter_scope();
             let type_vars = new_context.bind_vars(vars);
             let body_type = evaluate_type_expr(body, &mut new_context)?;
-            
+
             Ok(Type::Forall {
                 vars: type_vars,
                 body: Box::new(body_type),
             })
         }
-        
+
         TypeExpr::Exists { vars, body } => {
             let mut new_context = context.enter_scope();
             let type_vars = new_context.bind_vars(vars);
             let body_type = evaluate_type_expr(body, &mut new_context)?;
-            
+
             Ok(Type::Exists {
                 vars: type_vars,
                 body: Box::new(body_type),
             })
         }
-        
-        TypeExpr::Application { constructor, argument } => {
+
+        TypeExpr::Application {
+            constructor,
+            argument,
+        } => {
             let constructor_type = evaluate_type_expr(constructor, context)?;
             let argument_type = evaluate_type_expr(argument, context)?;
-            
+
             Ok(Type::Application {
                 constructor: Box::new(constructor_type),
                 argument: Box::new(argument_type),
             })
         }
-        
+
         TypeExpr::Parametric { name, args } => {
             // Handle common parametric types
             match (name.as_str(), args.len()) {
@@ -189,7 +194,7 @@ fn evaluate_type_expr_inner(
                         name: name.clone(),
                         kind: Kind::Type, // Simplified - should compute proper kind
                     };
-                    
+
                     args.iter().try_fold(constructor, |acc, arg| {
                         let arg_type = evaluate_type_expr(arg, context)?;
                         Ok(Type::Application {
@@ -200,38 +205,44 @@ fn evaluate_type_expr_inner(
                 }
             }
         }
-        
-        TypeExpr::Constrained { constraints, type_expr } => {
+
+        TypeExpr::Constrained {
+            constraints,
+            type_expr,
+        } => {
             let base_type = evaluate_type_expr(type_expr, context)?;
-            let evaluated_constraints = constraints.iter()
+            let evaluated_constraints = constraints
+                .iter()
                 .map(|c| evaluate_constraint(c, context))
                 .collect::<Result<Vec<_>>>()?;
-            
+
             Ok(Type::Constrained {
                 constraints: evaluated_constraints,
                 type_: Box::new(base_type),
             })
         }
-        
+
         TypeExpr::Record { fields, rest } => {
             let mut field_map = HashMap::new();
-            
+
             for (name, type_expr) in fields {
                 let field_type = evaluate_type_expr(type_expr, context)?;
                 field_map.insert(name.clone(), field_type);
             }
-            
-            let rest_var = rest.as_ref().map(|name| context.get_or_create_type_var(name));
-            
+
+            let rest_var = rest
+                .as_ref()
+                .map(|name| context.get_or_create_type_var(name));
+
             Ok(Type::Record(Row {
                 fields: field_map,
                 rest: rest_var,
             }))
         }
-        
+
         TypeExpr::Variant { cases } => {
             let mut field_map = HashMap::new();
-            
+
             for case in cases {
                 let case_type = if let Some(payload) = &case.payload {
                     evaluate_type_expr(payload, context)?
@@ -240,28 +251,33 @@ fn evaluate_type_expr_inner(
                 };
                 field_map.insert(case.constructor.clone(), case_type);
             }
-            
+
             Ok(Type::Variant(Row {
                 fields: field_map,
                 rest: None,
             }))
         }
-        
+
         TypeExpr::Recursive { var, body } => {
             let type_var = context.get_or_create_type_var(var);
             let body_type = evaluate_type_expr(body, context)?;
-            
+
             Ok(Type::Recursive {
                 var: type_var,
                 body: Box::new(body_type),
             })
         }
-        
-        TypeExpr::Effectful { input, effects, output } => {
+
+        TypeExpr::Effectful {
+            input,
+            effects,
+            output,
+        } => {
             let input_type = evaluate_type_expr(input, context)?;
             let output_type = evaluate_type_expr(output, context)?;
-            
-            let effect_types = effects.iter()
+
+            let effect_types = effects
+                .iter()
                 .map(|effect_name| match effect_name.as_str() {
                     "IO" => Effect::IO,
                     "Error" => Effect::Error,
@@ -269,21 +285,19 @@ fn evaluate_type_expr_inner(
                     _ => Effect::Custom(effect_name.clone()),
                 })
                 .collect();
-            
+
             Ok(Type::Effectful {
                 input: Box::new(input_type),
                 effects: effect_types,
                 output: Box::new(output_type),
             })
         }
-        
+
         TypeExpr::Dynamic => Ok(Type::Dynamic),
         TypeExpr::Unknown => Ok(Type::Unknown),
-        
-        TypeExpr::Parenthesized(inner) => {
-            evaluate_type_expr(inner, context)
-        }
-        
+
+        TypeExpr::Parenthesized(inner) => evaluate_type_expr(inner, context),
+
         TypeExpr::Kinded { type_expr, kind: _ } => {
             // For now, ignore kind annotations and just evaluate the type
             // TODO: Implement proper kind checking
@@ -329,7 +343,7 @@ mod tests {
         let int_expr = spanned_type(TypeExpr::Identifier("Integer".to_string()));
         let result = evaluate_type_expr_simple(&int_expr).unwrap();
         assert!(matches!(result, Type::Number));
-        
+
         let string_expr = spanned_type(TypeExpr::Identifier("String".to_string()));
         let result = evaluate_type_expr_simple(&string_expr).unwrap();
         assert!(matches!(result, Type::String));
@@ -350,7 +364,7 @@ mod tests {
             params: vec![int_type],
             return_type: Box::new(string_type),
         });
-        
+
         let result = evaluate_type_expr_simple(&func_expr).unwrap();
         assert!(matches!(result, Type::Function { .. }));
     }
@@ -361,7 +375,7 @@ mod tests {
         let list_expr = spanned_type(TypeExpr::List {
             element_type: Box::new(int_type),
         });
-        
+
         let result = evaluate_type_expr_simple(&list_expr).unwrap();
         assert!(matches!(result, Type::List(_)));
     }
@@ -373,7 +387,7 @@ mod tests {
             name: "List".to_string(),
             args: vec![int_type],
         });
-        
+
         let result = evaluate_type_expr_simple(&list_expr).unwrap();
         assert!(matches!(result, Type::List(_)));
     }
@@ -385,7 +399,7 @@ mod tests {
             vars: vec!["a".to_string()],
             body: Box::new(var_a),
         });
-        
+
         let result = evaluate_type_expr_simple(&forall_expr).unwrap();
         assert!(matches!(result, Type::Forall { .. }));
     }

@@ -172,13 +172,13 @@ impl GcPolicy {
         }
 
         let age_ms = age.as_millis() as usize;
-        
+
         for (generation, &threshold) in self.generation_thresholds.iter().enumerate() {
             if age_ms < threshold {
                 return generation;
             }
         }
-        
+
         self.generation_thresholds.len() // Oldest generation
     }
 }
@@ -240,10 +240,10 @@ impl GcStrategy {
     /// Gets the memory overhead for this strategy.
     pub fn memory_overhead(&self) -> f64 {
         match self {
-            GcStrategy::MarkAndSweep => 0.1, // 10%
+            GcStrategy::MarkAndSweep => 0.1,  // 10%
             GcStrategy::Generational => 0.15, // 15%
-            GcStrategy::Incremental => 0.2, // 20%
-            GcStrategy::Concurrent => 0.25, // 25%
+            GcStrategy::Incremental => 0.2,   // 20%
+            GcStrategy::Concurrent => 0.25,   // 25%
         }
     }
 }

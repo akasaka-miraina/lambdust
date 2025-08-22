@@ -24,8 +24,8 @@
 //! - T1 → T2 ⊑ T3 → T4 iff T3 ⊑ T1 and T2 ⊑ T4
 //! - List T1 ⊑ List T2 iff T1 ⊑ T2
 
-use super::{Type, TypeVar, TypeScheme};
 use super::gradual::{consistent, is_gradual, is_static};
+use super::{Type, TypeScheme, TypeVar};
 use crate::diagnostics::{Error, Result, Span, Spanned};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -188,15 +188,32 @@ pub struct ConsistencySuggestion {
 #[derive(Debug, Clone)]
 pub enum SuggestionType {
     /// Add type annotation
-    AddTypeAnnotation { suggested_type: Type },
+    AddTypeAnnotation {
+        /// The type that should be annotated
+        suggested_type: Type,
+    },
     /// Use more precise type
-    UseMorePreciseType { from: Type, to: Type },
+    UseMorePreciseType {
+        /// Current imprecise type
+        from: Type,
+        /// Suggested more precise type
+        to: Type,
+    },
     /// Add cast for safety
-    AddExplicitCast { cast_type: CastType },
+    AddExplicitCast {
+        /// Type of cast to insert
+        cast_type: CastType,
+    },
     /// Refactor to avoid consistency issues
-    RefactorCode { strategy: RefactoringStrategy },
+    RefactorCode {
+        /// Refactoring strategy to apply
+        strategy: RefactoringStrategy,
+    },
     /// Use gradual interface
-    UseGradualInterface { interface_type: Type },
+    UseGradualInterface {
+        /// Interface type to use for gradual typing
+        interface_type: Type,
+    },
 }
 
 /// Types of casts for suggestions
@@ -416,9 +433,15 @@ pub enum TypePattern {
     /// Any static type
     AnyStatic,
     /// Function type with arity
-    Function { arity: usize },
+    Function {
+        /// Number of function arguments
+        arity: usize,
+    },
     /// Container type
-    Container { element: Box<TypePattern> },
+    Container {
+        /// Pattern for container element type
+        element: Box<TypePattern>,
+    },
     /// Wildcard (matches anything)
     Wildcard,
 }
@@ -519,7 +542,7 @@ impl GradualConsistencyChecker {
         &mut self,
         type1: &Type,
         type2: &Type,
-        context: &ViolationContext
+        context: &ViolationContext,
     ) -> ConsistencyResult {
         // Check cache first
         if self.config.enable_consistency_caching {
@@ -537,8 +560,10 @@ impl GradualConsistencyChecker {
 
         // Cache result
         if self.config.enable_consistency_caching {
-            self.consistency_cache.insert((type1.clone(), type2.clone()), consistent);
-            self.precision_cache.insert((type1.clone(), type2.clone()), precision.clone());
+            self.consistency_cache
+                .insert((type1.clone(), type2.clone()), consistent);
+            self.precision_cache
+                .insert((type1.clone(), type2.clone()), precision.clone());
         }
 
         // Update violation database
@@ -631,20 +656,27 @@ impl GradualConsistencyChecker {
         }
 
         match (type1, type2) {
-            (Type::Function { params: p1, return_type: r1 },
-             Type::Function { params: p2, return_type: r2 }) => {
-                p1.len() == p2.len() &&
-                p1.iter().zip(p2.iter()).all(|(t1, t2)| {
-                    self.is_structurally_identical(t1, t2, depth + 1)
-                }) &&
-                self.is_structurally_identical(r1, r2, depth + 1)
+            (
+                Type::Function {
+                    params: p1,
+                    return_type: r1,
+                },
+                Type::Function {
+                    params: p2,
+                    return_type: r2,
+                },
+            ) => {
+                p1.len() == p2.len()
+                    && p1
+                        .iter()
+                        .zip(p2.iter())
+                        .all(|(t1, t2)| self.is_structurally_identical(t1, t2, depth + 1))
+                    && self.is_structurally_identical(r1, r2, depth + 1)
             }
-            (Type::List(t1), Type::List(t2)) => {
-                self.is_structurally_identical(t1, t2, depth + 1)
-            }
+            (Type::List(t1), Type::List(t2)) => self.is_structurally_identical(t1, t2, depth + 1),
             (Type::Pair(a1, b1), Type::Pair(a2, b2)) => {
-                self.is_structurally_identical(a1, a2, depth + 1) &&
-                self.is_structurally_identical(b1, b2, depth + 1)
+                self.is_structurally_identical(a1, a2, depth + 1)
+                    && self.is_structurally_identical(b1, b2, depth + 1)
             }
             _ => type1 == type2,
         }
@@ -662,10 +694,11 @@ impl GradualConsistencyChecker {
         }
 
         let relation = self.compute_precision(type1, type2);
-        
+
         // Cache result
-        self.precision_cache.insert((type1.clone(), type2.clone()), relation.clone());
-        
+        self.precision_cache
+            .insert((type1.clone(), type2.clone()), relation.clone());
+
         relation
     }
 
@@ -676,33 +709,43 @@ impl GradualConsistencyChecker {
             (Type::Dynamic, Type::Dynamic) => PrecisionRelation::Equal,
             (Type::Dynamic, _) => PrecisionRelation::SecondMorePrecise,
             (_, Type::Dynamic) => PrecisionRelation::FirstMorePrecise,
-            
+
             // Unknown is less precise than concrete types
             (Type::Unknown, Type::Unknown) => PrecisionRelation::Equal,
             (Type::Unknown, _) => PrecisionRelation::SecondMorePrecise,
             (_, Type::Unknown) => PrecisionRelation::FirstMorePrecise,
-            
+
             // Same types have equal precision
             (t1, t2) if t1 == t2 => PrecisionRelation::Equal,
-            
+
             // Function types
-            (Type::Function { params: p1, return_type: r1 },
-             Type::Function { params: p2, return_type: r2 }) => {
+            (
+                Type::Function {
+                    params: p1,
+                    return_type: r1,
+                },
+                Type::Function {
+                    params: p2,
+                    return_type: r2,
+                },
+            ) => {
                 if p1.len() != p2.len() {
                     return PrecisionRelation::Incomparable;
                 }
-                
+
                 // Function precision is contravariant in parameters, covariant in return
-                let param_precision = p1.iter().zip(p2.iter())
+                let param_precision = p1
+                    .iter()
+                    .zip(p2.iter())
                     .map(|(t1, t2)| self.compute_precision(t2, t1)) // Note: reversed for contravariance
                     .collect::<Vec<_>>();
-                
+
                 let return_precision = self.compute_precision(r1, r2);
-                
+
                 // Combine precisions (simplified)
                 self.combine_precisions(param_precision, return_precision)
             }
-            
+
             // Container types
             (Type::List(t1), Type::List(t2)) => self.compute_precision(t1, t2),
             (Type::Vector(t1), Type::Vector(t2)) => self.compute_precision(t1, t2),
@@ -711,17 +754,24 @@ impl GradualConsistencyChecker {
                 let second_precision = self.compute_precision(b1, b2);
                 self.combine_pair_precisions(first_precision, second_precision)
             }
-            
+
             // Different types are incomparable
             _ => PrecisionRelation::Incomparable,
         }
     }
 
     /// Combines multiple precision relationships
-    fn combine_precisions(&self, param_precisions: Vec<PrecisionRelation>, return_precision: PrecisionRelation) -> PrecisionRelation {
+    fn combine_precisions(
+        &self,
+        param_precisions: Vec<PrecisionRelation>,
+        return_precision: PrecisionRelation,
+    ) -> PrecisionRelation {
         // Simplified combination logic
-        if param_precisions.iter().all(|p| matches!(p, PrecisionRelation::Equal)) &&
-           matches!(return_precision, PrecisionRelation::Equal) {
+        if param_precisions
+            .iter()
+            .all(|p| matches!(p, PrecisionRelation::Equal))
+            && matches!(return_precision, PrecisionRelation::Equal)
+        {
             PrecisionRelation::Equal
         } else {
             PrecisionRelation::Incomparable
@@ -729,11 +779,19 @@ impl GradualConsistencyChecker {
     }
 
     /// Combines precision for pair types
-    fn combine_pair_precisions(&self, first: PrecisionRelation, second: PrecisionRelation) -> PrecisionRelation {
+    fn combine_pair_precisions(
+        &self,
+        first: PrecisionRelation,
+        second: PrecisionRelation,
+    ) -> PrecisionRelation {
         match (first, second) {
             (PrecisionRelation::Equal, PrecisionRelation::Equal) => PrecisionRelation::Equal,
-            (PrecisionRelation::FirstMorePrecise, PrecisionRelation::FirstMorePrecise) => PrecisionRelation::FirstMorePrecise,
-            (PrecisionRelation::SecondMorePrecise, PrecisionRelation::SecondMorePrecise) => PrecisionRelation::SecondMorePrecise,
+            (PrecisionRelation::FirstMorePrecise, PrecisionRelation::FirstMorePrecise) => {
+                PrecisionRelation::FirstMorePrecise
+            }
+            (PrecisionRelation::SecondMorePrecise, PrecisionRelation::SecondMorePrecise) => {
+                PrecisionRelation::SecondMorePrecise
+            }
             _ => PrecisionRelation::Incomparable,
         }
     }
@@ -743,7 +801,7 @@ impl GradualConsistencyChecker {
         &self,
         type1: &Type,
         type2: &Type,
-        context: &ViolationContext
+        context: &ViolationContext,
     ) -> Vec<ConsistencyViolation> {
         let mut violations = Vec::new();
 
@@ -762,8 +820,9 @@ impl GradualConsistencyChecker {
         // Check for precision loss
         if self.config.enable_precision_analysis {
             let precision = self.compute_precision(type1, type2);
-            if matches!(precision, PrecisionRelation::FirstMorePrecise) &&
-               self.config.strictness >= ConsistencyStrictness::Balanced {
+            if matches!(precision, PrecisionRelation::FirstMorePrecise)
+                && self.config.strictness >= ConsistencyStrictness::Balanced
+            {
                 violations.push(ConsistencyViolation {
                     violation_type: ViolationType::PrecisionLoss,
                     location: Span::new(0, 0),
@@ -776,8 +835,10 @@ impl GradualConsistencyChecker {
         }
 
         // Check for unsafe dynamic transitions
-        if matches!((type1, type2), (_, Type::Dynamic)) && is_static(type1) && 
-           self.config.strictness >= ConsistencyStrictness::Strict {
+        if matches!((type1, type2), (_, Type::Dynamic))
+            && is_static(type1)
+            && self.config.strictness >= ConsistencyStrictness::Strict
+        {
             violations.push(ConsistencyViolation {
                 violation_type: ViolationType::UnsafeDynamicTransition,
                 location: Span::new(0, 0),
@@ -792,7 +853,10 @@ impl GradualConsistencyChecker {
     }
 
     /// Generates suggestions for violations
-    fn generate_suggestions(&mut self, violations: &[ConsistencyViolation]) -> Vec<ConsistencySuggestion> {
+    fn generate_suggestions(
+        &mut self,
+        violations: &[ConsistencyViolation],
+    ) -> Vec<ConsistencySuggestion> {
         if !self.config.enable_migration_suggestions {
             return Vec::new();
         }
@@ -801,7 +865,12 @@ impl GradualConsistencyChecker {
     }
 
     /// Collects evidence for consistency
-    fn collect_evidence(&self, type1: &Type, type2: &Type, consistent: bool) -> ConsistencyEvidence {
+    fn collect_evidence(
+        &self,
+        type1: &Type,
+        type2: &Type,
+        consistent: bool,
+    ) -> ConsistencyEvidence {
         let mut derivation = Vec::new();
         let mut witnesses = Vec::new();
         let mut assumptions = Vec::new();
@@ -837,10 +906,17 @@ impl GradualConsistencyChecker {
     }
 
     /// Creates a cached result
-    fn create_cached_result(&self, consistent: bool, type1: &Type, type2: &Type) -> ConsistencyResult {
+    fn create_cached_result(
+        &self,
+        consistent: bool,
+        type1: &Type,
+        type2: &Type,
+    ) -> ConsistencyResult {
         ConsistencyResult {
             consistent,
-            precision: self.precision_cache.get(&(type1.clone(), type2.clone()))
+            precision: self
+                .precision_cache
+                .get(&(type1.clone(), type2.clone()))
                 .cloned()
                 .unwrap_or(PrecisionRelation::Unknown),
             violations: Vec::new(), // Would need to cache violations too
@@ -862,7 +938,7 @@ impl GradualConsistencyChecker {
     pub fn update_config(&mut self, config: ConsistencyConfig) {
         let enable_caching = config.enable_consistency_caching;
         self.config = config;
-        
+
         // Clear caches if caching was disabled
         if !enable_caching {
             self.consistency_cache.clear();
@@ -896,8 +972,16 @@ impl ViolationDatabase {
     pub fn record_violation(&mut self, violation: ConsistencyViolation) {
         // Update statistics
         self.stats.total_violations += 1;
-        *self.stats.by_type.entry(violation.violation_type.clone()).or_insert(0) += 1;
-        *self.stats.by_severity.entry(violation.severity).or_insert(0) += 1;
+        *self
+            .stats
+            .by_type
+            .entry(violation.violation_type.clone())
+            .or_insert(0) += 1;
+        *self
+            .stats
+            .by_severity
+            .entry(violation.severity)
+            .or_insert(0) += 1;
 
         // Store violation by pattern
         let pattern = self.create_pattern(&violation);
@@ -929,9 +1013,11 @@ impl ViolationDatabase {
     fn type_to_pattern(&self, type_: &Type) -> TypePattern {
         match type_ {
             Type::Dynamic => TypePattern::Dynamic,
-            Type::Function { params, .. } => TypePattern::Function { arity: params.len() },
-            Type::List(_) => TypePattern::Container { 
-                element: Box::new(TypePattern::Wildcard) 
+            Type::Function { params, .. } => TypePattern::Function {
+                arity: params.len(),
+            },
+            Type::List(_) => TypePattern::Container {
+                element: Box::new(TypePattern::Wildcard),
             },
             _ if is_static(type_) => TypePattern::AnyStatic,
             _ => TypePattern::Wildcard,
@@ -959,7 +1045,10 @@ impl SuggestionEngine {
     }
 
     /// Generates suggestions for violations
-    pub fn generate_suggestions(&mut self, violations: &[ConsistencyViolation]) -> Vec<ConsistencySuggestion> {
+    pub fn generate_suggestions(
+        &mut self,
+        violations: &[ConsistencyViolation],
+    ) -> Vec<ConsistencySuggestion> {
         let mut suggestions = Vec::new();
 
         for violation in violations {
@@ -970,7 +1059,10 @@ impl SuggestionEngine {
     }
 
     /// Generates suggestions for a single violation
-    fn generate_suggestions_for_violation(&mut self, violation: &ConsistencyViolation) -> Vec<ConsistencySuggestion> {
+    fn generate_suggestions_for_violation(
+        &mut self,
+        violation: &ConsistencyViolation,
+    ) -> Vec<ConsistencySuggestion> {
         let mut suggestions = Vec::new();
 
         match violation.violation_type {
@@ -1042,7 +1134,6 @@ impl ViolationContext {
     }
 }
 
-
 impl Default for GradualConsistencyChecker {
     fn default() -> Self {
         Self::new()
@@ -1087,11 +1178,11 @@ mod tests {
     #[test]
     fn test_basic_consistency() {
         let mut checker = GradualConsistencyChecker::new();
-        
+
         let result = checker.check_consistency(&Type::Number, &Type::Number);
         assert!(result.consistent);
         assert_eq!(result.precision, PrecisionRelation::Equal);
-        
+
         let result = checker.check_consistency(&Type::Number, &Type::Dynamic);
         assert!(result.consistent);
         assert_eq!(result.precision, PrecisionRelation::FirstMorePrecise);
@@ -1100,13 +1191,13 @@ mod tests {
     #[test]
     fn test_precision_analysis() {
         let mut checker = GradualConsistencyChecker::new();
-        
+
         let precision = checker.analyze_precision(&Type::Dynamic, &Type::Number);
         assert_eq!(precision, PrecisionRelation::SecondMorePrecise);
-        
+
         let precision = checker.analyze_precision(&Type::Number, &Type::Dynamic);
         assert_eq!(precision, PrecisionRelation::FirstMorePrecise);
-        
+
         let precision = checker.analyze_precision(&Type::Number, &Type::Number);
         assert_eq!(precision, PrecisionRelation::Equal);
     }
@@ -1117,23 +1208,22 @@ mod tests {
             strictness: ConsistencyStrictness::Strict,
             ..ConsistencyConfig::default()
         });
-        
+
         let context = ViolationContext::default();
-        let result = checker.check_consistency_with_context(
-            &Type::Number,
-            &Type::String,
-            &context
-        );
-        
+        let result = checker.check_consistency_with_context(&Type::Number, &Type::String, &context);
+
         assert!(!result.consistent);
         assert!(!result.violations.is_empty());
-        assert_eq!(result.violations[0].violation_type, ViolationType::Inconsistent);
+        assert_eq!(
+            result.violations[0].violation_type,
+            ViolationType::Inconsistent
+        );
     }
 
     #[test]
     fn test_suggestion_generation() {
         let mut engine = SuggestionEngine::new();
-        
+
         let violation = ConsistencyViolation {
             violation_type: ViolationType::Inconsistent,
             location: Span::new(0, 10),
@@ -1142,7 +1232,7 @@ mod tests {
             explanation: "Test violation".to_string(),
             context: ViolationContext::default(),
         };
-        
+
         let suggestions = engine.generate_suggestions(&[violation]);
         assert!(!suggestions.is_empty());
     }
@@ -1153,10 +1243,10 @@ mod tests {
             strictness: ConsistencyStrictness::Permissive,
             ..ConsistencyConfig::default()
         });
-        
+
         // In permissive mode, most things should be consistent
         assert!(checker.is_consistent_permissive(&Type::Number, &Type::String, 0));
-        
+
         // In ultra mode, very strict
         assert!(!checker.is_consistent_ultra(&Type::Number, &Type::Dynamic, 0));
     }

@@ -28,7 +28,7 @@ mod tests {
         assert!(io.is_io());
         assert!(state.is_state());
         assert!(error.is_error());
-        
+
         // Test effect ordering by strength
         assert!(pure < state);
         assert!(state < io);
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_effect_handler_functionality() {
         let handler = MockIOHandler;
-        
+
         // Test capability check
         assert!(handler.can_handle(&Effect::IO));
         assert!(!handler.can_handle(&Effect::State));
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn test_error_handler_functionality() {
         let handler = MockErrorHandler;
-        
+
         assert!(handler.can_handle(&Effect::Error));
         assert_eq!(handler.effect_name(), "Error");
 
@@ -261,14 +261,14 @@ mod tests {
     #[test]
     fn test_effect_context_handler_integration() {
         let mut context = EffectContext::new();
-        
+
         let handler_ref = EffectHandlerRef {
             effect_name: "IO".to_string(),
             handler: Arc::new(MockIOHandler),
         };
-        
+
         context.add_handler(handler_ref);
-        
+
         // Test finding handlers
         let found_handler = context.find_handler(&Effect::IO);
         assert!(found_handler.is_some());
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn test_effect_system_creation() {
         let system = EffectSystem::new();
-        
+
         assert!(system.context().is_pure());
         assert!(system.lifting_config().auto_lift_io);
         assert!(system.lifting_config().auto_lift_state);
@@ -296,7 +296,7 @@ mod tests {
     fn test_effect_system_with_config() {
         let config = LiftingConfig::no_lifting();
         let system = EffectSystem::with_config(config);
-        
+
         assert!(!system.lifting_config().auto_lift_io);
         assert!(!system.lifting_config().auto_lift_state);
         assert!(!system.lifting_config().auto_lift_error);
@@ -305,14 +305,14 @@ mod tests {
     #[test]
     fn test_effect_system_context_management() {
         let mut system = EffectSystem::new();
-        
+
         assert!(system.context().is_pure());
-        
+
         // Enter a new context
         let old_context = system.enter_context(vec![Effect::IO, Effect::State]);
         assert!(system.context().has_effect(&Effect::IO));
         assert!(system.context().has_effect(&Effect::State));
-        
+
         // Exit context
         system.exit_context(old_context);
         assert!(system.context().is_pure());
@@ -321,14 +321,14 @@ mod tests {
     #[test]
     fn test_effect_system_handler_integration() {
         let mut system = EffectSystem::new();
-        
+
         // Add a handler to the context
         let handler_ref = EffectHandlerRef {
             effect_name: "IO".to_string(),
             handler: Arc::new(MockIOHandler),
         };
         system.context_mut().add_handler(handler_ref);
-        
+
         // Test effect handling
         let result = system.handle_effect(&Effect::IO, &[]).unwrap();
         match result {
@@ -337,7 +337,7 @@ mod tests {
             }
             _ => panic!("Expected value result"),
         }
-        
+
         // Test unhandled effect
         let result = system.handle_effect(&Effect::State, &[]).unwrap();
         assert!(matches!(result, EffectResult::Unhandled));
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn test_lifting_config_default() {
         let config = LiftingConfig::default();
-        
+
         assert!(config.auto_lift_io);
         assert!(config.auto_lift_state);
         assert!(config.auto_lift_error);
@@ -360,7 +360,7 @@ mod tests {
     #[test]
     fn test_lifting_config_no_lifting() {
         let config = LiftingConfig::no_lifting();
-        
+
         assert!(!config.auto_lift_io);
         assert!(!config.auto_lift_state);
         assert!(!config.auto_lift_error);
@@ -370,14 +370,14 @@ mod tests {
     #[test]
     fn test_lifting_config_custom_rules() {
         let mut config = LiftingConfig::new();
-        
+
         let rule = LiftingRule {
             target_effect: Effect::Custom("test".to_string()),
             condition: LiftingCondition::Always,
         };
-        
+
         config.add_rule("test-op".to_string(), rule);
-        
+
         assert_eq!(config.custom_rules.len(), 1);
         assert!(config.custom_rules.contains_key("test-op"));
     }
@@ -388,19 +388,19 @@ mod tests {
         let op_name = LiftingCondition::OperationName("test".to_string());
         let has_effect = LiftingCondition::HasEffect(vec![Effect::IO]);
         let custom = LiftingCondition::Custom(|op, _| op == "custom");
-        
+
         // Always condition
         assert!(always.matches("anything", &[]));
-        
+
         // Operation name condition
         assert!(op_name.matches("test", &[]));
         assert!(!op_name.matches("other", &[]));
-        
+
         // Has effect condition
         assert!(has_effect.matches("", &[Effect::IO]));
         assert!(has_effect.matches("", &[Effect::State, Effect::IO]));
         assert!(!has_effect.matches("", &[Effect::State]));
-        
+
         // Custom condition
         assert!(custom.matches("custom", &[]));
         assert!(!custom.matches("other", &[]));
@@ -409,17 +409,17 @@ mod tests {
     #[test]
     fn test_effect_system_automatic_lifting() {
         let system = EffectSystem::new();
-        
+
         // Test built-in lifting rules
         assert_eq!(system.should_lift("display", &[]), Some(Effect::IO));
         assert_eq!(system.should_lift("write", &[]), Some(Effect::IO));
         assert_eq!(system.should_lift("set!", &[]), Some(Effect::State));
         assert_eq!(system.should_lift("error", &[]), Some(Effect::Error));
-        
+
         // Test non-lifting operations
         assert_eq!(system.should_lift("+", &[]), None);
         assert_eq!(system.should_lift("lambda", &[]), None);
-        
+
         // Test with disabled lifting
         let no_lift_system = EffectSystem::with_config(LiftingConfig::no_lifting());
         assert_eq!(no_lift_system.should_lift("display", &[]), None);
@@ -428,15 +428,15 @@ mod tests {
     #[test]
     fn test_effect_system_custom_lifting_rules() {
         let mut config = LiftingConfig::new();
-        
+
         let rule = LiftingRule {
             target_effect: Effect::Custom("database".to_string()),
             condition: LiftingCondition::OperationName("db-query".to_string()),
         };
-        
+
         config.add_rule("db-query".to_string(), rule);
         let system = EffectSystem::with_config(config);
-        
+
         assert_eq!(
             system.should_lift("db-query", &[]),
             Some(Effect::Custom("database".to_string()))
@@ -454,7 +454,7 @@ mod tests {
         let continue_result = EffectResult::Continue(Value::string("continue"));
         let unhandled_result = EffectResult::Unhandled;
         let error_result = EffectResult::Error(Error::runtime_error("test".to_string(), None));
-        
+
         assert!(matches!(value_result, EffectResult::Value(_)));
         assert!(matches!(continue_result, EffectResult::Continue(_)));
         assert!(matches!(unhandled_result, EffectResult::Unhandled));
@@ -478,12 +478,12 @@ mod tests {
     fn test_effect_context_display() {
         let pure_context = EffectContext::pure();
         assert_eq!(format!("{}", pure_context), "Pure");
-        
+
         let mut complex_context = EffectContext::new();
         complex_context.add_effect(Effect::State);
         complex_context.add_effect(Effect::IO);
         complex_context.add_effect(Effect::Error);
-        
+
         let display = format!("{}", complex_context);
         assert!(display.contains("State"));
         assert!(display.contains("IO"));
@@ -500,7 +500,7 @@ mod tests {
     #[ignore] // Will pass when generational environment is fully implemented
     fn test_effect_system_generational_integration() {
         let mut system = EffectSystem::new();
-        
+
         // Test that the effect system integrates with generational environments
         // This requires the generational environment manager to be implemented
         assert!(system.env_manager().current_generation() >= 0);
@@ -515,7 +515,7 @@ mod tests {
     fn test_monadic_effect_operations() {
         // Test monadic bind, return, and other operations
         // This requires the monad implementation to be complete
-        
+
         let system = EffectSystem::new();
         assert!(system.context().is_pure());
     }
@@ -527,20 +527,20 @@ mod tests {
     #[test]
     fn test_effect_system_performance() {
         let start = std::time::Instant::now();
-        
+
         // Create many effect contexts and perform operations
         for _ in 0..1000 {
             let mut context = EffectContext::new();
             context.add_effect(Effect::IO);
             context.add_effect(Effect::State);
             context.add_effect(Effect::Error);
-            
+
             let _ = context.is_pure();
             let _ = context.has_effect(&Effect::IO);
             let combined = context.combine(&EffectContext::pure());
             let _ = combined.effects().len();
         }
-        
+
         let duration = start.elapsed();
         assert!(duration.as_millis() < 100, "Effect operations should be fast");
     }
@@ -549,14 +549,14 @@ mod tests {
     fn test_effect_handler_performance() {
         let handler = Arc::new(MockIOHandler);
         let start = std::time::Instant::now();
-        
+
         // Perform many handler operations
         for _ in 0..1000 {
             let _ = handler.can_handle(&Effect::IO);
             let _ = handler.can_handle(&Effect::State);
             let _ = handler.effect_name();
         }
-        
+
         let duration = start.elapsed();
         assert!(duration.as_millis() < 50, "Handler operations should be very fast");
     }
@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn test_effect_handler_error_propagation() {
         let handler = MockErrorHandler;
-        
+
         let result = handler.handle(&Effect::Error, &[Value::string("test error")]).unwrap();
         match result {
             EffectResult::Error(err) => {
@@ -586,15 +586,15 @@ mod tests {
     fn test_effect_handler_thread_safety() {
         // Test that effect handlers can be shared across threads
         let handler: Arc<dyn EffectHandler + Send + Sync> = Arc::new(MockIOHandler);
-        
+
         // This test verifies the type constraints are correct
         let handler_ref = EffectHandlerRef {
             effect_name: "IO".to_string(),
             handler: handler.clone(),
         };
-        
+
         assert_eq!(handler_ref.effect_name, "IO");
-        
+
         // In a real scenario, we would test actual thread usage,
         // but this verifies the types are Send + Sync
     }

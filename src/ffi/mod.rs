@@ -7,7 +7,7 @@
 //! allowing Lambdust programs to call Rust functions through the `primitive` special form.
 //!
 //! # Architecture
-//! 
+//!
 //! The FFI system consists of several key components:
 //! - **Function Registry**: Type-safe registration of Rust functions
 //! - **Value Marshaling**: Conversion between Rust and Lambdust types
@@ -25,61 +25,61 @@
 
 #![allow(missing_docs)]
 
-use crate::eval::Value;
 use crate::diagnostics::Error;
+use crate::eval::Value;
 use std::fmt;
 
-pub mod marshal;
-pub mod registry;
-pub mod examples;
-pub mod library;
+pub mod arithmetic_functions;
+pub mod builtin_ffi_module;
 pub mod c_types;
 pub mod callback;
-pub mod memory;
-pub mod safety;
-pub mod arithmetic_functions;
-pub mod string_functions;
-pub mod list_functions;
-pub mod type_checking_functions;
+pub mod examples;
 pub mod io_functions;
-pub mod builtin_ffi_module;
 #[cfg(feature = "ffi")]
 pub mod libffi_integration;
-pub mod scheme_api;
+pub mod library;
+pub mod list_functions;
+pub mod marshal;
+pub mod memory;
 pub mod profiling;
+pub mod registry;
+pub mod safety;
+pub mod scheme_api;
+pub mod string_functions;
+pub mod type_checking_functions;
 
 // Individual structure modules
-pub mod ffi_signature;
-pub mod registered_function;
-pub mod ffi_stats;
-pub mod ffi_registry;
 pub mod ffi_bridge;
+pub mod ffi_registry;
+pub mod ffi_signature;
+pub mod ffi_stats;
+pub mod registered_function;
 
-pub use marshal::*;
-pub use registry::*;
-pub use library::*;
+pub use arithmetic_functions::*;
+pub use builtin_ffi_module::*;
 pub use c_types::*;
 pub use callback::*;
-pub use memory::*;
-pub use safety::*;
-pub use arithmetic_functions::*;
-pub use string_functions::*;
-pub use list_functions::*;
-pub use type_checking_functions::*;
 pub use io_functions::*;
-pub use builtin_ffi_module::*;
 #[cfg(feature = "ffi")]
 pub use libffi_integration::*;
-pub use scheme_api::*;
+pub use library::*;
+pub use list_functions::*;
+pub use marshal::*;
+pub use memory::*;
 #[allow(ambiguous_glob_reexports)]
 pub use profiling::*;
+pub use registry::*;
+pub use safety::*;
+pub use scheme_api::*;
+pub use string_functions::*;
+pub use type_checking_functions::*;
 
 // Re-export individual structures
-pub use ffi_signature::*;
-pub use registered_function::*;
-pub use ffi_stats::*;
-pub use ffi_registry::*;
 pub use ffi_bridge::*;
+pub use ffi_registry::*;
+pub use ffi_signature::*;
+pub use ffi_stats::*;
+pub use registered_function::*;
 
 /// Errors that can occur during FFI operations.
 #[derive(Debug, Clone)]
@@ -100,10 +100,7 @@ pub enum FfiError {
         actual: String,
     },
     /// Runtime error in FFI function
-    RuntimeError {
-        function: String,
-        message: String,
-    },
+    RuntimeError { function: String, message: String },
     /// Invalid function signature
     InvalidSignature(String),
 }
@@ -114,11 +111,26 @@ impl fmt::Display for FfiError {
             FfiError::FunctionNotFound(name) => {
                 write!(f, "FFI function not found: {name}")
             }
-            FfiError::ArityMismatch { function, expected, actual } => {
-                write!(f, "FFI function '{function}' expects {expected} arguments, got {actual}")
+            FfiError::ArityMismatch {
+                function,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "FFI function '{function}' expects {expected} arguments, got {actual}"
+                )
             }
-            FfiError::TypeMismatch { function, parameter, expected, actual } => {
-                write!(f, "FFI function '{function}' parameter {parameter}: expected {expected}, got {actual}")
+            FfiError::TypeMismatch {
+                function,
+                parameter,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "FFI function '{function}' parameter {parameter}: expected {expected}, got {actual}"
+                )
             }
             FfiError::RuntimeError { function, message } => {
                 write!(f, "FFI function '{function}' runtime error: {message}")
@@ -179,14 +191,14 @@ impl AritySpec {
 pub trait FfiFunction: Send + Sync {
     /// Get the function signature
     fn signature(&self) -> &FfiSignature;
-    
+
     /// Call the function with the given arguments
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError>;
-    
+
     /// Validate arguments before calling (optional optimization)
     fn validate_args(&self, args: &[Value]) -> std::result::Result<(), FfiError> {
         let sig = self.signature();
-        
+
         // Check arity
         if !sig.arity.check(args.len()) {
             return Err(FfiError::ArityMismatch {
@@ -195,7 +207,7 @@ pub trait FfiFunction: Send + Sync {
                 actual: args.len(),
             });
         }
-        
+
         // Type checking can be implemented by specific functions
         Ok(())
     }

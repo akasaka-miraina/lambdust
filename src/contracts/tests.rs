@@ -6,17 +6,14 @@
 
 #[cfg(test)]
 mod contract_tests {
-    use crate::contracts::{
-        ContractSystem, ContractConfig,
-        BlameInfo, BlameTarget, BlameBoundary, BoundaryType, BlameTracker,
-        CompilationContext, OptimizationLevel,
-        PredicateRegistry,
-        ContractRuntime,
-    };
-    use crate::contracts::ast::{ContractExpr, ComparisonOp};
-    use crate::eval::Value;
     use crate::ast::Literal;
+    use crate::contracts::ast::{ComparisonOp, ContractExpr};
+    use crate::contracts::{
+        BlameBoundary, BlameInfo, BlameTarget, BlameTracker, BoundaryType, CompilationContext,
+        ContractConfig, ContractRuntime, ContractSystem, OptimizationLevel, PredicateRegistry,
+    };
     use crate::diagnostics::{Span, Spanned};
+    use crate::eval::Value;
     use std::collections::HashMap;
 
     // Test helper function removed - using the one defined later
@@ -70,10 +67,13 @@ mod contract_tests {
         assert!(func_contract.is_function_contract());
 
         // Test combinator contracts
-        let and_contract = ContractExpr::and(vec![
-            Spanned::new(ContractExpr::predicate("number?", span), span),
-            Spanned::new(ContractExpr::predicate("positive?", span), span),
-        ], span);
+        let and_contract = ContractExpr::and(
+            vec![
+                Spanned::new(ContractExpr::predicate("number?", span), span),
+                Spanned::new(ContractExpr::predicate("positive?", span), span),
+            ],
+            span,
+        );
         assert!(and_contract.is_combinator());
 
         // Test structural contracts
@@ -95,13 +95,19 @@ mod contract_tests {
         let param2 = Spanned::new(ContractExpr::predicate("string?", span), span);
         let return_type = Spanned::new(ContractExpr::predicate("boolean?", span), span);
         let func_contract = ContractExpr::function(vec![param1, param2], return_type, span);
-        assert_eq!(format!("{}", func_contract), "(-> number? string? boolean?)");
+        assert_eq!(
+            format!("{}", func_contract),
+            "(-> number? string? boolean?)"
+        );
 
         // Test and combinator display
-        let and_contract = ContractExpr::and(vec![
-            Spanned::new(ContractExpr::predicate("number?", span), span),
-            Spanned::new(ContractExpr::predicate("positive?", span), span),
-        ], span);
+        let and_contract = ContractExpr::and(
+            vec![
+                Spanned::new(ContractExpr::predicate("number?", span), span),
+                Spanned::new(ContractExpr::predicate("positive?", span), span),
+            ],
+            span,
+        );
         assert_eq!(format!("{}", and_contract), "(and/c number? positive?)");
     }
 
@@ -118,7 +124,7 @@ mod contract_tests {
 
         let number_val = Value::Literal(Literal::Number(42.5));
         let integer_val = Value::Literal(Literal::Integer(42));
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
 
         assert!(number_pred.test(&number_val));
         assert!(number_pred.test(&integer_val));
@@ -140,8 +146,8 @@ mod contract_tests {
         let string_pred = registry.lookup("string?").unwrap();
         let non_empty_pred = registry.lookup("non-empty-string?").unwrap();
 
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
-        let empty_string = Value::Literal(Literal::String("".to_string()));
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
+        let empty_string = Value::Literal(Literal::String(Box::new("".to_string())));
         let number_val = Value::Literal(Literal::Number(42.0));
 
         assert!(string_pred.test(&string_val));
@@ -163,12 +169,12 @@ mod contract_tests {
 
         let nil_val = Value::Nil;
         let pair_val = Value::Pair(
-            Arc::new(Value::Literal(Literal::Number(1.0))),
-            Arc::new(Value::Literal(Literal::Number(2.0))),
+            Box::new(Value::Literal(Literal::Number(1.0))),
+            Box::new(Value::Literal(Literal::Number(2.0))),
         );
         let proper_list = Value::Pair(
-            Arc::new(Value::Literal(Literal::Number(1.0))),
-            Arc::new(Value::Nil),
+            Box::new(Value::Literal(Literal::Number(1.0))),
+            Box::new(Value::Nil),
         );
 
         assert!(null_pred.test(&nil_val));
@@ -190,6 +196,11 @@ mod contract_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
 
         // Test simple predicate compilation
@@ -198,8 +209,14 @@ mod contract_tests {
         assert_eq!(compiled.id, 1);
 
         // Test function contract compilation
-        let param = Spanned::new(ContractExpr::predicate("number?", Span::new(0, 10)), Span::new(0, 10));
-        let result = Spanned::new(ContractExpr::predicate("string?", Span::new(0, 10)), Span::new(0, 10));
+        let param = Spanned::new(
+            ContractExpr::predicate("number?", Span::new(0, 10)),
+            Span::new(0, 10),
+        );
+        let result = Spanned::new(
+            ContractExpr::predicate("string?", Span::new(0, 10)),
+            Span::new(0, 10),
+        );
         let func_contract = ContractExpr::function(vec![param], result, Span::new(0, 10));
         let compiled_func = system.compile_contract(&func_contract, &context).unwrap();
         assert_eq!(compiled_func.id, 2);
@@ -210,6 +227,11 @@ mod contract_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
         let blame = create_test_blame();
 
@@ -223,7 +245,7 @@ mod contract_tests {
         assert!(result.is_ok());
 
         // Test negative case
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
         let result = system.check_contract(&string_val, &compiled, &blame);
         assert!(result.is_err());
     }
@@ -233,28 +255,54 @@ mod contract_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
         let blame = create_test_blame();
 
         // Create an (and/c number? positive?) contract
-        let and_contract = ContractExpr::and(vec![
-            Spanned::new(ContractExpr::predicate("number?", Span::new(0, 10)), Span::new(0, 10)),
-            Spanned::new(ContractExpr::predicate("positive?", Span::new(0, 10)), Span::new(0, 10)),
-        ], Span::new(0, 10));
+        let and_contract = ContractExpr::and(
+            vec![
+                Spanned::new(
+                    ContractExpr::predicate("number?", Span::new(0, 10)),
+                    Span::new(0, 10),
+                ),
+                Spanned::new(
+                    ContractExpr::predicate("positive?", Span::new(0, 10)),
+                    Span::new(0, 10),
+                ),
+            ],
+            Span::new(0, 10),
+        );
 
         let compiled = system.compile_contract(&and_contract, &context).unwrap();
 
         // Test positive number (should pass)
         let positive_num = Value::Literal(Literal::Number(42.0));
-        assert!(system.check_contract(&positive_num, &compiled, &blame).is_ok());
+        assert!(
+            system
+                .check_contract(&positive_num, &compiled, &blame)
+                .is_ok()
+        );
 
         // Test negative number (should fail)
         let negative_num = Value::Literal(Literal::Number(-5.0));
-        assert!(system.check_contract(&negative_num, &compiled, &blame).is_err());
+        assert!(
+            system
+                .check_contract(&negative_num, &compiled, &blame)
+                .is_err()
+        );
 
         // Test non-number (should fail)
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
-        assert!(system.check_contract(&string_val, &compiled, &blame).is_err());
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
+        assert!(
+            system
+                .check_contract(&string_val, &compiled, &blame)
+                .is_err()
+        );
     }
 
     #[test]
@@ -262,24 +310,46 @@ mod contract_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
         let blame = create_test_blame();
 
         // Create an (or/c number? string?) contract
-        let or_contract = ContractExpr::or(vec![
-            Spanned::new(ContractExpr::predicate("number?", Span::new(0, 10)), Span::new(0, 10)),
-            Spanned::new(ContractExpr::predicate("string?", Span::new(0, 10)), Span::new(0, 10)),
-        ], Span::new(0, 10));
+        let or_contract = ContractExpr::or(
+            vec![
+                Spanned::new(
+                    ContractExpr::predicate("number?", Span::new(0, 10)),
+                    Span::new(0, 10),
+                ),
+                Spanned::new(
+                    ContractExpr::predicate("string?", Span::new(0, 10)),
+                    Span::new(0, 10),
+                ),
+            ],
+            Span::new(0, 10),
+        );
 
         let compiled = system.compile_contract(&or_contract, &context).unwrap();
 
         // Test number (should pass)
         let number_val = Value::Literal(Literal::Number(42.0));
-        assert!(system.check_contract(&number_val, &compiled, &blame).is_ok());
+        assert!(
+            system
+                .check_contract(&number_val, &compiled, &blame)
+                .is_ok()
+        );
 
         // Test string (should pass)
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
-        assert!(system.check_contract(&string_val, &compiled, &blame).is_ok());
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
+        assert!(
+            system
+                .check_contract(&string_val, &compiled, &blame)
+                .is_ok()
+        );
 
         // Test boolean (should fail)
         let bool_val = Value::Literal(Literal::Boolean(true));
@@ -291,12 +361,20 @@ mod contract_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
         let blame = create_test_blame();
 
         // Create a (not/c number?) contract
         let not_contract = ContractExpr::not(
-            Spanned::new(ContractExpr::predicate("number?", Span::new(0, 10)), Span::new(0, 10)),
+            Spanned::new(
+                ContractExpr::predicate("number?", Span::new(0, 10)),
+                Span::new(0, 10),
+            ),
             Span::new(0, 10),
         );
 
@@ -304,11 +382,19 @@ mod contract_tests {
 
         // Test number (should fail)
         let number_val = Value::Literal(Literal::Number(42.0));
-        assert!(system.check_contract(&number_val, &compiled, &blame).is_err());
+        assert!(
+            system
+                .check_contract(&number_val, &compiled, &blame)
+                .is_err()
+        );
 
         // Test string (should pass)
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
-        assert!(system.check_contract(&string_val, &compiled, &blame).is_ok());
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
+        assert!(
+            system
+                .check_contract(&string_val, &compiled, &blame)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -316,12 +402,20 @@ mod contract_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
         let blame = create_test_blame();
 
         // Create a (listof number?) contract
         let listof_contract = ContractExpr::listof(
-            Spanned::new(ContractExpr::predicate("number?", Span::new(0, 10)), Span::new(0, 10)),
+            Spanned::new(
+                ContractExpr::predicate("number?", Span::new(0, 10)),
+                Span::new(0, 10),
+            ),
             Span::new(0, 10),
         );
 
@@ -329,27 +423,41 @@ mod contract_tests {
 
         // Test empty list (should pass)
         let empty_list = Value::Nil;
-        assert!(system.check_contract(&empty_list, &compiled, &blame).is_ok());
+        assert!(
+            system
+                .check_contract(&empty_list, &compiled, &blame)
+                .is_ok()
+        );
 
         // Test list of numbers (should pass)
         let number_list = Value::Pair(
-            Arc::new(Value::Literal(Literal::Number(1.0))),
-            Arc::new(Value::Pair(
-                Arc::new(Value::Literal(Literal::Number(2.0))),
-                Arc::new(Value::Nil),
+            Box::new(Value::Literal(Literal::Number(1.0))),
+            Box::new(Value::Pair(
+                Box::new(Value::Literal(Literal::Number(2.0))),
+                Box::new(Value::Nil),
             )),
         );
-        assert!(system.check_contract(&number_list, &compiled, &blame).is_ok());
+        assert!(
+            system
+                .check_contract(&number_list, &compiled, &blame)
+                .is_ok()
+        );
 
         // Test list with non-number (should fail)
         let mixed_list = Value::Pair(
-            Arc::new(Value::Literal(Literal::Number(1.0))),
-            Arc::new(Value::Pair(
-                Arc::new(Value::Literal(Literal::String("hello".to_string()))),
-                Arc::new(Value::Nil),
+            Box::new(Value::Literal(Literal::Number(1.0))),
+            Box::new(Value::Pair(
+                Box::new(Value::Literal(Literal::String(Box::new(
+                    "hello".to_string(),
+                )))),
+                Box::new(Value::Nil),
             )),
         );
-        assert!(system.check_contract(&mixed_list, &compiled, &blame).is_err());
+        assert!(
+            system
+                .check_contract(&mixed_list, &compiled, &blame)
+                .is_err()
+        );
     }
 
     // ============= BLAME TRACKING TESTS =============
@@ -406,10 +514,16 @@ mod contract_tests {
         );
 
         let swapped = blame.swap_blame();
-        
+
         // Check that positive and negative are swapped
-        assert_ne!(format!("{}", blame.positive), format!("{}", swapped.positive));
-        assert_ne!(format!("{}", blame.negative), format!("{}", swapped.negative));
+        assert_ne!(
+            format!("{}", blame.positive),
+            format!("{}", swapped.positive)
+        );
+        assert_ne!(
+            format!("{}", blame.negative),
+            format!("{}", swapped.negative)
+        );
     }
 
     // ============= RUNTIME TESTS =============
@@ -438,7 +552,7 @@ mod contract_tests {
         let check_result = runtime.check_named_contract(&number_val, "my-number-contract", &blame);
         assert!(check_result.is_ok());
 
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
         let check_result = runtime.check_named_contract(&string_val, "my-number-contract", &blame);
         assert!(check_result.is_err());
     }
@@ -450,7 +564,9 @@ mod contract_tests {
 
         // Register a contract
         let number_contract = ContractExpr::predicate("number?", Span::new(0, 10));
-        runtime.register_contract("number-contract".to_string(), number_contract, blame).unwrap();
+        runtime
+            .register_contract("number-contract".to_string(), number_contract, blame)
+            .unwrap();
 
         // Create an alias
         let alias_result = runtime.create_alias("num".to_string(), "number-contract".to_string());
@@ -495,7 +611,7 @@ mod contract_tests {
         // Test that aggressive optimization is applied
         let simple_contract = ContractExpr::predicate("number?", Span::new(0, 10));
         let compiled = system.compile_contract(&simple_contract, &context).unwrap();
-        
+
         assert_eq!(compiled.optimization_level, OptimizationLevel::Maximum);
         assert!(compiled.performance.inlinable);
     }
@@ -505,6 +621,11 @@ mod contract_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
 
         // Compile the same contract twice
@@ -527,21 +648,38 @@ mod contract_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
         let blame = create_test_blame();
 
         // Create a complex contract: (-> (and/c number? positive?) (listof string?) boolean?)
         let domain_contract = Spanned::new(
-            ContractExpr::and(vec![
-                Spanned::new(ContractExpr::predicate("number?", Span::new(0, 10)), Span::new(0, 10)),
-                Spanned::new(ContractExpr::predicate("positive?", Span::new(0, 10)), Span::new(0, 10)),
-            ], Span::new(0, 10)),
+            ContractExpr::and(
+                vec![
+                    Spanned::new(
+                        ContractExpr::predicate("number?", Span::new(0, 10)),
+                        Span::new(0, 10),
+                    ),
+                    Spanned::new(
+                        ContractExpr::predicate("positive?", Span::new(0, 10)),
+                        Span::new(0, 10),
+                    ),
+                ],
+                Span::new(0, 10),
+            ),
             Span::new(0, 10),
         );
 
         let param_contract = Spanned::new(
             ContractExpr::listof(
-                Spanned::new(ContractExpr::predicate("string?", Span::new(0, 10)), Span::new(0, 10)),
+                Spanned::new(
+                    ContractExpr::predicate("string?", Span::new(0, 10)),
+                    Span::new(0, 10),
+                ),
                 Span::new(0, 10),
             ),
             Span::new(0, 10),
@@ -571,21 +709,38 @@ mod contract_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
         let blame = create_test_blame();
 
         // Create nested contracts: (and/c (or/c number? string?) (not/c null?))
         let or_contract = Spanned::new(
-            ContractExpr::or(vec![
-                Spanned::new(ContractExpr::predicate("number?", Span::new(0, 10)), Span::new(0, 10)),
-                Spanned::new(ContractExpr::predicate("string?", Span::new(0, 10)), Span::new(0, 10)),
-            ], Span::new(0, 10)),
+            ContractExpr::or(
+                vec![
+                    Spanned::new(
+                        ContractExpr::predicate("number?", Span::new(0, 10)),
+                        Span::new(0, 10),
+                    ),
+                    Spanned::new(
+                        ContractExpr::predicate("string?", Span::new(0, 10)),
+                        Span::new(0, 10),
+                    ),
+                ],
+                Span::new(0, 10),
+            ),
             Span::new(0, 10),
         );
 
         let not_contract = Spanned::new(
             ContractExpr::not(
-                Spanned::new(ContractExpr::predicate("null?", Span::new(0, 10)), Span::new(0, 10)),
+                Spanned::new(
+                    ContractExpr::predicate("null?", Span::new(0, 10)),
+                    Span::new(0, 10),
+                ),
                 Span::new(0, 10),
             ),
             Span::new(0, 10),
@@ -596,10 +751,18 @@ mod contract_tests {
 
         // Test values
         let number_val = Value::Literal(Literal::Number(42.0));
-        assert!(system.check_contract(&number_val, &compiled, &blame).is_ok());
+        assert!(
+            system
+                .check_contract(&number_val, &compiled, &blame)
+                .is_ok()
+        );
 
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
-        assert!(system.check_contract(&string_val, &compiled, &blame).is_ok());
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
+        assert!(
+            system
+                .check_contract(&string_val, &compiled, &blame)
+                .is_ok()
+        );
 
         let nil_val = Value::Nil;
         assert!(system.check_contract(&nil_val, &compiled, &blame).is_err());
@@ -623,6 +786,11 @@ mod contract_tests {
         let mut system = ContractSystem::with_config(config);
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
         let blame = create_test_blame();
 
@@ -630,7 +798,7 @@ mod contract_tests {
         let compiled = system.compile_contract(&contract, &context).unwrap();
 
         // Even with a string value, checking should succeed when disabled
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
         let result = system.check_contract(&string_val, &compiled, &blame);
         assert!(result.is_ok()); // Should pass because checking is disabled
     }
@@ -642,6 +810,11 @@ mod contract_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
 
         // Test with unknown predicate
@@ -659,7 +832,7 @@ mod contract_tests {
 
         // Manually test recursion depth tracking
         assert_eq!(context.recursion_depth, 0);
-        
+
         // In a real scenario, this would be tested with recursive contracts
         // that exceed the depth limit
     }
@@ -669,14 +842,18 @@ mod contract_tests {
 #[cfg(test)]
 mod integration_tests {
     use super::contract_tests::*;
-    use crate::contracts::{ContractSystem, CompilationContext, OptimizationLevel, ContractExpr};
     use crate::Span;
+    use crate::contracts::{
+        BlameInfo, CompilationContext, ContractExpr, ContractSystem, OptimizationLevel,
+        PredicateRegistry,
+    };
+    use std::collections::HashMap;
 
     #[test]
     fn test_contract_system_integration() {
         // Test that all components work together
         let system = ContractSystem::new();
-        
+
         // Verify system is properly initialized
         assert!(system.config().enable_checking);
         assert!(system.config().enable_compilation);
@@ -689,6 +866,11 @@ mod integration_tests {
         let mut system = ContractSystem::new();
         let context = CompilationContext {
             optimization_level: OptimizationLevel::None,
+            predicates: PredicateRegistry::new(),
+            environment: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 100,
+            blame: BlameInfo::default(),
         };
 
         // Compile many contracts

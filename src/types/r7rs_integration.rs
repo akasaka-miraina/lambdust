@@ -10,8 +10,8 @@
 
 #![allow(missing_docs)]
 
-use super::{Type, TypeVar, TypeScheme, TypeEnv, Constraint};
 use super::type_classes::TypeClassInstance;
+use super::{Constraint, Type, TypeEnv, TypeScheme, TypeVar};
 use crate::diagnostics::{Error, Result, Span};
 use crate::eval::value::Value;
 use std::collections::HashMap;
@@ -192,11 +192,11 @@ impl R7RSIntegration {
             immutable_types: HashMap::new(),
             srfi_types: HashMap::new(),
         };
-        
+
         integration.setup_builtin_types();
         integration
     }
-    
+
     /// Sets up built-in R7RS-large types.
     fn setup_builtin_types(&mut self) {
         self.setup_comparator_types();
@@ -205,58 +205,80 @@ impl R7RSIntegration {
         self.setup_immutable_types();
         self.setup_srfi_types();
     }
-    
+
     /// Sets up comparator types.
     fn setup_comparator_types(&mut self) {
         // String comparator
         let string_comparator = ComparatorType {
             element_type: Type::String,
             constraints: vec![
-                Constraint { class: "Eq".to_string(), type_: Type::String },
-                Constraint { class: "Ord".to_string(), type_: Type::String },
+                Constraint {
+                    class: "Eq".to_string(),
+                    type_: Type::String,
+                },
+                Constraint {
+                    class: "Ord".to_string(),
+                    type_: Type::String,
+                },
             ],
             procedures: ComparatorProcedures {
-                type_test: Some(TypeScheme::monomorphic(
-                    Type::function(vec![Type::Dynamic], Type::Boolean)
+                type_test: Some(TypeScheme::monomorphic(Type::function(
+                    vec![Type::Dynamic],
+                    Type::Boolean,
+                ))),
+                equality: TypeScheme::monomorphic(Type::function(
+                    vec![Type::String, Type::String],
+                    Type::Boolean,
                 )),
-                equality: TypeScheme::monomorphic(
-                    Type::function(vec![Type::String, Type::String], Type::Boolean)
-                ),
-                ordering: Some(TypeScheme::monomorphic(
-                    Type::function(vec![Type::String, Type::String], Type::Symbol)
-                )),
-                hash: Some(TypeScheme::monomorphic(
-                    Type::function(vec![Type::String], Type::Number)
-                )),
+                ordering: Some(TypeScheme::monomorphic(Type::function(
+                    vec![Type::String, Type::String],
+                    Type::Symbol,
+                ))),
+                hash: Some(TypeScheme::monomorphic(Type::function(
+                    vec![Type::String],
+                    Type::Number,
+                ))),
             },
         };
-        self.comparator_types.insert("string-comparator".to_string(), string_comparator);
-        
+        self.comparator_types
+            .insert("string-comparator".to_string(), string_comparator);
+
         // Number comparator
         let number_comparator = ComparatorType {
             element_type: Type::Number,
             constraints: vec![
-                Constraint { class: "Eq".to_string(), type_: Type::Number },
-                Constraint { class: "Ord".to_string(), type_: Type::Number },
+                Constraint {
+                    class: "Eq".to_string(),
+                    type_: Type::Number,
+                },
+                Constraint {
+                    class: "Ord".to_string(),
+                    type_: Type::Number,
+                },
             ],
             procedures: ComparatorProcedures {
-                type_test: Some(TypeScheme::monomorphic(
-                    Type::function(vec![Type::Dynamic], Type::Boolean)
+                type_test: Some(TypeScheme::monomorphic(Type::function(
+                    vec![Type::Dynamic],
+                    Type::Boolean,
+                ))),
+                equality: TypeScheme::monomorphic(Type::function(
+                    vec![Type::Number, Type::Number],
+                    Type::Boolean,
                 )),
-                equality: TypeScheme::monomorphic(
-                    Type::function(vec![Type::Number, Type::Number], Type::Boolean)
-                ),
-                ordering: Some(TypeScheme::monomorphic(
-                    Type::function(vec![Type::Number, Type::Number], Type::Symbol)
-                )),
-                hash: Some(TypeScheme::monomorphic(
-                    Type::function(vec![Type::Number], Type::Number)
-                )),
+                ordering: Some(TypeScheme::monomorphic(Type::function(
+                    vec![Type::Number, Type::Number],
+                    Type::Symbol,
+                ))),
+                hash: Some(TypeScheme::monomorphic(Type::function(
+                    vec![Type::Number],
+                    Type::Number,
+                ))),
             },
         };
-        self.comparator_types.insert("number-comparator".to_string(), number_comparator);
+        self.comparator_types
+            .insert("number-comparator".to_string(), number_comparator);
     }
-    
+
     /// Sets up hash table types.
     fn setup_hash_table_types(&mut self) {
         // Generic hash table type
@@ -273,7 +295,10 @@ impl R7RSIntegration {
                             Type::Application {
                                 constructor: Box::new(Type::Constructor {
                                     name: "HashTable".to_string(),
-                                    kind: super::Kind::arrow(super::Kind::Type, super::Kind::arrow(super::Kind::Type, super::Kind::Type)),
+                                    kind: super::Kind::arrow(
+                                        super::Kind::Type,
+                                        super::Kind::arrow(super::Kind::Type, super::Kind::Type),
+                                    ),
                                 }),
                                 argument: Box::new(Type::Variable(TypeVar::with_name("K"))),
                             },
@@ -296,7 +321,10 @@ impl R7RSIntegration {
                             Type::Application {
                                 constructor: Box::new(Type::Constructor {
                                     name: "HashTable".to_string(),
-                                    kind: super::Kind::arrow(super::Kind::Type, super::Kind::arrow(super::Kind::Type, super::Kind::Type)),
+                                    kind: super::Kind::arrow(
+                                        super::Kind::Type,
+                                        super::Kind::arrow(super::Kind::Type, super::Kind::Type),
+                                    ),
                                 }),
                                 argument: Box::new(Type::Variable(TypeVar::with_name("K"))),
                             },
@@ -314,7 +342,10 @@ impl R7RSIntegration {
                             Type::Application {
                                 constructor: Box::new(Type::Constructor {
                                     name: "HashTable".to_string(),
-                                    kind: super::Kind::arrow(super::Kind::Type, super::Kind::arrow(super::Kind::Type, super::Kind::Type)),
+                                    kind: super::Kind::arrow(
+                                        super::Kind::Type,
+                                        super::Kind::arrow(super::Kind::Type, super::Kind::Type),
+                                    ),
                                 }),
                                 argument: Box::new(Type::Variable(TypeVar::with_name("K"))),
                             },
@@ -331,7 +362,10 @@ impl R7RSIntegration {
                             Type::Application {
                                 constructor: Box::new(Type::Constructor {
                                     name: "HashTable".to_string(),
-                                    kind: super::Kind::arrow(super::Kind::Type, super::Kind::arrow(super::Kind::Type, super::Kind::Type)),
+                                    kind: super::Kind::arrow(
+                                        super::Kind::Type,
+                                        super::Kind::arrow(super::Kind::Type, super::Kind::Type),
+                                    ),
                                 }),
                                 argument: Box::new(Type::Variable(TypeVar::with_name("K"))),
                             },
@@ -342,9 +376,10 @@ impl R7RSIntegration {
                 ),
             },
         };
-        self.hash_table_types.insert("hash-table".to_string(), hash_table_type);
+        self.hash_table_types
+            .insert("hash-table".to_string(), hash_table_type);
     }
-    
+
     /// Sets up generator types.
     fn setup_generator_types(&mut self) {
         let generator_type = GeneratorType {
@@ -459,9 +494,10 @@ impl R7RSIntegration {
                 ),
             },
         };
-        self.generator_types.insert("generator".to_string(), generator_type);
+        self.generator_types
+            .insert("generator".to_string(), generator_type);
     }
-    
+
     /// Sets up immutable data structure types.
     fn setup_immutable_types(&mut self) {
         // Immutable list
@@ -486,7 +522,7 @@ impl R7RSIntegration {
                                 }),
                                 argument: Box::new(Type::Variable(TypeVar::with_name("A"))),
                             },
-                            Type::Number, // index
+                            Type::Number,                            // index
                             Type::Variable(TypeVar::with_name("A")), // new value
                         ],
                         Type::Application {
@@ -510,7 +546,7 @@ impl R7RSIntegration {
                                 }),
                                 argument: Box::new(Type::Variable(TypeVar::with_name("A"))),
                             },
-                            Type::Number, // index
+                            Type::Number,                            // index
                             Type::Variable(TypeVar::with_name("A")), // value to insert
                         ],
                         Type::Application {
@@ -576,37 +612,48 @@ impl R7RSIntegration {
                 )),
             },
         };
-        self.immutable_types.insert("ilist".to_string(), immutable_list);
+        self.immutable_types
+            .insert("ilist".to_string(), immutable_list);
     }
-    
+
     /// Sets up SRFI type extensions.
     fn setup_srfi_types(&mut self) {
         // SRFI-1 (List Library)
         let mut srfi1_types = HashMap::new();
-        srfi1_types.insert("circular-list".to_string(), Type::list(Type::Variable(TypeVar::with_name("a"))));
-        srfi1_types.insert("dotted-list".to_string(), Type::pair(Type::Variable(TypeVar::with_name("a")), Type::Variable(TypeVar::with_name("b"))));
-        
+        srfi1_types.insert(
+            "circular-list".to_string(),
+            Type::list(Type::Variable(TypeVar::with_name("a"))),
+        );
+        srfi1_types.insert(
+            "dotted-list".to_string(),
+            Type::pair(
+                Type::Variable(TypeVar::with_name("a")),
+                Type::Variable(TypeVar::with_name("b")),
+            ),
+        );
+
         let srfi1 = SRFITypeExtension {
             srfi_number: 1,
             types: srfi1_types,
             instances: vec![],
-            special_rules: vec![
-                SRFITypeRule {
-                    name: "proper-list-constraint".to_string(),
-                    condition: "list operation".to_string(),
-                    transformation: "ensure proper list".to_string(),
-                },
-            ],
+            special_rules: vec![SRFITypeRule {
+                name: "proper-list-constraint".to_string(),
+                condition: "list operation".to_string(),
+                transformation: "ensure proper list".to_string(),
+            }],
         };
         self.srfi_types.insert("srfi-1".to_string(), srfi1);
-        
+
         // SRFI-14 (Character Sets)
         let mut srfi14_types = HashMap::new();
-        srfi14_types.insert("char-set".to_string(), Type::Constructor {
-            name: "CharSet".to_string(),
-            kind: super::Kind::Type,
-        });
-        
+        srfi14_types.insert(
+            "char-set".to_string(),
+            Type::Constructor {
+                name: "CharSet".to_string(),
+                kind: super::Kind::Type,
+            },
+        );
+
         let srfi14 = SRFITypeExtension {
             srfi_number: 14,
             types: srfi14_types,
@@ -614,92 +661,107 @@ impl R7RSIntegration {
             special_rules: vec![],
         };
         self.srfi_types.insert("srfi-14".to_string(), srfi14);
-        
+
         // SRFI-39 (Parameter Objects)
         let mut srfi39_types = HashMap::new();
-        srfi39_types.insert("parameter".to_string(), Type::Application {
-            constructor: Box::new(Type::Constructor {
-                name: "Parameter".to_string(),
-                kind: super::Kind::arrow(super::Kind::Type, super::Kind::Type),
-            }),
-            argument: Box::new(Type::Variable(TypeVar::with_name("a"))),
-        });
-        
+        srfi39_types.insert(
+            "parameter".to_string(),
+            Type::Application {
+                constructor: Box::new(Type::Constructor {
+                    name: "Parameter".to_string(),
+                    kind: super::Kind::arrow(super::Kind::Type, super::Kind::Type),
+                }),
+                argument: Box::new(Type::Variable(TypeVar::with_name("a"))),
+            },
+        );
+
         let srfi39 = SRFITypeExtension {
             srfi_number: 39,
             types: srfi39_types,
             instances: vec![],
-            special_rules: vec![
-                SRFITypeRule {
-                    name: "parameter-conversion".to_string(),
-                    condition: "parameter access".to_string(),
-                    transformation: "apply converter".to_string(),
-                },
-            ],
+            special_rules: vec![SRFITypeRule {
+                name: "parameter-conversion".to_string(),
+                condition: "parameter access".to_string(),
+                transformation: "apply converter".to_string(),
+            }],
         };
         self.srfi_types.insert("srfi-39".to_string(), srfi39);
     }
-    
+
     /// Type-checks a comparator definition.
     pub fn check_comparator(&self, _name: &str, element_type: &Type) -> Result<ComparatorType> {
         // Verify that the element type supports the required operations
-        let mut constraints = vec![
-            Constraint { class: "Eq".to_string(), type_: element_type.clone() },
-        ];
-        
+        let mut constraints = vec![Constraint {
+            class: "Eq".to_string(),
+            type_: element_type.clone(),
+        }];
+
         // Check if ordering is supported
         if self.supports_ordering(element_type) {
-            constraints.push(Constraint { class: "Ord".to_string(), type_: element_type.clone() });
+            constraints.push(Constraint {
+                class: "Ord".to_string(),
+                type_: element_type.clone(),
+            });
         }
-        
+
         // Check if hashing is supported
         if self.supports_hashing(element_type) {
-            constraints.push(Constraint { class: "Hash".to_string(), type_: element_type.clone() });
+            constraints.push(Constraint {
+                class: "Hash".to_string(),
+                type_: element_type.clone(),
+            });
         }
-        
+
         Ok(ComparatorType {
             element_type: element_type.clone(),
             constraints,
             procedures: self.default_comparator_procedures(element_type),
         })
     }
-    
+
     /// Checks if a type supports ordering.
     fn supports_ordering(&self, ty: &Type) -> bool {
         matches!(ty, Type::Number | Type::String | Type::Char | Type::Boolean)
     }
-    
+
     /// Checks if a type supports hashing.
     fn supports_hashing(&self, ty: &Type) -> bool {
-        matches!(ty, Type::Number | Type::String | Type::Char | Type::Boolean | Type::Symbol)
+        matches!(
+            ty,
+            Type::Number | Type::String | Type::Char | Type::Boolean | Type::Symbol
+        )
     }
-    
+
     /// Creates default comparator procedures for a type.
     fn default_comparator_procedures(&self, element_type: &Type) -> ComparatorProcedures {
         ComparatorProcedures {
-            type_test: Some(TypeScheme::monomorphic(
-                Type::function(vec![Type::Dynamic], Type::Boolean)
+            type_test: Some(TypeScheme::monomorphic(Type::function(
+                vec![Type::Dynamic],
+                Type::Boolean,
+            ))),
+            equality: TypeScheme::monomorphic(Type::function(
+                vec![element_type.clone(), element_type.clone()],
+                Type::Boolean,
             )),
-            equality: TypeScheme::monomorphic(
-                Type::function(vec![element_type.clone(), element_type.clone()], Type::Boolean)
-            ),
             ordering: if self.supports_ordering(element_type) {
-                Some(TypeScheme::monomorphic(
-                    Type::function(vec![element_type.clone(), element_type.clone()], Type::Symbol)
-                ))
+                Some(TypeScheme::monomorphic(Type::function(
+                    vec![element_type.clone(), element_type.clone()],
+                    Type::Symbol,
+                )))
             } else {
                 None
             },
             hash: if self.supports_hashing(element_type) {
-                Some(TypeScheme::monomorphic(
-                    Type::function(vec![element_type.clone()], Type::Number)
-                ))
+                Some(TypeScheme::monomorphic(Type::function(
+                    vec![element_type.clone()],
+                    Type::Number,
+                )))
             } else {
                 None
             },
         }
     }
-    
+
     /// Type-checks a hash table operation.
     pub fn check_hash_table_operation(
         &self,
@@ -725,7 +787,7 @@ impl R7RSIntegration {
             )))
         }
     }
-    
+
     /// Infers the type of a generator.
     pub fn infer_generator_type(&self, _generator_expr: &str) -> Result<GeneratorType> {
         // Simplified generator type inference
@@ -733,10 +795,15 @@ impl R7RSIntegration {
         Ok(GeneratorType {
             element_type: Type::Dynamic,
             state_type: Some(Type::Dynamic),
-            operations: self.generator_types.get("generator").unwrap().operations.clone(),
+            operations: self
+                .generator_types
+                .get("generator")
+                .unwrap()
+                .operations
+                .clone(),
         })
     }
-    
+
     /// Checks immutability guarantees for a data structure operation.
     pub fn check_immutability(&self, type_name: &str, operation: &str) -> Result<bool> {
         if let Some(_immutable_type) = self.immutable_types.get(type_name) {
@@ -757,14 +824,18 @@ impl R7RSIntegration {
             )))
         }
     }
-    
+
     /// Gets SRFI-specific type rules.
     pub fn get_srfi_rules(&self, srfi_name: &str) -> Option<&SRFITypeExtension> {
         self.srfi_types.get(srfi_name)
     }
-    
+
     /// Validates type safety for a mixed dynamic/static operation.
-    pub fn validate_gradual_typing(&self, static_type: &Type, dynamic_value: &Value) -> Result<bool> {
+    pub fn validate_gradual_typing(
+        &self,
+        static_type: &Type,
+        dynamic_value: &Value,
+    ) -> Result<bool> {
         // Simplified gradual typing validation
         // In a real implementation, this would perform sophisticated type checking
         match (static_type, dynamic_value) {
@@ -793,7 +864,9 @@ impl fmt::Display for ComparatorType {
         if !self.constraints.is_empty() {
             write!(f, " with ")?;
             for (i, constraint) in self.constraints.iter().enumerate() {
-                if i > 0 { write!(f, ", ")?; }
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
                 write!(f, "{}", constraint.class)?;
             }
         }
@@ -815,7 +888,11 @@ impl fmt::Display for GeneratorType {
 
 impl fmt::Display for ImmutableType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Immutable<{}> ({:?})", self.element_type, self.immutability)
+        write!(
+            f,
+            "Immutable<{}> ({:?})",
+            self.element_type, self.immutability
+        )
     }
 }
 
@@ -836,7 +913,7 @@ mod tests {
     #[test]
     fn test_comparator_type_checking() {
         let integration = R7RSIntegration::new();
-        
+
         let string_comparator = integration.check_comparator("test", &Type::String).unwrap();
         assert_eq!(string_comparator.element_type, Type::String);
         assert!(string_comparator.constraints.len() >= 2); // At least Eq and Ord
@@ -845,22 +922,24 @@ mod tests {
     #[test]
     fn test_hash_table_operations() {
         let integration = R7RSIntegration::new();
-        
-        let get_op = integration.check_hash_table_operation("hash-table-ref", &Type::String, &Type::Number);
+
+        let get_op =
+            integration.check_hash_table_operation("hash-table-ref", &Type::String, &Type::Number);
         assert!(get_op.is_ok());
-        
-        let invalid_op = integration.check_hash_table_operation("invalid-op", &Type::String, &Type::Number);
+
+        let invalid_op =
+            integration.check_hash_table_operation("invalid-op", &Type::String, &Type::Number);
         assert!(invalid_op.is_err());
     }
 
     #[test]
     fn test_immutability_checking() {
         let integration = R7RSIntegration::new();
-        
+
         let update_check = integration.check_immutability("ilist", "update");
         assert!(update_check.is_ok());
         assert!(update_check.unwrap());
-        
+
         let unknown_type = integration.check_immutability("unknown", "update");
         assert!(unknown_type.is_err());
     }
@@ -868,11 +947,11 @@ mod tests {
     #[test]
     fn test_srfi_integration() {
         let integration = R7RSIntegration::new();
-        
+
         let srfi1 = integration.get_srfi_rules("srfi-1");
         assert!(srfi1.is_some());
         assert_eq!(srfi1.unwrap().srfi_number, 1);
-        
+
         let srfi39 = integration.get_srfi_rules("srfi-39");
         assert!(srfi39.is_some());
         assert_eq!(srfi39.unwrap().srfi_number, 39);
@@ -881,17 +960,17 @@ mod tests {
     #[test]
     fn test_gradual_typing_validation() {
         let integration = R7RSIntegration::new();
-        
+
         // Dynamic type accepts anything
         let result = integration.validate_gradual_typing(&Type::Dynamic, &Value::integer(42));
         assert!(result.is_ok());
         assert!(result.unwrap());
-        
+
         // Type match
         let result = integration.validate_gradual_typing(&Type::Number, &Value::integer(42));
         assert!(result.is_ok());
         assert!(result.unwrap());
-        
+
         // Type mismatch
         let result = integration.validate_gradual_typing(&Type::String, &Value::integer(42));
         assert!(result.is_ok());

@@ -17,12 +17,14 @@
 //! This module now serves as a coordination point and maintains compatibility.
 
 // Re-export all analysis components for backward compatibility
-pub use super::analysis_framework::{StaticAnalyzer, CodeAnalyzer, AnalysisResult, AnalysisConfig};
+pub use super::analysis_framework::{AnalysisConfig, AnalysisResult, CodeAnalyzer, StaticAnalyzer};
 pub use super::analysis_types::*;
-pub use super::dependency_analysis::{DependencyGraph, DependencyNode, DependencyEdge, DependencyAnalyzer};
-pub use super::variable_scope_analysis::{VariableUsage, VariableInfo, ScopeInfo};
-pub use super::control_flow_analysis::{ControlFlowGraph, BasicBlock};
-pub use super::type_analysis::{TypeInformation, FunctionSignature, TypeConstraint, TypeError};
-pub use super::quality_metrics::{QualityMetrics, DuplicationInfo, OptimizationOpportunity};
+pub use super::control_flow_analysis::{BasicBlock, ControlFlowGraph};
+pub use super::dependency_analysis::{
+    DependencyAnalyzer, DependencyEdge, DependencyGraph, DependencyNode,
+};
+pub use super::profiling_analysis::{AllocationInfo, HotSpot, Profiler, ProfilingInfo};
+pub use super::quality_metrics::{DuplicationInfo, OptimizationOpportunity, QualityMetrics};
+pub use super::type_analysis::{FunctionSignature, TypeConstraint, TypeError, TypeInformation};
+pub use super::variable_scope_analysis::{ScopeInfo, VariableInfo, VariableUsage};
 pub use super::warning_system::AnalysisWarning;
-pub use super::profiling_analysis::{ProfilingInfo, AllocationInfo, HotSpot, Profiler};

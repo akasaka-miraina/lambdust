@@ -9,30 +9,30 @@
 //! - Platform-specific file system features
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{
-    Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment
-};
 use crate::effects::Effect;
-use std::sync::Arc;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::Arc;
 
+#[cfg(target_os = "linux")]
+use nix::fcntl::{FcntlArg, OFlag, fcntl};
 #[cfg(target_os = "linux")]
 use nix::sys::epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags, EpollTimeout};
 #[cfg(target_os = "linux")]
 use nix::unistd::{pipe, read, write};
-#[cfg(target_os = "linux")]
-use nix::fcntl::{fcntl, FcntlArg, OFlag};
 
 #[cfg(all(target_os = "macos", feature = "advanced-io"))]
-use nix::sys::event::{KEvent, EventFilter, FilterFlag, EventFlag, Kqueue};
+use nix::sys::event::{EventFilter, EventFlag, FilterFlag, KEvent, Kqueue};
 // Note: EvFlags may not be available in this version of nix
 
 #[cfg(windows)]
 use winapi::um::ioapiset::{CreateIoCompletionPort, GetQueuedCompletionStatus};
 #[cfg(windows)]
-use winapi::um::winnt::{HANDLE, INVALID_HANDLE_VALUE};
-#[cfg(windows)]
 use winapi::um::minwinbase::OVERLAPPED;
+#[cfg(windows)]
+use winapi::um::winnt::{HANDLE, INVALID_HANDLE_VALUE};
 
 use mio::{Events, Poll, Token, Waker};
 use std::time::Duration;
@@ -46,10 +46,7 @@ pub enum PlatformHandle {
         events: Vec<EpollEvent>,
     },
     #[cfg(all(target_os = "macos", feature = "advanced-io"))]
-    Kqueue {
-        kq_fd: Kqueue,
-        events: Vec<KEvent>,
-    },
+    Kqueue { kq_fd: Kqueue, events: Vec<KEvent> },
     #[cfg(windows)]
     Iocp {
         handle: HANDLE,
@@ -98,14 +95,14 @@ pub struct HighPerformanceIo {
 impl HighPerformanceIo {
     pub fn new() -> std::io::Result<Self> {
         let handle = Self::create_platform_handle()?;
-        
+
         Ok(HighPerformanceIo {
             handle,
             pending_operations: HashMap::new(),
             next_operation_id: 1,
         })
     }
-    
+
     #[cfg(target_os = "linux")]
     fn create_platform_handle() -> std::io::Result<PlatformHandle> {
         match Epoll::new(EpollCreateFlags::empty()) {
@@ -119,7 +116,7 @@ impl HighPerformanceIo {
             }
         }
     }
-    
+
     #[cfg(all(target_os = "macos", feature = "advanced-io"))]
     fn create_platform_handle() -> std::io::Result<PlatformHandle> {
         match Kqueue::new() {
@@ -133,13 +130,13 @@ impl HighPerformanceIo {
             }
         }
     }
-    
+
     // Fallback for macos without advanced-io feature
     #[cfg(all(target_os = "macos", not(feature = "advanced-io")))]
     fn create_platform_handle() -> std::io::Result<PlatformHandle> {
         Self::create_mio_handle()
     }
-    
+
     #[cfg(windows)]
     fn create_platform_handle() -> std::io::Result<PlatformHandle> {
         unsafe {
@@ -155,36 +152,39 @@ impl HighPerformanceIo {
             }
         }
     }
-    
+
     #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     fn create_platform_handle() -> std::io::Result<PlatformHandle> {
         Self::create_mio_handle()
     }
-    
+
     fn create_mio_handle() -> std::io::Result<PlatformHandle> {
         let poll = Poll::new()?;
         let events = Events::with_capacity(32);
         let waker = Arc::new(Waker::new(poll.registry(), Token(0))?);
-        
+
         Ok(PlatformHandle::Mio {
             poll,
             events,
             waker,
         })
     }
-    
+
     pub fn submit_operation(&mut self, operation: IoOperation, user_data: Option<u64>) -> u64 {
         let op_id = user_data.unwrap_or_else(|| {
             let id = self.next_operation_id;
             self.next_operation_id += 1;
             id
         });
-        
+
         self.pending_operations.insert(op_id, operation);
         op_id
     }
-    
-    pub fn poll_completions(&mut self, timeout: Option<Duration>) -> std::io::Result<Vec<IoCompletion>> {
+
+    pub fn poll_completions(
+        &mut self,
+        timeout: Option<Duration>,
+    ) -> std::io::Result<Vec<IoCompletion>> {
         match &mut self.handle {
             #[cfg(target_os = "linux")]
             PlatformHandle::Epoll { epoll_fd, events } => {
@@ -205,14 +205,19 @@ impl HighPerformanceIo {
             }
         }
     }
-    
+
     #[cfg(target_os = "linux")]
-    fn poll_epoll_static(epoll_fd: i32, events: &mut Vec<EpollEvent>, timeout: Option<Duration>, pending_operations: &mut HashMap<u64, IoOperation>) -> std::io::Result<Vec<IoCompletion>> {
+    fn poll_epoll_static(
+        epoll_fd: i32,
+        events: &mut Vec<EpollEvent>,
+        timeout: Option<Duration>,
+        pending_operations: &mut HashMap<u64, IoOperation>,
+    ) -> std::io::Result<Vec<IoCompletion>> {
         events.clear();
         events.resize(32, EpollEvent::empty());
-        
+
         let timeout_ms = timeout.map(|d| d.as_millis() as i32).unwrap_or(-1);
-        
+
         // This is a simplified implementation - real io_uring integration would be more complex
         match nix::sys::epoll::epoll_wait(epoll_fd, events, timeout_ms) {
             Ok(num_events) => {
@@ -220,7 +225,7 @@ impl HighPerformanceIo {
                 for i in 0..num_events {
                     let event = &events[i];
                     let user_data = event.data();
-                    
+
                     if let Some(operation) = pending_operations.remove(&user_data) {
                         completions.push(IoCompletion {
                             operation,
@@ -235,25 +240,38 @@ impl HighPerformanceIo {
             Err(e) => Err(std::io::Error::from(e)),
         }
     }
-    
+
     #[cfg(all(target_os = "macos", feature = "advanced-io"))]
-    fn poll_kqueue_static(kq_fd: &Kqueue, events: &mut Vec<KEvent>, timeout: Option<Duration>, pending_operations: &mut HashMap<u64, IoOperation>) -> std::io::Result<Vec<IoCompletion>> {
+    fn poll_kqueue_static(
+        kq_fd: &Kqueue,
+        events: &mut Vec<KEvent>,
+        timeout: Option<Duration>,
+        pending_operations: &mut HashMap<u64, IoOperation>,
+    ) -> std::io::Result<Vec<IoCompletion>> {
         events.clear();
-        events.resize(32, KEvent::new(0, EventFilter::EVFILT_READ, EventFlag::empty(), FilterFlag::empty(), 0, 0));
-        
-        let timeout_spec = timeout.map(|d| {
-            libc::timespec {
-                tv_sec: d.as_secs() as libc::time_t,
-                tv_nsec: d.subsec_nanos() as libc::c_long,
-            }
+        events.resize(
+            32,
+            KEvent::new(
+                0,
+                EventFilter::EVFILT_READ,
+                EventFlag::empty(),
+                FilterFlag::empty(),
+                0,
+                0,
+            ),
+        );
+
+        let timeout_spec = timeout.map(|d| libc::timespec {
+            tv_sec: d.as_secs() as libc::time_t,
+            tv_nsec: d.subsec_nanos() as libc::c_long,
         });
-        
+
         match kq_fd.kevent(&[], events, timeout_spec) {
             Ok(num_events) => {
                 let mut completions = Vec::new();
                 for event in &events[0..num_events] {
                     let user_data = event.udata() as u64;
-                    
+
                     if let Some(operation) = pending_operations.remove(&user_data) {
                         completions.push(IoCompletion {
                             operation,
@@ -268,18 +286,24 @@ impl HighPerformanceIo {
             Err(e) => Err(std::io::Error::from(e)),
         }
     }
-    
+
     #[cfg(windows)]
-    fn poll_iocp_static(handle: HANDLE, timeout: Option<Duration>, pending_operations: &mut HashMap<u64, IoOperation>) -> std::io::Result<Vec<IoCompletion>> {
+    fn poll_iocp_static(
+        handle: HANDLE,
+        timeout: Option<Duration>,
+        pending_operations: &mut HashMap<u64, IoOperation>,
+    ) -> std::io::Result<Vec<IoCompletion>> {
         use std::ptr;
         use winapi::shared::minwindef::{DWORD, ULONG_PTR};
-        
-        let timeout_ms = timeout.map(|d| d.as_millis() as DWORD).unwrap_or(winapi::um::winbase::INFINITE);
-        
+
+        let timeout_ms = timeout
+            .map(|d| d.as_millis() as DWORD)
+            .unwrap_or(winapi::um::winbase::INFINITE);
+
         let mut bytes_transferred: DWORD = 0;
         let mut completion_key: ULONG_PTR = 0;
         let mut overlapped: *mut OVERLAPPED = ptr::null_mut();
-        
+
         unsafe {
             let result = GetQueuedCompletionStatus(
                 handle,
@@ -288,7 +312,7 @@ impl HighPerformanceIo {
                 &mut overlapped,
                 timeout_ms,
             );
-            
+
             if result != 0 {
                 let user_data = completion_key as u64;
                 if let Some(operation) = pending_operations.remove(&user_data) {
@@ -311,11 +335,16 @@ impl HighPerformanceIo {
             }
         }
     }
-    
-    fn poll_mio_static(poll: &mut Poll, events: &mut Events, timeout: Option<Duration>, pending_operations: &mut HashMap<u64, IoOperation>) -> std::io::Result<Vec<IoCompletion>> {
+
+    fn poll_mio_static(
+        poll: &mut Poll,
+        events: &mut Events,
+        timeout: Option<Duration>,
+        pending_operations: &mut HashMap<u64, IoOperation>,
+    ) -> std::io::Result<Vec<IoCompletion>> {
         events.clear();
         poll.poll(events, timeout)?;
-        
+
         let mut completions = Vec::new();
         for event in events.iter() {
             let token = event.token().0 as u64;
@@ -328,7 +357,7 @@ impl HighPerformanceIo {
                 });
             }
         }
-        
+
         Ok(completions)
     }
 }
@@ -337,13 +366,13 @@ impl HighPerformanceIo {
 pub fn create_platform_io_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // High-performance I/O operations
     bind_high_performance_operations(env);
-    
+
     // Platform detection and capabilities
     bind_platform_detection(env);
-    
+
     // Platform-specific file system features
     bind_platform_fs_features(env);
-    
+
     // Event notification systems
     bind_event_systems(env);
 }
@@ -352,127 +381,166 @@ pub fn create_platform_io_bindings(env: &Arc<ThreadSafeEnvironment>) {
 
 fn bind_high_performance_operations(env: &Arc<ThreadSafeEnvironment>) {
     // create-high-performance-io
-    env.define("create-high-performance-io".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "create-high-performance-io".to_string(),
-        arity_min: 0,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_create_high_performance_io),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "create-high-performance-io".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "create-high-performance-io".to_string(),
+            arity_min: 0,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_create_high_performance_io),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // submit-io-operation
-    env.define("submit-io-operation".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "submit-io-operation".to_string(),
-        arity_min: 2,
-        arity_max: Some(4),
-        implementation: PrimitiveImpl::RustFn(primitive_submit_io_operation),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "submit-io-operation".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "submit-io-operation".to_string(),
+            arity_min: 2,
+            arity_max: Some(4),
+            implementation: PrimitiveImpl::RustFn(primitive_submit_io_operation),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // poll-io-completions
-    env.define("poll-io-completions".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "poll-io-completions".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_poll_io_completions),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "poll-io-completions".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "poll-io-completions".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_poll_io_completions),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // batch-io-operations
-    env.define("batch-io-operations".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "batch-io-operations".to_string(),
-        arity_min: 2,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_batch_io_operations),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "batch-io-operations".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "batch-io-operations".to_string(),
+            arity_min: 2,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_batch_io_operations),
+            effects: vec![Effect::IO],
+        })),
+    );
 }
 
 fn bind_platform_detection(env: &Arc<ThreadSafeEnvironment>) {
     // platform-name
-    env.define("platform-name".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "platform-name".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_platform_name),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "platform-name".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "platform-name".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_platform_name),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // platform-capabilities
-    env.define("platform-capabilities".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "platform-capabilities".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_platform_capabilities),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "platform-capabilities".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "platform-capabilities".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_platform_capabilities),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // io-backend-available?
-    env.define("io-backend-available?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "io-backend-available?".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_io_backend_available_p),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "io-backend-available?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "io-backend-available?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_io_backend_available_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 fn bind_platform_fs_features(env: &Arc<ThreadSafeEnvironment>) {
     // platform-file-attributes
-    env.define("platform-file-attributes".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "platform-file-attributes".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_platform_file_attributes),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "platform-file-attributes".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "platform-file-attributes".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_platform_file_attributes),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // set-platform-file-attributes
-    env.define("set-platform-file-attributes".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "set-platform-file-attributes".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_set_platform_file_attributes),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "set-platform-file-attributes".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "set-platform-file-attributes".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_set_platform_file_attributes),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // file-system-info
-    env.define("file-system-info".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "file-system-info".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_file_system_info),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "file-system-info".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "file-system-info".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_file_system_info),
+            effects: vec![Effect::IO],
+        })),
+    );
 }
 
 fn bind_event_systems(env: &Arc<ThreadSafeEnvironment>) {
     // create-event-watcher
-    env.define("create-event-watcher".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "create-event-watcher".to_string(),
-        arity_min: 0,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_create_event_watcher),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "create-event-watcher".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "create-event-watcher".to_string(),
+            arity_min: 0,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_create_event_watcher),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // watch-file-events
-    env.define("watch-file-events".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "watch-file-events".to_string(),
-        arity_min: 2,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_watch_file_events),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "watch-file-events".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "watch-file-events".to_string(),
+            arity_min: 2,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_watch_file_events),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // poll-events
-    env.define("poll-events".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "poll-events".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_poll_events),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "poll-events".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "poll-events".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_poll_events),
+            effects: vec![Effect::IO],
+        })),
+    );
 }
 
 // ============= IMPLEMENTATION FUNCTIONS =============
@@ -482,17 +550,20 @@ fn bind_event_systems(env: &Arc<ThreadSafeEnvironment>) {
 pub fn primitive_create_high_performance_io(args: &[Value]) -> Result<Value> {
     if args.len() > 1 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("create-high-performance-io expects 0 or 1 arguments, got {}", args.len()),
+            format!(
+                "create-high-performance-io expects 0 or 1 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let backend = if args.len() == 1 {
         extract_string(&args[0], "create-high-performance-io")?
     } else {
         "auto".to_string()
     };
-    
+
     match HighPerformanceIo::new() {
         Ok(hp_io) => Ok(Value::opaque(Box::new(hp_io))),
         Err(e) => Err(Box::new(DiagnosticError::runtime_error(
@@ -505,11 +576,14 @@ pub fn primitive_create_high_performance_io(args: &[Value]) -> Result<Value> {
 pub fn primitive_submit_io_operation(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("submit-io-operation expects 2 to 4 arguments, got {}", args.len()),
+            format!(
+                "submit-io-operation expects 2 to 4 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let operation_str = extract_string(&args[1], "submit-io-operation")?;
     let operation = match operation_str.as_str() {
         "read" => IoOperation::Read,
@@ -525,13 +599,13 @@ pub fn primitive_submit_io_operation(args: &[Value]) -> Result<Value> {
             )));
         }
     };
-    
+
     let user_data = if args.len() > 2 {
         Some(extract_integer(&args[2], "submit-io-operation")? as u64)
     } else {
         None
     };
-    
+
     // Extract high-performance I/O from opaque value
     match &args[0] {
         Value::Opaque(opaque_data) => {
@@ -556,17 +630,20 @@ pub fn primitive_submit_io_operation(args: &[Value]) -> Result<Value> {
 pub fn primitive_poll_io_completions(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("poll-io-completions expects 1 or 2 arguments, got {}", args.len()),
+            format!(
+                "poll-io-completions expects 1 or 2 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let timeout_ms = if args.len() > 1 {
         Some(extract_integer(&args[1], "poll-io-completions")? as u64)
     } else {
         None
     };
-    
+
     // Extract high-performance I/O from opaque value
     match &args[0] {
         Value::Opaque(opaque_data) => {
@@ -614,83 +691,83 @@ pub fn primitive_platform_name(_args: &[Value]) -> Result<Value> {
     } else {
         "unknown"
     };
-    
+
     Ok(Value::string(platform.to_string()))
 }
 
 pub fn primitive_platform_capabilities(_args: &[Value]) -> Result<Value> {
     #[allow(clippy::mutable_key_type)]
     let mut capabilities = HashMap::new();
-    
+
     // I/O backends
-    capabilities.insert(
-        Value::Symbol(crate::utils::intern_symbol("io-backends")),
+    capabilities.insert(Value::Symbol(crate::utils::intern_symbol("io-backends")), {
+        let mut backends = Vec::new();
+        backends.push(Value::string("mio".to_string()));
+
+        #[cfg(target_os = "linux")]
         {
-            let mut backends = Vec::new();
-            backends.push(Value::string("mio".to_string()));
-            
-            #[cfg(target_os = "linux")]
-            {
-                backends.push(Value::string("epoll".to_string()));
-                backends.push(Value::string("io_uring".to_string()));
-            }
-            
-            #[cfg(target_os = "macos")]
-            {
-                backends.push(Value::string("kqueue".to_string()));
-            }
-            
-            #[cfg(windows)]
-            {
-                backends.push(Value::string("iocp".to_string()));
-            }
-            
-            list_to_value(backends)
+            backends.push(Value::string("epoll".to_string()));
+            backends.push(Value::string("io_uring".to_string()));
         }
-    );
-    
+
+        #[cfg(target_os = "macos")]
+        {
+            backends.push(Value::string("kqueue".to_string()));
+        }
+
+        #[cfg(windows)]
+        {
+            backends.push(Value::string("iocp".to_string()));
+        }
+
+        list_to_value(backends)
+    });
+
     // Async support
     capabilities.insert(
         Value::Symbol(crate::utils::intern_symbol("async-support")),
-        Value::boolean(cfg!(feature = "async"))
+        Value::boolean(cfg!(feature = "async")),
     );
-    
+
     // Compression support
     capabilities.insert(
         Value::Symbol(crate::utils::intern_symbol("compression-support")),
-        Value::boolean(cfg!(feature = "compression"))
+        Value::boolean(cfg!(feature = "compression")),
     );
-    
+
     // TLS support
     capabilities.insert(
         Value::Symbol(crate::utils::intern_symbol("tls-support")),
-        Value::boolean(cfg!(feature = "tls"))
+        Value::boolean(cfg!(feature = "tls")),
     );
-    
+
     // Platform features
     capabilities.insert(
         Value::Symbol(crate::utils::intern_symbol("unix-sockets")),
-        Value::boolean(cfg!(unix))
+        Value::boolean(cfg!(unix)),
     );
-    
+
     capabilities.insert(
         Value::Symbol(crate::utils::intern_symbol("memory-mapping")),
-        Value::boolean(true) // memmap2 is always available
+        Value::boolean(true), // memmap2 is always available
     );
-    
-    Ok(Value::Hashtable(Arc::new(std::sync::RwLock::new(capabilities))))
+
+    Ok(Value::Hashtable(Rc::new(RefCell::new(capabilities))))
 }
 
 pub fn primitive_io_backend_available_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("io-backend-available? expects 1 argument, got {}", args.len()),
+            format!(
+                "io-backend-available? expects 1 argument, got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let backend = extract_string(&args[0], "io-backend-available?")?;
-    
+
     let available = match backend.as_str() {
         "mio" => true,
         "epoll" => cfg!(target_os = "linux"),
@@ -699,7 +776,7 @@ pub fn primitive_io_backend_available_p(args: &[Value]) -> Result<Value> {
         "iocp" => cfg!(windows),
         _ => false,
     };
-    
+
     Ok(Value::boolean(available))
 }
 
@@ -708,72 +785,74 @@ pub fn primitive_io_backend_available_p(args: &[Value]) -> Result<Value> {
 pub fn primitive_platform_file_attributes(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("platform-file-attributes expects 1 argument, got {}", args.len()),
+            format!(
+                "platform-file-attributes expects 1 argument, got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let path = extract_string(&args[0], "platform-file-attributes")?;
-    
+
     match std::fs::metadata(&path) {
         Ok(metadata) => {
             #[allow(clippy::mutable_key_type)]
             let mut attributes = HashMap::new();
-            
+
             #[cfg(unix)]
             {
                 use std::os::unix::fs::MetadataExt;
-#[cfg(target_os = "macos")]
-                
+                #[cfg(target_os = "macos")]
                 attributes.insert(
                     Value::Symbol(crate::utils::intern_symbol("unix-mode")),
-                    Value::integer(metadata.mode() as i64)
+                    Value::integer(metadata.mode() as i64),
                 );
                 attributes.insert(
                     Value::Symbol(crate::utils::intern_symbol("unix-uid")),
-                    Value::integer(metadata.uid() as i64)
+                    Value::integer(metadata.uid() as i64),
                 );
                 attributes.insert(
                     Value::Symbol(crate::utils::intern_symbol("unix-gid")),
-                    Value::integer(metadata.gid() as i64)
+                    Value::integer(metadata.gid() as i64),
                 );
                 attributes.insert(
                     Value::Symbol(crate::utils::intern_symbol("unix-inode")),
-                    Value::integer(metadata.ino() as i64)
+                    Value::integer(metadata.ino() as i64),
                 );
                 attributes.insert(
                     Value::Symbol(crate::utils::intern_symbol("unix-device")),
-                    Value::integer(metadata.dev() as i64)
+                    Value::integer(metadata.dev() as i64),
                 );
                 attributes.insert(
                     Value::Symbol(crate::utils::intern_symbol("unix-nlink")),
-                    Value::integer(metadata.nlink() as i64)
+                    Value::integer(metadata.nlink() as i64),
                 );
             }
-            
+
             #[cfg(windows)]
             {
                 use std::os::windows::fs::MetadataExt;
-                
+
                 attributes.insert(
                     Value::Symbol(crate::utils::intern_symbol("windows-attributes")),
-                    Value::integer(metadata.file_attributes() as i64)
+                    Value::integer(metadata.file_attributes() as i64),
                 );
                 attributes.insert(
                     Value::Symbol(crate::utils::intern_symbol("windows-creation-time")),
-                    Value::integer(metadata.creation_time() as i64)
+                    Value::integer(metadata.creation_time() as i64),
                 );
                 attributes.insert(
                     Value::Symbol(crate::utils::intern_symbol("windows-last-access-time")),
-                    Value::integer(metadata.last_access_time() as i64)
+                    Value::integer(metadata.last_access_time() as i64),
                 );
                 attributes.insert(
                     Value::Symbol(crate::utils::intern_symbol("windows-last-write-time")),
-                    Value::integer(metadata.last_write_time() as i64)
+                    Value::integer(metadata.last_write_time() as i64),
                 );
             }
-            
-            Ok(Value::Hashtable(Arc::new(std::sync::RwLock::new(attributes))))
+
+            Ok(Value::Hashtable(Rc::new(RefCell::new(attributes))))
         }
         Err(e) => Err(Box::new(DiagnosticError::runtime_error(
             format!("Cannot get attributes for '{path}': {e}"),
@@ -860,19 +939,19 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
 /// Converts a vector of values to a Scheme list.
 fn list_to_value(values: Vec<Value>) -> Value {
     values.into_iter().rev().fold(Value::Nil, |acc, val| {
-        Value::Pair(Arc::new(val), Arc::new(acc))
+        Value::Pair(Box::new(val), Box::new(acc))
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_platform_detection() {
         let result = primitive_platform_name(&[]);
         assert!(result.is_ok());
-        
+
         if let Ok(Value::Literal(crate::ast::Literal::String(platform))) = result {
             assert!(!platform.is_empty());
             println!("Detected platform: {platform}");
@@ -880,39 +959,43 @@ mod tests {
             panic!("Expected string result");
         }
     }
-    
+
     #[test]
     fn test_platform_capabilities() {
         let result = primitive_platform_capabilities(&[]);
         assert!(result.is_ok());
-        
+
         if let Ok(Value::Hashtable(capabilities)) = result {
-            let cap_map = capabilities.read().unwrap();
-            assert!(cap_map.contains_key(&Value::Symbol(crate::utils::intern_symbol("io-backends"))));
-            assert!(cap_map.contains_key(&Value::Symbol(crate::utils::intern_symbol("async-support"))));
+            let cap_map = capabilities.try_borrow().unwrap();
+            assert!(
+                cap_map.contains_key(&Value::Symbol(crate::utils::intern_symbol("io-backends")))
+            );
+            assert!(
+                cap_map.contains_key(&Value::Symbol(crate::utils::intern_symbol("async-support")))
+            );
         } else {
             panic!("Expected hashtable result");
         }
     }
-    
+
     #[test]
     fn test_io_backend_availability() {
         let args = vec![Value::string("mio".to_string())];
         let result = primitive_io_backend_available_p(&args);
         assert!(result.is_ok());
-        
+
         if let Ok(Value::Literal(crate::ast::Literal::Boolean(available))) = result {
             assert!(available); // MIO should always be available
         } else {
             panic!("Expected boolean result");
         }
     }
-    
+
     #[test]
     fn test_high_performance_io_creation() {
         let result = primitive_create_high_performance_io(&[]);
         assert!(result.is_ok());
-        
+
         // Just verify we can create the handle without panicking
         if let Ok(Value::Opaque(_)) = result {
             // Success

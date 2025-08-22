@@ -4,16 +4,16 @@
 //! R7RS-small compliance, including `eval`, `environment`, `environment-bound?`,
 //! and R5RS compatibility procedures.
 
-use crate::eval::{Value, ThreadSafeEnvironment, Environment, Generation};
-use crate::eval::evaluator::Evaluator;
-use crate::parser::Parser;
-use crate::module_system::{ModuleSystem, ImportSpec, ImportConfig, ModuleId, ModuleNamespace};
 use crate::ast::{Expr, Program};
 use crate::diagnostics::{Error, Result, Span};
+use crate::eval::evaluator::Evaluator;
+use crate::eval::{Environment, Generation, ThreadSafeEnvironment, Value};
+use crate::module_system::{ImportConfig, ImportSpec, ModuleId, ModuleNamespace, ModuleSystem};
+use crate::parser::Parser;
 use crate::utils::intern_symbol;
-use std::sync::Arc;
-use std::rc::Rc;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::Arc;
 
 /// Security configuration for dynamic evaluation.
 #[derive(Debug, Clone)]
@@ -58,7 +58,10 @@ pub enum EnvironmentResult {
 pub fn primitive_eval(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
         return Err(Box::new(Error::runtime_error(
-            format!("eval expects 2 arguments (expression and environment), got {}", args.len()),
+            format!(
+                "eval expects 2 arguments (expression and environment), got {}",
+                args.len()
+            ),
             None,
         )));
     }
@@ -68,20 +71,20 @@ pub fn primitive_eval(args: &[Value]) -> Result<Value> {
 
     // Extract environment from the value
     let environment = extract_environment_from_value(env_value)?;
-    
+
     // Convert the expression value back to an AST expression
     let expr = value_to_expression(expr_value)?;
-    
+
     // Create evaluator with security limits
     let security_config = EvalSecurityConfig::default();
     let mut evaluator = create_secure_evaluator(security_config)?;
-    
+
     // Convert ThreadSafeEnvironment to legacy Environment for evaluator
     let legacy_env = environment.to_legacy();
-    
+
     // Evaluate the expression in the given environment
     let result = evaluator.eval(&expr, legacy_env)?;
-    
+
     Ok(result)
 }
 
@@ -91,15 +94,15 @@ pub fn primitive_eval(args: &[Value]) -> Result<Value> {
 pub fn primitive_environment(args: &[Value]) -> Result<Value> {
     // Each argument should be an import set specification
     let mut import_specs = Vec::new();
-    
+
     for arg in args {
         let import_spec = value_to_import_spec(arg)?;
         import_specs.push(import_spec);
     }
-    
+
     // Create new environment with imports
     let environment = create_environment_from_imports(&import_specs)?;
-    
+
     // Wrap environment in a Value
     Ok(Value::Environment(environment))
 }
@@ -110,14 +113,17 @@ pub fn primitive_environment(args: &[Value]) -> Result<Value> {
 pub fn primitive_environment_bound_p(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
         return Err(Box::new(Error::runtime_error(
-            format!("environment-bound? expects 2 arguments (symbol and environment), got {}", args.len()),
+            format!(
+                "environment-bound? expects 2 arguments (symbol and environment), got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let symbol_value = &args[0];
     let env_value = &args[1];
-    
+
     // Extract symbol name
     let symbol_name = match symbol_value {
         Value::Symbol(symbol_id) => {
@@ -125,18 +131,22 @@ pub fn primitive_environment_bound_p(args: &[Value]) -> Result<Value> {
             // Note: This would need access to the symbol interner
             symbol_id.to_string() // Simplified for now
         }
-        _ => return Err(Box::new(Error::runtime_error(
-            format!("environment-bound? expects first argument to be a symbol, got {symbol_value}"),
-            None,
-        ))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                format!(
+                    "environment-bound? expects first argument to be a symbol, got {symbol_value}"
+                ),
+                None,
+            )));
+        }
     };
-    
+
     // Extract environment
     let environment = extract_environment_from_value(env_value)?;
-    
+
     // Check if symbol is bound
     let is_bound = environment.lookup(&symbol_name).is_some();
-    
+
     Ok(Value::boolean(is_bound))
 }
 
@@ -144,21 +154,29 @@ pub fn primitive_environment_bound_p(args: &[Value]) -> Result<Value> {
 pub fn primitive_scheme_report_environment(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(Error::runtime_error(
-            format!("scheme-report-environment expects 1 argument (version), got {}", args.len()),
+            format!(
+                "scheme-report-environment expects 1 argument (version), got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let version = match &args[0] {
         Value::Literal(crate::ast::Literal::ExactInteger(n)) => *n,
         Value::Literal(crate::ast::Literal::InexactReal(f)) => *f as i64,
         Value::Literal(crate::ast::Literal::Number(n)) => *n as i64, // deprecated but still supported
-        _ => return Err(Box::new(Error::runtime_error(
-            format!("scheme-report-environment expects an integer version, got {}", args[0]),
-            None,
-        ))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                format!(
+                    "scheme-report-environment expects an integer version, got {}",
+                    args[0]
+                ),
+                None,
+            )));
+        }
     };
-    
+
     match version {
         5 => {
             // Create R5RS environment with all R5RS procedures
@@ -176,21 +194,29 @@ pub fn primitive_scheme_report_environment(args: &[Value]) -> Result<Value> {
 pub fn primitive_null_environment(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(Error::runtime_error(
-            format!("null-environment expects 1 argument (version), got {}", args.len()),
+            format!(
+                "null-environment expects 1 argument (version), got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let version = match &args[0] {
         Value::Literal(crate::ast::Literal::ExactInteger(n)) => *n,
         Value::Literal(crate::ast::Literal::InexactReal(f)) => *f as i64,
         Value::Literal(crate::ast::Literal::Number(n)) => *n as i64, // deprecated but still supported
-        _ => return Err(Box::new(Error::runtime_error(
-            format!("null-environment expects an integer version, got {}", args[0]),
-            None,
-        ))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                format!(
+                    "null-environment expects an integer version, got {}",
+                    args[0]
+                ),
+                None,
+            )));
+        }
     };
-    
+
     match version {
         5 => {
             // Create null environment with only special forms
@@ -208,15 +234,18 @@ pub fn primitive_null_environment(args: &[Value]) -> Result<Value> {
 pub fn primitive_interaction_environment(args: &[Value]) -> Result<Value> {
     if !args.is_empty() {
         return Err(Box::new(Error::runtime_error(
-            format!("interaction-environment expects 0 arguments, got {}", args.len()),
+            format!(
+                "interaction-environment expects 0 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     // Return the current global/interaction environment
     let global_env = crate::eval::environment::global_environment();
     let thread_safe_env = global_env.to_thread_safe();
-    
+
     Ok(Value::Environment(thread_safe_env))
 }
 
@@ -247,33 +276,35 @@ fn value_to_expression(value: &Value) -> Result<crate::diagnostics::Spanned<Expr
             // Convert pair to function application or special form
             let car_expr = value_to_expression(car)?;
             let mut args = Vec::new();
-            
+
             // Flatten the argument list
             let mut current = &**cdr;
             while let Value::Pair(arg, rest) = current {
                 args.push(value_to_expression(arg)?);
                 current = rest;
             }
-            
+
             if !matches!(current, Value::Nil) {
                 return Err(Box::new(Error::runtime_error(
                     "Invalid expression: improper list in eval".to_string(),
                     None,
                 )));
             }
-            
+
             Expr::Application {
                 operator: Box::new(car_expr),
                 operands: args,
             }
         }
         Value::Nil => Expr::Literal(crate::ast::Literal::Nil),
-        _ => return Err(Box::new(Error::runtime_error(
-            format!("Cannot convert {value} to expression for evaluation"),
-            None,
-        ))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                format!("Cannot convert {value} to expression for evaluation"),
+                None,
+            )));
+        }
     };
-    
+
     // Wrap in a Spanned with a default span
     Ok(crate::diagnostics::Spanned::new(expr, Span::default()))
 }
@@ -298,19 +329,19 @@ fn value_to_import_spec(value: &Value) -> Result<ImportSpec> {
 fn value_to_list(value: &Value) -> Result<Vec<Value>> {
     let mut result = Vec::new();
     let mut current = value;
-    
+
     while let Value::Pair(car, cdr) = current {
         result.push((**car).clone());
         current = cdr;
     }
-    
+
     if !matches!(current, Value::Nil) {
         return Err(Box::new(Error::runtime_error(
             "Expected proper list".to_string(),
             None,
         )));
     }
-    
+
     Ok(result)
 }
 
@@ -322,7 +353,7 @@ fn parse_import_spec_from_list(values: &[Value]) -> Result<ImportSpec> {
             None,
         )));
     }
-    
+
     // Convert Values to strings to build module path
     let mut path_parts = Vec::new();
     for value in values {
@@ -340,16 +371,18 @@ fn parse_import_spec_from_list(values: &[Value]) -> Result<ImportSpec> {
             Value::Literal(crate::ast::Literal::Number(n)) => {
                 path_parts.push((*n as i64).to_string());
             }
-            _ => return Err(Box::new(Error::runtime_error(
-                format!("Invalid import spec component: {value}"),
-                None,
-            ))),
+            _ => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Invalid import spec component: {value}"),
+                    None,
+                )));
+            }
         }
     }
-    
+
     // Create a simple ImportSpec
     // This is simplified - a full implementation would handle complex import syntax
-    
+
     // Determine namespace based on first component
     let namespace = if !path_parts.is_empty() {
         match path_parts[0].as_str() {
@@ -361,10 +394,10 @@ fn parse_import_spec_from_list(values: &[Value]) -> Result<ImportSpec> {
     } else {
         ModuleNamespace::User
     };
-    
+
     // Create ModuleId with the determined namespace
     let module_id = ModuleId::new(namespace, path_parts);
-    
+
     Ok(ImportSpec {
         module_id,
         config: ImportConfig::All,
@@ -372,15 +405,17 @@ fn parse_import_spec_from_list(values: &[Value]) -> Result<ImportSpec> {
 }
 
 /// Creates a new environment from a list of import specifications.
-fn create_environment_from_imports(import_specs: &[ImportSpec]) -> Result<Arc<ThreadSafeEnvironment>> {
+fn create_environment_from_imports(
+    import_specs: &[ImportSpec],
+) -> Result<Arc<ThreadSafeEnvironment>> {
     // Create a new empty environment
     let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-    
+
     // Load and import each specified module
     for spec in import_specs {
         import_module_into_environment(spec, &env)?;
     }
-    
+
     Ok(env)
 }
 
@@ -391,10 +426,10 @@ fn import_module_into_environment(
 ) -> Result<()> {
     // This is a simplified implementation
     // A full implementation would use the module system to resolve and load modules
-    
+
     // Get module name from the spec
     let module_name = spec.module_id.components.join(" ");
-    
+
     // Handle common R7RS libraries
     match module_name.as_str() {
         "scheme base" => {
@@ -443,7 +478,7 @@ fn import_module_into_environment(
             )));
         }
     }
-    
+
     Ok(())
 }
 
@@ -451,31 +486,31 @@ fn import_module_into_environment(
 fn create_secure_evaluator(_config: EvalSecurityConfig) -> Result<Evaluator> {
     // Create evaluator with security configuration
     let evaluator = Evaluator::new();
-    
+
     // TODO: Apply security limits when evaluator supports them
     // TODO: Implement timeout and other security features
-    
+
     Ok(evaluator)
 }
 
 /// Creates an R5RS-compatible environment.
 fn create_r5rs_environment() -> Result<Arc<ThreadSafeEnvironment>> {
     let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-    
+
     // Import R5RS standard procedures
     import_scheme_base(&env)?;
     import_r5rs_specific_procedures(&env)?;
-    
+
     Ok(env)
 }
 
 /// Creates a null environment with only special forms.
 fn create_null_environment() -> Result<Arc<ThreadSafeEnvironment>> {
     let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-    
+
     // Only bind special form syntax, no procedures
     bind_special_forms_only(&env);
-    
+
     Ok(env)
 }
 
@@ -586,14 +621,33 @@ fn import_r5rs_specific_procedures(env: &Arc<ThreadSafeEnvironment>) -> Result<(
 /// Binds only special forms (no procedures) for null environment.
 fn bind_special_forms_only(env: &Arc<ThreadSafeEnvironment>) {
     use crate::utils::intern_symbol;
-    
+
     // Core special forms required for syntax
     let special_forms = [
-        "lambda", "if", "define", "set!", "quote", "quasiquote", "unquote", "unquote-splicing",
-        "begin", "let", "let*", "letrec", "cond", "case", "and", "or",
-        "when", "unless", "do", "delay", "force", "case-lambda",
+        "lambda",
+        "if",
+        "define",
+        "set!",
+        "quote",
+        "quasiquote",
+        "unquote",
+        "unquote-splicing",
+        "begin",
+        "let",
+        "let*",
+        "letrec",
+        "cond",
+        "case",
+        "and",
+        "or",
+        "when",
+        "unless",
+        "do",
+        "delay",
+        "force",
+        "case-lambda",
     ];
-    
+
     for &form_name in &special_forms {
         let symbol_id = intern_symbol(form_name.to_owned());
         let syntax_value = Value::Symbol(symbol_id);
@@ -603,8 +657,8 @@ fn bind_special_forms_only(env: &Arc<ThreadSafeEnvironment>) {
 
 /// Creates bindings for eval operations in the given environment.
 pub fn create_eval_bindings(env: &Arc<ThreadSafeEnvironment>) {
-    use crate::eval::value::{PrimitiveProcedure, PrimitiveImpl};
-    
+    use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure};
+
     // eval procedure
     let eval_proc = Arc::new(PrimitiveProcedure {
         name: "eval".to_string(),
@@ -614,7 +668,7 @@ pub fn create_eval_bindings(env: &Arc<ThreadSafeEnvironment>) {
         effects: vec![], // Dynamic evaluation can have any effects
     });
     env.define("eval".to_string(), Value::Primitive(eval_proc));
-    
+
     // environment procedure
     let environment_proc = Arc::new(PrimitiveProcedure {
         name: "environment".to_string(),
@@ -623,8 +677,11 @@ pub fn create_eval_bindings(env: &Arc<ThreadSafeEnvironment>) {
         implementation: PrimitiveImpl::RustFn(primitive_environment),
         effects: vec![],
     });
-    env.define("environment".to_string(), Value::Primitive(environment_proc));
-    
+    env.define(
+        "environment".to_string(),
+        Value::Primitive(environment_proc),
+    );
+
     // environment-bound? procedure
     let environment_bound_proc = Arc::new(PrimitiveProcedure {
         name: "environment-bound?".to_string(),
@@ -633,8 +690,11 @@ pub fn create_eval_bindings(env: &Arc<ThreadSafeEnvironment>) {
         implementation: PrimitiveImpl::RustFn(primitive_environment_bound_p),
         effects: vec![],
     });
-    env.define("environment-bound?".to_string(), Value::Primitive(environment_bound_proc));
-    
+    env.define(
+        "environment-bound?".to_string(),
+        Value::Primitive(environment_bound_proc),
+    );
+
     // scheme-report-environment procedure
     let scheme_report_env_proc = Arc::new(PrimitiveProcedure {
         name: "scheme-report-environment".to_string(),
@@ -643,8 +703,11 @@ pub fn create_eval_bindings(env: &Arc<ThreadSafeEnvironment>) {
         implementation: PrimitiveImpl::RustFn(primitive_scheme_report_environment),
         effects: vec![],
     });
-    env.define("scheme-report-environment".to_string(), Value::Primitive(scheme_report_env_proc));
-    
+    env.define(
+        "scheme-report-environment".to_string(),
+        Value::Primitive(scheme_report_env_proc),
+    );
+
     // null-environment procedure
     let null_env_proc = Arc::new(PrimitiveProcedure {
         name: "null-environment".to_string(),
@@ -653,8 +716,11 @@ pub fn create_eval_bindings(env: &Arc<ThreadSafeEnvironment>) {
         implementation: PrimitiveImpl::RustFn(primitive_null_environment),
         effects: vec![],
     });
-    env.define("null-environment".to_string(), Value::Primitive(null_env_proc));
-    
+    env.define(
+        "null-environment".to_string(),
+        Value::Primitive(null_env_proc),
+    );
+
     // interaction-environment procedure
     let interaction_env_proc = Arc::new(PrimitiveProcedure {
         name: "interaction-environment".to_string(),
@@ -663,39 +729,42 @@ pub fn create_eval_bindings(env: &Arc<ThreadSafeEnvironment>) {
         implementation: PrimitiveImpl::RustFn(primitive_interaction_environment),
         effects: vec![],
     });
-    env.define("interaction-environment".to_string(), Value::Primitive(interaction_env_proc));
+    env.define(
+        "interaction-environment".to_string(),
+        Value::Primitive(interaction_env_proc),
+    );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_environment_creation() {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         create_eval_bindings(&env);
-        
+
         // Test that eval is bound
         assert!(env.lookup("eval").is_some());
         assert!(env.lookup("environment").is_some());
         assert!(env.lookup("environment-bound?").is_some());
     }
-    
+
     #[test]
     fn test_environment_bound_predicate() {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         env.define("test-var".to_string(), Value::integer(42));
-        
+
         let symbol_value = Value::Symbol(intern_symbol("test-var".to_string()));
         let env_value = Value::Environment(env.clone());
-        
+
         let result = primitive_environment_bound_p(&[symbol_value, env_value]).unwrap();
         assert!(result.is_truthy());
-        
+
         // Test unbound symbol
         let unbound_symbol = Value::Symbol(intern_symbol("unbound-var".to_string()));
         let env_value = Value::Environment(env);
-        
+
         let result = primitive_environment_bound_p(&[unbound_symbol, env_value]).unwrap();
         assert!(result.is_falsy());
     }

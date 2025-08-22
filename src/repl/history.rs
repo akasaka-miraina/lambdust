@@ -2,13 +2,13 @@
 
 #![allow(dead_code, missing_docs)]
 
-use crate::{Result, Error};
+use crate::{Error, Result};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 
 /// Represents a single history entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,7 +108,7 @@ impl HistoryManager {
     pub fn new(max_entries: usize) -> Result<Self> {
         let history_file = Self::default_history_file()?;
         let current_session_id = Self::generate_session_id();
-        
+
         let mut manager = Self {
             entries: VecDeque::new(),
             max_entries,
@@ -130,7 +130,7 @@ impl HistoryManager {
     pub fn with_file<P: AsRef<Path>>(max_entries: usize, history_file: P) -> Result<Self> {
         let history_file = history_file.as_ref().to_path_buf();
         let current_session_id = Self::generate_session_id();
-        
+
         let mut manager = Self {
             entries: VecDeque::new(),
             max_entries,
@@ -155,7 +155,8 @@ impl HistoryManager {
     }
 
     fn generate_session_id() -> String {
-        let timestamp = Utc::now().timestamp(); format!("session_{timestamp}")
+        let timestamp = Utc::now().timestamp();
+        format!("session_{timestamp}")
     }
 
     pub fn add_entry(&mut self, command: String) -> Result<()> {
@@ -163,8 +164,7 @@ impl HistoryManager {
             return Ok(());
         }
 
-        let entry = HistoryEntry::new(command)
-            .with_session(self.current_session_id.clone());
+        let entry = HistoryEntry::new(command).with_session(self.current_session_id.clone());
 
         self.entries.push_back(entry);
 
@@ -228,7 +228,8 @@ impl HistoryManager {
 
     pub fn search(&self, query: &str) -> Result<Vec<&HistoryEntry>> {
         let search = HistorySearch::new(query.to_string());
-        let matches: Vec<&HistoryEntry> = self.entries
+        let matches: Vec<&HistoryEntry> = self
+            .entries
             .iter()
             .filter(|entry| search.matches(entry))
             .collect();
@@ -236,7 +237,8 @@ impl HistoryManager {
         if matches.is_empty() {
             println!("No matches found for: {query}");
         } else {
-            let count = matches.len(); println!("Found {count} matches for: {query}");
+            let count = matches.len();
+            println!("Found {count} matches for: {query}");
             for (i, entry) in matches.iter().enumerate() {
                 let index = i + 1;
                 let command = &entry.command;
@@ -250,7 +252,7 @@ impl HistoryManager {
 
     pub fn reverse_search(&self, query: &str) -> Result<Option<&HistoryEntry>> {
         let search = HistorySearch::new(query.to_string());
-        
+
         // Search from most recent to oldest
         for entry in self.entries.iter().rev() {
             if search.matches(entry) {
@@ -263,14 +265,14 @@ impl HistoryManager {
 
     pub fn show_recent(&self, count: usize) -> Result<()> {
         let recent_count = count.min(self.entries.len());
-        
+
         if recent_count == 0 {
             println!("No history entries");
             return Ok(());
         }
 
         println!("Recent history ({recent_count} entries):");
-        
+
         let start_index = self.entries.len().saturating_sub(recent_count);
         for (i, entry) in self.entries.iter().skip(start_index).enumerate() {
             let display_index = start_index + i + 1;
@@ -291,7 +293,8 @@ impl HistoryManager {
     }
 
     pub fn replay_session(&self, session_id: &str) -> Result<Vec<String>> {
-        let commands: Vec<String> = self.entries
+        let commands: Vec<String> = self
+            .entries
             .iter()
             .filter(|entry| entry.session_id.as_deref() == Some(session_id))
             .map(|entry| entry.command.clone())
@@ -300,7 +303,8 @@ impl HistoryManager {
         if commands.is_empty() {
             println!("No commands found for session: {session_id}");
         } else {
-            let count = commands.len(); println!("Found {count} commands for session: {session_id}");
+            let count = commands.len();
+            println!("Found {count} commands for session: {session_id}");
             for (i, command) in commands.iter().enumerate() {
                 println!("  {}: {}", i + 1, command);
             }
@@ -345,16 +349,16 @@ impl HistoryManager {
         self.entries.clear();
 
         for line in reader.lines() {
-            let line = line
-                .map_err(|e| Error::io_error(format!("Failed to read history line: {e}")))?;
-            
+            let line =
+                line.map_err(|e| Error::io_error(format!("Failed to read history line: {e}")))?;
+
             if line.trim().is_empty() {
                 continue;
             }
 
             let entry: HistoryEntry = serde_json::from_str(&line)
                 .map_err(|e| Error::io_error(format!("Failed to parse history entry: {e}")))?;
-            
+
             self.entries.push_back(entry);
         }
 
@@ -371,12 +375,21 @@ impl HistoryManager {
             .map_err(|e| Error::io_error(format!("Failed to create export file: {e}")))?;
 
         writeln!(file, "# Lambdust REPL History Export")?;
-        writeln!(file, "# Generated at: {}", Utc::now().format("%Y-%m-%d %H:%M:%S UTC"))?;
+        writeln!(
+            file,
+            "# Generated at: {}",
+            Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+        )?;
         writeln!(file, "# Total entries: {}", self.entries.len())?;
         writeln!(file)?;
 
         for (i, entry) in self.entries.iter().enumerate() {
-            writeln!(file, "# Entry {}: {}", i + 1, entry.timestamp.format("%Y-%m-%d %H:%M:%S"))?;
+            writeln!(
+                file,
+                "# Entry {}: {}",
+                i + 1,
+                entry.timestamp.format("%Y-%m-%d %H:%M:%S")
+            )?;
             writeln!(file, "{}", entry.command)?;
             if let Some(ref result) = entry.result {
                 writeln!(file, "# Result: {result}")?;
@@ -456,7 +469,7 @@ impl HistoryStats {
         println!("  Total entries: {}", self.total_entries);
         println!("  Errors: {}", self.error_count);
         println!("  Sessions: {}", self.session_count);
-        
+
         if !self.most_used_commands.is_empty() {
             println!("  Most used commands:");
             for (command, count) in &self.most_used_commands {
@@ -475,23 +488,23 @@ mod tests {
     fn test_history_manager_basic() -> Result<()> {
         let dir = tempdir().unwrap();
         let history_file = dir.path().join("test_history");
-        
+
         let mut manager = HistoryManager::with_file(10, &history_file)?;
-        
+
         // Test adding entries
         manager.add_entry("(+ 1 2)".to_string())?;
         manager.add_entry("(define x 42)".to_string())?;
-        
+
         assert_eq!(manager.len(), 2);
-        
+
         // Test search
         let matches = manager.search("+")?;
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].command, "(+ 1 2)");
-        
+
         // Test recent history
         manager.show_recent(5)?;
-        
+
         Ok(())
     }
 
@@ -500,7 +513,7 @@ mod tests {
         let entry = HistoryEntry::new("test command".to_string())
             .with_result("42".to_string())
             .with_session("test_session".to_string());
-        
+
         assert_eq!(entry.command, "test command");
         assert_eq!(entry.result, Some("42".to_string()));
         assert_eq!(entry.session_id, Some("test_session".to_string()));
@@ -511,11 +524,11 @@ mod tests {
     fn test_history_search() {
         let entry1 = HistoryEntry::new("(+ 1 2)".to_string());
         let entry2 = HistoryEntry::new("(define x 42)".to_string());
-        
+
         let search = HistorySearch::new("+".to_string());
         assert!(search.matches(&entry1));
         assert!(!search.matches(&entry2));
-        
+
         let search = HistorySearch::new("define".to_string());
         assert!(!search.matches(&entry1));
         assert!(search.matches(&entry2));

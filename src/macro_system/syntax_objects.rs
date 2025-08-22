@@ -136,12 +136,7 @@ pub struct BindingInfo {
 
 impl BindingInfo {
     /// Creates a new binding info
-    pub fn new(
-        name: String,
-        binding_context: LexicalContext,
-        phase: i32,
-        is_macro: bool,
-    ) -> Self {
+    pub fn new(name: String, binding_context: LexicalContext, phase: i32, is_macro: bool) -> Self {
         Self {
             name,
             binding_context,
@@ -158,10 +153,9 @@ impl BindingInfo {
         if self.phase != context.phase {
             return false;
         }
-        
+
         // Check if the binding context is compatible
-        self.binding_context.derives_from(context) || 
-        context.derives_from(&self.binding_context)
+        self.binding_context.derives_from(context) || context.derives_from(&self.binding_context)
     }
 }
 
@@ -354,15 +348,20 @@ impl SyntaxObject {
     pub fn as_list(&self) -> Option<Vec<SyntaxObject>> {
         match &self.expr {
             Expr::List(elements) => Some(
-                elements.iter()
+                elements
+                    .iter()
                     .map(|elem| SyntaxObject::from_spanned(elem.clone(), self.context.clone()))
-                    .collect()
+                    .collect(),
             ),
             Expr::Application { operator, operands } => {
-                let mut result = vec![SyntaxObject::from_spanned((**operator).clone(), self.context.clone())];
+                let mut result = vec![SyntaxObject::from_spanned(
+                    (**operator).clone(),
+                    self.context.clone(),
+                )];
                 result.extend(
-                    operands.iter()
-                        .map(|op| SyntaxObject::from_spanned(op.clone(), self.context.clone()))
+                    operands
+                        .iter()
+                        .map(|op| SyntaxObject::from_spanned(op.clone(), self.context.clone())),
                 );
                 Some(result)
             }
@@ -460,7 +459,7 @@ impl HygieneEnvironment {
                     Ok(expr.clone())
                 }
             }
-            
+
             Expr::List(elements) => {
                 let transformed: Result<Vec<_>> = elements
                     .iter()
@@ -481,7 +480,7 @@ impl HygieneEnvironment {
                         Ok(Spanned::new(transformed_expr, op.span))
                     })
                     .collect();
-                
+
                 Ok(Expr::Application {
                     operator: Box::new(Spanned::new(transformed_operator, operator.span)),
                     operands: transformed_operands?,
@@ -497,7 +496,8 @@ impl HygieneEnvironment {
     pub fn generate_rename(&mut self, original: &str, marks: Vec<u64>) -> String {
         self.rename_counter += 1;
         let renamed = format!("{}#hyg{}", original, self.rename_counter);
-        self.renamings.insert((original.to_string(), marks), renamed.clone());
+        self.renamings
+            .insert((original.to_string(), marks), renamed.clone());
         renamed
     }
 
@@ -532,7 +532,7 @@ pub mod syntax_utils {
         } else {
             LexicalContext::new(0, vec!["top-level".to_string()])
         };
-        
+
         SyntaxObject::new(datum, span, context)
     }
 
@@ -548,10 +548,9 @@ pub mod syntax_utils {
             if name1 != name2 {
                 return false;
             }
-            
+
             // Check if they have the same marks (simplified)
-            stx1.marks == stx2.marks &&
-            stx1.context.context_id == stx2.context.context_id
+            stx1.marks == stx2.marks && stx1.context.context_id == stx2.context.context_id
         } else {
             false
         }
@@ -564,12 +563,12 @@ pub mod syntax_utils {
             if name1 != name2 {
                 return false;
             }
-            
+
             // Check if they would resolve to the same binding
             match (stx1.get_binding(name1), stx2.get_binding(name2)) {
                 (Some(binding1), Some(binding2)) => {
-                    binding1.binding_context.context_id == binding2.binding_context.context_id &&
-                    binding1.phase == binding2.phase
+                    binding1.binding_context.context_id == binding2.binding_context.context_id
+                        && binding1.phase == binding2.phase
                 }
                 (None, None) => {
                     // Both unbound - check if they're from compatible contexts
@@ -606,11 +605,9 @@ pub mod syntax_utils {
         span: Span,
         context: LexicalContext,
     ) -> SyntaxObject {
-        let expr_elements: Vec<Spanned<Expr>> = elements
-            .into_iter()
-            .map(|stx| stx.to_spanned())
-            .collect();
-        
+        let expr_elements: Vec<Spanned<Expr>> =
+            elements.into_iter().map(|stx| stx.to_spanned()).collect();
+
         SyntaxObject::new(Expr::List(expr_elements), span, context)
     }
 }
@@ -626,9 +623,9 @@ mod tests {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
         let expr = Expr::Identifier("x".to_string());
         let span = Span::new(0, 1);
-        
+
         let syntax = SyntaxObject::new(expr, span, context);
-        
+
         assert!(syntax.is_identifier());
         assert_eq!(syntax.identifier_name(), Some("x"));
         assert_eq!(syntax.span, span);
@@ -638,7 +635,7 @@ mod tests {
     fn test_lexical_context_hierarchy() {
         let parent = LexicalContext::new(1, vec!["parent".to_string()]);
         let child = parent.child(2);
-        
+
         assert!(child.derives_from(&parent));
         assert!(!parent.derives_from(&child));
         assert_eq!(child.depth(), 1);
@@ -650,10 +647,10 @@ mod tests {
         let mut env = HygieneEnvironment::new();
         let mark1 = env.enter_scope();
         let mark2 = env.enter_scope();
-        
+
         assert!(mark2 > mark1);
-        
-        let marks = HashSet::from([mark1]);
+
+        let marks = vec![mark1];
         let renamed = env.mark_identifier("x", marks);
         assert!(renamed.contains("x#hyg"));
     }
@@ -662,13 +659,13 @@ mod tests {
     fn test_bound_identifier_equal() {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
         let span = Span::new(0, 1);
-        
+
         let stx1 = SyntaxObject::new(Expr::Identifier("x".to_string()), span, context.clone());
         let mut stx2 = SyntaxObject::new(Expr::Identifier("x".to_string()), span, context);
-        
+
         // Same marks and context
         assert!(syntax_utils::bound_identifier_equal(&stx1, &stx2));
-        
+
         // Different marks
         stx2.add_mark(42);
         assert!(!syntax_utils::bound_identifier_equal(&stx1, &stx2));
@@ -679,12 +676,15 @@ mod tests {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
         let expr = Expr::Identifier("x".to_string());
         let span = Span::new(0, 1);
-        
+
         let mut syntax = SyntaxObject::new(expr, span, context);
-        
-        syntax.set_property("test".to_string(), SyntaxProperty::String("value".to_string()));
+
+        syntax.set_property(
+            "test".to_string(),
+            SyntaxProperty::String("value".to_string()),
+        );
         syntax.set_property("number".to_string(), SyntaxProperty::Number(42.0));
-        
+
         assert_eq!(
             syntax.get_property("test"),
             Some(&SyntaxProperty::String("value".to_string()))

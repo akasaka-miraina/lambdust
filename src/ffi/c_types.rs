@@ -9,9 +9,9 @@ use std::fmt;
 use std::mem;
 use std::slice;
 
-use crate::eval::Value;
 use crate::ast::Literal;
 use crate::diagnostics::Error;
+use crate::eval::Value;
 
 /// C type definitions
 #[derive(Debug, Clone, PartialEq)]
@@ -135,12 +135,11 @@ impl CType {
             CType::CString => mem::align_of::<*const libc::c_char>(),
             CType::WString => mem::align_of::<*const libc::wchar_t>(),
             CType::Struct { alignment, .. } => *alignment,
-            CType::Union { fields, .. } => {
-                fields.iter()
-                    .map(|f| f.c_type.alignment())
-                    .max()
-                    .unwrap_or(1)
-            }
+            CType::Union { fields, .. } => fields
+                .iter()
+                .map(|f| f.c_type.alignment())
+                .max()
+                .unwrap_or(1),
             CType::Function { .. } => mem::align_of::<*const c_void>(),
             CType::Handle(_) => mem::align_of::<*const c_void>(),
         }
@@ -148,16 +147,33 @@ impl CType {
 
     /// Check if this is a pointer type
     pub fn is_pointer(&self) -> bool {
-        matches!(self, CType::Pointer(_) | CType::CString | CType::WString | CType::Function { .. } | CType::Handle(_))
+        matches!(
+            self,
+            CType::Pointer(_)
+                | CType::CString
+                | CType::WString
+                | CType::Function { .. }
+                | CType::Handle(_)
+        )
     }
 
     /// Check if this is a numeric type
     pub fn is_numeric(&self) -> bool {
-        matches!(self, 
-            CType::Int8 | CType::Int16 | CType::Int32 | CType::Int64 |
-            CType::UInt8 | CType::UInt16 | CType::UInt32 | CType::UInt64 |
-            CType::CInt | CType::CUInt | CType::CSizeT |
-            CType::Float | CType::Double
+        matches!(
+            self,
+            CType::Int8
+                | CType::Int16
+                | CType::Int32
+                | CType::Int64
+                | CType::UInt8
+                | CType::UInt16
+                | CType::UInt32
+                | CType::UInt64
+                | CType::CInt
+                | CType::CUInt
+                | CType::CSizeT
+                | CType::Float
+                | CType::Double
         )
     }
 
@@ -197,14 +213,22 @@ impl fmt::Display for CType {
             CType::WString => write!(f, "wchar_t*"),
             CType::Struct { name, .. } => write!(f, "struct {name}"),
             CType::Union { name, .. } => write!(f, "union {name}"),
-            CType::Function { return_type, parameters, variadic }  => {
+            CType::Function {
+                return_type,
+                parameters,
+                variadic,
+            } => {
                 write!(f, "{return_type} (")?;
                 for (i, param) in parameters.iter().enumerate() {
-                    if i > 0 { write!(f, ", ")?; }
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
                     write!(f, "{param}")?;
                 }
                 if *variadic {
-                    if !parameters.is_empty() { write!(f, ", ")?; }
+                    if !parameters.is_empty() {
+                        write!(f, ", ")?;
+                    }
                     write!(f, "...")?;
                 }
                 write!(f, ")")
@@ -218,10 +242,7 @@ impl fmt::Display for CType {
 #[derive(Debug, Clone)]
 pub enum ConversionError {
     /// Type mismatch
-    TypeMismatch {
-        expected: CType,
-        actual: String,
-    },
+    TypeMismatch { expected: CType, actual: String },
     /// Invalid pointer or null pointer dereference
     InvalidPointer,
     /// Buffer overflow or underflow
@@ -237,10 +258,7 @@ pub enum ConversionError {
         field_name: String,
     },
     /// Array index out of bounds
-    IndexOutOfBounds {
-        index: usize,
-        length: usize,
-    },
+    IndexOutOfBounds { index: usize, length: usize },
     /// Memory allocation failure
     AllocationFailed(usize),
 }
@@ -248,25 +266,37 @@ pub enum ConversionError {
 impl fmt::Display for ConversionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ConversionError::TypeMismatch { expected, actual }  => {
+            ConversionError::TypeMismatch { expected, actual } => {
                 write!(f, "Type mismatch: expected {expected}, got {actual}")
             }
-            ConversionError::InvalidPointer  => {
+            ConversionError::InvalidPointer => {
                 write!(f, "Invalid or null pointer")
             }
-            ConversionError::BufferOverflow { buffer_size, requested_size }  => {
-                write!(f, "Buffer overflow: buffer size {buffer_size}, requested {requested_size}")
+            ConversionError::BufferOverflow {
+                buffer_size,
+                requested_size,
+            } => {
+                write!(
+                    f,
+                    "Buffer overflow: buffer size {buffer_size}, requested {requested_size}"
+                )
             }
-            ConversionError::StringConversion(msg)  => {
+            ConversionError::StringConversion(msg) => {
                 write!(f, "String conversion error: {msg}")
             }
-            ConversionError::FieldNotFound { struct_name, field_name }  => {
-                write!(f, "Field '{field_name}' not found in struct '{struct_name}'")
+            ConversionError::FieldNotFound {
+                struct_name,
+                field_name,
+            } => {
+                write!(
+                    f,
+                    "Field '{field_name}' not found in struct '{struct_name}'"
+                )
             }
-            ConversionError::IndexOutOfBounds { index, length }  => {
+            ConversionError::IndexOutOfBounds { index, length } => {
                 write!(f, "Array index {index} out of bounds (length {length})")
             }
-            ConversionError::AllocationFailed(size)  => {
+            ConversionError::AllocationFailed(size) => {
                 write!(f, "Memory allocation failed for {size} bytes")
             }
         }
@@ -306,7 +336,7 @@ impl CDataBuffer {
     /// Create a buffer from existing data (non-owning)
     ///
     /// # Safety
-    /// 
+    ///
     /// The caller must ensure that:
     /// - `data` is a valid pointer to at least `c_type.size()` bytes
     /// - The memory pointed to by `data` remains valid for the lifetime of the returned buffer
@@ -344,7 +374,7 @@ impl CDataBuffer {
     /// Convert to a specific type
     ///
     /// # Safety
-    /// 
+    ///
     /// The caller must ensure that:
     /// - The buffer contains valid data for type `T`
     /// - The buffer size is at least `size_of::<T>()`
@@ -357,7 +387,7 @@ impl CDataBuffer {
     /// Convert to a mutable specific type
     ///
     /// # Safety
-    /// 
+    ///
     /// The caller must ensure that:
     /// - The buffer contains valid data for type `T`
     /// - The buffer size is at least `size_of::<T>()`
@@ -394,50 +424,54 @@ impl TypeMarshaller {
             aliases: HashMap::new(),
             string_cache: Vec::new(),
         };
-        
+
         // Register common type aliases
         marshaller.register_alias("int".to_string(), CType::CInt);
         marshaller.register_alias("uint".to_string(), CType::CUInt);
         marshaller.register_alias("size_t".to_string(), CType::CSizeT);
         marshaller.register_alias("char*".to_string(), CType::CString);
         marshaller.register_alias("string".to_string(), CType::CString);
-        
+
         marshaller
     }
 
     /// Register a struct definition
-    pub fn register_struct(&mut self, name: String, fields: Vec<CField>) -> std::result::Result<(), ConversionError> {
+    pub fn register_struct(
+        &mut self,
+        name: String,
+        fields: Vec<CField>,
+    ) -> std::result::Result<(), ConversionError> {
         // Calculate struct layout
         let mut offset = 0;
         let mut max_alignment = 1;
         let mut calculated_fields = Vec::new();
-        
+
         for field in fields {
             let field_alignment = field.c_type.alignment();
             max_alignment = max_alignment.max(field_alignment);
-            
+
             // Align offset to field alignment
             offset = (offset + field_alignment - 1) & !(field_alignment - 1);
-            
+
             calculated_fields.push(CField {
                 name: field.name,
                 c_type: field.c_type,
                 offset,
             });
-            
+
             offset += calculated_fields.last().unwrap().c_type.size();
         }
-        
+
         // Align total size to struct alignment
         let size = (offset + max_alignment - 1) & !(max_alignment - 1);
-        
+
         let struct_type = CType::Struct {
             name: name.clone(),
             fields: calculated_fields,
             alignment: max_alignment,
             size,
         };
-        
+
         self.structs.insert(name, struct_type);
         Ok(())
     }
@@ -453,7 +487,11 @@ impl TypeMarshaller {
     }
 
     /// Convert a Lambdust value to C data
-    pub fn to_c_data(&mut self, value: &Value, c_type: &CType) -> std::result::Result<CDataBuffer, ConversionError> {
+    pub fn to_c_data(
+        &mut self,
+        value: &Value,
+        c_type: &CType,
+    ) -> std::result::Result<CDataBuffer, ConversionError> {
         let mut buffer = CDataBuffer::new(c_type.clone());
         self.write_value_to_buffer(value, c_type, &mut buffer, 0)?;
         Ok(buffer)
@@ -469,16 +507,22 @@ impl TypeMarshaller {
         match literal {
             Literal::ExactInteger(i) => Some(*i as f64),
             Literal::InexactReal(f) => Some(*f),
-            Literal::Rational(rational) => Some(rational.numerator as f64 / rational.denominator as f64),
+            Literal::Rational(rational) => {
+                Some(rational.numerator as f64 / rational.denominator as f64)
+            }
             Literal::Complex(complex) => Some(complex.real), // Use real part only
             _ => None,
         }
     }
 
     /// Write a value to a buffer at the given offset
-    fn write_value_to_buffer(&mut self, value: &Value, c_type: &CType, buffer: &mut CDataBuffer, offset: usize) 
-        -> std::result::Result<(), ConversionError> {
-        
+    fn write_value_to_buffer(
+        &mut self,
+        value: &Value,
+        c_type: &CType,
+        buffer: &mut CDataBuffer,
+        offset: usize,
+    ) -> std::result::Result<(), ConversionError> {
         if offset + c_type.size() > buffer.size() {
             return Err(ConversionError::BufferOverflow {
                 buffer_size: buffer.size(),
@@ -488,9 +532,11 @@ impl TypeMarshaller {
 
         unsafe {
             let ptr = buffer.as_mut_ptr().add(offset);
-            
+
             match (value, c_type) {
-                (Value::Literal(literal), CType::Int8) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::Int8)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     if val.fract() == 0.0 {
                         *(ptr as *mut i8) = val as i8;
@@ -501,7 +547,9 @@ impl TypeMarshaller {
                         });
                     }
                 }
-                (Value::Literal(literal), CType::Int16) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::Int16)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     if val.fract() == 0.0 {
                         *(ptr as *mut i16) = val as i16;
@@ -512,63 +560,85 @@ impl TypeMarshaller {
                         });
                     }
                 }
-                (Value::Literal(literal), CType::Int32) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::Int32)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *(ptr as *mut i32) = val as i32;
                 }
-                (Value::Literal(literal), CType::Int64) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::Int64)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *(ptr as *mut i64) = val as i64;
                 }
-                (Value::Literal(literal), CType::UInt8) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::UInt8)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *ptr = val as u8;
                 }
-                (Value::Literal(literal), CType::UInt16) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::UInt16)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *(ptr as *mut u16) = val as u16;
                 }
-                (Value::Literal(literal), CType::UInt32) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::UInt32)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *(ptr as *mut u32) = val as u32;
                 }
-                (Value::Literal(literal), CType::UInt64) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::UInt64)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *(ptr as *mut u64) = val as u64;
                 }
-                (Value::Literal(literal), CType::CInt) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::CInt)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *(ptr as *mut libc::c_int) = val as libc::c_int;
                 }
-                (Value::Literal(literal), CType::CUInt) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::CUInt)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *(ptr as *mut libc::c_uint) = val as libc::c_uint;
                 }
-                (Value::Literal(literal), CType::CSizeT) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::CSizeT)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *(ptr as *mut libc::size_t) = val as libc::size_t;
                 }
-                (Value::Literal(literal), CType::Float) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::Float)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *(ptr as *mut f32) = val as f32;
                 }
-                (Value::Literal(literal), CType::Double) if Self::extract_numeric_value(literal).is_some() => {
+                (Value::Literal(literal), CType::Double)
+                    if Self::extract_numeric_value(literal).is_some() =>
+                {
                     let val = Self::extract_numeric_value(literal).unwrap();
                     *(ptr as *mut f64) = val;
                 }
-                (Value::Literal(Literal::Boolean(b)), CType::Bool)  => {
+                (Value::Literal(Literal::Boolean(b)), CType::Bool) => {
                     *(ptr as *mut i32) = if *b { 1 } else { 0 };
                 }
-                (Value::Literal(Literal::String(s)), CType::CString)  => {
+                (Value::Literal(Literal::String(s)), CType::CString) => {
                     let c_string = CString::new(s.as_str())
                         .map_err(|e| ConversionError::StringConversion(e.to_string()))?;
                     *(ptr as *mut *const libc::c_char) = c_string.as_ptr();
                     self.string_cache.push(c_string); // Keep alive
                 }
-                (Value::Literal(Literal::Character(c)), CType::Char)  => {
+                (Value::Literal(Literal::Character(c)), CType::Char) => {
                     *(ptr as *mut libc::c_char) = *c as libc::c_char;
                 }
-                _  => {
+                _ => {
                     return Err(ConversionError::TypeMismatch {
                         expected: c_type.clone(),
                         actual: format!("{value:?}"),
@@ -581,9 +651,12 @@ impl TypeMarshaller {
     }
 
     /// Read a value from a buffer at the given offset
-    fn read_value_from_buffer(&self, c_type: &CType, buffer: &CDataBuffer, offset: usize) 
-        -> std::result::Result<Value, ConversionError> {
-        
+    fn read_value_from_buffer(
+        &self,
+        c_type: &CType,
+        buffer: &CDataBuffer,
+        offset: usize,
+    ) -> std::result::Result<Value, ConversionError> {
         if offset + c_type.size() > buffer.size() {
             return Err(ConversionError::BufferOverflow {
                 buffer_size: buffer.size(),
@@ -593,7 +666,7 @@ impl TypeMarshaller {
 
         unsafe {
             let ptr = buffer.as_ptr().add(offset);
-            
+
             let value = match c_type {
                 CType::Int8 => Value::Literal(Literal::InexactReal(*(ptr as *const i8) as f64)),
                 CType::Int16 => Value::Literal(Literal::InexactReal(*(ptr as *const i16) as f64)),
@@ -603,31 +676,38 @@ impl TypeMarshaller {
                 CType::UInt16 => Value::Literal(Literal::InexactReal(*(ptr as *const u16) as f64)),
                 CType::UInt32 => Value::Literal(Literal::InexactReal(*(ptr as *const u32) as f64)),
                 CType::UInt64 => Value::Literal(Literal::InexactReal(*(ptr as *const u64) as f64)),
-                CType::CInt => Value::Literal(Literal::InexactReal(*(ptr as *const libc::c_int) as f64)),
-                CType::CUInt => Value::Literal(Literal::InexactReal(*(ptr as *const libc::c_uint) as f64)),
-                CType::CSizeT => Value::Literal(Literal::InexactReal(*(ptr as *const libc::size_t) as f64)),
+                CType::CInt => {
+                    Value::Literal(Literal::InexactReal(*(ptr as *const libc::c_int) as f64))
+                }
+                CType::CUInt => {
+                    Value::Literal(Literal::InexactReal(*(ptr as *const libc::c_uint) as f64))
+                }
+                CType::CSizeT => {
+                    Value::Literal(Literal::InexactReal(*(ptr as *const libc::size_t) as f64))
+                }
                 CType::Float => Value::Literal(Literal::InexactReal(*(ptr as *const f32) as f64)),
                 CType::Double => Value::Literal(Literal::InexactReal(*(ptr as *const f64))),
-                CType::Bool  => {
+                CType::Bool => {
                     let int_val = *(ptr as *const i32);
                     Value::Literal(Literal::Boolean(int_val != 0))
                 }
-                CType::Char  => {
+                CType::Char => {
                     let char_val = *(ptr as *const libc::c_char);
                     Value::Literal(Literal::Character(char_val as u8 as char))
                 }
-                CType::CString  => {
+                CType::CString => {
                     let c_str_ptr = *(ptr as *const *const libc::c_char);
                     if c_str_ptr.is_null() {
                         Value::Literal(Literal::String(Box::new("".to_string())))
                     } else {
                         let c_str = CStr::from_ptr(c_str_ptr);
-                        let rust_str = c_str.to_str()
+                        let rust_str = c_str
+                            .to_str()
                             .map_err(|e| ConversionError::StringConversion(e.to_string()))?;
                         Value::Literal(Literal::String(Box::new(rust_str.to_string())))
                     }
                 }
-                _  => {
+                _ => {
                     return Err(ConversionError::TypeMismatch {
                         expected: c_type.clone(),
                         actual: "unsupported type".to_string(),
@@ -661,8 +741,14 @@ mod tests {
     #[test]
     fn test_c_type_display() {
         assert_eq!(CType::Int32.to_string(), "int32_t");
-        assert_eq!(CType::Pointer(Box::new(CType::Int32)).to_string(), "int32_t*");
-        assert_eq!(CType::Array(Box::new(CType::Int32), 10).to_string(), "int32_t[10]");
+        assert_eq!(
+            CType::Pointer(Box::new(CType::Int32)).to_string(),
+            "int32_t*"
+        );
+        assert_eq!(
+            CType::Array(Box::new(CType::Int32), 10).to_string(),
+            "int32_t[10]"
+        );
     }
 
     #[test]
@@ -677,23 +763,23 @@ mod tests {
         let mut marshaller = TypeMarshaller::new();
         let value = Value::Literal(Literal::Number(42.0));
         let buffer = marshaller.to_c_data(&value, &CType::Int32).unwrap();
-        
+
         unsafe {
             let int_val = *(buffer.as_ptr() as *const i32);
             assert_eq!(int_val, 42);
         }
     }
 
-    #[test] 
+    #[test]
     fn test_string_conversion() {
         let mut marshaller = TypeMarshaller::new();
         let value = Value::Literal(Literal::String(Box::new("hello".to_string())));
         let buffer = marshaller.to_c_data(&value, &CType::CString).unwrap();
-        
+
         unsafe {
             let c_str_ptr = *(buffer.as_ptr() as *const *const libc::c_char);
             assert!(!c_str_ptr.is_null());
-            
+
             let c_str = CStr::from_ptr(c_str_ptr);
             assert_eq!(c_str.to_str().unwrap(), "hello");
         }

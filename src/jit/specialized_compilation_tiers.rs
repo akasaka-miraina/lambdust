@@ -4,28 +4,28 @@
 //! dependent type information for maximum performance optimization.
 
 use crate::ast::Expr;
-use crate::types::{Type, JitDependentType, ProofObligation, Constraint};
+use crate::diagnostics::{Error, Result};
+use crate::jit::code_generator::{CodeMetadata, FunctionSignature, NativeCode};
 use crate::jit::compilation_tiers::{CompilationTier, TieredCode};
-use crate::jit::code_generator::{NativeCode, CodeMetadata, FunctionSignature};
 use crate::jit::dependent_hotspot_detector::{
-    DependentExecutionProfile, SpecializationOpportunity, SpecializationKind, SpecializationTier
+    DependentExecutionProfile, SpecializationKind, SpecializationOpportunity, SpecializationTier,
 };
-use crate::diagnostics::{Result, Error};
+use crate::types::{Constraint, JitDependentType, ProofObligation, Type};
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 /// Specialized compilation tier manager for dependent types
 pub struct SpecializedTierManager {
     /// Base tier manager
     base_manager: crate::jit::compilation_tiers::TierManager,
-    
+
     /// Dependent type specialization engine
     specialization_engine: DependentSpecializationEngine,
-    
+
     /// Specialized code cache
     specialized_cache: SpecializedCodeCache,
-    
+
     /// Performance tracking for specialized code
     performance_tracker: SpecializationPerformanceTracker,
 }
@@ -35,10 +35,12 @@ impl SpecializedTierManager {
     pub fn new(config: SpecializedTierConfig) -> Result<Self> {
         let base_config = config.to_base_tier_config();
         let base_manager = crate::jit::compilation_tiers::TierManager::new(base_config)?;
-        
+
         Ok(Self {
             base_manager,
-            specialization_engine: DependentSpecializationEngine::new(config.specialization_config)?,
+            specialization_engine: DependentSpecializationEngine::new(
+                config.specialization_config,
+            )?,
             specialized_cache: SpecializedCodeCache::new(config.cache_config),
             performance_tracker: SpecializationPerformanceTracker::new(),
         })
@@ -52,14 +54,16 @@ impl SpecializedTierManager {
         specialization_opportunities: &[SpecializationOpportunity],
     ) -> Result<SpecializedCompilationResult> {
         // First check if we can use existing specialized code
-        if let Some(cached) = self.specialized_cache.get(expr, &profile.type_computation_stats)? {
+        if let Some(cached) = self
+            .specialized_cache
+            .get(expr, &profile.type_computation_stats)?
+        {
             return Ok(SpecializedCompilationResult::CacheHit(cached));
         }
 
         // Determine if specialization is beneficial
-        let specialization_benefit = self.calculate_specialization_benefit(
-            profile, specialization_opportunities
-        )?;
+        let specialization_benefit =
+            self.calculate_specialization_benefit(profile, specialization_opportunities)?;
 
         if specialization_benefit < 2.0 {
             // Fall back to base tier selection
@@ -69,7 +73,9 @@ impl SpecializedTierManager {
 
         // Select appropriate specialization tier
         let specialized_tier = self.select_specialization_tier(
-            profile, specialization_opportunities, specialization_benefit
+            profile,
+            specialization_opportunities,
+            specialization_benefit,
         )?;
 
         Ok(SpecializedCompilationResult::SpecializedTier {
@@ -105,10 +111,15 @@ impl SpecializedTierManager {
         let compilation_time = start_time.elapsed();
 
         // Cache the specialized code
-        self.specialized_cache.store(expr, &profile.type_computation_stats, specialized_code.clone())?;
+        self.specialized_cache.store(
+            expr,
+            &profile.type_computation_stats,
+            specialized_code.clone(),
+        )?;
 
         // Track performance
-        self.performance_tracker.record_compilation(tier, compilation_time, opportunities.len())?;
+        self.performance_tracker
+            .record_compilation(tier, compilation_time, opportunities.len())?;
 
         Ok(specialized_code)
     }
@@ -123,14 +134,24 @@ impl SpecializedTierManager {
         let mut specializations = Vec::new();
 
         // Apply type monomorphization
-        if opportunities.iter().any(|op| op.kind == SpecializationKind::TypeMonomorphization) {
-            let mono_spec = self.specialization_engine.monomorphize_types(expr, profile)?;
+        if opportunities
+            .iter()
+            .any(|op| op.kind == SpecializationKind::TypeMonomorphization)
+        {
+            let mono_spec = self
+                .specialization_engine
+                .monomorphize_types(expr, profile)?;
             specializations.push(mono_spec);
         }
 
         // Apply constraint specialization
-        if opportunities.iter().any(|op| op.kind == SpecializationKind::ConstraintSpecialization) {
-            let constraint_spec = self.specialization_engine.specialize_constraints(expr, profile)?;
+        if opportunities
+            .iter()
+            .any(|op| op.kind == SpecializationKind::ConstraintSpecialization)
+        {
+            let constraint_spec = self
+                .specialization_engine
+                .specialize_constraints(expr, profile)?;
             specializations.push(constraint_spec);
         }
 
@@ -157,33 +178,46 @@ impl SpecializedTierManager {
         profile: &DependentExecutionProfile,
     ) -> Result<SpecializedNativeCode> {
         // Start with T4 specializations
-        let mut specialized_code = self.compile_t4_dependent_specialized(expr, opportunities, profile)?;
+        let mut specialized_code =
+            self.compile_t4_dependent_specialized(expr, opportunities, profile)?;
 
         // Apply additional native optimizations
         let mut additional_specializations = Vec::new();
 
         // Vectorization optimization
-        if opportunities.iter().any(|op| op.kind == SpecializationKind::VectorizationOptimization) {
-            let vec_spec = self.specialization_engine.apply_vectorization(expr, profile)?;
+        if opportunities
+            .iter()
+            .any(|op| op.kind == SpecializationKind::VectorizationOptimization)
+        {
+            let vec_spec = self
+                .specialization_engine
+                .apply_vectorization(expr, profile)?;
             additional_specializations.push(vec_spec);
         }
 
         // Memory layout optimization
-        if opportunities.iter().any(|op| op.kind == SpecializationKind::MemoryLayoutOptimization) {
-            let mem_spec = self.specialization_engine.optimize_memory_layout(expr, profile)?;
+        if opportunities
+            .iter()
+            .any(|op| op.kind == SpecializationKind::MemoryLayoutOptimization)
+        {
+            let mem_spec = self
+                .specialization_engine
+                .optimize_memory_layout(expr, profile)?;
             additional_specializations.push(mem_spec);
         }
 
         // Apply link-time optimizations
-        let optimized_code = self.specialization_engine.apply_native_optimizations(
-            &specialized_code.base_code,
-            &additional_specializations,
-        )?;
+        let optimized_code = self
+            .specialization_engine
+            .apply_native_optimizations(&specialized_code.base_code, &additional_specializations)?;
 
         specialized_code.base_code = optimized_code;
-        specialized_code.specializations.extend(additional_specializations);
+        specialized_code
+            .specializations
+            .extend(additional_specializations);
         specialized_code.tier = SpecializedCompilationTier::T5NativeOptimized;
-        specialized_code.performance_characteristics = self.estimate_t5_performance(opportunities)?;
+        specialized_code.performance_characteristics =
+            self.estimate_t5_performance(opportunities)?;
 
         Ok(specialized_code)
     }
@@ -196,12 +230,16 @@ impl SpecializedTierManager {
         profile: &DependentExecutionProfile,
     ) -> Result<SpecializedNativeCode> {
         // Start with T5 optimizations
-        let mut specialized_code = self.compile_t5_native_optimized(expr, opportunities, profile)?;
+        let mut specialized_code =
+            self.compile_t5_native_optimized(expr, opportunities, profile)?;
 
         // Apply proof elimination
-        if opportunities.iter().any(|op| op.kind == SpecializationKind::ProofElimination) {
+        if opportunities
+            .iter()
+            .any(|op| op.kind == SpecializationKind::ProofElimination)
+        {
             let proof_spec = self.specialization_engine.eliminate_proofs(expr, profile)?;
-            
+
             // Generate code without runtime proof checks
             let proof_eliminated_code = self.specialization_engine.generate_proof_free_code(
                 expr,
@@ -212,7 +250,8 @@ impl SpecializedTierManager {
             specialized_code.base_code = proof_eliminated_code;
             specialized_code.specializations.push(proof_spec);
             specialized_code.tier = SpecializedCompilationTier::T6ProofEliminated;
-            specialized_code.performance_characteristics = self.estimate_t6_performance(opportunities)?;
+            specialized_code.performance_characteristics =
+                self.estimate_t6_performance(opportunities)?;
         }
 
         Ok(specialized_code)
@@ -225,7 +264,7 @@ impl SpecializedTierManager {
         opportunities: &[SpecializationOpportunity],
     ) -> Result<f64> {
         let base_benefit = profile.base_profile.compilation_benefit_score();
-        
+
         let specialization_multiplier: f64 = opportunities
             .iter()
             .map(|op| op.benefit_estimate * op.confidence)
@@ -245,12 +284,13 @@ impl SpecializedTierManager {
             .iter()
             .any(|op| op.kind == SpecializationKind::ProofElimination);
 
-        let has_native_opportunities = opportunities
-            .iter()
-            .any(|op| matches!(op.kind, 
-                SpecializationKind::VectorizationOptimization | 
-                SpecializationKind::MemoryLayoutOptimization
-            ));
+        let has_native_opportunities = opportunities.iter().any(|op| {
+            matches!(
+                op.kind,
+                SpecializationKind::VectorizationOptimization
+                    | SpecializationKind::MemoryLayoutOptimization
+            )
+        });
 
         // Decision logic based on benefit and opportunity types
         if benefit > 50.0 && has_proof_opportunities && profile.proof_stats.eliminable_proofs > 10 {
@@ -263,27 +303,50 @@ impl SpecializedTierManager {
     }
 
     // Performance estimation methods
-    fn estimate_t4_performance(&self, opportunities: &[SpecializationOpportunity]) -> Result<PerformanceCharacteristics> {
+    fn estimate_t4_performance(
+        &self,
+        opportunities: &[SpecializationOpportunity],
+    ) -> Result<PerformanceCharacteristics> {
         Ok(PerformanceCharacteristics {
-            expected_speedup: opportunities.iter().map(|op| op.benefit_estimate).sum::<f64>().max(25.0),
+            expected_speedup: opportunities
+                .iter()
+                .map(|op| op.benefit_estimate)
+                .sum::<f64>()
+                .max(25.0),
             memory_overhead: 1.2, // 20% memory overhead for specialization
             compilation_time_factor: 5.0, // 5x compilation time
             cache_performance_factor: 1.3, // Better cache performance
         })
     }
 
-    fn estimate_t5_performance(&self, opportunities: &[SpecializationOpportunity]) -> Result<PerformanceCharacteristics> {
+    fn estimate_t5_performance(
+        &self,
+        opportunities: &[SpecializationOpportunity],
+    ) -> Result<PerformanceCharacteristics> {
         Ok(PerformanceCharacteristics {
-            expected_speedup: (opportunities.iter().map(|op| op.benefit_estimate).sum::<f64>() * 1.5).max(50.0),
+            expected_speedup: (opportunities
+                .iter()
+                .map(|op| op.benefit_estimate)
+                .sum::<f64>()
+                * 1.5)
+                .max(50.0),
             memory_overhead: 1.1, // Better memory efficiency with native opts
             compilation_time_factor: 10.0, // 10x compilation time
             cache_performance_factor: 1.5, // Even better cache performance
         })
     }
 
-    fn estimate_t6_performance(&self, opportunities: &[SpecializationOpportunity]) -> Result<PerformanceCharacteristics> {
+    fn estimate_t6_performance(
+        &self,
+        opportunities: &[SpecializationOpportunity],
+    ) -> Result<PerformanceCharacteristics> {
         Ok(PerformanceCharacteristics {
-            expected_speedup: (opportunities.iter().map(|op| op.benefit_estimate).sum::<f64>() * 2.0).max(100.0),
+            expected_speedup: (opportunities
+                .iter()
+                .map(|op| op.benefit_estimate)
+                .sum::<f64>()
+                * 2.0)
+                .max(100.0),
             memory_overhead: 0.9, // Less memory usage due to proof elimination
             compilation_time_factor: 15.0, // 15x compilation time
             cache_performance_factor: 1.8, // Excellent cache performance
@@ -317,9 +380,13 @@ impl DependentSpecializationEngine {
         expr: &Expr,
         profile: &DependentExecutionProfile,
     ) -> Result<CodeSpecialization> {
-        let type_instances = self.type_specializer.extract_type_instances(expr, profile)?;
-        let specialized_implementations = self.type_specializer.generate_monomorphic_code(&type_instances)?;
-        
+        let type_instances = self
+            .type_specializer
+            .extract_type_instances(expr, profile)?;
+        let specialized_implementations = self
+            .type_specializer
+            .generate_monomorphic_code(&type_instances)?;
+
         Ok(CodeSpecialization {
             kind: SpecializationKind::TypeMonomorphization,
             specialized_code: specialized_implementations,
@@ -337,11 +404,13 @@ impl DependentSpecializationEngine {
         expr: &Expr,
         profile: &DependentExecutionProfile,
     ) -> Result<CodeSpecialization> {
-        let stable_constraints = self.constraint_specializer.identify_stable_constraints(expr, profile)?;
-        let specialized_code = self.constraint_specializer.generate_constraint_specialized_code(
-            expr, &stable_constraints
-        )?;
-        
+        let stable_constraints = self
+            .constraint_specializer
+            .identify_stable_constraints(expr, profile)?;
+        let specialized_code = self
+            .constraint_specializer
+            .generate_constraint_specialized_code(expr, &stable_constraints)?;
+
         Ok(CodeSpecialization {
             kind: SpecializationKind::ConstraintSpecialization,
             specialized_code,
@@ -359,11 +428,13 @@ impl DependentSpecializationEngine {
         expr: &Expr,
         profile: &DependentExecutionProfile,
     ) -> Result<CodeSpecialization> {
-        let eliminable_proofs = self.proof_eliminator.identify_eliminable_proofs(expr, profile)?;
-        let proof_free_code = self.proof_eliminator.generate_proof_free_implementation(
-            expr, &eliminable_proofs
-        )?;
-        
+        let eliminable_proofs = self
+            .proof_eliminator
+            .identify_eliminable_proofs(expr, profile)?;
+        let proof_free_code = self
+            .proof_eliminator
+            .generate_proof_free_implementation(expr, &eliminable_proofs)?;
+
         Ok(CodeSpecialization {
             kind: SpecializationKind::ProofElimination,
             specialized_code: proof_free_code,
@@ -382,8 +453,10 @@ impl DependentSpecializationEngine {
         profile: &DependentExecutionProfile,
     ) -> Result<CodeSpecialization> {
         let vectorizable_operations = self.native_optimizer.identify_vectorizable_ops(expr)?;
-        let vectorized_code = self.native_optimizer.generate_vectorized_code(&vectorizable_operations)?;
-        
+        let vectorized_code = self
+            .native_optimizer
+            .generate_vectorized_code(&vectorizable_operations)?;
+
         Ok(CodeSpecialization {
             kind: SpecializationKind::VectorizationOptimization,
             specialized_code: vectorized_code,
@@ -402,8 +475,10 @@ impl DependentSpecializationEngine {
         profile: &DependentExecutionProfile,
     ) -> Result<CodeSpecialization> {
         let layout_analysis = self.native_optimizer.analyze_memory_layout(expr, profile)?;
-        let optimized_code = self.native_optimizer.generate_layout_optimized_code(&layout_analysis)?;
-        
+        let optimized_code = self
+            .native_optimizer
+            .generate_layout_optimized_code(&layout_analysis)?;
+
         Ok(CodeSpecialization {
             kind: SpecializationKind::MemoryLayoutOptimization,
             specialized_code: optimized_code,
@@ -424,11 +499,11 @@ impl DependentSpecializationEngine {
     ) -> Result<NativeCode> {
         // Combine all specializations into unified native code
         let mut code_builder = self.create_specialized_code_builder(tier)?;
-        
+
         for spec in specializations {
             code_builder.integrate_specialization(spec)?;
         }
-        
+
         code_builder.finalize(expr)
     }
 
@@ -439,11 +514,11 @@ impl DependentSpecializationEngine {
         additional_specs: &[CodeSpecialization],
     ) -> Result<NativeCode> {
         let mut optimizer = self.native_optimizer.create_native_optimizer()?;
-        
+
         for spec in additional_specs {
             optimizer.apply_specialization(spec)?;
         }
-        
+
         optimizer.optimize(base_code)
     }
 
@@ -454,10 +529,14 @@ impl DependentSpecializationEngine {
         proof_spec: &CodeSpecialization,
         base_code: &NativeCode,
     ) -> Result<NativeCode> {
-        self.proof_eliminator.transform_to_proof_free(expr, proof_spec, base_code)
+        self.proof_eliminator
+            .transform_to_proof_free(expr, proof_spec, base_code)
     }
 
-    fn create_specialized_code_builder(&self, tier: SpecializedCompilationTier) -> Result<SpecializedCodeBuilder> {
+    fn create_specialized_code_builder(
+        &self,
+        tier: SpecializedCompilationTier,
+    ) -> Result<SpecializedCodeBuilder> {
         SpecializedCodeBuilder::new(tier, &self.config)
     }
 }
@@ -469,10 +548,10 @@ impl DependentSpecializationEngine {
 pub enum SpecializedCompilationTier {
     /// T4: Dependent type specialization
     T4DependentSpecialized,
-    
-    /// T5: Native optimized compilation  
+
+    /// T5: Native optimized compilation
     T5NativeOptimized,
-    
+
     /// T6: Proof elimination compilation
     T6ProofEliminated,
 }
@@ -482,10 +561,10 @@ pub enum SpecializedCompilationTier {
 pub enum SpecializedCompilationResult {
     /// Use cached specialized code
     CacheHit(SpecializedNativeCode),
-    
+
     /// Fall back to base tier
     BaseTier(CompilationTier),
-    
+
     /// Compile with specialized tier
     SpecializedTier {
         tier: SpecializedCompilationTier,
@@ -499,13 +578,13 @@ pub enum SpecializedCompilationResult {
 pub struct SpecializedNativeCode {
     /// Base native code
     pub base_code: NativeCode,
-    
+
     /// Applied specializations
     pub specializations: Vec<CodeSpecialization>,
-    
+
     /// Compilation tier used
     pub tier: SpecializedCompilationTier,
-    
+
     /// Performance characteristics
     pub performance_characteristics: PerformanceCharacteristics,
 }
@@ -515,10 +594,10 @@ pub struct SpecializedNativeCode {
 pub struct CodeSpecialization {
     /// Type of specialization
     pub kind: SpecializationKind,
-    
+
     /// Specialized code representation
     pub specialized_code: SpecializedCodeRepresentation,
-    
+
     /// Specialization metadata
     pub metadata: SpecializationMetadata,
 }
@@ -528,25 +607,25 @@ pub struct CodeSpecialization {
 pub enum SpecializedCodeRepresentation {
     /// Monomorphized type-specific code
     MonomorphicCode(HashMap<Type, NativeCode>),
-    
+
     /// Constraint-specialized code
     ConstraintSpecializedCode {
         base_code: NativeCode,
         constraint_optimizations: Vec<ConstraintOptimization>,
     },
-    
+
     /// Proof-eliminated code
     ProofFreeCode {
         original_proofs: Vec<ProofObligation>,
         optimized_code: NativeCode,
     },
-    
+
     /// Vectorized code
     VectorizedCode {
         scalar_fallback: NativeCode,
         vector_implementations: HashMap<String, NativeCode>, // Keyed by vector width
     },
-    
+
     /// Memory-optimized code
     MemoryOptimizedCode {
         layout_optimization: MemoryLayoutOptimization,
@@ -559,13 +638,13 @@ pub enum SpecializedCodeRepresentation {
 pub struct PerformanceCharacteristics {
     /// Expected speedup multiplier
     pub expected_speedup: f64,
-    
+
     /// Memory overhead factor
     pub memory_overhead: f64,
-    
+
     /// Compilation time multiplier
     pub compilation_time_factor: f64,
-    
+
     /// Cache performance improvement factor
     pub cache_performance_factor: f64,
 }
@@ -575,10 +654,10 @@ pub struct PerformanceCharacteristics {
 pub struct SpecializationMetadata {
     /// List of applied optimizations
     pub applied_optimizations: Vec<String>,
-    
+
     /// Estimated performance benefit
     pub estimated_benefit: f64,
-    
+
     /// Resource requirements for the specialization
     pub resource_requirements: ResourceRequirements,
 }
@@ -586,9 +665,18 @@ pub struct SpecializationMetadata {
 /// Resource requirements for specializations
 #[derive(Debug, Clone)]
 pub enum ResourceRequirements {
-    Low { compile_time: Duration, memory: usize },
-    Moderate { compile_time: Duration, memory: usize },
-    High { compile_time: Duration, memory: usize },
+    Low {
+        compile_time: Duration,
+        memory: usize,
+    },
+    Moderate {
+        compile_time: Duration,
+        memory: usize,
+    },
+    High {
+        compile_time: Duration,
+        memory: usize,
+    },
 }
 
 impl ResourceRequirements {
@@ -662,12 +750,21 @@ impl SpecializedCodeCache {
         }
     }
 
-    pub fn get(&self, _expr: &Expr, _type_stats: &crate::jit::dependent_hotspot_detector::TypeComputationStats) -> Result<Option<SpecializedNativeCode>> {
+    pub fn get(
+        &self,
+        _expr: &Expr,
+        _type_stats: &crate::jit::dependent_hotspot_detector::TypeComputationStats,
+    ) -> Result<Option<SpecializedNativeCode>> {
         // Placeholder - would implement cache lookup
         Ok(None)
     }
 
-    pub fn store(&mut self, expr: &Expr, _type_stats: &crate::jit::dependent_hotspot_detector::TypeComputationStats, code: SpecializedNativeCode) -> Result<()> {
+    pub fn store(
+        &mut self,
+        expr: &Expr,
+        _type_stats: &crate::jit::dependent_hotspot_detector::TypeComputationStats,
+        code: SpecializedNativeCode,
+    ) -> Result<()> {
         let key = format!("{expr:?}"); // Simplified key generation
         self.cache.insert(key, code);
         Ok(())
@@ -687,7 +784,12 @@ impl SpecializationPerformanceTracker {
         Self
     }
 
-    pub fn record_compilation(&mut self, _tier: SpecializedCompilationTier, _time: Duration, _num_opportunities: usize) -> Result<()> {
+    pub fn record_compilation(
+        &mut self,
+        _tier: SpecializedCompilationTier,
+        _time: Duration,
+        _num_opportunities: usize,
+    ) -> Result<()> {
         Ok(())
     }
 }
@@ -715,17 +817,42 @@ pub struct MemoryLayoutOptimization;
 
 // Implementation placeholders - these would be fully implemented in practice
 impl TypeSpecializer {
-    pub fn new() -> Result<Self> { Ok(Self) }
-    pub fn extract_type_instances(&mut self, _expr: &Expr, _profile: &DependentExecutionProfile) -> Result<Vec<Type>> { Ok(Vec::new()) }
-    pub fn generate_monomorphic_code(&mut self, _instances: &[Type]) -> Result<SpecializedCodeRepresentation> { 
-        Ok(SpecializedCodeRepresentation::MonomorphicCode(HashMap::new())) 
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
+    pub fn extract_type_instances(
+        &mut self,
+        _expr: &Expr,
+        _profile: &DependentExecutionProfile,
+    ) -> Result<Vec<Type>> {
+        Ok(Vec::new())
+    }
+    pub fn generate_monomorphic_code(
+        &mut self,
+        _instances: &[Type],
+    ) -> Result<SpecializedCodeRepresentation> {
+        Ok(SpecializedCodeRepresentation::MonomorphicCode(
+            HashMap::new(),
+        ))
     }
 }
 
 impl ProofEliminator {
-    pub fn new() -> Result<Self> { Ok(Self) }
-    pub fn identify_eliminable_proofs(&mut self, _expr: &Expr, _profile: &DependentExecutionProfile) -> Result<Vec<ProofObligation>> { Ok(Vec::new()) }
-    pub fn generate_proof_free_implementation(&mut self, _expr: &Expr, _proofs: &[ProofObligation]) -> Result<SpecializedCodeRepresentation> {
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
+    pub fn identify_eliminable_proofs(
+        &mut self,
+        _expr: &Expr,
+        _profile: &DependentExecutionProfile,
+    ) -> Result<Vec<ProofObligation>> {
+        Ok(Vec::new())
+    }
+    pub fn generate_proof_free_implementation(
+        &mut self,
+        _expr: &Expr,
+        _proofs: &[ProofObligation],
+    ) -> Result<SpecializedCodeRepresentation> {
         Ok(SpecializedCodeRepresentation::ProofFreeCode {
             original_proofs: Vec::new(),
             optimized_code: NativeCode {
@@ -756,15 +883,32 @@ impl ProofEliminator {
             },
         })
     }
-    pub fn transform_to_proof_free(&mut self, _expr: &Expr, _spec: &CodeSpecialization, base_code: &NativeCode) -> Result<NativeCode> {
+    pub fn transform_to_proof_free(
+        &mut self,
+        _expr: &Expr,
+        _spec: &CodeSpecialization,
+        base_code: &NativeCode,
+    ) -> Result<NativeCode> {
         Ok(base_code.clone())
     }
 }
 
 impl ConstraintSpecializer {
-    pub fn new() -> Result<Self> { Ok(Self) }
-    pub fn identify_stable_constraints(&mut self, _expr: &Expr, _profile: &DependentExecutionProfile) -> Result<Vec<Constraint>> { Ok(Vec::new()) }
-    pub fn generate_constraint_specialized_code(&mut self, _expr: &Expr, _constraints: &[Constraint]) -> Result<SpecializedCodeRepresentation> {
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
+    pub fn identify_stable_constraints(
+        &mut self,
+        _expr: &Expr,
+        _profile: &DependentExecutionProfile,
+    ) -> Result<Vec<Constraint>> {
+        Ok(Vec::new())
+    }
+    pub fn generate_constraint_specialized_code(
+        &mut self,
+        _expr: &Expr,
+        _constraints: &[Constraint],
+    ) -> Result<SpecializedCodeRepresentation> {
         Ok(SpecializedCodeRepresentation::ConstraintSpecializedCode {
             base_code: NativeCode {
                 machine_code: Vec::new(),
@@ -798,9 +942,16 @@ impl ConstraintSpecializer {
 }
 
 impl NativeOptimizer {
-    pub fn new() -> Result<Self> { Ok(Self) }
-    pub fn identify_vectorizable_ops(&mut self, _expr: &Expr) -> Result<Vec<String>> { Ok(Vec::new()) }
-    pub fn generate_vectorized_code(&mut self, _ops: &[String]) -> Result<SpecializedCodeRepresentation> {
+    pub fn new() -> Result<Self> {
+        Ok(Self)
+    }
+    pub fn identify_vectorizable_ops(&mut self, _expr: &Expr) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+    pub fn generate_vectorized_code(
+        &mut self,
+        _ops: &[String],
+    ) -> Result<SpecializedCodeRepresentation> {
         Ok(SpecializedCodeRepresentation::VectorizedCode {
             scalar_fallback: NativeCode {
                 machine_code: Vec::new(),
@@ -831,10 +982,17 @@ impl NativeOptimizer {
             vector_implementations: HashMap::new(),
         })
     }
-    pub fn analyze_memory_layout(&mut self, _expr: &Expr, _profile: &DependentExecutionProfile) -> Result<MemoryLayoutOptimization> {
+    pub fn analyze_memory_layout(
+        &mut self,
+        _expr: &Expr,
+        _profile: &DependentExecutionProfile,
+    ) -> Result<MemoryLayoutOptimization> {
         Ok(MemoryLayoutOptimization)
     }
-    pub fn generate_layout_optimized_code(&mut self, _analysis: &MemoryLayoutOptimization) -> Result<SpecializedCodeRepresentation> {
+    pub fn generate_layout_optimized_code(
+        &mut self,
+        _analysis: &MemoryLayoutOptimization,
+    ) -> Result<SpecializedCodeRepresentation> {
         Ok(SpecializedCodeRepresentation::MemoryOptimizedCode {
             layout_optimization: MemoryLayoutOptimization,
             optimized_code: NativeCode {
@@ -865,14 +1023,27 @@ impl NativeOptimizer {
             },
         })
     }
-    pub fn create_native_optimizer(&mut self) -> Result<NativeOptimizer> { Ok(NativeOptimizer) }
-    pub fn apply_specialization(&mut self, _spec: &CodeSpecialization) -> Result<()> { Ok(()) }
-    pub fn optimize(&mut self, base_code: &NativeCode) -> Result<NativeCode> { Ok(base_code.clone()) }
+    pub fn create_native_optimizer(&mut self) -> Result<NativeOptimizer> {
+        Ok(NativeOptimizer)
+    }
+    pub fn apply_specialization(&mut self, _spec: &CodeSpecialization) -> Result<()> {
+        Ok(())
+    }
+    pub fn optimize(&mut self, base_code: &NativeCode) -> Result<NativeCode> {
+        Ok(base_code.clone())
+    }
 }
 
 impl SpecializedCodeBuilder {
-    pub fn new(_tier: SpecializedCompilationTier, _config: &SpecializationEngineConfig) -> Result<Self> { Ok(Self) }
-    pub fn integrate_specialization(&mut self, _spec: &CodeSpecialization) -> Result<()> { Ok(()) }
+    pub fn new(
+        _tier: SpecializedCompilationTier,
+        _config: &SpecializationEngineConfig,
+    ) -> Result<Self> {
+        Ok(Self)
+    }
+    pub fn integrate_specialization(&mut self, _spec: &CodeSpecialization) -> Result<()> {
+        Ok(())
+    }
     pub fn finalize(&mut self, _expr: &Expr) -> Result<NativeCode> {
         Ok(NativeCode {
             machine_code: Vec::new(),
@@ -911,7 +1082,7 @@ mod tests {
     #[test]
     fn test_specialized_tier_ordering() {
         use SpecializedCompilationTier::*;
-        
+
         assert!(T4DependentSpecialized < T5NativeOptimized);
         assert!(T5NativeOptimized < T6ProofEliminated);
     }
@@ -923,7 +1094,7 @@ mod tests {
             cache_config: SpecializedCacheConfig,
             performance_config: PerformanceTrackingConfig,
         };
-        
+
         let manager = SpecializedTierManager::new(config);
         assert!(manager.is_ok());
     }
@@ -936,7 +1107,7 @@ mod tests {
             compilation_time_factor: 5.0,
             cache_performance_factor: 1.3,
         };
-        
+
         assert!(perf.expected_speedup >= 25.0);
         assert!(perf.compilation_time_factor > 1.0);
     }
@@ -945,10 +1116,18 @@ mod tests {
     fn test_resource_requirements() {
         let low_req = ResourceRequirements::low();
         let high_req = ResourceRequirements::high();
-        
+
         match (low_req, high_req) {
-            (ResourceRequirements::Low { compile_time: low_time, .. }, 
-             ResourceRequirements::High { compile_time: high_time, .. }) => {
+            (
+                ResourceRequirements::Low {
+                    compile_time: low_time,
+                    ..
+                },
+                ResourceRequirements::High {
+                    compile_time: high_time,
+                    ..
+                },
+            ) => {
                 assert!(low_time < high_time);
             }
             _ => panic!("Unexpected resource requirement variants"),

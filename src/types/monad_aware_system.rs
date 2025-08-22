@@ -1,16 +1,16 @@
 //! Monad-Aware Type System Implementation
 //!
-//! This module provides a type system that extends Hindley-Milner with 
+//! This module provides a type system that extends Hindley-Milner with
 //! explicit monad support, laying the groundwork for CaTT integration
 //! and natural monad structure incorporation.
 
-use crate::diagnostics::{UnifiedResult, TypeError};
 #[cfg(feature = "experimental-type-system")]
 use super::generic_type_system::*;
 use super::hindley_milner_system::{
-    HMType, HMTypeVariable, HMContext, HMConstraintSystem, HMInferenceEngine, 
-    BaseType, HMUniverse, HMProofWitness
+    BaseType, HMConstraintSystem, HMContext, HMInferenceEngine, HMProofWitness, HMType,
+    HMTypeVariable, HMUniverse,
 };
+use crate::diagnostics::{TypeError, UnifiedResult};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -52,6 +52,11 @@ pub enum MonadAwareType {
         base_monad: MonadConstructor,
         inner_type: Box<MonadAwareType>,
     },
+    /// Effect-annotated type
+    EffectAnnotated {
+        base_type: Box<MonadAwareType>,
+        effects: Vec<Effect>,
+    },
 }
 
 /// Monad constructor representation
@@ -77,6 +82,7 @@ pub enum MonadConstructor {
     Custom {
         name: String,
         kind: TypeKind,
+        parameter_count: usize,
     },
 }
 
@@ -109,6 +115,8 @@ pub enum Effect {
     IO,
     /// State mutation
     State(String),
+    /// Direct mutation effects
+    Mutation,
     /// Exception throwing
     Exception(String),
     /// Non-determinism
@@ -218,55 +226,67 @@ pub enum MonadConstraint {
 impl TypeRepr for MonadAwareType {
     type Universe = HMUniverse;
     type Witness = HMProofWitness;
-    
+
     fn universe(&self) -> Self::Universe {
         HMUniverse(0) // For now, keep at universe 0
     }
-    
+
     fn is_well_formed(&self, context: &impl TypeContext<Self>) -> bool {
         match self {
             MonadAwareType::HM(hm_type) => {
                 // Convert context - this is a simplification
                 true // For now, assume well-formed
             }
-            MonadAwareType::Monadic { monad: _, inner_type } => {
-                inner_type.is_well_formed(context)
-            }
-            MonadAwareType::Effectful { input, output, effects: _ } => {
-                input.is_well_formed(context) && output.is_well_formed(context)
-            }
-            MonadAwareType::Kleisli { input, monad: _, output } => {
-                input.is_well_formed(context) && output.is_well_formed(context)
-            }
+            MonadAwareType::Monadic {
+                monad: _,
+                inner_type,
+            } => inner_type.is_well_formed(context),
+            MonadAwareType::Effectful {
+                input,
+                output,
+                effects: _,
+            } => input.is_well_formed(context) && output.is_well_formed(context),
+            MonadAwareType::Kleisli {
+                input,
+                monad: _,
+                output,
+            } => input.is_well_formed(context) && output.is_well_formed(context),
             MonadAwareType::TransformerStack { inner_type, .. } => {
                 inner_type.is_well_formed(context)
             }
+            MonadAwareType::EffectAnnotated { base_type, .. } => base_type.is_well_formed(context),
         }
     }
-    
+
     fn apply_substitution(&self, subst: &impl Substitution<Self>) -> Self {
         subst.apply(self)
     }
-    
+
     fn free_variables(&self) -> HashSet<TypeVariable> {
         let mut vars = HashSet::new();
         self.collect_free_vars(&mut vars);
         vars
     }
-    
+
     fn compose_with(&self, other: &Self) -> UnifiedResult<Self> {
         // Monad composition: M a -> M b -> M (a, b) or M b depending on context
         match (self, other) {
             (
-                MonadAwareType::Monadic { monad: m1, inner_type: a },
-                MonadAwareType::Monadic { monad: m2, inner_type: b }
+                MonadAwareType::Monadic {
+                    monad: m1,
+                    inner_type: a,
+                },
+                MonadAwareType::Monadic {
+                    monad: m2,
+                    inner_type: b,
+                },
             ) if m1 == m2 => {
                 // Same monad: can compose
                 Ok(MonadAwareType::Monadic {
                     monad: m1.clone(),
                     inner_type: Box::new(MonadAwareType::HM(HMType::Pair(
                         Box::new(HMType::Base(BaseType::Unit)), // Placeholder
-                        Box::new(HMType::Base(BaseType::Unit))
+                        Box::new(HMType::Base(BaseType::Unit)),
                     ))),
                 })
             }
@@ -274,12 +294,12 @@ impl TypeRepr for MonadAwareType {
                 // Different monads or non-monadic types: create product
                 Ok(MonadAwareType::HM(HMType::Pair(
                     Box::new(HMType::Base(BaseType::Unit)), // Placeholder
-                    Box::new(HMType::Base(BaseType::Unit))
+                    Box::new(HMType::Base(BaseType::Unit)),
                 )))
             }
         }
     }
-    
+
     fn unit(&self) -> UnifiedResult<Self> {
         // Return type for this type: T -> M T
         match self {
@@ -290,7 +310,10 @@ impl TypeRepr for MonadAwareType {
                     inner_type: Box::new(self.clone()),
                 })
             }
-            MonadAwareType::Monadic { monad, inner_type: _ } => {
+            MonadAwareType::Monadic {
+                monad,
+                inner_type: _,
+            } => {
                 // Already monadic: return with same monad
                 Ok(MonadAwareType::Kleisli {
                     input: Box::new(self.clone()),
@@ -301,53 +324,56 @@ impl TypeRepr for MonadAwareType {
             _ => Ok(self.clone()), // For other types, return as-is for now
         }
     }
-    
+
     fn bind(&self, f_type: &Self) -> UnifiedResult<Self> {
         // Monadic bind: M a -> (a -> M b) -> M b
         match (self, f_type) {
             (
-                MonadAwareType::Monadic { monad: m1, inner_type: a },
-                MonadAwareType::Kleisli { input, monad: m2, output }
+                MonadAwareType::Monadic {
+                    monad: m1,
+                    inner_type: a,
+                },
+                MonadAwareType::Kleisli {
+                    input,
+                    monad: m2,
+                    output,
+                },
             ) if m1 == m2 => {
                 // Check that inner type of self matches input of function
                 Ok(output.as_ref().clone())
             }
             _ => Err(crate::diagnostics::UnifiedError::new(
                 TypeError,
-                "Bind type mismatch".to_string()
+                "Bind type mismatch".to_string(),
             )),
         }
     }
-    
+
     fn identity(&self) -> Self {
         // Identity Kleisli arrow: a -> M a
         match self {
-            MonadAwareType::Monadic { monad, .. } => {
-                MonadAwareType::Kleisli {
-                    input: Box::new(self.clone()),
-                    monad: monad.clone(),
-                    output: Box::new(self.clone()),
-                }
-            }
-            _ => {
-                MonadAwareType::Kleisli {
-                    input: Box::new(self.clone()),
+            MonadAwareType::Monadic { monad, .. } => MonadAwareType::Kleisli {
+                input: Box::new(self.clone()),
+                monad: monad.clone(),
+                output: Box::new(self.clone()),
+            },
+            _ => MonadAwareType::Kleisli {
+                input: Box::new(self.clone()),
+                monad: MonadConstructor::Identity,
+                output: Box::new(MonadAwareType::Monadic {
                     monad: MonadConstructor::Identity,
-                    output: Box::new(MonadAwareType::Monadic {
-                        monad: MonadConstructor::Identity,
-                        inner_type: Box::new(self.clone()),
-                    }),
-                }
-            }
+                    inner_type: Box::new(self.clone()),
+                }),
+            },
         }
     }
-    
+
     fn has_monad_structure(&self) -> bool {
         matches!(
             self,
-            MonadAwareType::Monadic { .. } | 
-            MonadAwareType::Kleisli { .. } |
-            MonadAwareType::TransformerStack { .. }
+            MonadAwareType::Monadic { .. }
+                | MonadAwareType::Kleisli { .. }
+                | MonadAwareType::TransformerStack { .. }
         )
     }
 }
@@ -373,9 +399,12 @@ impl MonadAwareType {
             MonadAwareType::TransformerStack { inner_type, .. } => {
                 inner_type.collect_free_vars(vars);
             }
+            MonadAwareType::EffectAnnotated { base_type, .. } => {
+                base_type.collect_free_vars(vars);
+            }
         }
     }
-    
+
     /// Display type for debugging
     pub fn display_type(&self) -> String {
         match self {
@@ -383,26 +412,63 @@ impl MonadAwareType {
             MonadAwareType::Monadic { monad, inner_type } => {
                 format!("{} {}", monad.display(), inner_type.display_type())
             }
-            MonadAwareType::Effectful { input, effects, output } => {
-                let effects_str = effects.iter()
+            MonadAwareType::Effectful {
+                input,
+                effects,
+                output,
+            } => {
+                let effects_str = effects
+                    .iter()
                     .map(|e| e.display())
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!("{} ~[{}]> {}", input.display_type(), effects_str, output.display_type())
+                format!(
+                    "{} ~[{}]> {}",
+                    input.display_type(),
+                    effects_str,
+                    output.display_type()
+                )
             }
-            MonadAwareType::Kleisli { input, monad, output } => {
-                format!("{} -> {} {}", input.display_type(), monad.display(), output.display_type())
+            MonadAwareType::Kleisli {
+                input,
+                monad,
+                output,
+            } => {
+                format!(
+                    "{} -> {} {}",
+                    input.display_type(),
+                    monad.display(),
+                    output.display_type()
+                )
             }
-            MonadAwareType::TransformerStack { transformers, base_monad, inner_type } => {
-                let stack = transformers.iter()
+            MonadAwareType::TransformerStack {
+                transformers,
+                base_monad,
+                inner_type,
+            } => {
+                let stack = transformers
+                    .iter()
                     .map(|t| t.display())
                     .collect::<Vec<_>>()
                     .join(" ");
-                format!("{} {} {}", stack, base_monad.display(), inner_type.display_type())
+                format!(
+                    "{} {} {}",
+                    stack,
+                    base_monad.display(),
+                    inner_type.display_type()
+                )
+            }
+            MonadAwareType::EffectAnnotated { base_type, effects } => {
+                let effects_str = effects
+                    .iter()
+                    .map(|e| e.display())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("({} | {})", base_type.display_type(), effects_str)
             }
         }
     }
-    
+
     /// Create monadic type
     pub fn monadic(monad: MonadConstructor, inner: MonadAwareType) -> Self {
         MonadAwareType::Monadic {
@@ -410,7 +476,7 @@ impl MonadAwareType {
             inner_type: Box::new(inner),
         }
     }
-    
+
     /// Create Kleisli arrow
     pub fn kleisli(input: MonadAwareType, monad: MonadConstructor, output: MonadAwareType) -> Self {
         MonadAwareType::Kleisli {
@@ -441,20 +507,32 @@ impl MonadConstructor {
 impl crate::types::generic_type_system::TypeConstructor<MonadAwareType> for MonadConstructor {
     fn arity(&self) -> usize {
         match self {
-            MonadConstructor::Identity | MonadConstructor::Maybe | MonadConstructor::List | MonadConstructor::IO => 1,
-            MonadConstructor::State(_) | MonadConstructor::Reader(_) | MonadConstructor::Writer(_) | MonadConstructor::Error(_) => 1,
-            MonadConstructor::Custom { parameter_count, .. } => *parameter_count,
+            MonadConstructor::Identity
+            | MonadConstructor::Maybe
+            | MonadConstructor::List
+            | MonadConstructor::IO => 1,
+            MonadConstructor::State(_)
+            | MonadConstructor::Reader(_)
+            | MonadConstructor::Writer(_)
+            | MonadConstructor::Error(_) => 1,
+            MonadConstructor::Custom {
+                parameter_count, ..
+            } => *parameter_count,
         }
     }
-    
+
     fn apply(&self, args: &[MonadAwareType]) -> crate::diagnostics::UnifiedResult<MonadAwareType> {
         if args.len() != self.arity() {
             return Err(crate::diagnostics::UnifiedError::new(
                 crate::diagnostics::TypeError,
-                format!("Wrong number of arguments for constructor: expected {}, got {}", self.arity(), args.len())
+                format!(
+                    "Wrong number of arguments for constructor: expected {}, got {}",
+                    self.arity(),
+                    args.len()
+                ),
             ));
         }
-        
+
         match self {
             MonadConstructor::Identity => Ok(args[0].clone()),
             MonadConstructor::Maybe | MonadConstructor::List | MonadConstructor::IO => {
@@ -466,20 +544,28 @@ impl crate::types::generic_type_system::TypeConstructor<MonadAwareType> for Mona
             _ => Ok(MonadAwareType::Monadic {
                 monad: self.clone(),
                 inner_type: Box::new(args[0].clone()),
-            })
+            }),
         }
     }
 
     fn kind(&self) -> crate::types::generic_type_system::TypeKind {
         use crate::types::generic_type_system::TypeKind;
         match self {
-            MonadConstructor::Identity | MonadConstructor::Maybe | MonadConstructor::List | MonadConstructor::IO => {
+            MonadConstructor::Identity
+            | MonadConstructor::Maybe
+            | MonadConstructor::List
+            | MonadConstructor::IO => {
                 TypeKind::Arrow(Box::new(TypeKind::Type), Box::new(TypeKind::Type))
             }
-            MonadConstructor::State(_) | MonadConstructor::Reader(_) | MonadConstructor::Writer(_) | MonadConstructor::Error(_) => {
+            MonadConstructor::State(_)
+            | MonadConstructor::Reader(_)
+            | MonadConstructor::Writer(_)
+            | MonadConstructor::Error(_) => {
                 TypeKind::Arrow(Box::new(TypeKind::Type), Box::new(TypeKind::Type))
             }
-            MonadConstructor::Custom { parameter_count, .. } => {
+            MonadConstructor::Custom {
+                parameter_count, ..
+            } => {
                 let mut kinds = vec![TypeKind::Type; *parameter_count];
                 kinds.push(TypeKind::Type);
                 if kinds.len() == 2 {
@@ -496,10 +582,12 @@ impl crate::types::generic_type_system::TypeConstructor<MonadAwareType> for Mona
         // For now, return an error for unsupported compositions
         Err(crate::diagnostics::UnifiedError::new(
             crate::diagnostics::TypeError,
-            format!("Monad composition not yet implemented for {:?} and {:?}", self, other)
+            format!(
+                "Monad composition not yet implemented for {:?} and {:?}",
+                self, other
+            ),
         ))
     }
-    
 }
 
 impl MonadTransformer {
@@ -527,6 +615,7 @@ impl Effect {
             Effect::Pure => "Pure".to_string(),
             Effect::IO => "IO".to_string(),
             Effect::State(s) => format!("State[{}]", s),
+            Effect::Mutation => "Mutation".to_string(),
             Effect::Exception(e) => format!("Exception[{}]", e),
             Effect::Choice => "Choice".to_string(),
             Effect::Continuation => "Cont".to_string(),
@@ -538,23 +627,40 @@ impl Effect {
 /// Implementation of MonadStructure for MonadAwareType
 impl MonadStructure<MonadAwareType> for MonadAwareSystem {
     type Constructor = MonadConstructor;
-    
+
     fn unit(&self) -> MonadAwareType {
         MonadAwareType::Kleisli {
-            input: Box::new(MonadAwareType::HM(HMType::Variable(HMTypeVariable { id: 0, name: Some("a".to_string()) }))),
+            input: Box::new(MonadAwareType::HM(HMType::Variable(HMTypeVariable {
+                id: 0,
+                name: Some("a".to_string()),
+            }))),
             monad: MonadConstructor::Identity,
             output: Box::new(MonadAwareType::Monadic {
                 monad: MonadConstructor::Identity,
-                inner_type: Box::new(MonadAwareType::HM(HMType::Variable(HMTypeVariable { id: 0, name: Some("a".to_string()) }))),
+                inner_type: Box::new(MonadAwareType::HM(HMType::Variable(HMTypeVariable {
+                    id: 0,
+                    name: Some("a".to_string()),
+                }))),
             }),
         }
     }
-    
-    fn bind(&self, m_type: &MonadAwareType, f_type: &MonadAwareType) -> UnifiedResult<MonadAwareType> {
+
+    fn bind(
+        &self,
+        m_type: &MonadAwareType,
+        f_type: &MonadAwareType,
+    ) -> UnifiedResult<MonadAwareType> {
         match (m_type, f_type) {
             (
-                MonadAwareType::Monadic { monad: m1, inner_type: a },
-                MonadAwareType::Kleisli { input, monad: m2, output }
+                MonadAwareType::Monadic {
+                    monad: m1,
+                    inner_type: a,
+                },
+                MonadAwareType::Kleisli {
+                    input,
+                    monad: m2,
+                    output,
+                },
             ) if m1 == m2 => {
                 // Type check: inner type matches kleisli input
                 Ok(MonadAwareType::Monadic {
@@ -564,18 +670,19 @@ impl MonadStructure<MonadAwareType> for MonadAwareSystem {
             }
             _ => Err(crate::diagnostics::UnifiedError::new(
                 TypeError,
-                "Invalid bind operation".to_string()
+                "Invalid bind operation".to_string(),
             )),
         }
     }
-    
+
     fn join(&self, mm_type: &MonadAwareType) -> UnifiedResult<MonadAwareType> {
         match mm_type {
-            MonadAwareType::Monadic { 
-                monad, 
-                inner_type
-            } => {
-                if let MonadAwareType::Monadic { monad: inner_monad, inner_type: a } = &**inner_type {
+            MonadAwareType::Monadic { monad, inner_type } => {
+                if let MonadAwareType::Monadic {
+                    monad: inner_monad,
+                    inner_type: a,
+                } = &**inner_type
+                {
                     if monad == inner_monad {
                         Ok(MonadAwareType::Monadic {
                             monad: monad.clone(),
@@ -584,28 +691,32 @@ impl MonadStructure<MonadAwareType> for MonadAwareSystem {
                     } else {
                         Err(crate::diagnostics::UnifiedError::new(
                             TypeError,
-                            "Join requires nested monad of same type".to_string()
+                            "Join requires nested monad of same type".to_string(),
                         ))
                     }
                 } else {
                     Err(crate::diagnostics::UnifiedError::new(
                         TypeError,
-                        "Join requires nested monad of same type".to_string()
+                        "Join requires nested monad of same type".to_string(),
                     ))
                 }
             }
             _ => Err(crate::diagnostics::UnifiedError::new(
                 TypeError,
-                "Join requires nested monad of same type".to_string()
+                "Join requires nested monad of same type".to_string(),
             )),
         }
     }
-    
-    fn fmap(&self, f_type: &MonadAwareType, m_type: &MonadAwareType) -> UnifiedResult<MonadAwareType> {
+
+    fn fmap(
+        &self,
+        f_type: &MonadAwareType,
+        m_type: &MonadAwareType,
+    ) -> UnifiedResult<MonadAwareType> {
         match (f_type, m_type) {
             (
                 MonadAwareType::HM(HMType::Function(a, b)),
-                MonadAwareType::Monadic { monad, inner_type }
+                MonadAwareType::Monadic { monad, inner_type },
             ) => {
                 // fmap :: (a -> b) -> M a -> M b
                 Ok(MonadAwareType::Monadic {
@@ -615,21 +726,21 @@ impl MonadStructure<MonadAwareType> for MonadAwareSystem {
             }
             _ => Err(crate::diagnostics::UnifiedError::new(
                 TypeError,
-                "Invalid fmap operation".to_string()
+                "Invalid fmap operation".to_string(),
             )),
         }
     }
-    
+
     fn check_monad_laws(&self) -> bool {
         // For now, assume laws are satisfied
         // In a full implementation, this would verify the laws
         true
     }
-    
+
     fn natural_transform<Other: MonadStructure<MonadAwareType>>(
         &self,
         _other: &Other,
-        _m_type: &MonadAwareType
+        _m_type: &MonadAwareType,
     ) -> UnifiedResult<MonadAwareType> {
         // Natural transformations between monads
         // For now, just return the same type
@@ -645,11 +756,11 @@ impl MonadRegistry {
             transformers: HashMap::new(),
             effect_mappings: HashMap::new(),
         };
-        
+
         registry.register_standard_monads();
         registry
     }
-    
+
     /// Register standard monads
     fn register_standard_monads(&mut self) {
         // Identity monad
@@ -659,10 +770,14 @@ impl MonadRegistry {
             unit_impl: MonadOperation::Builtin("identity_unit".to_string()),
             bind_impl: MonadOperation::Builtin("identity_bind".to_string()),
             join_impl: Some(MonadOperation::Builtin("identity_join".to_string())),
-            laws: vec![MonadLaw::LeftIdentity, MonadLaw::RightIdentity, MonadLaw::Associativity],
+            laws: vec![
+                MonadLaw::LeftIdentity,
+                MonadLaw::RightIdentity,
+                MonadLaw::Associativity,
+            ],
             effects: HashSet::new(),
         });
-        
+
         // Maybe monad
         self.register_monad(MonadDefinition {
             name: "Maybe".to_string(),
@@ -670,10 +785,14 @@ impl MonadRegistry {
             unit_impl: MonadOperation::Builtin("maybe_unit".to_string()),
             bind_impl: MonadOperation::Builtin("maybe_bind".to_string()),
             join_impl: Some(MonadOperation::Builtin("maybe_join".to_string())),
-            laws: vec![MonadLaw::LeftIdentity, MonadLaw::RightIdentity, MonadLaw::Associativity],
+            laws: vec![
+                MonadLaw::LeftIdentity,
+                MonadLaw::RightIdentity,
+                MonadLaw::Associativity,
+            ],
             effects: [Effect::Choice].into(),
         });
-        
+
         // IO monad
         self.register_monad(MonadDefinition {
             name: "IO".to_string(),
@@ -681,43 +800,51 @@ impl MonadRegistry {
             unit_impl: MonadOperation::Builtin("io_unit".to_string()),
             bind_impl: MonadOperation::Builtin("io_bind".to_string()),
             join_impl: Some(MonadOperation::Builtin("io_join".to_string())),
-            laws: vec![MonadLaw::LeftIdentity, MonadLaw::RightIdentity, MonadLaw::Associativity],
+            laws: vec![
+                MonadLaw::LeftIdentity,
+                MonadLaw::RightIdentity,
+                MonadLaw::Associativity,
+            ],
             effects: [Effect::IO].into(),
         });
-        
+
         // Set up effect mappings
-        self.effect_mappings.insert(Effect::Pure, vec![MonadConstructor::Identity]);
-        self.effect_mappings.insert(Effect::Choice, vec![MonadConstructor::Maybe, MonadConstructor::List]);
-        self.effect_mappings.insert(Effect::IO, vec![MonadConstructor::IO]);
+        self.effect_mappings
+            .insert(Effect::Pure, vec![MonadConstructor::Identity]);
+        self.effect_mappings.insert(
+            Effect::Choice,
+            vec![MonadConstructor::Maybe, MonadConstructor::List],
+        );
+        self.effect_mappings
+            .insert(Effect::IO, vec![MonadConstructor::IO]);
     }
-    
+
     /// Register a new monad
     pub fn register_monad(&mut self, definition: MonadDefinition) {
         let name = definition.name.clone();
         for effect in &definition.effects {
-            self.effect_mappings.entry(effect.clone())
+            self.effect_mappings
+                .entry(effect.clone())
                 .or_insert_with(Vec::new)
                 .push(definition.constructor.clone());
         }
         self.monads.insert(name, definition);
     }
-    
+
     /// Get monad by name
     pub fn get_monad(&self, name: &str) -> Option<&MonadDefinition> {
         self.monads.get(name)
     }
-    
+
     /// Find monads that can handle specific effects
     pub fn find_monads_for_effects(&self, effects: &[Effect]) -> Vec<MonadConstructor> {
-        let mut candidates = Vec::new();
+        let mut candidates = std::collections::HashSet::new();
         for effect in effects {
             if let Some(monads) = self.effect_mappings.get(effect) {
                 candidates.extend(monads.clone());
             }
         }
-        candidates.sort();
-        candidates.dedup();
-        candidates
+        candidates.into_iter().collect()
     }
 }
 
@@ -725,20 +852,20 @@ impl MonadRegistry {
 impl crate::types::generic_type_system::TypeContext<MonadAwareType> for MonadAwareContext {
     fn lookup(&self, var: &str) -> Option<MonadAwareType> {
         // Look up in base context and convert
-        self.base_context.lookup(var).map(|hm_type| MonadAwareType::HM(hm_type))
+        self.base_context
+            .lookup(var)
+            .map(|hm_type| MonadAwareType::HM(hm_type))
     }
-    
+
     fn extend(&self, var: String, ty: MonadAwareType) -> Self {
         // Convert type back to HM type for base context
         match ty {
-            MonadAwareType::HM(hm_type) => {
-                MonadAwareContext {
-                    base_context: self.base_context.extend(var, hm_type),
-                    monad_stack: self.monad_stack.clone(),
-                    effect_context: self.effect_context.clone(),
-                    monad_constraints: self.monad_constraints.clone(),
-                }
-            }
+            MonadAwareType::HM(hm_type) => MonadAwareContext {
+                base_context: self.base_context.extend(var, hm_type),
+                monad_stack: self.monad_stack.clone(),
+                effect_context: self.effect_context.clone(),
+                monad_constraints: self.monad_constraints.clone(),
+            },
             _ => {
                 // For complex types, use a placeholder for now
                 MonadAwareContext {
@@ -750,22 +877,30 @@ impl crate::types::generic_type_system::TypeContext<MonadAwareType> for MonadAwa
             }
         }
     }
-    
+
     fn extend_many(&self, bindings: Vec<(String, MonadAwareType)>) -> Self {
-        bindings.into_iter().fold(self.clone(), |ctx, (var, ty)| ctx.extend(var, ty))
+        bindings
+            .into_iter()
+            .fold(self.clone(), |ctx, (var, ty)| ctx.extend(var, ty))
     }
-    
+
     fn bindings(&self) -> Vec<(String, MonadAwareType)> {
-        self.base_context.bindings()
+        self.base_context
+            .bindings()
             .into_iter()
             .map(|(var, hm_type)| (var, MonadAwareType::HM(hm_type)))
             .collect()
     }
-    
-    fn extend_term(&self, var: String, _term: impl crate::types::generic_type_system::TermRepr, ty: MonadAwareType) -> Self {
+
+    fn extend_term(
+        &self,
+        var: String,
+        _term: impl crate::types::generic_type_system::TermRepr,
+        ty: MonadAwareType,
+    ) -> Self {
         self.extend(var, ty)
     }
-    
+
     fn is_well_formed(&self) -> bool {
         self.base_context.is_well_formed()
     }
@@ -794,19 +929,37 @@ impl crate::types::generic_type_system::Substitution<MonadAwareType> for MonadAw
                 // Apply HM substitution logic - for now, just return the type
                 MonadAwareType::HM(hm_type.clone())
             }
-            MonadAwareType::Monadic { monad, inner_type } => {
-                MonadAwareType::Monadic {
-                    monad: monad.clone(),
-                    inner_type: Box::new(self.apply(inner_type)),
-                }
-            }
-            MonadAwareType::Kleisli { input, monad, output } => {
-                MonadAwareType::Kleisli {
-                    input: Box::new(self.apply(input)),
-                    monad: monad.clone(),
-                    output: Box::new(self.apply(output)),
-                }
-            }
+            MonadAwareType::Monadic { monad, inner_type } => MonadAwareType::Monadic {
+                monad: monad.clone(),
+                inner_type: Box::new(self.apply(inner_type)),
+            },
+            MonadAwareType::Kleisli {
+                input,
+                monad,
+                output,
+            } => MonadAwareType::Kleisli {
+                input: Box::new(self.apply(input)),
+                monad: monad.clone(),
+                output: Box::new(self.apply(output)),
+            },
+            MonadAwareType::Effectful {
+                input,
+                effects,
+                output,
+            } => MonadAwareType::Effectful {
+                input: Box::new(self.apply(input)),
+                effects: effects.clone(),
+                output: Box::new(self.apply(output)),
+            },
+            MonadAwareType::TransformerStack {
+                transformers,
+                base_monad,
+                inner_type,
+            } => MonadAwareType::TransformerStack {
+                transformers: transformers.clone(),
+                base_monad: base_monad.clone(),
+                inner_type: Box::new(self.apply(inner_type)),
+            },
             MonadAwareType::EffectAnnotated { base_type, effects } => {
                 MonadAwareType::EffectAnnotated {
                     base_type: Box::new(self.apply(base_type)),
@@ -815,17 +968,28 @@ impl crate::types::generic_type_system::Substitution<MonadAwareType> for MonadAw
             }
         }
     }
-    
-    fn compose(&self, _other: &Self) -> crate::diagnostics::UnifiedResult<Self> {
-        Ok(self.clone()) // Simplified for now
+
+    fn compose(
+        &self,
+        other: &dyn Substitution<MonadAwareType>,
+    ) -> Box<dyn Substitution<MonadAwareType>> {
+        // For now, just return self as boxed
+        // TODO: Implement proper composition logic
+        Box::new(self.clone())
     }
-    
+
+    fn identity() -> Box<dyn Substitution<MonadAwareType>> {
+        Box::new(Self::empty())
+    }
+
     fn domain(&self) -> HashSet<crate::types::generic_type_system::TypeVariable> {
         self.substitutions.keys().cloned().collect()
     }
-    
-    fn identity() -> Self {
-        Self::empty()
+
+    fn clone_boxed(
+        &self,
+    ) -> Box<dyn crate::types::generic_type_system::Substitution<MonadAwareType>> {
+        Box::new(self.clone())
     }
 }
 
@@ -835,7 +999,7 @@ impl TypeSystem for MonadAwareSystem {
     type Context = MonadAwareContext;
     type Constraint = HMConstraintSystem; // Extend this later
     type Inference = HMInferenceEngine; // Extend this later
-    
+
     fn new() -> UnifiedResult<Self> {
         Ok(MonadAwareSystem {
             base_system: super::hindley_milner_system::HindleyMilnerSystem::new()?,
@@ -843,15 +1007,15 @@ impl TypeSystem for MonadAwareSystem {
             next_var_id: 0,
         })
     }
-    
+
     fn system_name(&self) -> &'static str {
         "monad-aware"
     }
-    
+
     fn capabilities(&self) -> TypeSystemCapabilities {
         TypeSystemCapabilities::monad_focused()
     }
-    
+
     fn can_extend_with<Other: TypeSystem>(&self) -> bool {
         true
     }
@@ -864,16 +1028,16 @@ mod tests {
     #[test]
     fn test_monad_aware_system_creation() {
         let system = MonadAwareSystem::new().unwrap();
-        assert_eq!(system.system_name(), "monad-aware");
-        assert!(system.capabilities().monadic);
-        assert!(system.capabilities().categorical);
+        assert_eq!(TypeSystem::system_name(&system), "monad-aware");
+        assert!(TypeSystem::capabilities(&system).monadic);
+        assert!(TypeSystem::capabilities(&system).categorical);
     }
 
     #[test]
     fn test_monadic_type_creation() {
         let inner = MonadAwareType::HM(HMType::Base(BaseType::Number));
         let maybe_num = MonadAwareType::monadic(MonadConstructor::Maybe, inner);
-        
+
         assert!(maybe_num.has_monad_structure());
         assert_eq!(maybe_num.display_type(), "Maybe Number");
     }
@@ -883,18 +1047,18 @@ mod tests {
         let input = MonadAwareType::HM(HMType::Base(BaseType::Number));
         let output = MonadAwareType::HM(HMType::Base(BaseType::String));
         let kleisli = MonadAwareType::kleisli(input, MonadConstructor::Maybe, output);
-        
+
         assert!(kleisli.has_monad_structure());
     }
 
     #[test]
     fn test_monad_registry() {
         let registry = MonadRegistry::new();
-        
+
         assert!(registry.get_monad("Maybe").is_some());
         assert!(registry.get_monad("IO").is_some());
         assert!(registry.get_monad("Identity").is_some());
-        
+
         let io_monads = registry.find_monads_for_effects(&[Effect::IO]);
         assert!(io_monads.contains(&MonadConstructor::IO));
     }
@@ -906,7 +1070,7 @@ mod tests {
             effects: vec![Effect::IO, Effect::State("counter".to_string())],
             output: Box::new(MonadAwareType::HM(HMType::Base(BaseType::String))),
         };
-        
+
         assert!(effectful.display_type().contains("IO"));
         assert!(effectful.display_type().contains("State[counter]"));
     }
@@ -915,13 +1079,15 @@ mod tests {
     fn test_transformer_stack() {
         let stack = MonadAwareType::TransformerStack {
             transformers: vec![
-                MonadTransformer::StateT(Box::new(MonadAwareType::HM(HMType::Base(BaseType::Number)))),
+                MonadTransformer::StateT(Box::new(MonadAwareType::HM(HMType::Base(
+                    BaseType::Number,
+                )))),
                 MonadTransformer::MaybeT,
             ],
             base_monad: MonadConstructor::IO,
             inner_type: Box::new(MonadAwareType::HM(HMType::Base(BaseType::String))),
         };
-        
+
         assert!(stack.display_type().contains("StateT"));
         assert!(stack.display_type().contains("MaybeT"));
         assert!(stack.display_type().contains("IO"));

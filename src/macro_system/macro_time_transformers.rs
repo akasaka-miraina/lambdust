@@ -5,12 +5,12 @@
 //! It enables the target functionality from the implementation roadmap.
 
 use super::{
-    macro_time_computation::{MacroTimeEnvironment, MacroTimeValue, Phase},
+    advanced_hygiene::HygieneResolver,
     advanced_quasisyntax::{AdvancedQuasisyntaxProcessor, AdvancedQuasisyntaxTemplate},
-    syntax_objects::{SyntaxObject, LexicalContext, syntax_utils},
+    macro_time_computation::{MacroTimeEnvironment, MacroTimeValue, Phase},
     syntax_case::{SyntaxBindings, SyntaxPattern, SyntaxTemplate},
-    advanced_hygiene::{HygieneResolver},
-    unified_expander::{UnifiedMacroTransformer, MacroTransformerType},
+    syntax_objects::{LexicalContext, SyntaxObject, syntax_utils},
+    unified_expander::{MacroTransformerType, UnifiedMacroTransformer},
 };
 use crate::ast::{Expr, Literal};
 use crate::diagnostics::{Error, Result, Span, Spanned};
@@ -167,7 +167,7 @@ impl MacroTimeTransformer {
     pub fn create_repeat_transformer() -> Self {
         // Create the lambda body that implements the repeat logic
         let lambda_body = create_repeat_lambda_body();
-        
+
         let transformer_proc = MacroTimeTransformerProc::Lambda {
             parameter: "stx".to_string(),
             body: Box::new(lambda_body),
@@ -208,25 +208,26 @@ impl MacroTimeTransformer {
     }
 
     /// Transforms a syntax object using macro-time computation
-    pub fn transform(
-        &mut self,
-        input: &SyntaxObject,
-    ) -> Result<SyntaxObject> {
+    pub fn transform(&mut self, input: &SyntaxObject) -> Result<SyntaxObject> {
         let start_time = std::time::Instant::now();
         self.stats.transformations += 1;
 
         // Clone the transformer procedure to avoid borrowing issues
         let transformer_proc = self.transformer_proc.clone();
         let result = match transformer_proc {
-            MacroTimeTransformerProc::Lambda { parameter, body, closure_env } => {
-                self.transform_with_lambda(input, &parameter, &body, &closure_env)
-            }
+            MacroTimeTransformerProc::Lambda {
+                parameter,
+                body,
+                closure_env,
+            } => self.transform_with_lambda(input, &parameter, &body, &closure_env),
             MacroTimeTransformerProc::SyntaxCase { literals, clauses } => {
                 self.transform_with_syntax_case(input, &literals, &clauses)
             }
-            MacroTimeTransformerProc::Template { pattern, template, guard } => {
-                self.transform_with_template(input, &pattern, &template, guard.as_ref().as_ref())
-            }
+            MacroTimeTransformerProc::Template {
+                pattern,
+                template,
+                guard,
+            } => self.transform_with_template(input, &pattern, &template, guard.as_ref().as_ref()),
             MacroTimeTransformerProc::Procedural { procedure } => {
                 self.transform_with_procedure(input, &procedure)
             }
@@ -261,7 +262,9 @@ impl MacroTimeTransformer {
         // In a real implementation, this would be bound in the environment
 
         // Evaluate the body
-        let result = self.macro_env.compile_time_eval(body, &mut self.hygiene_env)?;
+        let result = self
+            .macro_env
+            .compile_time_eval(body, &mut self.hygiene_env)?;
 
         // Convert result back to syntax
         let output_syntax = self.macro_time_value_to_syntax(result, &input.context, input.span)?;
@@ -294,8 +297,9 @@ impl MacroTimeTransformer {
 
                 // Convert bindings and create context for template processing
                 let macro_time_bindings = self.syntax_bindings_to_macro_time_bindings(&bindings);
-                let mut generation_context = super::advanced_quasisyntax::AdvancedGenerationContext::new();
-                
+                let mut generation_context =
+                    super::advanced_quasisyntax::AdvancedGenerationContext::new();
+
                 // Expand the template with macro-time computation
                 let result = self.quasisyntax_processor.process_template(
                     &clause.template,
@@ -344,7 +348,7 @@ impl MacroTimeTransformer {
         // Convert bindings and create context for template processing
         let macro_time_bindings = self.syntax_bindings_to_macro_time_bindings(&bindings);
         let mut generation_context = super::advanced_quasisyntax::AdvancedGenerationContext::new();
-        
+
         // Expand the template
         let result = self.quasisyntax_processor.process_template(
             template,
@@ -364,17 +368,19 @@ impl MacroTimeTransformer {
         procedure: &MacroTimeProcedure,
     ) -> Result<SyntaxObject> {
         match procedure {
-            MacroTimeProcedure::Builtin(name) => {
-                self.call_builtin_transformer(name, input)
-            }
-            MacroTimeProcedure::UserDefined { parameters, body, environment } => {
+            MacroTimeProcedure::Builtin(name) => self.call_builtin_transformer(name, input),
+            MacroTimeProcedure::UserDefined {
+                parameters,
+                body,
+                environment,
+            } => {
                 if parameters.len() != 1 {
                     return Err(Box::new(Error::MacroError {
                         message: "Macro transformer must take exactly one parameter".to_string(),
                         span: input.span,
                     }));
                 }
-                
+
                 self.transform_with_lambda(input, &parameters[0], body, environment)
             }
             MacroTimeProcedure::Compiled { .. } => {
@@ -394,18 +400,24 @@ impl MacroTimeTransformer {
     ) -> Result<bool> {
         match guard {
             MacroTimeGuard::Expression(expr) => {
-                let result = self.macro_env.compile_time_eval(expr, &mut self.hygiene_env)?;
+                let result = self
+                    .macro_env
+                    .compile_time_eval(expr, &mut self.hygiene_env)?;
                 Ok(self.macro_time_value_is_truthy(&result))
             }
             MacroTimeGuard::MacroTimeExpression { expr, phase } => {
                 let previous_phase = self.macro_env.enter_phase(*phase);
-                let result = self.macro_env.compile_time_eval(expr, &mut self.hygiene_env)?;
+                let result = self
+                    .macro_env
+                    .compile_time_eval(expr, &mut self.hygiene_env)?;
                 self.macro_env.exit_phase(previous_phase);
                 Ok(self.macro_time_value_is_truthy(&result))
             }
             MacroTimeGuard::PatternGuard { pattern, test_expr } => {
                 // Try to match the pattern against the test expression result
-                let test_result = self.macro_env.compile_time_eval(test_expr, &mut self.hygiene_env)?;
+                let test_result = self
+                    .macro_env
+                    .compile_time_eval(test_expr, &mut self.hygiene_env)?;
                 if let MacroTimeValue::Syntax(test_syntax) = test_result {
                     Ok(pattern.match_syntax(&test_syntax).is_ok())
                 } else {
@@ -447,7 +459,7 @@ impl MacroTimeTransformer {
             _ => Err(Box::new(Error::MacroError {
                 message: format!("Unknown built-in transformer: {name}"),
                 span: input.span,
-            }))
+            })),
         }
     }
 
@@ -461,24 +473,26 @@ impl MacroTimeTransformer {
         match value {
             MacroTimeValue::Syntax(syntax) => Ok(*syntax),
             MacroTimeValue::SyntaxList(syntaxes) => {
-                let elements: Vec<Spanned<Expr>> = syntaxes
-                    .into_iter()
-                    .map(|s| s.to_spanned())
-                    .collect();
-                Ok(SyntaxObject::new(Expr::List(elements), span, context.clone()))
+                let elements: Vec<Spanned<Expr>> =
+                    syntaxes.into_iter().map(|s| s.to_spanned()).collect();
+                Ok(SyntaxObject::new(
+                    Expr::List(elements),
+                    span,
+                    context.clone(),
+                ))
             }
             MacroTimeValue::Constant(value_str) => {
                 // For now, treat constant strings as identifiers
                 Ok(SyntaxObject::new(
-                    Expr::Identifier(value_str), 
-                    span, 
-                    context.clone()
+                    Expr::Identifier(value_str),
+                    span,
+                    context.clone(),
                 ))
             }
             _ => Err(Box::new(Error::MacroError {
                 message: "Cannot convert macro-time value to syntax".to_string(),
                 span,
-            }))
+            })),
         }
     }
 
@@ -511,7 +525,7 @@ impl MacroTimeTransformer {
             _ => Err(Box::new(Error::MacroError {
                 message: "Cannot convert expression to value".to_string(),
                 span: Span::new(0, 0),
-            }))
+            })),
         }
     }
 
@@ -525,31 +539,34 @@ impl MacroTimeTransformer {
 
     /// Converts SyntaxBindings to HashMap<String, MacroTimeValue>
     fn syntax_bindings_to_macro_time_bindings(
-        &self, 
-        bindings: &SyntaxBindings
+        &self,
+        bindings: &SyntaxBindings,
     ) -> HashMap<String, MacroTimeValue> {
         let mut macro_time_bindings = HashMap::new();
-        
+
         // Convert single value bindings
         for name in bindings.binding_names() {
             if let Some(syntax) = bindings.get(name) {
-                macro_time_bindings.insert(name.to_string(), MacroTimeValue::Syntax(Box::new(syntax.clone())));
+                macro_time_bindings.insert(
+                    name.to_string(),
+                    MacroTimeValue::Syntax(Box::new(syntax.clone())),
+                );
             } else if let Some(syntax_list) = bindings.get_ellipsis(name) {
                 macro_time_bindings.insert(
-                    name.to_string(), 
-                    MacroTimeValue::SyntaxList(syntax_list.clone())
+                    name.to_string(),
+                    MacroTimeValue::SyntaxList(syntax_list.clone()),
                 );
             } else if let Some(nested_list) = bindings.get_nested(name) {
                 // For nested bindings, flatten to a simple list for now
                 if let Some(first_level) = nested_list.first() {
                     macro_time_bindings.insert(
-                        name.to_string(), 
-                        MacroTimeValue::SyntaxList(first_level.clone())
+                        name.to_string(),
+                        MacroTimeValue::SyntaxList(first_level.clone()),
                     );
                 }
             }
         }
-        
+
         macro_time_bindings
     }
 
@@ -566,24 +583,24 @@ impl MacroTimeTransformer {
 
 /// Factory functions for creating common macro transformers
 pub mod transformer_factory {
+    use super::super::syntax_case::SyntaxPattern;
     use super::*;
-    use super::super::syntax_case::{SyntaxPattern};
 
     /// Creates the target repeat transformer from the roadmap
     pub fn create_repeat_transformer() -> MacroTimeTransformer {
         // Create syntax-case clauses for the repeat macro
         let pattern = SyntaxPattern::List(vec![
-            SyntaxPattern::Identifier { 
-                name: "_".to_string(), 
-                binding_level: Some(0) 
+            SyntaxPattern::Identifier {
+                name: "_".to_string(),
+                binding_level: Some(0),
             },
-            SyntaxPattern::Identifier { 
-                name: "n".to_string(), 
-                binding_level: Some(0) 
+            SyntaxPattern::Identifier {
+                name: "n".to_string(),
+                binding_level: Some(0),
             },
-            SyntaxPattern::Identifier { 
-                name: "expr".to_string(), 
-                binding_level: Some(0) 
+            SyntaxPattern::Identifier {
+                name: "expr".to_string(),
+                binding_level: Some(0),
             },
         ]);
 
@@ -593,10 +610,14 @@ pub mod transformer_factory {
                 super::super::quasisyntax::QuasisyntaxTemplate::Identifier("make-list".to_string()),
                 super::super::quasisyntax::QuasisyntaxTemplate::PatternVariable("n".to_string()),
                 super::super::quasisyntax::QuasisyntaxTemplate::List(vec![
-                    super::super::quasisyntax::QuasisyntaxTemplate::Identifier("syntax".to_string()),
-                    super::super::quasisyntax::QuasisyntaxTemplate::PatternVariable("expr".to_string()),
+                    super::super::quasisyntax::QuasisyntaxTemplate::Identifier(
+                        "syntax".to_string(),
+                    ),
+                    super::super::quasisyntax::QuasisyntaxTemplate::PatternVariable(
+                        "expr".to_string(),
+                    ),
                 ]),
-            ])
+            ]),
         );
 
         let splicing_template = AdvancedQuasisyntaxTemplate::AdvancedSplicing {
@@ -607,7 +628,7 @@ pub mod transformer_factory {
         let begin_template = AdvancedQuasisyntaxTemplate::Basic(
             super::super::quasisyntax::QuasisyntaxTemplate::List(vec![
                 super::super::quasisyntax::QuasisyntaxTemplate::Identifier("begin".to_string()),
-            ])
+            ]),
         );
 
         let final_template = AdvancedQuasisyntaxTemplate::Composition {
@@ -635,20 +656,15 @@ pub mod transformer_factory {
         from_pattern: String,
         to_template: String,
     ) -> MacroTimeTransformer {
-        let pattern = SyntaxPattern::Identifier { 
-            name: from_pattern, 
-            binding_level: Some(0) 
+        let pattern = SyntaxPattern::Identifier {
+            name: from_pattern,
+            binding_level: Some(0),
         };
         let template = AdvancedQuasisyntaxTemplate::Basic(
-            super::super::quasisyntax::QuasisyntaxTemplate::Identifier(to_template)
+            super::super::quasisyntax::QuasisyntaxTemplate::Identifier(to_template),
         );
 
-        MacroTimeTransformer::create_template_transformer(
-            name,
-            pattern,
-            template,
-            None,
-        )
+        MacroTimeTransformer::create_template_transformer(name, pattern, template, None)
     }
 
     /// Creates a list transformation macro with splicing
@@ -662,12 +678,7 @@ pub mod transformer_factory {
             transform: None,
         };
 
-        MacroTimeTransformer::create_template_transformer(
-            name,
-            pattern,
-            splicing_template,
-            None,
-        )
+        MacroTimeTransformer::create_template_transformer(name, pattern, splicing_template, None)
     }
 }
 
@@ -677,7 +688,7 @@ fn create_repeat_lambda_body() -> SyntaxObject {
     // (syntax-case stx ()
     //   ((_ n expr)
     //    #`(begin #,@(make-list n #'expr))))
-    
+
     let context = LexicalContext::new(0, vec!["repeat-transformer".to_string()]);
     let span = Span::new(0, 100);
 
@@ -738,30 +749,36 @@ impl MacroTimeTransformerStats {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::transformer_factory::*;
+    use super::*;
     use crate::diagnostics::Span;
 
     #[test]
     fn test_repeat_transformer_creation() {
         let transformer = create_repeat_transformer();
         assert_eq!(transformer.name(), "repeat");
-        
+
         // Test basic structure
-        assert!(matches!(transformer.transformer_proc, MacroTimeTransformerProc::SyntaxCase { .. }));
+        assert!(matches!(
+            transformer.transformer_proc,
+            MacroTimeTransformerProc::SyntaxCase { .. }
+        ));
     }
 
     #[test]
     fn test_macro_time_transformer_stats() {
         let mut stats = MacroTimeTransformerStats::default();
-        
+
         assert_eq!(stats.cache_hit_ratio(), 0.0);
-        assert_eq!(stats.average_transformation_time(), std::time::Duration::ZERO);
+        assert_eq!(
+            stats.average_transformation_time(),
+            std::time::Duration::ZERO
+        );
         assert_eq!(stats.transformations_per_second(), 0.0);
-        
+
         stats.transformations = 10;
         stats.total_time = std::time::Duration::from_millis(100);
-        
+
         assert_eq!(stats.transformations_per_second(), 100.0);
     }
 
@@ -772,7 +789,7 @@ mod tests {
             "old-name".to_string(),
             "new-name".to_string(),
         );
-        
+
         assert_eq!(transformer.name(), "my-var");
     }
 
@@ -787,21 +804,16 @@ mod tests {
 
         let context = LexicalContext::new(1, vec!["test".to_string()]);
         let span = Span::new(0, 4);
-        let true_expr = SyntaxObject::new(
-            Expr::Literal(Literal::Boolean(true)),
-            span,
-            context.clone(),
-        );
+        let true_expr =
+            SyntaxObject::new(Expr::Literal(Literal::Boolean(true)), span, context.clone());
 
         let guard = MacroTimeGuard::Expression(true_expr);
-        let input = SyntaxObject::new(
-            Expr::Identifier("test".to_string()),
-            span,
-            context,
-        );
+        let input = SyntaxObject::new(Expr::Identifier("test".to_string()), span, context);
         let bindings = SyntaxBindings::new();
 
-        let result = transformer.evaluate_guard(&guard, &input, &bindings).unwrap();
+        let result = transformer
+            .evaluate_guard(&guard, &input, &bindings)
+            .unwrap();
         assert!(result);
     }
 
@@ -816,33 +828,39 @@ mod tests {
 
         let context = LexicalContext::new(1, vec!["test".to_string()]);
         let span = Span::new(0, 4);
-        
-        let value = MacroTimeValue::Constant(Value::Literal(Literal::Float(42.0)));
-        let syntax = transformer.macro_time_value_to_syntax(value, &context, span).unwrap();
-        
-        assert!(matches!(syntax.expr, Expr::Literal(Literal::Float(n)) if n == 42.0));
+
+        let value =
+            MacroTimeValue::Constant(Value::Literal(Literal::InexactReal(42.0)).to_string());
+        let syntax = transformer
+            .macro_time_value_to_syntax(value, &context, span)
+            .unwrap();
+
+        assert!(matches!(syntax.expr, Expr::Literal(Literal::InexactReal(n)) if n == 42.0));
     }
 
-    #[test] 
+    #[test]
     fn test_template_transformer() {
         use super::super::syntax_case::SyntaxPattern;
-        
-        let pattern = SyntaxPattern::Identifier { 
-            name: "test".to_string(), 
-            binding_level: Some(0) 
+
+        let pattern = SyntaxPattern::Identifier {
+            name: "test".to_string(),
+            binding_level: Some(0),
         };
         let template = AdvancedQuasisyntaxTemplate::Basic(
-            super::super::quasisyntax::QuasisyntaxTemplate::Identifier("result".to_string())
+            super::super::quasisyntax::QuasisyntaxTemplate::Identifier("result".to_string()),
         );
-        
+
         let transformer = MacroTimeTransformer::create_template_transformer(
             "test-macro".to_string(),
             pattern,
             template,
             None,
         );
-        
+
         assert_eq!(transformer.name(), "test-macro");
-        assert!(matches!(transformer.transformer_proc, MacroTimeTransformerProc::Template { .. }));
+        assert!(matches!(
+            transformer.transformer_proc,
+            MacroTimeTransformerProc::Template { .. }
+        ));
     }
 }

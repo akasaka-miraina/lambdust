@@ -1,11 +1,12 @@
 //! Dependent Type System Implementation
 //!
 //! This module provides a dependent type system implementation using the generic
-//! type system framework. This system supports CaTT (Cartesian Type Theory) 
+//! type system framework. This system supports CaTT (Cartesian Type Theory)
 //! constructs and prepares for future categorical semantics integration.
 
-use crate::diagnostics::{UnifiedResult, TypeError, Span};
+use super::generic_type_system::UniverseLevel as UniverseLevelTrait;
 use super::generic_type_system::*;
+use crate::diagnostics::{Span, TypeError, UnifiedResult};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -208,10 +209,7 @@ pub enum Pattern {
     /// Variable pattern
     Variable(String),
     /// Constructor pattern
-    Constructor {
-        name: String,
-        args: Vec<Pattern>,
-    },
+    Constructor { name: String, args: Vec<Pattern> },
     /// Wildcard pattern
     Wildcard,
     /// Literal pattern
@@ -269,7 +267,7 @@ pub struct TypeEqualityChecker {
 pub enum ReductionStrategy {
     /// Call-by-value
     CallByValue,
-    /// Call-by-name  
+    /// Call-by-name
     CallByName,
     /// Lazy evaluation
     Lazy,
@@ -329,11 +327,14 @@ impl UniverseLevel {
     pub fn new(level: usize) -> Self {
         UniverseLevel { level, name: None }
     }
-    
+
     pub fn named(level: usize, name: String) -> Self {
-        UniverseLevel { level, name: Some(name) }
+        UniverseLevel {
+            level,
+            name: Some(name),
+        }
     }
-    
+
     pub fn level(&self) -> usize {
         self.level
     }
@@ -346,7 +347,7 @@ impl super::generic_type_system::UniverseLevel for UniverseLevel {
             name: self.name.clone(),
         }
     }
-    
+
     fn max(&self, other: &Self) -> Self {
         if self.level >= other.level {
             self.clone()
@@ -354,11 +355,11 @@ impl super::generic_type_system::UniverseLevel for UniverseLevel {
             other.clone()
         }
     }
-    
+
     fn zero() -> Self {
         UniverseLevel::new(0)
     }
-    
+
     fn omega() -> Self {
         UniverseLevel::new(usize::MAX)
     }
@@ -367,7 +368,7 @@ impl super::generic_type_system::UniverseLevel for UniverseLevel {
 /// Implementation of ProofWitness for dependent types
 impl ProofWitness for DepProofTerm {
     type Term = DepTerm;
-    
+
     fn from_term(term: Self::Term) -> Self {
         DepProofTerm {
             proposition: DepType::Base(BaseTypeKind::Unit), // Placeholder
@@ -375,42 +376,41 @@ impl ProofWitness for DepProofTerm {
             dependencies: Vec::new(),
         }
     }
-    
+
     fn validates(&self, proposition: &impl TypeRepr) -> bool {
         // Check if the proof term proves the given proposition
         // This would involve type checking the proof term
         true // Simplified for now
     }
+
+    fn compose(&self, other: &Self) -> UnifiedResult<Self> {
+        // Compose two proof witnesses
+        Ok(DepProofTerm {
+            proposition: self.proposition.clone(),
+            proof: self.proof.clone(),
+            dependencies: {
+                let mut deps = self.dependencies.clone();
+                deps.extend(other.dependencies.iter().cloned());
+                deps
+            },
+        })
+    }
 }
 
-/// Implementation of ProofTerm for dependent proof terms
-impl crate::types::generic_type_system::ProofTerm for DepProofTerm {
-    type Type = DepType;
-    
-    fn proves(&self) -> Self::Type {
-        self.proposition.clone()
-    }
-    
-    fn is_valid(&self) -> bool {
-        // Would perform proof checking here
-        true
-    }
-    
-    fn modus_ponens(&self, _other: &Self) -> crate::diagnostics::UnifiedResult<Self> {
-        Ok(self.clone()) // Simplified implementation
-    }
-    
-}
+// ProofTerm trait has been replaced with UnifiedProofTerm enum
+// DepProofTerm is now only used internally for dependent type system specifics
 
 /// Implementation of TermRepr for DepTerm
 impl TermRepr for DepTerm {
     type Type = DepType;
-    
+
     fn get_type(&self) -> Self::Type {
         // Type inference for terms - simplified
         match self {
             DepTerm::Variable { .. } => DepType::Base(BaseTypeKind::Unit), // Would look up in context
-            DepTerm::Lambda { param_type, body, .. } => {
+            DepTerm::Lambda {
+                param_type, body, ..
+            } => {
                 let body_type = body.get_type();
                 DepType::Pi {
                     param_name: "x".to_string(), // Simplified
@@ -434,13 +434,12 @@ impl TermRepr for DepTerm {
             _ => DepType::Base(BaseTypeKind::Unit), // Simplified
         }
     }
-    
-    fn apply_substitution(&self, subst: &dyn TermSubstitution) -> Self {
-        subst.apply(self).downcast_ref::<DepTerm>()
-            .expect("Substitution should return DepTerm")
-            .clone()
+
+    fn apply_substitution(&self, subst: &impl TermSubstitution) -> Self {
+        // TODO: Implement proper term substitution
+        self.clone()
     }
-    
+
     fn reduce(&self) -> Self {
         // Beta reduction and normalization
         match self {
@@ -455,25 +454,21 @@ impl TermRepr for DepTerm {
                     _ => DepTerm::Application {
                         function: Box::new(reduced_func),
                         argument: Box::new(argument.reduce()),
-                    }
+                    },
                 }
             }
-            DepTerm::First(pair) => {
-                match pair.reduce() {
-                    DepTerm::Pair { first, .. } => first.reduce(),
-                    reduced => DepTerm::First(Box::new(reduced)),
-                }
-            }
-            DepTerm::Second(pair) => {
-                match pair.reduce() {
-                    DepTerm::Pair { second, .. } => second.reduce(),
-                    reduced => DepTerm::Second(Box::new(reduced)),
-                }
-            }
+            DepTerm::First(pair) => match pair.reduce() {
+                DepTerm::Pair { first, .. } => first.reduce(),
+                reduced => DepTerm::First(Box::new(reduced)),
+            },
+            DepTerm::Second(pair) => match pair.reduce() {
+                DepTerm::Pair { second, .. } => second.reduce(),
+                reduced => DepTerm::Second(Box::new(reduced)),
+            },
             _ => self.clone(), // Already in normal form
         }
     }
-    
+
     fn compose_morphism(&self, other: &Self) -> UnifiedResult<Self> {
         // Categorical composition
         Ok(DepTerm::Application {
@@ -487,78 +482,92 @@ impl TermRepr for DepTerm {
 impl TypeRepr for DepType {
     type Universe = UniverseLevel;
     type Witness = DepProofTerm;
-    
+
     fn universe(&self) -> <Self as TypeRepr>::Universe {
         match self {
             DepType::Universe(level) => level.succ(),
-            DepType::Pi { param_type, body_type, .. } => {
-                param_type.universe().max(&body_type.universe())
-            }
-            DepType::Sigma { param_type, body_type, .. } => {
-                param_type.universe().max(&body_type.universe())
-            }
+            DepType::Pi {
+                param_type,
+                body_type,
+                ..
+            } => param_type.universe().max(body_type.universe()),
+            DepType::Sigma {
+                param_type,
+                body_type,
+                ..
+            } => param_type.universe().max(body_type.universe()),
             DepType::Identity { type_, .. } => type_.universe(),
             DepType::Inductive { universe, .. } => universe.clone(),
             DepType::Base(_) => UniverseLevel::zero(),
             _ => UniverseLevel::zero(), // Simplified
         }
     }
-    
-    fn is_well_formed(&self, context: &dyn TypeContext<Self>) -> bool {
+
+    fn is_well_formed(&self, context: &impl TypeContext<Self>) -> bool {
         match self {
             DepType::Universe(_) => true,
-            DepType::Pi { param_type, body_type, param_name } => {
+            DepType::Pi {
+                param_type,
+                body_type,
+                param_name,
+            } => {
                 param_type.is_well_formed(context) && {
-                    let extended_context = context.extend(param_name.clone(), param_type.as_ref().clone());
+                    let extended_context =
+                        context.extend(param_name.clone(), param_type.as_ref().clone());
                     body_type.is_well_formed(&extended_context)
                 }
             }
-            DepType::Sigma { param_type, body_type, param_name } => {
+            DepType::Sigma {
+                param_type,
+                body_type,
+                param_name,
+            } => {
                 param_type.is_well_formed(context) && {
-                    let extended_context = context.extend(param_name.clone(), param_type.as_ref().clone());
+                    let extended_context =
+                        context.extend(param_name.clone(), param_type.as_ref().clone());
                     body_type.is_well_formed(&extended_context)
                 }
             }
-            DepType::Variable { name, .. } => {
-                context.lookup(name).is_some()
-            }
-            DepType::Identity { type_, .. } => {
-                type_.is_well_formed(context)
-            }
+            DepType::Variable { name, .. } => context.lookup(name).is_some(),
+            DepType::Identity { type_, .. } => type_.is_well_formed(context),
             _ => true, // Simplified
         }
     }
-    
-    fn apply_substitution(&self, subst: &dyn Substitution<Self>) -> Self {
+
+    fn apply_substitution(&self, subst: &impl Substitution<Self>) -> Self {
         subst.apply(self)
     }
-    
+
     fn free_variables(&self) -> HashSet<TypeVariable> {
         let mut vars = HashSet::new();
         self.collect_free_vars(&mut vars);
         vars
     }
-    
+
     fn compose_with(&self, other: &Self) -> UnifiedResult<Self> {
         // Function composition in type theory: (B → C) ∘ (A → B) = (A → C)
         match (self, other) {
             (
-                DepType::Pi { body_type: b_to_c, .. },
-                DepType::Pi { param_type: a, body_type: a_to_b, param_name }
-            ) if **a_to_b == **b_to_c => {
-                Ok(DepType::Pi {
-                    param_name: param_name.clone(),
-                    param_type: a.clone(),
-                    body_type: b_to_c.clone(),
-                })
-            }
+                DepType::Pi {
+                    body_type: b_to_c, ..
+                },
+                DepType::Pi {
+                    param_type: a,
+                    body_type: a_to_b,
+                    param_name,
+                },
+            ) if **a_to_b == **b_to_c => Ok(DepType::Pi {
+                param_name: param_name.clone(),
+                param_type: a.clone(),
+                body_type: b_to_c.clone(),
+            }),
             _ => Err(crate::diagnostics::UnifiedError::new(
                 TypeError,
-                "Cannot compose incompatible types".to_string()
+                "Cannot compose incompatible types".to_string(),
             )),
         }
     }
-    
+
     fn unit(&self) -> UnifiedResult<Self> {
         // Identity function: A → A
         Ok(DepType::Pi {
@@ -567,7 +576,7 @@ impl TypeRepr for DepType {
             body_type: Box::new(self.clone()),
         })
     }
-    
+
     fn bind(&self, f_type: &Self) -> UnifiedResult<Self> {
         // For dependent types, bind would be more complex
         // This is a simplified version
@@ -575,11 +584,11 @@ impl TypeRepr for DepType {
             DepType::Pi { body_type, .. } => Ok(body_type.as_ref().clone()),
             _ => Err(crate::diagnostics::UnifiedError::new(
                 TypeError,
-                "Bind requires function type".to_string()
+                "Bind requires function type".to_string(),
             )),
         }
     }
-    
+
     fn identity(&self) -> Self {
         DepType::Pi {
             param_name: "x".to_string(),
@@ -587,7 +596,7 @@ impl TypeRepr for DepType {
             body_type: Box::new(self.clone()),
         }
     }
-    
+
     fn has_monad_structure(&self) -> bool {
         // Dependent types can encode monad structures
         matches!(self, DepType::CaTT(_))
@@ -598,30 +607,59 @@ impl DepType {
     /// Collect free type variables
     fn collect_free_vars(&self, vars: &mut HashSet<TypeVariable>) {
         match self {
-            DepType::Variable { name, de_bruijn_index } => {
+            DepType::Variable {
+                name,
+                de_bruijn_index,
+            } => {
                 vars.insert(TypeVariable::new(name.clone(), *de_bruijn_index));
             }
-            DepType::Pi { param_type, body_type, .. } |
-            DepType::Sigma { param_type, body_type, .. } => {
+            DepType::Pi {
+                param_type,
+                body_type,
+                ..
+            }
+            | DepType::Sigma {
+                param_type,
+                body_type,
+                ..
+            } => {
                 param_type.collect_free_vars(vars);
                 body_type.collect_free_vars(vars);
             }
             DepType::Identity { type_, .. } => {
                 type_.collect_free_vars(vars);
             }
-            _ => {}, // Other cases don't introduce variables
+            _ => {} // Other cases don't introduce variables
         }
     }
-    
+
     /// Display type for debugging
     pub fn display_type(&self) -> String {
         match self {
             DepType::Universe(level) => format!("Type_{}", level.level()),
-            DepType::Pi { param_name, param_type, body_type } => {
-                format!("Π {}:{}. {}", param_name, param_type.display_type(), body_type.display_type())
+            DepType::Pi {
+                param_name,
+                param_type,
+                body_type,
+            } => {
+                format!(
+                    "Π {}:{}. {}",
+                    param_name,
+                    param_type.display_type(),
+                    body_type.display_type()
+                )
             }
-            DepType::Sigma { param_name, param_type, body_type } => {
-                format!("Σ {}:{}. {}", param_name, param_type.display_type(), body_type.display_type())
+            DepType::Sigma {
+                param_name,
+                param_type,
+                body_type,
+            } => {
+                format!(
+                    "Σ {}:{}. {}",
+                    param_name,
+                    param_type.display_type(),
+                    body_type.display_type()
+                )
             }
             DepType::Variable { name, .. } => name.clone(),
             DepType::Identity { type_, .. } => format!("Id_{}", type_.display_type()),
@@ -643,14 +681,14 @@ impl TypeContext<DepType> for DepContext {
     fn lookup(&self, var: &str) -> Option<DepType> {
         self.variables.get(var).cloned()
     }
-    
+
     fn extend(&self, var: String, ty: DepType) -> Self {
         let mut new_context = self.clone();
         new_context.variables.insert(var, ty);
         new_context.scope_depth += 1;
         new_context
     }
-    
+
     fn extend_many(&self, bindings: Vec<(String, DepType)>) -> Self {
         let mut new_context = self.clone();
         let bindings_len = bindings.len();
@@ -660,22 +698,28 @@ impl TypeContext<DepType> for DepContext {
         new_context.scope_depth += bindings_len;
         new_context
     }
-    
+
     fn bindings(&self) -> Vec<(String, DepType)> {
-        self.variables.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        self.variables
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
-    
-    fn extend_term(&self, var: String, term: Box<dyn TermRepr>, ty: DepType) -> Self {
-        let mut new_context = self.extend(var.clone(), ty);
-        if let Ok(dep_term) = term.as_ref().as_any().downcast_ref::<DepTerm>() {
-            new_context.definitions.insert(var, dep_term.clone());
-        }
-        new_context
+
+    fn extend_term(&self, var: String, _term: impl TermRepr, ty: DepType) -> Self {
+        // TODO: Implement proper term extension
+        self.extend(var.clone(), ty)
     }
-    
+
     fn is_well_formed(&self) -> bool {
         // Check that all types in the context are well-formed
         self.variables.values().all(|ty| ty.is_well_formed(self))
+    }
+}
+
+impl Default for DepContext {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -691,13 +735,13 @@ impl DepContext {
             scope_depth: 0,
         }
     }
-    
+
     /// Define an inductive type
     pub fn define_inductive(&mut self, definition: InductiveDefinition) {
         let name = definition.name.clone();
         self.inductives.insert(name, definition);
     }
-    
+
     /// Look up term definition
     pub fn lookup_term(&self, name: &str) -> Option<&DepTerm> {
         self.definitions.get(name)
@@ -710,7 +754,7 @@ impl TypeSystem for DependentTypeSystem {
     type Context = DepContext;
     type Constraint = DepConstraintSystem; // Would need to implement
     type Inference = DepInferenceEngine; // Would need to implement
-    
+
     fn new() -> UnifiedResult<Self> {
         Ok(DependentTypeSystem {
             universe_hierarchy: UniverseHierarchy::new(),
@@ -719,11 +763,11 @@ impl TypeSystem for DependentTypeSystem {
             next_var_id: 0,
         })
     }
-    
+
     fn system_name(&self) -> &'static str {
         "dependent-types"
     }
-    
+
     fn capabilities(&self) -> TypeSystemCapabilities {
         TypeSystemCapabilities {
             dependent_types: true,
@@ -737,50 +781,97 @@ impl TypeSystem for DependentTypeSystem {
             catt_support: true,
         }
     }
-    
+
     fn can_extend_with<Other: TypeSystem>(&self) -> bool {
         true // Dependent types can generally be extended
     }
 }
 
+// Constraint type for dependent type system
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DepConstraint {
+    /// Unification constraint: t1 = t2
+    Unify(DepType, DepType),
+    /// Subtyping constraint: t1 <: t2
+    Subtype(DepType, DepType),
+    /// Universe constraint: type at specific universe level
+    Universe(DepType, u32),
+    /// Equality constraint with proof requirement
+    EqualWithProof(DepType, DepType, String),
+}
+
+impl ConstraintRepr<DepType> for DepConstraint {
+    fn apply_substitution(&self, _subst: &impl Substitution<DepType>) -> Self {
+        // TODO: Implement proper substitution application
+        self.clone()
+    }
+
+    fn variables(&self) -> HashSet<TypeVariable> {
+        // TODO: Extract variables from constraint
+        HashSet::new()
+    }
+
+    fn simplify(&self) -> Option<Self> {
+        // TODO: Implement constraint simplification
+        None
+    }
+}
+
 // Placeholder implementations for constraint system and inference engine
+#[derive(Clone)]
 pub struct DepConstraintSystem;
+
+#[derive(Clone)]
 pub struct DepInferenceEngine;
 
 impl ConstraintSystem<DepType> for DepConstraintSystem {
-    type Constraint = (); // Placeholder
-    
+    type Constraint = DepConstraint;
+
     fn add_constraint(&mut self, _constraint: Self::Constraint) {}
     fn solve(&self) -> UnifiedResult<Box<dyn Substitution<DepType>>> {
         Ok(Box::new(DepSubstitution::empty()))
     }
-    fn is_consistent(&self) -> bool { true }
+    fn is_consistent(&self) -> bool {
+        true
+    }
     fn add_proof_obligation(&mut self, _obligation: ProofObligation<DepType>) {}
 }
 
 impl InferenceEngine<DepType, DepContext> for DepInferenceEngine {
-    fn infer(&self, _expr: &dyn ExpressionRepr, _context: &DepContext) -> UnifiedResult<DepType> {
+    fn infer(&self, _expr: &impl ExpressionRepr, _context: &DepContext) -> UnifiedResult<DepType> {
         Ok(DepType::Base(BaseTypeKind::Unit)) // Placeholder
     }
-    
-    fn check(&self, _expr: &dyn ExpressionRepr, _ty: &DepType, _context: &DepContext) -> UnifiedResult<()> {
+
+    fn check(
+        &self,
+        _expr: &impl ExpressionRepr,
+        _ty: &DepType,
+        _context: &DepContext,
+    ) -> UnifiedResult<()> {
         Ok(()) // Placeholder
     }
-    
-    fn infer_with_proof(&self, _expr: &dyn ExpressionRepr, _context: &DepContext) 
-        -> UnifiedResult<(DepType, Box<dyn ProofTerm>)> {
-        Ok((DepType::Base(BaseTypeKind::Unit), Box::new(DepProofTerm {
-            proposition: DepType::Base(BaseTypeKind::Unit),
-            proof: DepTerm::Literal(LiteralValue::Unit),
-            dependencies: Vec::new(),
-        })))
+
+    fn infer_with_proof(
+        &self,
+        _expr: &impl ExpressionRepr,
+        _context: &DepContext,
+    ) -> UnifiedResult<(DepType, UnifiedProofTerm)> {
+        Ok((
+            DepType::Base(BaseTypeKind::Unit),
+            UnifiedProofTerm::Dependent {
+                term: "unit".to_string(),
+                universe_level: 0,
+                dependencies: Vec::new(),
+            },
+        ))
     }
-    
+
     fn supports_bidirectional(&self) -> bool {
         true
     }
 }
 
+#[derive(Debug)]
 pub struct DepSubstitution;
 
 impl DepSubstitution {
@@ -793,17 +884,21 @@ impl Substitution<DepType> for DepSubstitution {
     fn apply(&self, ty: &DepType) -> DepType {
         ty.clone() // Placeholder
     }
-    
+
     fn compose(&self, _other: &dyn Substitution<DepType>) -> Box<dyn Substitution<DepType>> {
         Box::new(DepSubstitution)
     }
-    
+
     fn identity() -> Box<dyn Substitution<DepType>> {
         Box::new(DepSubstitution)
     }
-    
+
     fn domain(&self) -> HashSet<TypeVariable> {
         HashSet::new()
+    }
+
+    fn clone_boxed(&self) -> Box<dyn Substitution<DepType>> {
+        Box::new(DepSubstitution)
     }
 }
 
@@ -841,9 +936,9 @@ mod tests {
     #[test]
     fn test_dependent_type_system_creation() {
         let system = DependentTypeSystem::new().unwrap();
-        assert_eq!(system.system_name(), "dependent-types");
-        assert!(system.capabilities().dependent_types);
-        assert!(system.capabilities().catt_support);
+        assert_eq!(TypeSystem::system_name(&system), "dependent-types");
+        assert!(TypeSystem::capabilities(&system).dependent_types);
+        assert!(TypeSystem::capabilities(&system).catt_support);
     }
 
     #[test]
@@ -854,7 +949,7 @@ mod tests {
             param_type: Box::new(nat_type.clone()),
             body_type: Box::new(nat_type),
         };
-        
+
         assert!(pi_type.display_type().contains("Π"));
         assert_eq!(pi_type.universe(), UniverseLevel::zero());
     }
@@ -864,13 +959,13 @@ mod tests {
         let nat_type = DepType::Base(BaseTypeKind::Nat);
         let zero = DepTerm::Literal(LiteralValue::Nat(0));
         let one = DepTerm::Literal(LiteralValue::Nat(1));
-        
+
         let id_type = DepType::Identity {
             type_: Box::new(nat_type),
             left: Box::new(zero),
             right: Box::new(one),
         };
-        
+
         assert!(id_type.display_type().contains("Id_"));
     }
 
@@ -882,7 +977,7 @@ mod tests {
             codomain: Box::new(obj),
             name: "f".to_string(),
         });
-        
+
         assert!(morphism.has_monad_structure());
     }
 
@@ -890,7 +985,7 @@ mod tests {
     fn test_context_operations() {
         let mut ctx = DepContext::new();
         let nat_type = DepType::Base(BaseTypeKind::Nat);
-        
+
         ctx = ctx.extend("x".to_string(), nat_type.clone());
         assert_eq!(ctx.lookup("x"), Some(nat_type));
         assert!(ctx.is_well_formed());
@@ -901,10 +996,10 @@ mod tests {
         let level0 = UniverseLevel::zero();
         let level1 = level0.succ();
         let level2 = level1.succ();
-        
+
         assert!(level0 < level1);
         assert!(level1 < level2);
-        assert_eq!(level1.max(&level2), level2);
+        assert_eq!(level1.max(level2.clone()), level2);
     }
 
     #[test]
@@ -917,12 +1012,12 @@ mod tests {
                 de_bruijn_index: 0,
             }),
         };
-        
+
         let app = DepTerm::Application {
             function: Box::new(lambda),
             argument: Box::new(DepTerm::Literal(LiteralValue::Nat(42))),
         };
-        
+
         let reduced = app.reduce();
         // Should reduce to the variable (which would be substituted)
         assert!(matches!(reduced, DepTerm::Variable { .. }));

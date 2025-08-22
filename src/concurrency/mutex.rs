@@ -3,12 +3,12 @@
 //! This module provides async mutex functionality with timeout support
 //! and optional naming for debugging purposes.
 
-use crate::eval::Value;
-use crate::diagnostics::{Error, Result};
 use super::ConcurrencyError;
+use crate::diagnostics::{Error, Result};
+use crate::eval::Value;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Mutex as AsyncMutex};
+use tokio::sync::Mutex as AsyncMutex;
 
 /// Mutual exclusion lock for protecting shared data.
 #[derive(Debug, Clone)]
@@ -44,7 +44,10 @@ impl Mutex {
     pub fn try_lock(&self) -> Result<MutexGuard<'_>> {
         match self.inner.try_lock() {
             Ok(guard) => Ok(MutexGuard { guard }),
-            Err(_) => Err(Box::new(Error::runtime_error("Mutex is locked".to_string(), None))),
+            Err(_) => Err(Box::new(Error::runtime_error(
+                "Mutex is locked".to_string(),
+                None,
+            ))),
         }
     }
 

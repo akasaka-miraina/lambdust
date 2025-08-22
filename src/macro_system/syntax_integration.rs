@@ -5,15 +5,15 @@
 //! while enabling advanced features like hygiene and syntax-case.
 
 use super::{
-    syntax_objects::{SyntaxObject, LexicalContext, BindingInfo, syntax_utils},
     advanced_hygiene::{HygieneResolver, Mark, MarkSet, fresh_mark},
-    syntax_case::{SyntaxPattern, SyntaxTemplate, SyntaxBindings, syntax_procedures},
-    quasisyntax::{QuasisyntaxTemplate, QuasisyntaxContext, quasisyntax_interface},
-    pattern::{Pattern, PatternBindings},
-    template::Template,
-    expander::ConfigurableExpander,
     environment::MacroEnvironment,
+    expander::ConfigurableExpander,
     hygiene::{HygieneContext, MacroContext},
+    pattern::{Pattern, PatternBindings},
+    quasisyntax::{QuasisyntaxContext, QuasisyntaxTemplate, quasisyntax_interface},
+    syntax_case::{SyntaxBindings, SyntaxPattern, SyntaxTemplate, syntax_procedures},
+    syntax_objects::{BindingInfo, LexicalContext, SyntaxObject, syntax_utils},
+    template::Template,
 };
 use crate::ast::Expr;
 use crate::diagnostics::{Error, Result, Span, Spanned};
@@ -194,20 +194,28 @@ impl SyntaxAwareMacroExpander {
                 args[0].clone()
             } else {
                 // Create a list syntax object from multiple args
-                let context = self.current_context.clone()
+                let context = self
+                    .current_context
+                    .clone()
                     .unwrap_or_else(|| LexicalContext::new(0, vec!["top-level".to_string()]));
                 let elements: Vec<_> = args.iter().map(|s| s.to_spanned()).collect();
                 SyntaxObject::new(Expr::List(elements), span, context)
             };
 
             if let Ok(bindings) = clause.0.match_syntax(&input_syntax) {
-                let context = self.current_context.as_ref().unwrap_or(&input_syntax.context);
+                let context = self
+                    .current_context
+                    .as_ref()
+                    .unwrap_or(&input_syntax.context);
                 return clause.1.expand(&bindings, context, span);
             }
         }
 
         Err(Box::new(Error::macro_error(
-            format!("No syntax-case clause matched for macro: {}", transformer.name),
+            format!(
+                "No syntax-case clause matched for macro: {}",
+                transformer.name
+            ),
             span,
         )))
     }
@@ -220,10 +228,7 @@ impl SyntaxAwareMacroExpander {
         span: Span,
     ) -> Result<SyntaxObject> {
         // Convert syntax objects to legacy expressions
-        let legacy_args: Result<Vec<_>> = args
-            .iter()
-            .map(|s| self.syntax_to_expr(s))
-            .collect();
+        let legacy_args: Result<Vec<_>> = args.iter().map(|s| self.syntax_to_expr(s)).collect();
         let legacy_args = legacy_args?;
 
         // Use legacy expander
@@ -365,18 +370,14 @@ pub mod legacy_bridge {
             }),
             Pattern::Nil => Ok(SyntaxPattern::Nil),
             Pattern::List(patterns) => {
-                let syntax_patterns: Result<Vec<_>> = patterns
-                    .iter()
-                    .map(pattern_to_syntax_pattern)
-                    .collect();
+                let syntax_patterns: Result<Vec<_>> =
+                    patterns.iter().map(pattern_to_syntax_pattern).collect();
                 Ok(SyntaxPattern::List(syntax_patterns?))
             }
-            Pattern::Pair { car, cdr } => {
-                Ok(SyntaxPattern::ImproperList {
-                    patterns: vec![pattern_to_syntax_pattern(car)?],
-                    tail: Box::new(pattern_to_syntax_pattern(cdr)?),
-                })
-            }
+            Pattern::Pair { car, cdr } => Ok(SyntaxPattern::ImproperList {
+                patterns: vec![pattern_to_syntax_pattern(car)?],
+                tail: Box::new(pattern_to_syntax_pattern(cdr)?),
+            }),
             Pattern::Wildcard => Ok(SyntaxPattern::PatternVariable("_".to_string())),
             _ => Err(Box::new(Error::macro_error(
                 "Unsupported legacy pattern type".to_string(),
@@ -393,18 +394,14 @@ pub mod legacy_bridge {
             Template::Identifier(name) => Ok(SyntaxTemplate::Identifier(name.clone())),
             Template::Nil => Ok(SyntaxTemplate::Nil),
             Template::List(templates) => {
-                let syntax_templates: Result<Vec<_>> = templates
-                    .iter()
-                    .map(template_to_syntax_template)
-                    .collect();
+                let syntax_templates: Result<Vec<_>> =
+                    templates.iter().map(template_to_syntax_template).collect();
                 Ok(SyntaxTemplate::List(syntax_templates?))
             }
-            Template::Pair { car, cdr } => {
-                Ok(SyntaxTemplate::ImproperList {
-                    templates: vec![template_to_syntax_template(car)?],
-                    tail: Box::new(template_to_syntax_template(cdr)?),
-                })
-            }
+            Template::Pair { car, cdr } => Ok(SyntaxTemplate::ImproperList {
+                templates: vec![template_to_syntax_template(car)?],
+                tail: Box::new(template_to_syntax_template(cdr)?),
+            }),
             _ => Err(Box::new(Error::macro_error(
                 "Unsupported legacy template type".to_string(),
                 Span::new(0, 0),
@@ -443,14 +440,14 @@ pub mod integration_utils {
     /// Creates a properly hygienic macro expander for the given environment
     pub fn create_hygienic_expander(env: &Environment) -> SyntaxAwareMacroExpander {
         let mut expander = SyntaxAwareMacroExpander::new();
-        
+
         // Set up initial context based on environment
         let context = LexicalContext::new(
             0,
             vec!["user".to_string()], // Default module path
         );
         expander.set_context(context);
-        
+
         expander
     }
 
@@ -574,10 +571,7 @@ mod tests {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
         expander.set_context(context);
 
-        let expr = Spanned::new(
-            Expr::Identifier("test".to_string()),
-            Span::new(0, 4),
-        );
+        let expr = Spanned::new(Expr::Identifier("test".to_string()), Span::new(0, 4));
 
         let syntax = expander.expr_to_syntax(expr, None).unwrap();
         assert_eq!(syntax.identifier_name(), Some("test"));
@@ -588,7 +582,7 @@ mod tests {
     fn test_syntax_to_expr_conversion() {
         let mut expander = SyntaxAwareMacroExpander::new();
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        
+
         let syntax = SyntaxObject::new(
             Expr::Identifier("test".to_string()),
             Span::new(0, 4),
@@ -603,10 +597,12 @@ mod tests {
     #[test]
     fn test_macro_expansion_context() {
         let mut expander = SyntaxAwareMacroExpander::new();
-        
-        let context = expander.enter_macro_expansion(vec!["test".to_string()]).unwrap();
+
+        let context = expander
+            .enter_macro_expansion(vec!["test".to_string()])
+            .unwrap();
         assert_eq!(context.module_path, vec!["test".to_string()]);
-        
+
         expander.exit_macro_expansion();
         assert!(expander.current_context.is_none());
     }
@@ -615,7 +611,7 @@ mod tests {
     fn test_legacy_pattern_conversion() {
         let legacy_pattern = Pattern::Variable("x".to_string());
         let syntax_pattern = legacy_bridge::pattern_to_syntax_pattern(&legacy_pattern).unwrap();
-        
+
         assert!(matches!(syntax_pattern, SyntaxPattern::PatternVariable(name) if name == "x"));
     }
 
@@ -623,16 +619,16 @@ mod tests {
     fn test_integration_stats() {
         let mut expander = SyntaxAwareMacroExpander::new();
         assert_eq!(expander.stats().legacy_to_syntax_conversions, 0);
-        
+
         // Perform some operations
         let context = LexicalContext::new(1, vec!["test".to_string()]);
         expander.set_context(context);
-        
+
         let expr = Spanned::new(Expr::Identifier("test".to_string()), Span::new(0, 4));
         let _syntax = expander.expr_to_syntax(expr, None).unwrap();
-        
+
         assert_eq!(expander.stats().legacy_to_syntax_conversions, 1);
-        
+
         expander.reset_stats();
         assert_eq!(expander.stats().legacy_to_syntax_conversions, 0);
     }

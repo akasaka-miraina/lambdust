@@ -4,7 +4,7 @@
 //! and precise blame tracking. The system provides:
 //!
 //! - Function contracts with domain/codomain checking
-//! - Data contracts with predicates and constraints  
+//! - Data contracts with predicates and constraints
 //! - Higher-order contracts for functions that accept/return functions
 //! - Contract combinators (and/c, or/c, not/c, ->, etc.)
 //! - Blame tracking for precise error attribution
@@ -104,12 +104,15 @@ pub enum ContractError {
 impl From<ContractError> for Error {
     fn from(err: ContractError) -> Self {
         match err {
-            ContractError::Violation { blame, expected, actual, location } => {
-                Error::new_spanned(
-                    format!("Contract violation: expected {expected}, got {actual} (blame: {blame})"),
-                    location,
-                )
-            }
+            ContractError::Violation {
+                blame,
+                expected,
+                actual,
+                location,
+            } => Error::new_spanned(
+                format!("Contract violation: expected {expected}, got {actual} (blame: {blame})"),
+                location,
+            ),
             ContractError::InvalidContract { message, location } => {
                 Error::new_spanned(format!("Invalid contract: {message}"), location)
             }
@@ -216,7 +219,7 @@ impl ContractSystem {
             if let Some(compiled) = self.contract_cache.get(&cache_key) {
                 return Ok(compiled.clone());
             }
-            
+
             // Compile and cache
             let compiled = self.compiler.compile(contract, context)?;
             self.contract_cache.insert(cache_key, compiled.clone());
@@ -279,4 +282,3 @@ impl Default for ContractSystem {
         Self::new()
     }
 }
-

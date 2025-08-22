@@ -1,17 +1,16 @@
 //! First-class Continuation Support for JIT Compiled Code
 //!
-//! This module implements R7RS-compliant call/cc (call-with-current-continuation) 
+//! This module implements R7RS-compliant call/cc (call-with-current-continuation)
 //! support in JIT-compiled code, including stack capture, continuation objects,
 //! and proper unwinding semantics.
 
 use crate::ast::Expr;
+use crate::diagnostics::{Error, Result};
 use crate::eval::Value;
 use crate::jit::{
-    code_generator::NativeCode,
-    compilation_tiers::CompilationTier,
+    code_generator::NativeCode, compilation_tiers::CompilationTier,
     specialized_compilation_tiers::SpecializedNativeCode,
 };
-use crate::diagnostics::{Result, Error};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -225,7 +224,7 @@ pub enum ContinuationStrategy {
 
 /// Statistics for continuation operations
 #[derive(Debug, Default)]
-struct ContinuationStats {
+pub struct ContinuationStats {
     /// Total continuations created
     continuations_created: u64,
     /// Total continuations invoked
@@ -246,27 +245,39 @@ impl ContinuationSupport {
     /// Create new continuation support with configuration
     pub fn new(config: ContinuationConfig) -> Result<Self> {
         let mut strategies = HashMap::new();
-        
+
         // Set up compilation strategies for each tier
-        strategies.insert(CompilationTier::Interpreter, ContinuationStrategy::Interpreter {
-            use_stack_copying: true,
-        });
-        
-        strategies.insert(CompilationTier::Bytecode, ContinuationStrategy::Bytecode {
-            generate_continuation_bytecode: true,
-        });
-        
-        strategies.insert(CompilationTier::JitBasic, ContinuationStrategy::BasicJit {
-            use_trampoline: true,
-            enable_register_spilling: true,
-        });
-        
-        strategies.insert(CompilationTier::JitOptimized, ContinuationStrategy::OptimizedJit {
-            use_advanced_stack_scanning: true,
-            enable_continuation_inlining: false, // Conservative default
-            use_continuation_caching: config.enable_continuation_caching,
-        });
-        
+        strategies.insert(
+            CompilationTier::Interpreter,
+            ContinuationStrategy::Interpreter {
+                use_stack_copying: true,
+            },
+        );
+
+        strategies.insert(
+            CompilationTier::Bytecode,
+            ContinuationStrategy::Bytecode {
+                generate_continuation_bytecode: true,
+            },
+        );
+
+        strategies.insert(
+            CompilationTier::JitBasic,
+            ContinuationStrategy::BasicJit {
+                use_trampoline: true,
+                enable_register_spilling: true,
+            },
+        );
+
+        strategies.insert(
+            CompilationTier::JitOptimized,
+            ContinuationStrategy::OptimizedJit {
+                use_advanced_stack_scanning: true,
+                enable_continuation_inlining: false, // Conservative default
+                use_continuation_caching: config.enable_continuation_caching,
+            },
+        );
+
         Ok(Self {
             config,
             active_continuations: HashMap::new(),
@@ -288,16 +299,16 @@ impl ContinuationSupport {
         tier: CompilationTier,
     ) -> Result<ContinuationObject> {
         let start_time = std::time::Instant::now();
-        
+
         // Generate unique continuation ID
         let id = self.generate_continuation_id();
-        
+
         // Capture stack frames based on compilation tier strategy
         let stack_frames = self.capture_stack_frames(&tier)?;
-        
+
         // Capture environment
         let environment = self.capture_environment()?;
-        
+
         // Create continuation object
         let continuation = ContinuationObject {
             id,
@@ -308,17 +319,17 @@ impl ContinuationSupport {
             optimization_level: tier,
             invoked: false,
         };
-        
+
         // Store continuation and frames
         self.active_continuations.insert(id, continuation.clone());
         self.captured_frames.insert(id, stack_frames);
-        
+
         // Update statistics
         let capture_time = start_time.elapsed();
         self.stats.continuations_created += 1;
         self.stats.frames_captured += continuation.stack_frames.len() as u64;
         self.update_average_capture_time(capture_time);
-        
+
         Ok(continuation)
     }
 
@@ -329,14 +340,16 @@ impl ContinuationSupport {
         value: Value,
     ) -> Result<Value> {
         let start_time = std::time::Instant::now();
-        
+
         // Get the continuation
-        let mut continuation = self.active_continuations.get(&continuation_id)
-            .ok_or_else(|| Error::runtime_error(
-                format!("Continuation {continuation_id} not found"),
-                None,
-            ))?.clone();
-        
+        let mut continuation = self
+            .active_continuations
+            .get(&continuation_id)
+            .ok_or_else(|| {
+                Error::runtime_error(format!("Continuation {continuation_id} not found"), None)
+            })?
+            .clone();
+
         // Check if already invoked (continuations can only be used once in R7RS)
         if continuation.invoked {
             return Err(Box::new(Error::runtime_error(
@@ -344,19 +357,20 @@ impl ContinuationSupport {
                 None,
             )));
         }
-        
+
         // Mark as invoked
         continuation.invoked = true;
-        self.active_continuations.insert(continuation_id, continuation.clone());
-        
+        self.active_continuations
+            .insert(continuation_id, continuation.clone());
+
         // Restore stack frames and environment
         self.restore_continuation_state(&continuation)?;
-        
+
         // Update statistics
         let invocation_time = start_time.elapsed();
         self.stats.continuations_invoked += 1;
         self.update_average_invocation_time(invocation_time);
-        
+
         // Return the provided value as the result of the original call/cc
         Ok(value)
     }
@@ -367,14 +381,15 @@ impl ContinuationSupport {
         native_code: &mut NativeCode,
         tier: CompilationTier,
     ) -> Result<()> {
-        let strategy = self.compilation_strategies.get(&tier)
-            .ok_or_else(|| Error::runtime_error(
-                format!("No continuation strategy for tier {tier:?}"),
-                None,
-            ))?;
+        let strategy = self.compilation_strategies.get(&tier).ok_or_else(|| {
+            Error::runtime_error(format!("No continuation strategy for tier {tier:?}"), None)
+        })?;
 
         match strategy {
-            ContinuationStrategy::BasicJit { use_trampoline, enable_register_spilling } => {
+            ContinuationStrategy::BasicJit {
+                use_trampoline,
+                enable_register_spilling,
+            } => {
                 // Generate basic JIT support
                 if *use_trampoline {
                     self.generate_trampoline_support(native_code)?;
@@ -383,10 +398,10 @@ impl ContinuationSupport {
                     self.generate_register_spilling_support(native_code)?;
                 }
             }
-            ContinuationStrategy::OptimizedJit { 
-                use_advanced_stack_scanning, 
+            ContinuationStrategy::OptimizedJit {
+                use_advanced_stack_scanning,
                 enable_continuation_inlining,
-                use_continuation_caching 
+                use_continuation_caching,
             } => {
                 // Generate optimized JIT support
                 if *use_advanced_stack_scanning {
@@ -403,7 +418,7 @@ impl ContinuationSupport {
                 // Interpreter and bytecode strategies don't need native code generation
             }
         }
-        
+
         Ok(())
     }
 
@@ -425,11 +440,9 @@ impl ContinuationSupport {
 
     /// Get continuation support capabilities for a tier
     pub fn get_tier_capabilities(&self, tier: CompilationTier) -> Result<ContinuationCapabilities> {
-        let strategy = self.compilation_strategies.get(&tier)
-            .ok_or_else(|| Error::runtime_error(
-                format!("No continuation strategy for tier {tier:?}"),
-                None,
-            ))?;
+        let strategy = self.compilation_strategies.get(&tier).ok_or_else(|| {
+            Error::runtime_error(format!("No continuation strategy for tier {tier:?}"), None)
+        })?;
 
         let capabilities = match strategy {
             ContinuationStrategy::Interpreter { .. } => ContinuationCapabilities {
@@ -476,7 +489,7 @@ impl ContinuationSupport {
     /// Clean up expired or unused continuations
     pub fn cleanup_continuations(&mut self) -> Result<usize> {
         let before_count = self.active_continuations.len();
-        
+
         // Remove invoked continuations (they can't be reused)
         self.active_continuations.retain(|id, cont| {
             if cont.invoked {
@@ -486,22 +499,24 @@ impl ContinuationSupport {
                 true
             }
         });
-        
+
         // Remove old continuations if we exceed the maximum
         if self.active_continuations.len() > self.config.max_active_continuations {
             // Sort by creation time and remove oldest
-            let mut continuations: Vec<_> = self.active_continuations.iter()
+            let mut continuations: Vec<_> = self
+                .active_continuations
+                .iter()
                 .map(|(id, cont)| (*id, cont.created_at))
                 .collect();
             continuations.sort_by_key(|(_, created_at)| *created_at);
-            
+
             let to_remove = continuations.len() - self.config.max_active_continuations;
             for (id, _) in continuations.into_iter().take(to_remove) {
                 self.active_continuations.remove(&id);
                 self.captured_frames.remove(&id);
             }
         }
-        
+
         let cleaned_up = before_count - self.active_continuations.len();
         Ok(cleaned_up)
     }
@@ -521,9 +536,9 @@ impl ContinuationSupport {
     fn capture_stack_frames(&self, tier: &CompilationTier) -> Result<Vec<StackFrame>> {
         // This is a simplified implementation
         // In reality, would use platform-specific stack walking mechanisms
-        
+
         let mut frames = Vec::new();
-        
+
         // Create a dummy frame for testing
         frames.push(StackFrame {
             function_name: "test_function".to_string(),
@@ -534,18 +549,21 @@ impl ContinuationSupport {
             frame_type: match tier {
                 CompilationTier::Interpreter => FrameType::InterpreterFrame,
                 CompilationTier::Bytecode => FrameType::InterpreterFrame,
-                CompilationTier::JitBasic | CompilationTier::JitOptimized => FrameType::NativeFunction,
+                CompilationTier::JitBasic | CompilationTier::JitOptimized => {
+                    FrameType::NativeFunction
+                }
             },
-            jit_metadata: if matches!(tier, CompilationTier::JitBasic | CompilationTier::JitOptimized) {
+            jit_metadata: if matches!(
+                tier,
+                CompilationTier::JitBasic | CompilationTier::JitOptimized
+            ) {
                 Some(JitFrameMetadata {
                     code_address: 0x3000,
                     optimization_level: *tier,
-                    register_state: vec![
-                        RegisterValue {
-                            register: "rax".to_string(),
-                            value: RegisterValueType::Integer(42),
-                        }
-                    ],
+                    register_state: vec![RegisterValue {
+                        register: "rax".to_string(),
+                        value: RegisterValueType::Integer(42),
+                    }],
                     stack_layout: StackLayout {
                         frame_size: 64,
                         locals_offset: -32,
@@ -558,7 +576,7 @@ impl ContinuationSupport {
                 None
             },
         });
-        
+
         Ok(frames)
     }
 
@@ -572,7 +590,7 @@ impl ContinuationSupport {
     fn restore_continuation_state(&self, continuation: &ContinuationObject) -> Result<()> {
         // This would restore the stack frames and environment
         // Extremely complex in practice, requiring platform-specific assembly
-        
+
         // For now, just validate that we can restore
         if continuation.stack_frames.is_empty() {
             return Err(Box::new(Error::runtime_error(
@@ -580,7 +598,7 @@ impl ContinuationSupport {
                 None,
             )));
         }
-        
+
         Ok(())
     }
 
@@ -654,10 +672,10 @@ pub struct ContinuationCapabilities {
 pub trait ContinuationAware {
     /// Check if this code supports continuations
     fn supports_continuations(&self) -> bool;
-    
+
     /// Get continuation metadata
     fn get_continuation_metadata(&self) -> Option<HashMap<String, String>>;
-    
+
     /// Check if call/cc can be optimized in this context
     fn can_optimize_callcc(&self) -> bool;
 }
@@ -667,12 +685,12 @@ impl ContinuationAware for NativeCode {
         // Would check native code metadata
         true // Assume support for now
     }
-    
+
     fn get_continuation_metadata(&self) -> Option<HashMap<String, String>> {
         // Would extract continuation metadata from native code
         None
     }
-    
+
     fn can_optimize_callcc(&self) -> bool {
         // Would check if call/cc optimizations are possible
         true
@@ -683,11 +701,11 @@ impl ContinuationAware for SpecializedNativeCode {
     fn supports_continuations(&self) -> bool {
         true
     }
-    
+
     fn get_continuation_metadata(&self) -> Option<HashMap<String, String>> {
         None
     }
-    
+
     fn can_optimize_callcc(&self) -> bool {
         true
     }
@@ -701,7 +719,7 @@ mod tests {
     fn test_continuation_support_creation() {
         let support = ContinuationSupport::default();
         assert!(support.is_ok());
-        
+
         let support = support.unwrap();
         assert_eq!(support.active_continuations.len(), 0);
         assert!(support.is_callcc_supported(CompilationTier::Interpreter));
@@ -711,15 +729,13 @@ mod tests {
     #[test]
     fn test_continuation_capture() {
         let mut support = ContinuationSupport::default().unwrap();
-        
-        let continuation = support.capture_continuation(
-            ContinuationType::Full,
-            CompilationTier::Interpreter,
-        );
-        
+
+        let continuation =
+            support.capture_continuation(ContinuationType::Full, CompilationTier::Interpreter);
+
         assert!(continuation.is_ok());
         let continuation = continuation.unwrap();
-        
+
         assert_eq!(continuation.continuation_type, ContinuationType::Full);
         assert!(!continuation.invoked);
         assert!(!continuation.stack_frames.is_empty());
@@ -728,19 +744,18 @@ mod tests {
     #[test]
     fn test_continuation_invocation() {
         let mut support = ContinuationSupport::default().unwrap();
-        
-        let continuation = support.capture_continuation(
-            ContinuationType::Full,
-            CompilationTier::Interpreter,
-        ).unwrap();
-        
+
+        let continuation = support
+            .capture_continuation(ContinuationType::Full, CompilationTier::Interpreter)
+            .unwrap();
+
         let id = continuation.id;
-        
+
         // First invocation should succeed
         let result = support.invoke_continuation(id, Value::integer(42));
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Value::integer(42));
-        
+
         // Second invocation should fail (R7RS compliance)
         let result = support.invoke_continuation(id, Value::integer(24));
         assert!(result.is_err());
@@ -749,35 +764,34 @@ mod tests {
     #[test]
     fn test_tier_capabilities() {
         let support = ContinuationSupport::default().unwrap();
-        
+
         let capabilities = support.get_tier_capabilities(CompilationTier::Interpreter);
         assert!(capabilities.is_ok());
         let capabilities = capabilities.unwrap();
-        
+
         assert!(capabilities.full_continuations);
         assert!(capabilities.stack_safety);
         assert!(capabilities.performance_overhead > 1.0);
-        
+
         let opt_capabilities = support.get_tier_capabilities(CompilationTier::JitOptimized);
         assert!(opt_capabilities.is_ok());
         let opt_capabilities = opt_capabilities.unwrap();
-        
+
         assert!(opt_capabilities.performance_overhead < capabilities.performance_overhead);
     }
 
     #[test]
     fn test_continuation_cleanup() {
         let mut support = ContinuationSupport::default().unwrap();
-        
+
         // Create and invoke a continuation
-        let continuation = support.capture_continuation(
-            ContinuationType::Full,
-            CompilationTier::Interpreter,
-        ).unwrap();
-        
+        let continuation = support
+            .capture_continuation(ContinuationType::Full, CompilationTier::Interpreter)
+            .unwrap();
+
         let id = continuation.id;
         support.invoke_continuation(id, Value::integer(42)).unwrap();
-        
+
         // Clean up should remove the invoked continuation
         let cleaned = support.cleanup_continuations().unwrap();
         assert_eq!(cleaned, 1);
@@ -787,24 +801,26 @@ mod tests {
     #[test]
     fn test_continuation_types() {
         let mut support = ContinuationSupport::default().unwrap();
-        
+
         // Test different continuation types
-        let full_cont = support.capture_continuation(
-            ContinuationType::Full,
-            CompilationTier::JitOptimized,
-        ).unwrap();
+        let full_cont = support
+            .capture_continuation(ContinuationType::Full, CompilationTier::JitOptimized)
+            .unwrap();
         assert_eq!(full_cont.continuation_type, ContinuationType::Full);
-        
-        let escape_cont = support.capture_continuation(
-            ContinuationType::Escape,
-            CompilationTier::JitBasic,
-        ).unwrap();
+
+        let escape_cont = support
+            .capture_continuation(ContinuationType::Escape, CompilationTier::JitBasic)
+            .unwrap();
         assert_eq!(escape_cont.continuation_type, ContinuationType::Escape);
-        
-        let delimited_cont = support.capture_continuation(
-            ContinuationType::Delimited { prompt_tag: "test".to_string() },
-            CompilationTier::JitOptimized,
-        ).unwrap();
+
+        let delimited_cont = support
+            .capture_continuation(
+                ContinuationType::Delimited {
+                    prompt_tag: "test".to_string(),
+                },
+                CompilationTier::JitOptimized,
+            )
+            .unwrap();
         match delimited_cont.continuation_type {
             ContinuationType::Delimited { prompt_tag } => {
                 assert_eq!(prompt_tag, "test");

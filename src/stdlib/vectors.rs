@@ -4,8 +4,8 @@
 //! vector creation, manipulation, and conversion functions.
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
 use crate::effects::Effect;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use crate::numeric::{NumericValue, SimdNumericOps};
 use std::sync::Arc;
 
@@ -13,19 +13,19 @@ use std::sync::Arc;
 pub fn create_vector_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // Vector creation
     bind_vector_creation(env);
-    
+
     // Vector predicates
     bind_vector_predicates(env);
-    
+
     // Vector accessors and mutators
     bind_vector_accessors(env);
-    
+
     // Vector manipulation
     bind_vector_manipulation(env);
-    
+
     // Vector iteration
     bind_vector_iteration(env);
-    
+
     // Vector conversion
     bind_vector_conversion(env);
 }
@@ -33,145 +33,187 @@ pub fn create_vector_bindings(env: &Arc<ThreadSafeEnvironment>) {
 /// Binds vector creation operations.
 fn bind_vector_creation(env: &Arc<ThreadSafeEnvironment>) {
     // vector
-    env.define("vector".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_vector),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "vector".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector".to_string(),
+            arity_min: 0,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_vector),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // make-vector
-    env.define("make-vector".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "make-vector".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_make_vector),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "make-vector".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "make-vector".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_make_vector),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // vector-copy
-    env.define("vector-copy".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector-copy".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_vector_copy),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "vector-copy".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector-copy".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_vector_copy),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds vector predicates.
 fn bind_vector_predicates(env: &Arc<ThreadSafeEnvironment>) {
     // vector?
-    env.define("vector?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector?".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_vector_p),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "vector?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_vector_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds vector accessors and mutators.
 fn bind_vector_accessors(env: &Arc<ThreadSafeEnvironment>) {
     // vector-length
-    env.define("vector-length".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector-length".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_vector_length),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "vector-length".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector-length".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_vector_length),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // vector-ref
-    env.define("vector-ref".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector-ref".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_vector_ref),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "vector-ref".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector-ref".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_vector_ref),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // vector-set!
-    env.define("vector-set!".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector-set!".to_string(),
-        arity_min: 3,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_vector_set),
-        effects: vec![Effect::State], // Mutation effect
-    })));
+    env.define(
+        "vector-set!".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector-set!".to_string(),
+            arity_min: 3,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_vector_set),
+            effects: vec![Effect::State], // Mutation effect
+        })),
+    );
 }
 
 /// Binds vector manipulation operations.
 fn bind_vector_manipulation(env: &Arc<ThreadSafeEnvironment>) {
     // vector-fill!
-    env.define("vector-fill!".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector-fill!".to_string(),
-        arity_min: 2,
-        arity_max: Some(4),
-        implementation: PrimitiveImpl::RustFn(primitive_vector_fill),
-        effects: vec![Effect::State], // Mutation effect
-    })));
-    
+    env.define(
+        "vector-fill!".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector-fill!".to_string(),
+            arity_min: 2,
+            arity_max: Some(4),
+            implementation: PrimitiveImpl::RustFn(primitive_vector_fill),
+            effects: vec![Effect::State], // Mutation effect
+        })),
+    );
+
     // vector-copy!
-    env.define("vector-copy!".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector-copy!".to_string(),
-        arity_min: 3,
-        arity_max: Some(5),
-        implementation: PrimitiveImpl::RustFn(primitive_vector_copy_mut),
-        effects: vec![Effect::State], // Mutation effect
-    })));
-    
+    env.define(
+        "vector-copy!".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector-copy!".to_string(),
+            arity_min: 3,
+            arity_max: Some(5),
+            implementation: PrimitiveImpl::RustFn(primitive_vector_copy_mut),
+            effects: vec![Effect::State], // Mutation effect
+        })),
+    );
+
     // vector-append
-    env.define("vector-append".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector-append".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_vector_append),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "vector-append".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector-append".to_string(),
+            arity_min: 0,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_vector_append),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds vector iteration operations.
 fn bind_vector_iteration(env: &Arc<ThreadSafeEnvironment>) {
     // vector-map
-    env.define("vector-map".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector-map".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_vector_map),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "vector-map".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector-map".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_vector_map),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // vector-for-each
-    env.define("vector-for-each".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector-for-each".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_vector_for_each),
-        effects: vec![Effect::Pure], // May call user functions with effects
-    })));
+    env.define(
+        "vector-for-each".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector-for-each".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_vector_for_each),
+            effects: vec![Effect::Pure], // May call user functions with effects
+        })),
+    );
 }
 
 /// Binds vector conversion operations.
 fn bind_vector_conversion(env: &Arc<ThreadSafeEnvironment>) {
     // vector->list
-    env.define("vector->list".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "vector->list".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_vector_to_list),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "vector->list".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "vector->list".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_vector_to_list),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // list->vector
-    env.define("list->vector".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "list->vector".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_list_to_vector),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "list->vector".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "list->vector".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_list_to_vector),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 // ============= VECTOR CREATION IMPLEMENTATIONS =============
@@ -189,27 +231,27 @@ fn primitive_make_vector(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let length = args[0].as_integer().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "make-vector first argument must be a non-negative integer".to_string(),
             None,
         ))
     })?;
-    
+
     if length < 0 {
         return Err(Box::new(DiagnosticError::runtime_error(
             "make-vector length must be non-negative".to_string(),
             None,
         )));
     }
-    
+
     let fill = if args.len() == 2 {
         args[1].clone()
     } else {
         Value::Unspecified
     };
-    
+
     let elements = vec![fill; length as usize];
     Ok(Value::vector(elements))
 }
@@ -222,10 +264,10 @@ fn primitive_vector_copy(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let vector = extract_vector(&args[0], "vector-copy")?;
     let length = vector.len();
-    
+
     let start = if args.len() > 1 {
         let start_idx = args[1].as_integer().ok_or_else(|| {
             Box::new(DiagnosticError::runtime_error(
@@ -233,7 +275,7 @@ fn primitive_vector_copy(args: &[Value]) -> Result<Value> {
                 None,
             ))
         })? as usize;
-        
+
         if start_idx > length {
             return Err(Box::new(DiagnosticError::runtime_error(
                 "vector-copy start index out of bounds".to_string(),
@@ -244,7 +286,7 @@ fn primitive_vector_copy(args: &[Value]) -> Result<Value> {
     } else {
         0
     };
-    
+
     let end = if args.len() > 2 {
         let end_idx = args[2].as_integer().ok_or_else(|| {
             Box::new(DiagnosticError::runtime_error(
@@ -252,7 +294,7 @@ fn primitive_vector_copy(args: &[Value]) -> Result<Value> {
                 None,
             ))
         })? as usize;
-        
+
         if end_idx > length || end_idx < start {
             return Err(Box::new(DiagnosticError::runtime_error(
                 "vector-copy end index out of bounds".to_string(),
@@ -263,7 +305,7 @@ fn primitive_vector_copy(args: &[Value]) -> Result<Value> {
     } else {
         length
     };
-    
+
     let result = vector[start..end].to_vec();
     Ok(Value::vector(result))
 }
@@ -278,7 +320,7 @@ fn primitive_vector_p(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     Ok(Value::boolean(args[0].is_vector()))
 }
 
@@ -292,7 +334,7 @@ fn primitive_vector_length(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let vector = extract_vector(&args[0], "vector-length")?;
     Ok(Value::integer(vector.len() as i64))
 }
@@ -305,7 +347,7 @@ fn primitive_vector_ref(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let vector = extract_vector(&args[0], "vector-ref")?;
     let index = args[1].as_integer().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
@@ -313,14 +355,14 @@ fn primitive_vector_ref(args: &[Value]) -> Result<Value> {
             None,
         ))
     })? as usize;
-    
+
     if index >= vector.len() {
         return Err(Box::new(DiagnosticError::runtime_error(
             "vector-ref index out of bounds".to_string(),
             None,
         )));
     }
-    
+
     Ok(vector[index].clone())
 }
 
@@ -332,7 +374,7 @@ fn primitive_vector_set(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let vector_value = &args[0];
     let index = args[1].as_integer().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
@@ -341,18 +383,18 @@ fn primitive_vector_set(args: &[Value]) -> Result<Value> {
         ))
     })? as usize;
     let new_value = &args[2];
-    
+
     match vector_value {
         Value::Vector(vector_ref) => {
-            let mut vector = vector_ref.write().unwrap();
-            
+            let mut vector = vector_ref.borrow_mut();
+
             if index >= vector.len() {
                 return Err(Box::new(DiagnosticError::runtime_error(
                     "vector-set! index out of bounds".to_string(),
                     None,
                 )));
             }
-            
+
             vector[index] = new_value.clone();
             Ok(Value::Unspecified)
         }
@@ -373,15 +415,15 @@ fn primitive_vector_fill(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let vector_value = &args[0];
     let fill_value = &args[1];
-    
+
     match vector_value {
         Value::Vector(vector_ref) => {
-            let mut vector = vector_ref.write().unwrap();
+            let mut vector = vector_ref.borrow_mut();
             let length = vector.len();
-            
+
             let start = if args.len() > 2 {
                 let start_idx = args[2].as_integer().ok_or_else(|| {
                     Box::new(DiagnosticError::runtime_error(
@@ -389,7 +431,7 @@ fn primitive_vector_fill(args: &[Value]) -> Result<Value> {
                         None,
                     ))
                 })? as usize;
-                
+
                 if start_idx > length {
                     return Err(Box::new(DiagnosticError::runtime_error(
                         "vector-fill! start index out of bounds".to_string(),
@@ -400,7 +442,7 @@ fn primitive_vector_fill(args: &[Value]) -> Result<Value> {
             } else {
                 0
             };
-            
+
             let end = if args.len() > 3 {
                 let end_idx = args[3].as_integer().ok_or_else(|| {
                     Box::new(DiagnosticError::runtime_error(
@@ -408,7 +450,7 @@ fn primitive_vector_fill(args: &[Value]) -> Result<Value> {
                         None,
                     ))
                 })? as usize;
-                
+
                 if end_idx > length || end_idx < start {
                     return Err(Box::new(DiagnosticError::runtime_error(
                         "vector-fill! end index out of bounds".to_string(),
@@ -419,11 +461,11 @@ fn primitive_vector_fill(args: &[Value]) -> Result<Value> {
             } else {
                 length
             };
-            
+
             for i in start..end {
                 vector[i] = fill_value.clone();
             }
-            
+
             Ok(Value::Unspecified)
         }
         _ => Err(Box::new(DiagnosticError::runtime_error(
@@ -441,7 +483,7 @@ fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let to_vector = &args[0];
     let at = args[1].as_integer().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
@@ -450,10 +492,10 @@ fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
         ))
     })? as usize;
     let from_vector_value = &args[2];
-    
+
     let from_vector = extract_vector(from_vector_value, "vector-copy!")?;
     let from_length = from_vector.len();
-    
+
     let start = if args.len() > 3 {
         let start_idx = args[3].as_integer().ok_or_else(|| {
             Box::new(DiagnosticError::runtime_error(
@@ -461,7 +503,7 @@ fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
                 None,
             ))
         })? as usize;
-        
+
         if start_idx > from_length {
             return Err(Box::new(DiagnosticError::runtime_error(
                 "vector-copy! start index out of bounds".to_string(),
@@ -472,7 +514,7 @@ fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
     } else {
         0
     };
-    
+
     let end = if args.len() > 4 {
         let end_idx = args[4].as_integer().ok_or_else(|| {
             Box::new(DiagnosticError::runtime_error(
@@ -480,7 +522,7 @@ fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
                 None,
             ))
         })? as usize;
-        
+
         if end_idx > from_length || end_idx < start {
             return Err(Box::new(DiagnosticError::runtime_error(
                 "vector-copy! end index out of bounds".to_string(),
@@ -491,23 +533,23 @@ fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
     } else {
         from_length
     };
-    
+
     match to_vector {
         Value::Vector(to_vector_ref) => {
-            let mut to_vec = to_vector_ref.write().unwrap();
+            let mut to_vec = to_vector_ref.borrow_mut();
             let copy_length = end - start;
-            
+
             if at + copy_length > to_vec.len() {
                 return Err(Box::new(DiagnosticError::runtime_error(
                     "vector-copy! destination range out of bounds".to_string(),
                     None,
                 )));
             }
-            
+
             for (i, j) in (start..end).enumerate() {
                 to_vec[at + i] = from_vector[j].clone();
             }
-            
+
             Ok(Value::Unspecified)
         }
         _ => Err(Box::new(DiagnosticError::runtime_error(
@@ -520,12 +562,12 @@ fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
 /// vector-append procedure
 fn primitive_vector_append(args: &[Value]) -> Result<Value> {
     let mut result = Vec::new();
-    
+
     for arg in args {
         let vector = extract_vector(arg, "vector-append")?;
         result.extend_from_slice(&vector);
     }
-    
+
     Ok(Value::vector(result))
 }
 
@@ -539,10 +581,10 @@ fn primitive_vector_to_list(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let vector = extract_vector(&args[0], "vector->list")?;
     let length = vector.len();
-    
+
     let start = if args.len() > 1 {
         let start_idx = args[1].as_integer().ok_or_else(|| {
             Box::new(DiagnosticError::runtime_error(
@@ -550,7 +592,7 @@ fn primitive_vector_to_list(args: &[Value]) -> Result<Value> {
                 None,
             ))
         })? as usize;
-        
+
         if start_idx > length {
             return Err(Box::new(DiagnosticError::runtime_error(
                 "vector->list start index out of bounds".to_string(),
@@ -561,7 +603,7 @@ fn primitive_vector_to_list(args: &[Value]) -> Result<Value> {
     } else {
         0
     };
-    
+
     let end = if args.len() > 2 {
         let end_idx = args[2].as_integer().ok_or_else(|| {
             Box::new(DiagnosticError::runtime_error(
@@ -569,7 +611,7 @@ fn primitive_vector_to_list(args: &[Value]) -> Result<Value> {
                 None,
             ))
         })? as usize;
-        
+
         if end_idx > length || end_idx < start {
             return Err(Box::new(DiagnosticError::runtime_error(
                 "vector->list end index out of bounds".to_string(),
@@ -580,7 +622,7 @@ fn primitive_vector_to_list(args: &[Value]) -> Result<Value> {
     } else {
         length
     };
-    
+
     let slice = vector[start..end].to_vec();
     Ok(Value::list(slice))
 }
@@ -593,14 +635,14 @@ fn primitive_list_to_vector(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let list = args[0].as_list().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "list->vector requires a proper list".to_string(),
             None,
         ))
     })?;
-    
+
     Ok(Value::vector(list))
 }
 
@@ -609,7 +651,7 @@ fn primitive_list_to_vector(args: &[Value]) -> Result<Value> {
 /// Extracts a vector from a Value (borrowing the contents).
 fn extract_vector(value: &Value, operation: &str) -> Result<Vec<Value>> {
     match value {
-        Value::Vector(vector_ref) => Ok(vector_ref.read().unwrap().clone()),
+        Value::Vector(vector_ref) => Ok(vector_ref.try_borrow().unwrap().clone()),
         _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires a vector"),
             None,
@@ -627,10 +669,10 @@ fn primitive_vector_map(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let procedure = &args[0];
     let vectors = &args[1..];
-    
+
     // Verify procedure is callable
     if !procedure.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
@@ -638,31 +680,31 @@ fn primitive_vector_map(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Convert all arguments to vectors and find minimum length
     let mut vector_data = Vec::new();
     let mut min_length = usize::MAX;
-    
+
     for vector_arg in vectors.iter() {
         let vector = extract_vector(vector_arg, "vector-map")?;
         min_length = min_length.min(vector.len());
         vector_data.push(vector);
     }
-    
+
     // If any vector is empty, return empty vector
     if min_length == 0 || min_length == usize::MAX {
         return Ok(Value::vector(Vec::new()));
     }
-    
+
     // Apply procedure to each position across all vectors
     let mut results = Vec::new();
-    
+
     for i in 0..min_length {
         let mut proc_args = Vec::new();
         for vector in &vector_data {
             proc_args.push(vector[i].clone());
         }
-        
+
         // Apply the procedure - for now we can only handle primitive procedures
         match procedure {
             Value::Primitive(prim) => {
@@ -683,7 +725,7 @@ fn primitive_vector_map(args: &[Value]) -> Result<Value> {
                     }
                 };
                 results.push(result);
-            },
+            }
             _ => {
                 return Err(Box::new(DiagnosticError::runtime_error(
                     "vector-map with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
@@ -692,7 +734,7 @@ fn primitive_vector_map(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     Ok(Value::vector(results))
 }
 
@@ -704,10 +746,10 @@ fn primitive_vector_for_each(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let procedure = &args[0];
     let vectors = &args[1..];
-    
+
     // Verify procedure is callable
     if !procedure.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
@@ -715,29 +757,29 @@ fn primitive_vector_for_each(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Convert all arguments to vectors and find minimum length
     let mut vector_data = Vec::new();
     let mut min_length = usize::MAX;
-    
+
     for vector_arg in vectors.iter() {
         let vector = extract_vector(vector_arg, "vector-for-each")?;
         min_length = min_length.min(vector.len());
         vector_data.push(vector);
     }
-    
+
     // If any vector is empty, return unspecified immediately
     if min_length == 0 || min_length == usize::MAX {
         return Ok(Value::Unspecified);
     }
-    
+
     // Apply procedure to each position across all vectors for side effects
     for i in 0..min_length {
         let mut proc_args = Vec::new();
         for vector in &vector_data {
             proc_args.push(vector[i].clone());
         }
-        
+
         // Apply the procedure - for now we can only handle primitive procedures
         match procedure {
             Value::Primitive(prim) => {
@@ -745,25 +787,26 @@ fn primitive_vector_for_each(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => {
                         // Call the function but ignore the result (for-each is for side effects)
                         func(&proc_args)?;
-                    },
+                    }
                     PrimitiveImpl::Native(func) => {
                         // Call the function but ignore the result (for-each is for side effects)
                         func(&proc_args)?;
-                    },
+                    }
                     PrimitiveImpl::EvaluatorIntegrated(_) => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "vector-for-each with evaluator-integrated functions requires evaluator access".to_string(),
                             None,
                         )));
-                    },
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
-                            "vector-for-each with foreign functions not yet implemented".to_string(),
+                            "vector-for-each with foreign functions not yet implemented"
+                                .to_string(),
                             None,
                         )));
                     }
                 }
-            },
+            }
             _ => {
                 return Err(Box::new(DiagnosticError::runtime_error(
                     "vector-for-each with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
@@ -772,7 +815,7 @@ fn primitive_vector_for_each(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     // vector-for-each returns unspecified
     Ok(Value::Unspecified)
 }
@@ -780,33 +823,31 @@ fn primitive_vector_for_each(args: &[Value]) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    
 
     #[test]
     fn test_vector_creation() {
         let args = vec![Value::integer(1), Value::integer(2), Value::integer(3)];
         let vector = primitive_vector(&args).unwrap();
-        
+
         assert!(vector.is_vector());
-        
+
         let length = primitive_vector_length(&[vector]).unwrap();
         assert_eq!(length, Value::integer(3));
     }
-    
+
     #[test]
     fn test_make_vector() {
         let args = vec![Value::integer(5), Value::string("hello")];
         let vector = primitive_make_vector(&args).unwrap();
-        
+
         let length = primitive_vector_length(&[vector.clone()]).unwrap();
         assert_eq!(length, Value::integer(5));
-        
+
         // Check that all elements are "hello"
         let first_element = primitive_vector_ref(&[vector, Value::integer(0)]).unwrap();
         assert_eq!(first_element, Value::string("hello"));
     }
-    
+
     #[test]
     fn test_vector_ref_and_set() {
         let vector = Value::vector(vec![
@@ -814,39 +855,37 @@ mod tests {
             Value::string("b"),
             Value::string("c"),
         ]);
-        
+
         let element = primitive_vector_ref(&[vector.clone(), Value::integer(1)]).unwrap();
         assert_eq!(element, Value::string("b"));
-        
+
         // Test vector-set!
-        let result = primitive_vector_set(&[
-            vector.clone(),
-            Value::integer(1),
-            Value::string("modified"),
-        ]).unwrap();
+        let result =
+            primitive_vector_set(&[vector.clone(), Value::integer(1), Value::string("modified")])
+                .unwrap();
         assert_eq!(result, Value::Unspecified);
-        
+
         let modified_element = primitive_vector_ref(&[vector, Value::integer(1)]).unwrap();
         assert_eq!(modified_element, Value::string("modified"));
     }
-    
+
     #[test]
     fn test_vector_append() {
         let vec1 = Value::vector(vec![Value::integer(1), Value::integer(2)]);
         let vec2 = Value::vector(vec![Value::integer(3), Value::integer(4)]);
-        
+
         let result = primitive_vector_append(&[vec1, vec2]).unwrap();
-        
+
         let length = primitive_vector_length(&[result.clone()]).unwrap();
         assert_eq!(length, Value::integer(4));
-        
+
         let first = primitive_vector_ref(&[result.clone(), Value::integer(0)]).unwrap();
         assert_eq!(first, Value::integer(1));
-        
+
         let last = primitive_vector_ref(&[result, Value::integer(3)]).unwrap();
         assert_eq!(last, Value::integer(4));
     }
-    
+
     #[test]
     fn test_vector_copy() {
         let original = Value::vector(vec![
@@ -855,21 +894,21 @@ mod tests {
             Value::string("c"),
             Value::string("d"),
         ]);
-        
+
         // Copy a slice
         let args = vec![original, Value::integer(1), Value::integer(3)];
         let copy = primitive_vector_copy(&args).unwrap();
-        
+
         let length = primitive_vector_length(&[copy.clone()]).unwrap();
         assert_eq!(length, Value::integer(2));
-        
+
         let first = primitive_vector_ref(&[copy.clone(), Value::integer(0)]).unwrap();
         assert_eq!(first, Value::string("b"));
-        
+
         let second = primitive_vector_ref(&[copy, Value::integer(1)]).unwrap();
         assert_eq!(second, Value::string("c"));
     }
-    
+
     #[test]
     fn test_vector_list_conversion() {
         let list = Value::list(vec![
@@ -877,12 +916,12 @@ mod tests {
             Value::integer(2),
             Value::integer(3),
         ]);
-        
+
         let vector = primitive_list_to_vector(&[list]).unwrap();
-        
+
         let length = primitive_vector_length(&[vector.clone()]).unwrap();
         assert_eq!(length, Value::integer(3));
-        
+
         let back_to_list = primitive_vector_to_list(&[vector]).unwrap();
         let expected = Value::list(vec![
             Value::integer(1),
@@ -891,7 +930,7 @@ mod tests {
         ]);
         assert_eq!(back_to_list, expected);
     }
-    
+
     #[test]
     fn test_vector_fill() {
         let vector = Value::vector(vec![
@@ -900,31 +939,32 @@ mod tests {
             Value::integer(3),
             Value::integer(4),
         ]);
-        
+
         // Fill the middle portion
         let result = primitive_vector_fill(&[
             vector.clone(),
             Value::string("filled"),
             Value::integer(1),
             Value::integer(3),
-        ]).unwrap();
+        ])
+        .unwrap();
         assert_eq!(result, Value::Unspecified);
-        
+
         // Check that positions 1 and 2 are filled
         let elem1 = primitive_vector_ref(&[vector.clone(), Value::integer(1)]).unwrap();
         assert_eq!(elem1, Value::string("filled"));
-        
+
         let elem2 = primitive_vector_ref(&[vector.clone(), Value::integer(2)]).unwrap();
         assert_eq!(elem2, Value::string("filled"));
-        
+
         // Check that positions 0 and 3 are unchanged
         let elem0 = primitive_vector_ref(&[vector.clone(), Value::integer(0)]).unwrap();
         assert_eq!(elem0, Value::integer(1));
-        
+
         let elem3 = primitive_vector_ref(&[vector, Value::integer(3)]).unwrap();
         assert_eq!(elem3, Value::integer(4));
     }
-    
+
     #[test]
     fn test_vector_map_single_vector() {
         // Test vector-map with a simple procedure that doubles numbers
@@ -941,29 +981,33 @@ mod tests {
             }),
             effects: vec![Effect::Pure],
         });
-        
-        let vector = Value::vector(vec![Value::number(1.0), Value::number(2.0), Value::number(3.0)]);
+
+        let vector = Value::vector(vec![
+            Value::number(1.0),
+            Value::number(2.0),
+            Value::number(3.0),
+        ]);
         let args = vec![Value::Primitive(double_proc), vector];
         let result = primitive_vector_map(&args).unwrap();
-        
+
         // Verify result is a vector
         assert!(result.is_vector());
-        
+
         // Verify result length
         let result_length = primitive_vector_length(&[result.clone()]).unwrap();
         assert_eq!(result_length, Value::integer(3));
-        
+
         // Verify individual elements
         let elem0 = primitive_vector_ref(&[result.clone(), Value::integer(0)]).unwrap();
         assert_eq!(elem0, Value::number(2.0));
-        
+
         let elem1 = primitive_vector_ref(&[result.clone(), Value::integer(1)]).unwrap();
         assert_eq!(elem1, Value::number(4.0));
-        
+
         let elem2 = primitive_vector_ref(&[result, Value::integer(2)]).unwrap();
         assert_eq!(elem2, Value::number(6.0));
     }
-    
+
     #[test]
     fn test_vector_map_multiple_vectors() {
         // Test vector-map with multiple vectors
@@ -972,37 +1016,46 @@ mod tests {
             arity_min: 0,
             arity_max: None,
             implementation: PrimitiveImpl::RustFn(|args| {
-                let sum = args.iter()
+                let sum = args
+                    .iter()
                     .filter_map(|v| v.as_number())
                     .fold(0.0, |acc, n| acc + n);
                 Ok(Value::number(sum))
             }),
             effects: vec![Effect::Pure],
         });
-        
-        let vector1 = Value::vector(vec![Value::number(1.0), Value::number(2.0), Value::number(3.0)]);
-        let vector2 = Value::vector(vec![Value::number(4.0), Value::number(5.0), Value::number(6.0)]);
+
+        let vector1 = Value::vector(vec![
+            Value::number(1.0),
+            Value::number(2.0),
+            Value::number(3.0),
+        ]);
+        let vector2 = Value::vector(vec![
+            Value::number(4.0),
+            Value::number(5.0),
+            Value::number(6.0),
+        ]);
         let args = vec![Value::Primitive(add_proc), vector1, vector2];
         let result = primitive_vector_map(&args).unwrap();
-        
+
         // Verify result is a vector
         assert!(result.is_vector());
-        
+
         // Verify result length
         let result_length = primitive_vector_length(&[result.clone()]).unwrap();
         assert_eq!(result_length, Value::integer(3));
-        
+
         // Verify individual elements
         let elem0 = primitive_vector_ref(&[result.clone(), Value::integer(0)]).unwrap();
         assert_eq!(elem0, Value::number(5.0));
-        
+
         let elem1 = primitive_vector_ref(&[result.clone(), Value::integer(1)]).unwrap();
         assert_eq!(elem1, Value::number(7.0));
-        
+
         let elem2 = primitive_vector_ref(&[result, Value::integer(2)]).unwrap();
         assert_eq!(elem2, Value::number(9.0));
     }
-    
+
     #[test]
     fn test_vector_map_different_lengths() {
         // Test vector-map with vectors of different lengths - should use shortest
@@ -1011,34 +1064,39 @@ mod tests {
             arity_min: 0,
             arity_max: None,
             implementation: PrimitiveImpl::RustFn(|args| {
-                let sum = args.iter()
+                let sum = args
+                    .iter()
                     .filter_map(|v| v.as_number())
                     .fold(0.0, |acc, n| acc + n);
                 Ok(Value::number(sum))
             }),
             effects: vec![Effect::Pure],
         });
-        
+
         let vector1 = Value::vector(vec![Value::number(1.0), Value::number(2.0)]);
-        let vector2 = Value::vector(vec![Value::number(4.0), Value::number(5.0), Value::number(6.0)]);
+        let vector2 = Value::vector(vec![
+            Value::number(4.0),
+            Value::number(5.0),
+            Value::number(6.0),
+        ]);
         let args = vec![Value::Primitive(add_proc), vector1, vector2];
         let result = primitive_vector_map(&args).unwrap();
-        
+
         // Verify result is a vector
         assert!(result.is_vector());
-        
+
         // Verify result length (should be 2, the shortest input)
         let result_length = primitive_vector_length(&[result.clone()]).unwrap();
         assert_eq!(result_length, Value::integer(2));
-        
+
         // Verify individual elements
         let elem0 = primitive_vector_ref(&[result.clone(), Value::integer(0)]).unwrap();
         assert_eq!(elem0, Value::number(5.0));
-        
+
         let elem1 = primitive_vector_ref(&[result, Value::integer(1)]).unwrap();
         assert_eq!(elem1, Value::number(7.0));
     }
-    
+
     #[test]
     fn test_vector_map_empty_vector() {
         let double_proc = Arc::new(PrimitiveProcedure {
@@ -1054,19 +1112,19 @@ mod tests {
             }),
             effects: vec![Effect::Pure],
         });
-        
+
         let empty_vector = Value::vector(Vec::new());
         let args = vec![Value::Primitive(double_proc), empty_vector];
         let result = primitive_vector_map(&args).unwrap();
-        
+
         // Verify result is a vector
         assert!(result.is_vector());
-        
+
         // Verify result is empty
         let result_length = primitive_vector_length(&[result]).unwrap();
         assert_eq!(result_length, Value::integer(0));
     }
-    
+
     #[test]
     fn test_vector_for_each_basic() {
         // Test vector-for-each with a simple side-effect procedure
@@ -1077,15 +1135,19 @@ mod tests {
             implementation: PrimitiveImpl::RustFn(|args| Ok(args[0].clone())),
             effects: vec![Effect::Pure],
         });
-        
-        let vector = Value::vector(vec![Value::number(1.0), Value::number(2.0), Value::number(3.0)]);
+
+        let vector = Value::vector(vec![
+            Value::number(1.0),
+            Value::number(2.0),
+            Value::number(3.0),
+        ]);
         let args = vec![Value::Primitive(identity_proc), vector];
         let result = primitive_vector_for_each(&args).unwrap();
-        
+
         // vector-for-each should return unspecified
         assert_eq!(result, Value::Unspecified);
     }
-    
+
     #[test]
     fn test_vector_for_each_multiple_vectors() {
         let add_proc = Arc::new(PrimitiveProcedure {
@@ -1093,31 +1155,32 @@ mod tests {
             arity_min: 0,
             arity_max: None,
             implementation: PrimitiveImpl::RustFn(|args| {
-                let sum = args.iter()
+                let sum = args
+                    .iter()
                     .filter_map(|v| v.as_number())
                     .fold(0.0, |acc, n| acc + n);
                 Ok(Value::number(sum))
             }),
             effects: vec![Effect::Pure],
         });
-        
+
         let vector1 = Value::vector(vec![Value::number(1.0), Value::number(2.0)]);
         let vector2 = Value::vector(vec![Value::number(4.0), Value::number(5.0)]);
         let args = vec![Value::Primitive(add_proc), vector1, vector2];
         let result = primitive_vector_for_each(&args).unwrap();
-        
+
         assert_eq!(result, Value::Unspecified);
     }
-    
+
     #[test]
     fn test_vector_map_for_each_errors() {
         // Test errors for both vector-map and vector-for-each
-        
+
         // Non-procedure first argument
         let args = vec![Value::integer(42), Value::vector(vec![Value::integer(1)])];
         assert!(primitive_vector_map(&args).is_err());
         assert!(primitive_vector_for_each(&args).is_err());
-        
+
         // Non-vector argument
         let proc = Arc::new(PrimitiveProcedure {
             name: "test".to_string(),
@@ -1129,53 +1192,85 @@ mod tests {
         let args = vec![Value::Primitive(proc.clone()), Value::integer(42)];
         assert!(primitive_vector_map(&args).is_err());
         assert!(primitive_vector_for_each(&args).is_err());
-        
+
         // Too few arguments
         assert!(primitive_vector_map(&[]).is_err());
         assert!(primitive_vector_for_each(&[]).is_err());
-        
+
         let args = vec![Value::Primitive(proc)];
         assert!(primitive_vector_map(&args).is_err());
         assert!(primitive_vector_for_each(&args).is_err());
     }
-    
+
     #[test]
     fn test_r7rs_small_vector_api_completeness() {
         // Comprehensive test of all R7RS-small vector procedures
-        
+
         // Test vector creation
-        let v1 = primitive_vector(&[Value::integer(1), Value::integer(2), Value::integer(3)]).unwrap();
+        let v1 =
+            primitive_vector(&[Value::integer(1), Value::integer(2), Value::integer(3)]).unwrap();
         let v2 = primitive_make_vector(&[Value::integer(4), Value::string("fill")]).unwrap();
-        
+
         // Test vector predicate
-        assert_eq!(primitive_vector_p(&[v1.clone()]).unwrap(), Value::boolean(true));
-        assert_eq!(primitive_vector_p(&[Value::integer(42)]).unwrap(), Value::boolean(false));
-        
+        assert_eq!(
+            primitive_vector_p(&[v1.clone()]).unwrap(),
+            Value::boolean(true)
+        );
+        assert_eq!(
+            primitive_vector_p(&[Value::integer(42)]).unwrap(),
+            Value::boolean(false)
+        );
+
         // Test vector length
-        assert_eq!(primitive_vector_length(&[v1.clone()]).unwrap(), Value::integer(3));
-        assert_eq!(primitive_vector_length(&[v2.clone()]).unwrap(), Value::integer(4));
-        
+        assert_eq!(
+            primitive_vector_length(&[v1.clone()]).unwrap(),
+            Value::integer(3)
+        );
+        assert_eq!(
+            primitive_vector_length(&[v2.clone()]).unwrap(),
+            Value::integer(4)
+        );
+
         // Test vector-ref and vector-set!
-        assert_eq!(primitive_vector_ref(&[v1.clone(), Value::integer(1)]).unwrap(), Value::integer(2));
+        assert_eq!(
+            primitive_vector_ref(&[v1.clone(), Value::integer(1)]).unwrap(),
+            Value::integer(2)
+        );
         primitive_vector_set(&[v1.clone(), Value::integer(1), Value::string("modified")]).unwrap();
-        assert_eq!(primitive_vector_ref(&[v1.clone(), Value::integer(1)]).unwrap(), Value::string("modified"));
-        
+        assert_eq!(
+            primitive_vector_ref(&[v1.clone(), Value::integer(1)]).unwrap(),
+            Value::string("modified")
+        );
+
         // Test vector-copy
-        let v3 = primitive_vector_copy(&[v1.clone(), Value::integer(0), Value::integer(2)]).unwrap();
-        assert_eq!(primitive_vector_length(&[v3.clone()]).unwrap(), Value::integer(2));
-        
+        let v3 =
+            primitive_vector_copy(&[v1.clone(), Value::integer(0), Value::integer(2)]).unwrap();
+        assert_eq!(
+            primitive_vector_length(&[v3.clone()]).unwrap(),
+            Value::integer(2)
+        );
+
         // Test vector-fill!
         primitive_vector_fill(&[v2.clone(), Value::string("filled")]).unwrap();
-        assert_eq!(primitive_vector_ref(&[v2.clone(), Value::integer(0)]).unwrap(), Value::string("filled"));
-        
+        assert_eq!(
+            primitive_vector_ref(&[v2.clone(), Value::integer(0)]).unwrap(),
+            Value::string("filled")
+        );
+
         // Test vector-append
         let v4 = primitive_vector(&[Value::integer(4), Value::integer(5)]).unwrap();
         let v_appended = primitive_vector_append(&[v1.clone(), v4]).unwrap();
-        assert_eq!(primitive_vector_length(&[v_appended]).unwrap(), Value::integer(5));
-        
+        assert_eq!(
+            primitive_vector_length(&[v_appended]).unwrap(),
+            Value::integer(5)
+        );
+
         // Test vector->list and list->vector conversion
         let as_list = primitive_vector_to_list(&[v1.clone()]).unwrap();
         let back_to_vector = primitive_list_to_vector(&[as_list]).unwrap();
-        assert_eq!(primitive_vector_length(&[back_to_vector]).unwrap(), Value::integer(3));
+        assert_eq!(
+            primitive_vector_length(&[back_to_vector]).unwrap(),
+            Value::integer(3)
+        );
     }
 }

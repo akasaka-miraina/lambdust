@@ -145,12 +145,31 @@ lru = "0.12"
 # Numeric traits for monad implementations
 num-traits = "0.2"
 
+# Concurrent data structures
+dashmap = "5.5"  # Concurrent HashMap for distributed systems
+
+# Floating point ordering
+ordered-float = "4.2"  # For consistent floating point ordering in distributed load balancing
+
+# JIT compilation with LLVM support
+inkwell = { version = "0.4", features = ["llvm15-0"], optional = true }
+llvm-sys = { version = "150", optional = true }
+cranelift = { version = "0.105", optional = true }
+cranelift-codegen = { version = "0.105", optional = true }
+cranelift-frontend = { version = "0.105", optional = true }
+cranelift-module = { version = "0.105", optional = true }
+cranelift-jit = { version = "0.105", optional = true }
+
 # Memory optimization for dependent type system
 bumpalo = { version = "3.14", features = ["collections"] }
 
 # Concurrency and async runtime
 async-trait = "0.1"                                    # For async traits in actors
 uuid = { version = "1.6", features = ["v4", "serde"] } # For unique IDs
+
+# Serialization and cryptography for fault tolerance
+bincode = "1.3"                                         # High-performance binary serialization
+sha2 = "0.10"                                           # SHA-2 hash functions for integrity
 
 [dev-dependencies]
 pretty_assertions = "1.4"
@@ -201,7 +220,10 @@ benchmarks = ["criterion", "flame"]
 property-testing = ["proptest"]
 multithreaded-tests = ["async", "tokio/test-util"]
 ffi = ["libffi", "cc"]                              # FFI support
-jit = []                                            # JIT compilation support
+jit = ["inkwell", "llvm-sys", "cranelift", "cranelift-codegen", "cranelift-frontend", "cranelift-module", "cranelift-jit"] # JIT compilation support
+simd = []                                           # SIMD optimizations
+simd-avx512 = ["simd"]                             # AVX-512 SIMD support
+simd-neon = ["simd"]                               # ARM NEON SIMD support
 
 # Type System Features
 hindley-milner = [] # Hindley-Milner type inference
@@ -228,76 +250,23 @@ certified-translation = [
 # internal-parser = [] # 廃止済み (2025年8月12日) - nom互換レイヤー削除により不要
 
 # Benchmark configuration
+# Only includes existing benchmark files
+
 [[bench]]
-name = "parallel_evaluation_benchmarks"
-path = "benchmarks/parallel_evaluation_benchmarks.rs"
+name = "comprehensive_value_optimization_benchmarks"
+path = "benches/comprehensive_value_optimization_benchmarks.rs"
 harness = false
 required-features = ["benchmarks"]
 
 [[bench]]
-name = "memory_usage_benchmarks"
-path = "benchmarks/memory_usage_benchmarks.rs"
+name = "memory_optimization_baseline"
+path = "benches/memory_optimization_baseline.rs"
 harness = false
 required-features = ["benchmarks"]
 
 [[bench]]
-name = "latency_benchmarks"
-path = "benchmarks/latency_benchmarks.rs"
-harness = false
-required-features = ["benchmarks"]
-
-[[bench]]
-name = "core_performance_benchmarks"
-path = "benches/core_performance_benchmarks.rs"
-harness = false
-required-features = ["benchmarks"]
-
-[[bench]]
-name = "optimization_benchmarks"
-path = "benches/optimization_benchmarks.rs"
-harness = false
-required-features = ["benchmarks"]
-
-# New comprehensive benchmarking suite
-[[bench]]
-name = "migration_impact_benchmarks"
-path = "benches/migration_impact_benchmarks.rs"
-harness = false
-required-features = ["benchmarks"]
-
-[[bench]]
-name = "scheme_operation_benchmarks"
-path = "benches/scheme_operation_benchmarks.rs"
-harness = false
-required-features = ["benchmarks"]
-
-[[bench]]
-name = "core_operation_benchmarks"
-path = "benches/core_operation_benchmarks.rs"
-harness = false
-required-features = ["benchmarks"]
-
-[[bench]]
-name = "system_performance_benchmarks"
-path = "benches/system_performance_benchmarks.rs"
-harness = false
-required-features = ["benchmarks"]
-
-[[bench]]
-name = "regression_testing_benchmarks"
-path = "benches/regression_testing_benchmarks.rs"
-harness = false
-required-features = ["benchmarks"]
-
-[[bench]]
-name = "performance_analysis_benchmarks"
-path = "benches/performance_analysis_benchmarks.rs"
-harness = false
-required-features = ["benchmarks"]
-
-[[bench]]
-name = "containers"
-path = "benches/containers.rs"
+name = "value_optimization_simple"
+path = "benches/value_optimization_simple.rs"
 harness = false
 required-features = ["benchmarks"]
 
@@ -321,6 +290,13 @@ name = "jit_performance_benchmarks"
 path = "benches/jit_performance_benchmarks.rs"
 harness = false
 required-features = ["benchmarks"]
+
+# SIMD Comprehensive Benchmarks
+[[bench]]
+name = "simd_comprehensive_benchmarks"
+path = "benches/simd_comprehensive_benchmarks.rs"
+harness = false
+required-features = ["benchmarks", "simd"]
 
 # Lint configuration for crates.io quality
 [lints.rust]

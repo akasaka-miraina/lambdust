@@ -1,6 +1,6 @@
 use super::FfiFunction;
-use std::sync::Arc;
 use std::fmt;
+use std::sync::Arc;
 
 /// A registered FFI function.
 #[derive(Clone)]

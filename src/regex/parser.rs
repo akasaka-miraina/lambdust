@@ -21,7 +21,7 @@
 //!
 //! **Quantifiers:**
 //! - `*` - Zero or more
-//! - `+` - One or more  
+//! - `+` - One or more
 //! - `?` - Zero or one
 //!
 //! **Grouping:**
@@ -38,7 +38,7 @@
 //!
 //! ```
 //! Pattern     ::= Alternation
-//! Alternation ::= Sequence ('|' Sequence)*  
+//! Alternation ::= Sequence ('|' Sequence)*
 //! Sequence    ::= Factor*
 //! Factor      ::= Atom Quantifier?
 //! Atom        ::= Char | CharClass | Group | Anchor | '.'
@@ -48,8 +48,8 @@
 //! Anchor      ::= '^' | '$'
 //! ```
 
-use std::fmt;
 use crate::regex::engine::CharClass;
+use std::fmt;
 
 /// Error type for pattern parsing.
 #[derive(Debug, Clone)]
@@ -145,31 +145,31 @@ impl<'p> PatternParser<'p> {
             chars: pattern.chars().collect(),
         }
     }
-    
+
     /// Parses the pattern into an AST.
     pub fn parse(mut self) -> Result<Pattern, PatternError> {
         let root = self.parse_alternation()?;
-        
+
         if self.pos < self.chars.len() {
             return Err(PatternError::UnexpectedChar(self.chars[self.pos], self.pos));
         }
-        
+
         Ok(Pattern {
             root,
             source: self.pattern.to_string(),
         })
     }
-    
+
     /// Current character at position, if any.
     fn current_char(&self) -> Option<char> {
         self.chars.get(self.pos).copied()
     }
-    
+
     /// Peeks at character at offset from current position.
     fn peek_char(&self, offset: usize) -> Option<char> {
         self.chars.get(self.pos + offset).copied()
     }
-    
+
     /// Advances to next character.
     fn advance(&mut self) -> Option<char> {
         if self.pos < self.chars.len() {
@@ -180,7 +180,7 @@ impl<'p> PatternParser<'p> {
             None
         }
     }
-    
+
     /// Consumes expected character.
     fn expect(&mut self, expected: char) -> Result<(), PatternError> {
         match self.advance() {
@@ -189,36 +189,36 @@ impl<'p> PatternParser<'p> {
             None => Err(PatternError::UnexpectedEnd),
         }
     }
-    
+
     /// Parses alternation (|).
     fn parse_alternation(&mut self) -> Result<PatternNode, PatternError> {
         let mut alternatives = vec![self.parse_sequence()?];
-        
+
         while self.current_char() == Some('|') {
             self.advance(); // consume '|'
             alternatives.push(self.parse_sequence()?);
         }
-        
+
         if alternatives.len() == 1 {
             Ok(alternatives.into_iter().next().unwrap())
         } else {
             Ok(PatternNode::Alternate(alternatives))
         }
     }
-    
+
     /// Parses sequence (concatenation).
     fn parse_sequence(&mut self) -> Result<PatternNode, PatternError> {
         let mut factors = Vec::new();
-        
+
         while let Some(ch) = self.current_char() {
             // Stop at alternation or group end
             if ch == '|' || ch == ')' {
                 break;
             }
-            
+
             factors.push(self.parse_factor()?);
         }
-        
+
         if factors.is_empty() {
             // Empty sequence - create epsilon node
             Ok(PatternNode::Concat(vec![]))
@@ -228,11 +228,11 @@ impl<'p> PatternParser<'p> {
             Ok(PatternNode::Concat(factors))
         }
     }
-    
+
     /// Parses factor (atom with optional quantifier).
     fn parse_factor(&mut self) -> Result<PatternNode, PatternError> {
         let atom = self.parse_atom()?;
-        
+
         match self.current_char() {
             Some('*') => {
                 self.advance();
@@ -249,7 +249,7 @@ impl<'p> PatternParser<'p> {
             _ => Ok(atom),
         }
     }
-    
+
     /// Parses atomic expressions.
     fn parse_atom(&mut self) -> Result<PatternNode, PatternError> {
         match self.current_char() {
@@ -276,73 +276,73 @@ impl<'p> PatternParser<'p> {
             None => Err(PatternError::UnexpectedEnd),
         }
     }
-    
+
     /// Parses grouped expressions.
     fn parse_group(&mut self) -> Result<PatternNode, PatternError> {
         self.expect('(')?;
-        
+
         let inner = self.parse_alternation()?;
-        
+
         self.expect(')')?;
-        
+
         Ok(PatternNode::Group(Box::new(inner)))
     }
-    
+
     /// Parses character classes [abc].
     fn parse_char_class(&mut self) -> Result<PatternNode, PatternError> {
         self.expect('[')?;
-        
+
         let mut class = CharClass::new();
         let mut negated = false;
-        
+
         // Check for negation
         if self.current_char() == Some('^') {
             self.advance();
             negated = true;
         }
-        
+
         // Parse character class contents
         while let Some(ch) = self.current_char() {
             if ch == ']' {
                 break;
             }
-            
+
             self.advance();
-            
+
             // Check for range
             if self.current_char() == Some('-') && self.peek_char(1) != Some(']') {
                 self.advance(); // consume '-'
-                
+
                 let end_char = match self.advance() {
                     Some(end) => end,
                     None => return Err(PatternError::UnexpectedEnd),
                 };
-                
+
                 if ch > end_char {
-                    return Err(PatternError::InvalidCharClass(
-                        format!("Invalid range {ch}-{end_char}: start > end")
-                    ));
+                    return Err(PatternError::InvalidCharClass(format!(
+                        "Invalid range {ch}-{end_char}: start > end"
+                    )));
                 }
-                
+
                 class.add_range(ch, end_char);
             } else {
                 class.add_char(ch);
             }
         }
-        
+
         self.expect(']')?;
-        
+
         if negated {
             class = class.negate();
         }
-        
+
         Ok(PatternNode::CharClass(class))
     }
-    
+
     /// Parses escape sequences.
     fn parse_escape(&mut self) -> Result<PatternNode, PatternError> {
         self.expect('\\')?;
-        
+
         match self.advance() {
             Some('\\') => Ok(PatternNode::Char('\\')),
             Some('.') => Ok(PatternNode::Char('.')),
@@ -360,13 +360,13 @@ impl<'p> PatternParser<'p> {
             Some('n') => Ok(PatternNode::Char('\n')),
             Some('r') => Ok(PatternNode::Char('\r')),
             Some('d') => Ok(PatternNode::CharClass(CharClass::builtin(
-                crate::regex::engine::BuiltinClass::Digit
+                crate::regex::engine::BuiltinClass::Digit,
             ))),
             Some('w') => Ok(PatternNode::CharClass(CharClass::builtin(
-                crate::regex::engine::BuiltinClass::Word
+                crate::regex::engine::BuiltinClass::Word,
             ))),
             Some('s') => Ok(PatternNode::CharClass(CharClass::builtin(
-                crate::regex::engine::BuiltinClass::Space
+                crate::regex::engine::BuiltinClass::Space,
             ))),
             Some(ch) => Err(PatternError::InvalidEscape(ch, self.pos - 1)),
             None => Err(PatternError::UnexpectedEnd),
@@ -376,7 +376,10 @@ impl<'p> PatternParser<'p> {
 
 /// Tests if a character has special meaning in regex.
 fn is_meta_char(ch: char) -> bool {
-    matches!(ch, '.' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|' | '\\')
+    matches!(
+        ch,
+        '.' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|' | '\\'
+    )
 }
 
 #[cfg(test)]
@@ -391,7 +394,7 @@ mod tests {
             _ => panic!("Expected single character"),
         }
     }
-    
+
     #[test]
     fn test_concatenation() {
         let pattern = PatternParser::new("abc").parse().unwrap();
@@ -406,7 +409,7 @@ mod tests {
             _ => panic!("Expected concatenation"),
         }
     }
-    
+
     #[test]
     fn test_alternation() {
         let pattern = PatternParser::new("a|b").parse().unwrap();
@@ -421,7 +424,7 @@ mod tests {
             _ => panic!("Expected alternation"),
         }
     }
-    
+
     #[test]
     fn test_quantifiers() {
         let star = PatternParser::new("a*").parse().unwrap();
@@ -432,7 +435,7 @@ mod tests {
             },
             _ => panic!("Expected star"),
         }
-        
+
         let plus = PatternParser::new("a+").parse().unwrap();
         match plus.root {
             PatternNode::Plus(inner) => match inner.as_ref() {
@@ -441,7 +444,7 @@ mod tests {
             },
             _ => panic!("Expected plus"),
         }
-        
+
         let question = PatternParser::new("a?").parse().unwrap();
         match question.root {
             PatternNode::Question(inner) => match inner.as_ref() {
@@ -451,7 +454,7 @@ mod tests {
             _ => panic!("Expected question"),
         }
     }
-    
+
     #[test]
     fn test_character_class() {
         let pattern = PatternParser::new("[abc]").parse().unwrap();
@@ -465,7 +468,7 @@ mod tests {
             _ => panic!("Expected character class"),
         }
     }
-    
+
     #[test]
     fn test_character_range() {
         let pattern = PatternParser::new("[a-z]").parse().unwrap();
@@ -480,7 +483,7 @@ mod tests {
             _ => panic!("Expected character range"),
         }
     }
-    
+
     #[test]
     fn test_negated_class() {
         let pattern = PatternParser::new("[^abc]").parse().unwrap();
@@ -495,7 +498,7 @@ mod tests {
             _ => panic!("Expected negated character class"),
         }
     }
-    
+
     #[test]
     fn test_builtin_classes() {
         let digit = PatternParser::new(r"\d").parse().unwrap();
@@ -506,7 +509,7 @@ mod tests {
             }
             _ => panic!("Expected digit class"),
         }
-        
+
         let word = PatternParser::new(r"\w").parse().unwrap();
         match word.root {
             PatternNode::CharClass(class) => {
@@ -518,7 +521,7 @@ mod tests {
             _ => panic!("Expected word class"),
         }
     }
-    
+
     #[test]
     fn test_escapes() {
         let backslash = PatternParser::new(r"\\").parse().unwrap();
@@ -526,14 +529,14 @@ mod tests {
             PatternNode::Char('\\') => {}
             _ => panic!("Expected literal backslash"),
         }
-        
+
         let dot = PatternParser::new(r"\.").parse().unwrap();
         match dot.root {
             PatternNode::Char('.') => {}
             _ => panic!("Expected literal dot"),
         }
     }
-    
+
     #[test]
     fn test_any_char() {
         let pattern = PatternParser::new(".").parse().unwrap();
@@ -542,7 +545,7 @@ mod tests {
             _ => panic!("Expected any character"),
         }
     }
-    
+
     #[test]
     fn test_anchors() {
         let start = PatternParser::new("^").parse().unwrap();
@@ -550,14 +553,14 @@ mod tests {
             PatternNode::Start => {}
             _ => panic!("Expected start anchor"),
         }
-        
+
         let end = PatternParser::new("$").parse().unwrap();
         match end.root {
             PatternNode::End => {}
             _ => panic!("Expected end anchor"),
         }
     }
-    
+
     #[test]
     fn test_groups() {
         let pattern = PatternParser::new("(abc)").parse().unwrap();
@@ -571,7 +574,7 @@ mod tests {
             _ => panic!("Expected group"),
         }
     }
-    
+
     #[test]
     fn test_complex_pattern() {
         let pattern = PatternParser::new(r"\d+\.\d*").parse().unwrap();

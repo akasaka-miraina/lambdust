@@ -4,15 +4,15 @@
 //! binding resolution, and runtime integration following clean architecture principles.
 //! It serves as the bridge between the parsing/loading phases and the runtime execution phase.
 
-use super::{Module, ModuleId, ModuleError};
+use super::{Module, ModuleError, ModuleId};
 use crate::ast::{Expr, Spanned};
 use crate::diagnostics::{Error, Result, Span};
-use crate::eval::{Value, Environment, ThreadSafeEnvironment};
-use crate::runtime::GlobalEnvironmentManager;
+use crate::eval::{Environment, ThreadSafeEnvironment, Value};
 use crate::metaprogramming::environment_management::EnvironmentExt;
+use crate::runtime::GlobalEnvironmentManager;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 /// Library instantiation context providing clean separation of concerns.
 #[derive(Debug)]
@@ -63,25 +63,25 @@ pub enum ExportResolution {
     /// Direct binding export
     Direct(LibraryBinding),
     /// Renamed binding export
-    Renamed { 
+    Renamed {
         /// Original name in the source library
-        original: String, 
+        original: String,
         /// Library binding being exported
-        binding: LibraryBinding 
+        binding: LibraryBinding,
     },
     /// Re-export from another library
-    ReExport { 
+    ReExport {
         /// Source library providing the binding
-        source_library: ModuleId, 
+        source_library: ModuleId,
         /// Name of the binding to re-export
-        binding_name: String 
+        binding_name: String,
     },
     /// Conditional export (with guard)
-    Conditional { 
+    Conditional {
         /// Condition expression for the export
-        condition: String, 
+        condition: String,
         /// Library binding being conditionally exported
-        binding: LibraryBinding 
+        binding: LibraryBinding,
     },
 }
 
@@ -93,18 +93,18 @@ pub enum InstantiationError {
     /// Missing required dependency
     MissingDependency(ModuleId),
     /// Export binding not found
-    ExportNotFound { 
+    ExportNotFound {
         /// Library where export was not found
-        library: ModuleId, 
+        library: ModuleId,
         /// Name of the missing binding
-        binding: String 
+        binding: String,
     },
     /// Import conflict between libraries
-    ImportConflict { 
+    ImportConflict {
         /// Name of the conflicting binding
-        binding: String, 
+        binding: String,
         /// Libraries that provide the conflicting binding
-        libraries: Vec<ModuleId> 
+        libraries: Vec<ModuleId>,
     },
     /// Invalid export specification
     InvalidExportSpec(String),
@@ -144,7 +144,7 @@ impl LibraryInstantiator {
     /// Instantiates a library with its dependencies.
     pub fn instantiate_library(&mut self, module: Module) -> Result<Arc<LibraryInstance>> {
         let module_id = module.id.clone();
-        
+
         // Check if already instantiated
         if let Some(instance) = self.context.instantiated_libraries.get(&module_id) {
             return Ok(instance.clone());
@@ -153,14 +153,16 @@ impl LibraryInstantiator {
         // Check instantiation depth
         if self.context.instantiation_depth >= self.max_depth {
             return Err(Box::new(Error::from(ModuleError::InstantiationError(
-                format!("Maximum instantiation depth exceeded: {}", self.max_depth)
+                format!("Maximum instantiation depth exceeded: {}", self.max_depth),
             ))));
         }
 
         // Check for circular dependencies
         if self.context.instantiation_stack.contains(&module_id) {
             let cycle = self.build_dependency_cycle(&module_id);
-            return Err(Box::new(Error::from(ModuleError::CircularDependency(cycle))));
+            return Err(Box::new(Error::from(ModuleError::CircularDependency(
+                cycle,
+            ))));
         }
 
         // Begin instantiation
@@ -168,7 +170,10 @@ impl LibraryInstantiator {
         self.context.instantiation_stack.push(module_id.clone());
 
         if self.verbose_logging {
-            eprintln!("Instantiating library: {}", super::format_module_id(&module_id));
+            eprintln!(
+                "Instantiating library: {}",
+                super::format_module_id(&module_id)
+            );
         }
 
         let result = self.instantiate_library_impl(module);
@@ -190,7 +195,7 @@ impl LibraryInstantiator {
 
         // Process imports first to resolve dependencies
         let import_bindings = self.resolve_library_imports(&module)?;
-        
+
         // Install imported bindings
         for (name, binding) in import_bindings {
             lib_env.define(name, binding.value);
@@ -212,13 +217,18 @@ impl LibraryInstantiator {
         });
 
         // Cache the instance
-        self.context.instantiated_libraries.insert(module_id, instance.clone());
+        self.context
+            .instantiated_libraries
+            .insert(module_id, instance.clone());
 
         Ok(instance)
     }
 
     /// Resolves import specifications for a library.
-    fn resolve_library_imports(&mut self, module: &Module) -> Result<HashMap<String, LibraryBinding>> {
+    fn resolve_library_imports(
+        &mut self,
+        module: &Module,
+    ) -> Result<HashMap<String, LibraryBinding>> {
         let mut import_bindings = HashMap::new();
 
         // For now, this is a simplified implementation
@@ -227,7 +237,10 @@ impl LibraryInstantiator {
             // This would recursively instantiate dependency libraries
             // For now, we'll just note the dependency
             if self.verbose_logging {
-                eprintln!("Processing dependency: {}", super::format_module_id(dependency_id));
+                eprintln!(
+                    "Processing dependency: {}",
+                    super::format_module_id(dependency_id)
+                );
             }
         }
 
@@ -235,14 +248,20 @@ impl LibraryInstantiator {
     }
 
     /// Evaluates the library body expressions.
-    fn evaluate_library_body(&mut self, module: &Module, lib_env: Arc<ThreadSafeEnvironment>) -> Result<()> {
+    fn evaluate_library_body(
+        &mut self,
+        module: &Module,
+        lib_env: Arc<ThreadSafeEnvironment>,
+    ) -> Result<()> {
         // This would integrate with the evaluator to run the library body
         // For now, this is a placeholder implementation
-        
+
         if self.verbose_logging && !module.exports.is_empty() {
-            eprintln!("Library {} has {} predefined exports", 
-                     super::format_module_id(&module.id), 
-                     module.exports.len());
+            eprintln!(
+                "Library {} has {} predefined exports",
+                super::format_module_id(&module.id),
+                module.exports.len()
+            );
         }
 
         // Install any predefined exports directly into the environment
@@ -255,9 +274,9 @@ impl LibraryInstantiator {
 
     /// Resolves export specifications for a library.
     fn resolve_library_exports(
-        &mut self, 
-        module: &Module, 
-        lib_env: Arc<ThreadSafeEnvironment>
+        &mut self,
+        module: &Module,
+        lib_env: Arc<ThreadSafeEnvironment>,
     ) -> Result<HashMap<String, LibraryBinding>> {
         let mut exports = HashMap::new();
 
@@ -276,12 +295,14 @@ impl LibraryInstantiator {
         // This would involve inspecting the environment for exported bindings
         for name in lib_env.variable_names() {
             if let Some(value) = lib_env.lookup(&name) {
-                exports.entry(name.clone()).or_insert_with(|| LibraryBinding {
-                    name: name.clone(),
-                    value,
-                    mutable: false,
-                    source_span: None,
-                });
+                exports
+                    .entry(name.clone())
+                    .or_insert_with(|| LibraryBinding {
+                        name: name.clone(),
+                        value,
+                        mutable: false,
+                        source_span: None,
+                    });
             }
         }
 
@@ -333,7 +354,11 @@ impl LibraryInstantiator {
 
     /// Lists all instantiated libraries.
     pub fn list_instantiated_libraries(&self) -> Vec<ModuleId> {
-        self.context.instantiated_libraries.keys().cloned().collect()
+        self.context
+            .instantiated_libraries
+            .keys()
+            .cloned()
+            .collect()
     }
 }
 
@@ -352,7 +377,8 @@ impl std::fmt::Display for InstantiationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InstantiationError::CircularDependency(cycle) => {
-                let cycle_str = cycle.iter()
+                let cycle_str = cycle
+                    .iter()
                     .map(super::format_module_id)
                     .collect::<Vec<_>>()
                     .join(" -> ");
@@ -362,14 +388,22 @@ impl std::fmt::Display for InstantiationError {
                 write!(f, "Missing dependency: {}", super::format_module_id(id))
             }
             InstantiationError::ExportNotFound { library, binding } => {
-                write!(f, "Export '{binding}' not found in library {}", super::format_module_id(library))
+                write!(
+                    f,
+                    "Export '{binding}' not found in library {}",
+                    super::format_module_id(library)
+                )
             }
             InstantiationError::ImportConflict { binding, libraries } => {
-                let lib_names = libraries.iter()
+                let lib_names = libraries
+                    .iter()
                     .map(super::format_module_id)
                     .collect::<Vec<_>>()
                     .join(", ");
-                write!(f, "Import conflict for binding '{binding}' from libraries: {lib_names}")
+                write!(
+                    f,
+                    "Import conflict for binding '{binding}' from libraries: {lib_names}"
+                )
             }
             InstantiationError::InvalidExportSpec(msg) => {
                 write!(f, "Invalid export specification: {msg}")
@@ -410,8 +444,8 @@ impl ImportSpecResolver {
                 Ok(ImportResolution::Direct(module_id))
             }
             _ => Err(Box::new(Error::from(ModuleError::ImportError(
-                "Invalid import specification format".to_string()
-            ))))
+                "Invalid import specification format".to_string(),
+            )))),
         }
     }
 
@@ -419,7 +453,7 @@ impl ImportSpecResolver {
     fn resolve_compound_import_spec(elements: &[Spanned<Expr>]) -> Result<ImportResolution> {
         if elements.is_empty() {
             return Err(Box::new(Error::from(ModuleError::ImportError(
-                "Empty import specification".to_string()
+                "Empty import specification".to_string(),
             ))));
         }
 
@@ -449,7 +483,7 @@ impl ImportSpecResolver {
     fn resolve_only_import(elements: &[Spanned<Expr>]) -> Result<ImportResolution> {
         if elements.len() < 2 {
             return Err(Box::new(Error::from(ModuleError::ImportError(
-                "Invalid 'only' import specification".to_string()
+                "Invalid 'only' import specification".to_string(),
             ))));
         }
 
@@ -461,7 +495,7 @@ impl ImportSpecResolver {
                 symbols.push(symbol.clone());
             } else {
                 return Err(Box::new(Error::from(ModuleError::ImportError(
-                    "Invalid symbol in 'only' import specification".to_string()
+                    "Invalid symbol in 'only' import specification".to_string(),
                 ))));
             }
         }
@@ -473,7 +507,7 @@ impl ImportSpecResolver {
     fn resolve_except_import(elements: &[Spanned<Expr>]) -> Result<ImportResolution> {
         if elements.len() < 2 {
             return Err(Box::new(Error::from(ModuleError::ImportError(
-                "Invalid 'except' import specification".to_string()
+                "Invalid 'except' import specification".to_string(),
             ))));
         }
 
@@ -485,7 +519,7 @@ impl ImportSpecResolver {
                 symbols.push(symbol.clone());
             } else {
                 return Err(Box::new(Error::from(ModuleError::ImportError(
-                    "Invalid symbol in 'except' import specification".to_string()
+                    "Invalid symbol in 'except' import specification".to_string(),
                 ))));
             }
         }
@@ -497,17 +531,20 @@ impl ImportSpecResolver {
     fn resolve_prefix_import(elements: &[Spanned<Expr>]) -> Result<ImportResolution> {
         if elements.len() != 2 {
             return Err(Box::new(Error::from(ModuleError::ImportError(
-                "Invalid 'prefix' import specification".to_string()
+                "Invalid 'prefix' import specification".to_string(),
             ))));
         }
 
         let module_id = Self::expr_to_module_id(&elements[0].inner)?;
-        
+
         if let Expr::Identifier(prefix) = &elements[1].inner {
-            Ok(ImportResolution::Prefix { module_id, prefix: prefix.clone() })
+            Ok(ImportResolution::Prefix {
+                module_id,
+                prefix: prefix.clone(),
+            })
         } else {
             Err(Box::new(Error::from(ModuleError::ImportError(
-                "Invalid prefix in 'prefix' import specification".to_string()
+                "Invalid prefix in 'prefix' import specification".to_string(),
             ))))
         }
     }
@@ -516,7 +553,7 @@ impl ImportSpecResolver {
     fn resolve_rename_import(elements: &[Spanned<Expr>]) -> Result<ImportResolution> {
         if elements.len() < 2 {
             return Err(Box::new(Error::from(ModuleError::ImportError(
-                "Invalid 'rename' import specification".to_string()
+                "Invalid 'rename' import specification".to_string(),
             ))));
         }
 
@@ -526,16 +563,17 @@ impl ImportSpecResolver {
         for element in &elements[1..] {
             if let Expr::List(rename_spec) = &element.inner {
                 if rename_spec.len() == 2 {
-                    if let (Expr::Identifier(from), Expr::Identifier(to)) = 
-                        (&rename_spec[0].inner, &rename_spec[1].inner) {
+                    if let (Expr::Identifier(from), Expr::Identifier(to)) =
+                        (&rename_spec[0].inner, &rename_spec[1].inner)
+                    {
                         renames.insert(from.clone(), to.clone());
                         continue;
                     }
                 }
             }
-            
+
             return Err(Box::new(Error::from(ModuleError::ImportError(
-                "Invalid rename specification".to_string()
+                "Invalid rename specification".to_string(),
             ))));
         }
 
@@ -554,8 +592,8 @@ impl ImportSpecResolver {
                 })
             }
             _ => Err(Box::new(Error::from(ModuleError::ImportError(
-                "Invalid module identifier in import specification".to_string()
-            ))))
+                "Invalid module identifier in import specification".to_string(),
+            )))),
         }
     }
 
@@ -563,19 +601,21 @@ impl ImportSpecResolver {
     fn elements_to_module_id(elements: &[Spanned<Expr>]) -> Result<ModuleId> {
         if elements.is_empty() {
             return Err(Box::new(Error::from(ModuleError::ImportError(
-                "Empty module name specification".to_string()
+                "Empty module name specification".to_string(),
             ))));
         }
 
         let mut components = Vec::new();
-        
+
         for element in elements {
             match &element.inner {
                 Expr::Identifier(name) => components.push(name.clone()),
                 Expr::Literal(crate::ast::Literal::Number(n)) => components.push(n.to_string()),
-                _ => return Err(Box::new(Error::from(ModuleError::ImportError(
-                    "Invalid component in module name".to_string()
-                ))))
+                _ => {
+                    return Err(Box::new(Error::from(ModuleError::ImportError(
+                        "Invalid component in module name".to_string(),
+                    ))));
+                }
             }
         }
 
@@ -587,7 +627,10 @@ impl ImportSpecResolver {
             _ => super::ModuleNamespace::User,
         };
 
-        Ok(ModuleId { components, namespace })
+        Ok(ModuleId {
+            components,
+            namespace,
+        })
     }
 }
 
@@ -597,39 +640,39 @@ pub enum ImportResolution {
     /// Direct import of entire module
     Direct(ModuleId),
     /// Import only specific symbols
-    Only { 
+    Only {
         /// Module to import from
-        module_id: ModuleId, 
+        module_id: ModuleId,
         /// Symbols to import
-        symbols: Vec<String> 
+        symbols: Vec<String>,
     },
-    /// Import all except specific symbols  
-    Except { 
+    /// Import all except specific symbols
+    Except {
         /// Module to import from
-        module_id: ModuleId, 
+        module_id: ModuleId,
         /// Symbols to exclude from import
-        symbols: Vec<String> 
+        symbols: Vec<String>,
     },
     /// Import with prefix
-    Prefix { 
+    Prefix {
         /// Module to import from
-        module_id: ModuleId, 
+        module_id: ModuleId,
         /// Prefix to add to imported symbols
-        prefix: String 
+        prefix: String,
     },
     /// Import with renames
-    Rename { 
+    Rename {
         /// Module to import from
-        module_id: ModuleId, 
+        module_id: ModuleId,
         /// Symbol renames (original -> new)
-        renames: HashMap<String, String> 
+        renames: HashMap<String, String>,
     },
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::module_system::{ModuleNamespace, ModuleSource, ModuleMetadata};
+    use crate::module_system::{ModuleMetadata, ModuleNamespace, ModuleSource};
 
     fn create_test_module(name: &str) -> Module {
         Module {
@@ -646,9 +689,9 @@ mod tests {
 
     #[test]
     fn test_library_instantiator_creation() {
-        let global_env = Arc::new(GlobalEnvironmentManager::new().unwrap());
+        let global_env = Arc::new(GlobalEnvironmentManager::new());
         let instantiator = LibraryInstantiator::new(global_env);
-        
+
         let stats = instantiator.get_statistics();
         assert_eq!(stats.instantiated_libraries, 0);
         assert_eq!(stats.max_instantiation_depth, 0);
@@ -656,12 +699,12 @@ mod tests {
 
     #[test]
     fn test_basic_library_instantiation() {
-        let global_env = Arc::new(GlobalEnvironmentManager::new().unwrap());
+        let global_env = Arc::new(GlobalEnvironmentManager::new());
         let mut instantiator = LibraryInstantiator::new(global_env);
-        
+
         let module = create_test_module("test");
         let result = instantiator.instantiate_library(module);
-        
+
         assert!(result.is_ok());
         let instance = result.unwrap();
         assert_eq!(instance.module.id.components[0], "test");
@@ -671,17 +714,17 @@ mod tests {
     fn test_import_spec_resolution() {
         use crate::ast::{Literal, Spanned};
         use crate::diagnostics::Span;
-        
+
         // Test simple module name: (srfi 1)
         let elements = vec![
             Spanned::new(Expr::Identifier("srfi".to_string()), Span::new(0, 4)),
             Spanned::new(Expr::Literal(Literal::Integer(1)), Span::new(5, 6)),
         ];
         let import_spec = Spanned::new(Expr::List(elements), Span::new(0, 7));
-        
+
         let result = ImportSpecResolver::resolve_import_spec(&import_spec);
         assert!(result.is_ok());
-        
+
         if let ImportResolution::Direct(module_id) = result.unwrap() {
             assert_eq!(module_id.namespace, ModuleNamespace::SRFI);
             assert_eq!(module_id.components, vec!["srfi", "1"]);
@@ -694,23 +737,29 @@ mod tests {
     fn test_only_import_resolution() {
         use crate::ast::Spanned;
         use crate::diagnostics::Span;
-        
+
         // Test: (only (srfi 1) cons car cdr)
         let elements = vec![
             Spanned::new(Expr::Identifier("only".to_string()), Span::new(0, 4)),
-            Spanned::new(Expr::List(vec![
-                Spanned::new(Expr::Identifier("srfi".to_string()), Span::new(6, 10)),
-                Spanned::new(Expr::Literal(crate::ast::Literal::Integer(1)), Span::new(11, 12)),
-            ]), Span::new(5, 13)),
+            Spanned::new(
+                Expr::List(vec![
+                    Spanned::new(Expr::Identifier("srfi".to_string()), Span::new(6, 10)),
+                    Spanned::new(
+                        Expr::Literal(crate::ast::Literal::Integer(1)),
+                        Span::new(11, 12),
+                    ),
+                ]),
+                Span::new(5, 13),
+            ),
             Spanned::new(Expr::Identifier("cons".to_string()), Span::new(14, 18)),
             Spanned::new(Expr::Identifier("car".to_string()), Span::new(19, 22)),
             Spanned::new(Expr::Identifier("cdr".to_string()), Span::new(23, 26)),
         ];
         let import_spec = Spanned::new(Expr::List(elements), Span::new(0, 27));
-        
+
         let result = ImportSpecResolver::resolve_import_spec(&import_spec);
         assert!(result.is_ok());
-        
+
         if let ImportResolution::Only { module_id, symbols } = result.unwrap() {
             assert_eq!(module_id.namespace, ModuleNamespace::SRFI);
             assert_eq!(symbols, vec!["cons", "car", "cdr"]);

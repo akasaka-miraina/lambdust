@@ -1,23 +1,155 @@
-//! Environment and variable binding implementation.
+//! Environment and variable binding implementation for lexical scoping.
 //!
-//! This module provides the environment system for Lambdust, which handles
-//! lexical scoping, variable binding, and proper closure semantics.
+//! This module provides the complete environment system for Lambdust, implementing
+//! proper lexical scoping, variable binding, closure capture, and efficient
+//! environment management. The system supports both R7RS standard bindings and
+//! advanced features like parameters and fluid variables.
+//!
+//! ## Architectural Overview
+//!
+//! The environment system uses a **parent pointer chain** to implement lexical
+//! scoping, where each environment contains local bindings and a reference to its
+//! lexical parent. This provides the foundation for proper Scheme semantics.
+//!
+//! ### Core Design Principles
+//!
+//! - **Lexical Scoping**: Variable lookup follows lexical scope chains
+//! - **Closure Capture**: Efficient capture of lexical environments in closures
+//! - **Memory Efficiency**: Reference counting with automatic cleanup
+//! - **Thread Safety**: Thread-local global environments for concurrent execution
+//! - **GC Integration**: Generation tracking for optimized garbage collection
+//!
+//! ## Environment Chain Structure
+//!
+//! ```text
+//! Current Environment
+//!       │
+//!       ▼
+//! [Local Bindings] ──► Parent Environment
+//!                           │
+//!                           ▼
+//!                     [Parent Bindings] ──► Grandparent Environment
+//!                                                  │
+//!                                                  ▼
+//!                                              Global Environment
+//! ```
+//!
+//! ## Key Features
+//!
+//! ### 1. Variable Binding and Lookup
+//! - **Local Bindings**: Variables defined in the current scope
+//! - **Lexical Search**: Automatic search up the parent chain
+//! - **Shadowing**: Inner bindings shadow outer bindings with the same name
+//! - **Efficient Lookup**: Cached lookups for frequently accessed variables
+//!
+//! ### 2. Closure Semantics
+//! - **Environment Capture**: Closures capture their defining environment
+//! - **Shared References**: Multiple closures can share the same environment
+//! - **Automatic Cleanup**: Reference counting enables automatic cleanup
+//! - **Memory Safety**: Rust's ownership prevents dangling environment references
+//!
+//! ### 3. Global Environment Management
+//! - **Thread-Local Storage**: Each thread has its own global environment copy
+//! - **Standard Library**: Pre-populated with R7RS standard procedures
+//! - **Lazy Initialization**: Global environment created on first access
+//! - **Customization**: Support for custom global environment setups
+//!
+//! ### 4. Generation-Based GC Integration
+//! - **Generation Tracking**: Each environment has a generation number
+//! - **GC Optimization**: Generational GC can use generation information
+//! - **Memory Pressure**: Environments can be collected when no longer referenced
+//! - **Performance**: Faster GC through generation-based heuristics
+//!
+//! ## Performance Characteristics
+//!
+//! ### Time Complexity
+//! - **Variable Lookup**: O(d) where d is lexical scope depth
+//! - **Binding Creation**: O(1) for local definitions  
+//! - **Environment Creation**: O(1) with parent linking
+//! - **Closure Capture**: O(1) with reference counting
+//!
+//! ### Space Complexity
+//! - **Environment Storage**: O(n) where n is number of local bindings
+//! - **Chain Storage**: O(d) where d is scope nesting depth
+//! - **Shared Environments**: Amortized across multiple closures
+//! - **GC Overhead**: Minimal overhead with generation tracking
+//!
+//! ## R7RS Compliance
+//!
+//! The environment system implements all R7RS requirements:
+//! - Proper lexical scoping for variables and procedures
+//! - Correct binding semantics for `let`, `letrec`, and `define`
+//! - Support for internal definitions and letrec* semantics
+//! - Proper capture of lexical environments in closures
+//!
+//! ## Integration Points
+//!
+//! - **Evaluator**: Core integration with expression evaluation
+//! - **Procedures**: Environment capture for user-defined procedures
+//! - **Macros**: Hygienic macro expansion with environment tracking
+//! - **Modules**: Module-level environment management
+//! - **REPL**: Interactive environment building and extension
 
 use super::{Generation, Value};
 use crate::diagnostics::{Error, Result};
-use std::sync::Arc;
 use std::rc::Rc;
+use std::sync::Arc;
 
 /// A lexical environment that maintains variable bindings.
 ///
-/// Environments form a chain through parent pointers, implementing
-/// proper lexical scoping. Each environment has a generation number
-/// for garbage collection optimization.
+/// This type alias provides the public interface to the internal `Environment`
+/// implementation. Environments form a chain through parent pointers, implementing
+/// proper lexical scoping with efficient variable lookup and binding management.
+///
+/// ## Key Properties
+/// - **Lexical Scoping**: Variables resolved through parent chain traversal
+/// - **Reference Counted**: Shared ownership through `Rc<Environment>`
+/// - **Generational**: Each environment has a generation number for GC optimization
+/// - **Thread-Safe**: Safe to share within a single thread (Rc vs Arc)
+///
+/// ## Implementation Details
+/// The actual `Environment` struct is defined in the `value` module to avoid
+/// circular dependencies and provide a clean separation between the environment
+/// interface and the internal value system.
 pub type Environment = super::value::Environment;
 
-/// Builder for creating environments with standard bindings.
+/// Builder for creating environments with convenient binding methods.
+///
+/// This builder provides a fluent interface for constructing environments with
+/// various types of bindings. It supports method chaining for readable environment
+/// construction and handles common patterns like primitive procedure binding.
+///
+/// ## Usage Patterns
+///
+/// ```rust,ignore
+/// let env = EnvironmentBuilder::new(generation)
+///     .bind("x", Value::Literal(Literal::Number(42.into())))
+///     .bind_primitive("cons", cons_primitive)
+///     .bind("y", Value::Symbol(intern_symbol("example")))
+///     .build();
+/// ```
+///
+/// ## Design Benefits
+/// - **Fluent Interface**: Method chaining for readable construction
+/// - **Type Safety**: Compile-time verification of binding types
+/// - **Convenience Methods**: Specialized methods for common binding patterns
+/// - **Resource Management**: Proper cleanup if construction fails
+///
+/// ## Performance Considerations
+/// - **Efficient Building**: Minimal allocations during construction
+/// - **Reference Sharing**: Built environment can be shared efficiently
+/// - **Lazy Initialization**: Global environment created only when needed
 pub struct EnvironmentBuilder {
+    /// The environment being constructed.
+    ///
+    /// This holds the environment instance that is being populated with
+    /// bindings through the builder methods.
     environment: Rc<Environment>,
+
+    /// Generation number for GC optimization.
+    ///
+    /// Currently unused but reserved for future garbage collection
+    /// optimizations based on environment generations.
     #[allow(dead_code)]
     generation: Generation,
 }
@@ -49,9 +181,9 @@ impl EnvironmentBuilder {
 
     /// Adds a primitive procedure binding.
     pub fn bind_primitive(
-        self, 
-        name: impl Into<String>, 
-        proc: super::value::PrimitiveProcedure
+        self,
+        name: impl Into<String>,
+        proc: super::value::PrimitiveProcedure,
     ) -> Self {
         let value = Value::Primitive(Arc::new(proc));
         self.bind(name, value)
@@ -69,34 +201,32 @@ pub fn global_environment() -> Rc<Environment> {
     thread_local! {
         static GLOBAL_ENV: std::cell::OnceCell<Rc<Environment>> = const { std::cell::OnceCell::new() };
     }
-    
-    GLOBAL_ENV.with(|cell| {
-        cell.get_or_init(create_global_environment).clone()
-    })
+
+    GLOBAL_ENV.with(|cell| cell.get_or_init(create_global_environment).clone())
 }
 
 /// Creates the global environment with standard bindings.
 fn create_global_environment() -> Rc<Environment> {
     // Start with an empty environment
     let env = Rc::new(Environment::new(None, 0));
-    
+
     // Add basic values first - these are essential and should never fail
     env.define("true".to_owned(), Value::t());
     env.define("false".to_owned(), Value::f());
     env.define("null".to_owned(), Value::Nil);
-    
+
     // Add R7RS-small special forms as identifiers for macro expansion
     // These are needed for macro templates to reference basic syntax
     bind_special_forms_as_identifiers(&env);
-    
+
     // Convert to ThreadSafeEnvironment to use StandardLibrary
     let thread_safe_env = env.to_thread_safe();
-    
+
     // Populate with complete standard library (same as multithreaded runtime)
     // This ensures both single-threaded and multi-threaded paths have identical environments
     let stdlib = crate::stdlib::StandardLibrary::new();
     stdlib.populate_environment(&thread_safe_env);
-    
+
     // Convert back to legacy Environment for single-threaded use
     thread_safe_env.to_legacy()
 }
@@ -106,36 +236,85 @@ fn create_global_environment() -> Rc<Environment> {
 /// These are not callable procedures but syntactic identifiers for macro expansion.
 fn bind_special_forms_as_identifiers(env: &Rc<Environment>) {
     use crate::utils::intern_symbol;
-    
+
     // Core special forms required for macro expansion
     let special_forms = [
-        "lambda", "if", "define", "set!", "quote", "quasiquote", "unquote", "unquote-splicing",
-        "begin", "let", "let*", "letrec", "cond", "case", "and", "or",
-        "when", "unless", "do", "delay", "force", "case-lambda",
-        "make-promise", "promise-force", // for delay/force implementation
+        "lambda",
+        "if",
+        "define",
+        "set!",
+        "quote",
+        "quasiquote",
+        "unquote",
+        "unquote-splicing",
+        "begin",
+        "let",
+        "let*",
+        "letrec",
+        "cond",
+        "case",
+        "and",
+        "or",
+        "when",
+        "unless",
+        "do",
+        "delay",
+        "force",
+        "case-lambda",
+        "make-promise",
+        "promise-force", // for delay/force implementation
     ];
-    
+
     for &form_name in &special_forms {
         // Create a special syntax value that indicates this is a special form identifier
         let symbol_id = intern_symbol(form_name.to_owned());
         let syntax_value = Value::Symbol(symbol_id);
         env.define(form_name.to_owned(), syntax_value);
     }
-    
+
     // Also bind some essential procedures that macros might need to reference
     // These will be overwritten by actual implementations later if they exist
-    env.define("apply".to_owned(), Value::Symbol(intern_symbol("apply".to_owned())));
-    env.define("list".to_owned(), Value::Symbol(intern_symbol("list".to_owned())));
-    env.define("cons".to_owned(), Value::Symbol(intern_symbol("cons".to_owned())));
-    env.define("car".to_owned(), Value::Symbol(intern_symbol("car".to_owned())));
-    env.define("cdr".to_owned(), Value::Symbol(intern_symbol("cdr".to_owned())));
-    env.define("null?".to_owned(), Value::Symbol(intern_symbol("null?".to_owned())));
-    env.define("length".to_owned(), Value::Symbol(intern_symbol("length".to_owned())));
-    env.define("error".to_owned(), Value::Symbol(intern_symbol("error".to_owned())));
-    env.define("not".to_owned(), Value::Symbol(intern_symbol("not".to_owned())));
-    env.define("memv".to_owned(), Value::Symbol(intern_symbol("memv".to_owned())));
+    env.define(
+        "apply".to_owned(),
+        Value::Symbol(intern_symbol("apply".to_owned())),
+    );
+    env.define(
+        "list".to_owned(),
+        Value::Symbol(intern_symbol("list".to_owned())),
+    );
+    env.define(
+        "cons".to_owned(),
+        Value::Symbol(intern_symbol("cons".to_owned())),
+    );
+    env.define(
+        "car".to_owned(),
+        Value::Symbol(intern_symbol("car".to_owned())),
+    );
+    env.define(
+        "cdr".to_owned(),
+        Value::Symbol(intern_symbol("cdr".to_owned())),
+    );
+    env.define(
+        "null?".to_owned(),
+        Value::Symbol(intern_symbol("null?".to_owned())),
+    );
+    env.define(
+        "length".to_owned(),
+        Value::Symbol(intern_symbol("length".to_owned())),
+    );
+    env.define(
+        "error".to_owned(),
+        Value::Symbol(intern_symbol("error".to_owned())),
+    );
+    env.define(
+        "not".to_owned(),
+        Value::Symbol(intern_symbol("not".to_owned())),
+    );
+    env.define(
+        "memv".to_owned(),
+        Value::Symbol(intern_symbol("memv".to_owned())),
+    );
 }
-
 
 // ============= PRIMITIVE IMPLEMENTATIONS =============
 
@@ -149,10 +328,12 @@ pub fn primitive_add(args: &[Value]) -> Result<Value> {
     for arg in args {
         match arg.as_number() {
             Some(n) => result += n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {arg}"),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {arg}"),
+                    None,
+                )));
+            }
         }
     }
 
@@ -182,19 +363,23 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
         // Binary and n-ary minus
         let mut result = match args[0].as_number() {
             Some(n) => n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {}", args[0]),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {}", args[0]),
+                    None,
+                )));
+            }
         };
 
         for arg in &args[1..] {
             match arg.as_number() {
                 Some(n) => result -= n,
-                None => return Err(Box::new(Error::runtime_error(
-                    format!("Expected number, got {arg}"),
-                    None,
-                ))),
+                None => {
+                    return Err(Box::new(Error::runtime_error(
+                        format!("Expected number, got {arg}"),
+                        None,
+                    )));
+                }
             }
         }
 
@@ -213,10 +398,12 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
     for arg in args {
         match arg.as_number() {
             Some(n) => result *= n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {arg}"),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {arg}"),
+                    None,
+                )));
+            }
         }
     }
 
@@ -252,10 +439,12 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
         // Binary and n-ary division
         let mut result = match args[0].as_number() {
             Some(n) => n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {}", args[0]),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {}", args[0]),
+                    None,
+                )));
+            }
         };
 
         for arg in &args[1..] {
@@ -266,10 +455,12 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
                     }
                     result /= n;
                 }
-                None => return Err(Box::new(Error::runtime_error(
-                    format!("Expected number, got {arg}"),
-                    None,
-                ))),
+                None => {
+                    return Err(Box::new(Error::runtime_error(
+                        format!("Expected number, got {arg}"),
+                        None,
+                    )));
+                }
             }
         }
 
@@ -289,10 +480,12 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
 
     let first = match args[0].as_number() {
         Some(n) => n,
-        None => return Err(Box::new(Error::runtime_error(
-            format!("Expected number, got {}", args[0]),
-            None,
-        ))),
+        None => {
+            return Err(Box::new(Error::runtime_error(
+                format!("Expected number, got {}", args[0]),
+                None,
+            )));
+        }
     };
 
     for arg in &args[1..] {
@@ -302,10 +495,12 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
                     return Ok(Value::f());
                 }
             }
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {arg}"),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {arg}"),
+                    None,
+                )));
+            }
         }
     }
 
@@ -325,18 +520,22 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
     for window in args.windows(2) {
         let a = match window[0].as_number() {
             Some(n) => n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {}", window[0]),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {}", window[0]),
+                    None,
+                )));
+            }
         };
 
         let b = match window[1].as_number() {
             Some(n) => n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {}", window[1]),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {}", window[1]),
+                    None,
+                )));
+            }
         };
 
         if a >= b {
@@ -360,18 +559,22 @@ fn primitive_greater_than(args: &[Value]) -> Result<Value> {
     for window in args.windows(2) {
         let a = match window[0].as_number() {
             Some(n) => n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {}", window[0]),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {}", window[0]),
+                    None,
+                )));
+            }
         };
 
         let b = match window[1].as_number() {
             Some(n) => n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {}", window[1]),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {}", window[1]),
+                    None,
+                )));
+            }
         };
 
         if a <= b {
@@ -519,11 +722,11 @@ fn primitive_display(args: &[Value]) -> Result<Value> {
     }
 
     let value = &args[0];
-    
+
     // For now, just print to stdout
     // TODO: Handle optional port argument
     print!("{value}");
-    
+
     Ok(Value::Unspecified)
 }
 
@@ -539,7 +742,7 @@ fn primitive_newline(args: &[Value]) -> Result<Value> {
     // For now, just print to stdout
     // TODO: Handle optional port argument
     println!();
-    
+
     Ok(Value::Unspecified)
 }
 
@@ -556,17 +759,21 @@ fn primitive_less_equal(args: &[Value]) -> Result<Value> {
     for window in args.windows(2) {
         let a = match window[0].as_number() {
             Some(n) => n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {}", window[0]),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {}", window[0]),
+                    None,
+                )));
+            }
         };
         let b = match window[1].as_number() {
             Some(n) => n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {}", window[1]),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {}", window[1]),
+                    None,
+                )));
+            }
         };
         if a > b {
             return Ok(Value::boolean(false));
@@ -586,17 +793,21 @@ fn primitive_greater_equal(args: &[Value]) -> Result<Value> {
     for window in args.windows(2) {
         let a = match window[0].as_number() {
             Some(n) => n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {}", window[0]),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {}", window[0]),
+                    None,
+                )));
+            }
         };
         let b = match window[1].as_number() {
             Some(n) => n,
-            None => return Err(Box::new(Error::runtime_error(
-                format!("Expected number, got {}", window[1]),
-                None,
-            ))),
+            None => {
+                return Err(Box::new(Error::runtime_error(
+                    format!("Expected number, got {}", window[1]),
+                    None,
+                )));
+            }
         };
         if a < b {
             return Ok(Value::boolean(false));
@@ -604,4 +815,3 @@ fn primitive_greater_equal(args: &[Value]) -> Result<Value> {
     }
     Ok(Value::boolean(true))
 }
-

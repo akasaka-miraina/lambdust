@@ -170,7 +170,7 @@ impl IsabelleExporter {
             current_theory: None,
         }
     }
-    
+
     /// Start a new theory.
     pub fn start_theory(&mut self, name: String, imports: Vec<String>) -> Result<()> {
         let theory = IsabelleTheory {
@@ -182,64 +182,64 @@ impl IsabelleExporter {
             lemmas: Vec::new());
             proof_obligations: Vec::new());
         };
-        
+
         self.current_theory = Some(theory);
         Ok(())
     }
-    
+
     /// Add a type definition to the current theory.
     pub fn add_typedef(&mut self, typedef: IsabelleTypedef) -> Result<()> {
         let theory = self.current_theory.as_mut()
             .ok_or_else(|| Error::runtime_error("No active theory", None).boxed())?;
-        
+
         theory.types.push(typedef);
         Ok(())
     }
-    
+
     /// Add a constant declaration to the current theory.
     pub fn add_constant(&mut self, constant: IsabelleConstant) -> Result<()> {
         let theory = self.current_theory.as_mut()
             .ok_or_else(|| Error::runtime_error("No active theory", None).boxed())?;
-            
+
         theory.constants.push(constant);
         Ok(())
     }
-    
+
     /// Add a function definition to the current theory.
     pub fn add_function(&mut self, function: IsabelleFunction) -> Result<()> {
         let theory = self.current_theory.as_mut()
             .ok_or_else(|| Error::runtime_error("No active theory", None).boxed())?;
-            
+
         theory.functions.push(function);
         Ok(())
     }
-    
+
     /// Add a lemma to the current theory.
     pub fn add_lemma(&mut self, lemma: IsabelleLemma) -> Result<()> {
         let theory = self.current_theory.as_mut()
             .ok_or_else(|| Error::runtime_error("No active theory", None).boxed())?;
-            
+
         theory.lemmas.push(lemma);
         Ok(())
     }
-    
+
     /// Add proof obligations to the current theory.
     pub fn add_proof_obligations(&mut self, pos: Vec<ProofObligation>) -> Result<()> {
         let theory = self.current_theory.as_mut()
             .ok_or_else(|| Error::runtime_error("No active theory", None).boxed())?;
-            
+
         theory.proof_obligations.extend(pos);
         Ok(())
     }
-    
+
     /// Export the current theory to Isabelle/HOL format.
     pub fn export_theory(&self) -> Result<String> {
         let theory = self.current_theory.as_ref()
             .ok_or_else(|| Error::runtime_error("No active theory", None).boxed())?;
-            
+
         Ok(theory.to_string())
     }
-    
+
     /// Translate a Lambdust value to an Isabelle/HOL term.
     pub fn translate_value(&self, value: &Value) -> Result<IsabelleTerm> {
         match value {
@@ -270,7 +270,7 @@ impl IsabelleExporter {
             ).boxed()));
         }
     }
-    
+
     /// Generate proof obligations for type safety.
     pub fn generate_type_safety_pos(&self, program_name: &str) -> Vec<ProofObligation> {
         vec![
@@ -297,7 +297,7 @@ impl Default for IsabelleExporter {
 impl fmt::Display for IsabelleTheory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "theory {}", self.name)?;
-        
+
         if !self.imports.is_empty() {
             writeln!(f, "  imports {}", self.imports.join(" "))?;
         } else {
@@ -305,7 +305,7 @@ impl fmt::Display for IsabelleTheory {
         }
         writeln!(f, "begin")?;
         writeln!(f)?;
-        
+
         // Type definitions
         if !self.types.is_empty() {
             writeln!(f, "section \"Type Definitions\"")?;
@@ -315,7 +315,7 @@ impl fmt::Display for IsabelleTheory {
                 writeln!(f)?;
             }
         }
-        
+
         // Constants
         if !self.constants.is_empty() {
             writeln!(f, "section \"Constants\"")?;
@@ -325,7 +325,7 @@ impl fmt::Display for IsabelleTheory {
             }
             writeln!(f)?;
         }
-        
+
         // Functions
         if !self.functions.is_empty() {
             writeln!(f, "section \"Function Definitions\"")?;
@@ -335,7 +335,7 @@ impl fmt::Display for IsabelleTheory {
                 writeln!(f)?;
             }
         }
-        
+
         // Lemmas
         if !self.lemmas.is_empty() {
             writeln!(f, "section \"Lemmas and Theorems\"")?;
@@ -345,7 +345,7 @@ impl fmt::Display for IsabelleTheory {
                 writeln!(f)?;
             }
         }
-        
+
         // Proof obligations
         if !self.proof_obligations.is_empty() {
             writeln!(f, "section \"Proof Obligations\"")?;
@@ -358,7 +358,7 @@ impl fmt::Display for IsabelleTheory {
                 writeln!(f)?;
             }
         }
-        
+
         writeln!(f, "end")
     }
 }
@@ -368,7 +368,7 @@ impl fmt::Display for IsabelleTypedef {
         if self.params.is_empty() {
             writeln!(f, "type_synonym {} = \"{}\"", self.name, self.definition)
         } else {
-            writeln!(f, "type_synonym ('{}') {} = \"{}\"", 
+            writeln!(f, "type_synonym ('{}') {} = \"{}\"",
                     self.params.join(", "), self.name, self.definition)
         }
     }
@@ -398,7 +398,7 @@ impl fmt::Display for IsabelleType {
                 if args.is_empty() {
                     write!(f, "{}", name)
                 } else {
-                    write!(f, "({}) {}", 
+                    write!(f, "({}) {}",
                            args.iter()
                                .map(|t| t.to_string())
                                .collect::<Vec<_>>()
@@ -534,7 +534,7 @@ impl fmt::Display for IsabelleProof {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_isabelle_type_display() {
         let nat_type = IsabelleType::Basic("nat".to_string());
@@ -543,14 +543,14 @@ mod tests {
             Box::new(nat_type.clone()));
             Box::new(bool_type.clone())
         );
-        
+
         assert_eq!(nat_type.to_string(), "nat");
         assert_eq!(func_type.to_string(), "nat => bool");
-        
+
         let product_type = IsabelleType::Product(vec![nat_type, bool_type]);
         assert_eq!(product_type.to_string(), "nat * bool");
     }
-    
+
     #[test]
     fn test_isabelle_term_display() {
         let var = IsabelleTerm::Var("x".to_string());
@@ -559,48 +559,48 @@ mod tests {
             Box::new(IsabelleTerm::Const("f".to_string())));
             Box::new(var.clone())
         );
-        
+
         assert_eq!(var.to_string(), "x");
         assert_eq!(const_term.to_string(), "42");
         assert_eq!(app.to_string(), "(f x)");
     }
-    
+
     #[test]
     fn test_theory_generation() {
         let mut exporter = IsabelleExporter::new();
         exporter.start_theory("TestTheory".to_string(), vec!["Main".to_string()]).unwrap();
-        
+
         let typedef = IsabelleTypedef {
             name: "my_type".to_string());
             params: vec![],
             definition: IsabelleType::Basic("nat".to_string()));
         };
         exporter.add_typedef(typedef).unwrap();
-        
+
         let theory_string = exporter.export_theory().unwrap();
         assert!(theory_string.contains("theory TestTheory"));
         assert!(theory_string.contains("imports Main"));
         assert!(theory_string.contains("type_synonym my_type"));
     }
-    
+
     #[test]
     fn test_value_translation() {
         let exporter = IsabelleExporter::new();
-        
+
         let int_value = Value::integer(42);
         let translated = exporter.translate_value(&int_value).unwrap();
         assert_eq!(translated.to_string(), "42");
-        
+
         let bool_value = Value::boolean(true);
         let translated = exporter.translate_value(&bool_value).unwrap();
         assert_eq!(translated.to_string(), "True");
     }
-    
+
     #[test]
     fn test_proof_obligation_generation() {
         let exporter = IsabelleExporter::new();
         let pos = exporter.generate_type_safety_pos("test_program");
-        
+
         assert_eq!(pos.len(), 2);
         assert!(pos.iter().any(|po| po.id.contains("type_safety")));
         assert!(pos.iter().any(|po| po.id.contains("progress")));

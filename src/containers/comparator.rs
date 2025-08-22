@@ -12,7 +12,7 @@ use std::sync::Arc;
 /// Type alias for comparison functions
 type CompareFn = Arc<dyn Fn(&Value, &Value) -> Ordering + Send + Sync>;
 
-/// Type alias for hash functions  
+/// Type alias for hash functions
 type HashFn = Arc<dyn Fn(&Value) -> u64 + Send + Sync>;
 
 /// Type alias for equality functions
@@ -42,7 +42,7 @@ impl Comparator {
             name: name.into(),
         }
     }
-    
+
     /// Creates the default comparator using built-in value comparison and hashing
     pub fn with_default() -> Self {
         Self::new(
@@ -51,7 +51,7 @@ impl Comparator {
             super::utils::hash_value,
         )
     }
-    
+
     /// Creates a numeric comparator for comparing numbers
     pub fn numeric() -> Self {
         Self::new(
@@ -71,7 +71,7 @@ impl Comparator {
             },
         )
     }
-    
+
     /// Creates a string comparator for comparing strings
     pub fn string() -> Self {
         Self::new(
@@ -93,7 +93,7 @@ impl Comparator {
             },
         )
     }
-    
+
     /// Creates a symbol comparator for comparing symbols
     pub fn symbol() -> Self {
         Self::new(
@@ -113,22 +113,22 @@ impl Comparator {
             },
         )
     }
-    
+
     /// Compares two values using this comparator
     pub fn compare(&self, a: &Value, b: &Value) -> Ordering {
         (self.compare_fn)(a, b)
     }
-    
+
     /// Hashes a value using this comparator
     pub fn hash(&self, value: &Value) -> u64 {
         (self.hash_fn)(value)
     }
-    
+
     /// Gets the name of this comparator
     pub fn name(&self) -> &str {
         &self.name
     }
-    
+
     /// Creates an equality predicate from this comparator
     pub fn equality_predicate(&self) -> impl Fn(&Value, &Value) -> bool + '_ {
         move |a, b| self.compare(a, b) == Ordering::Equal
@@ -165,16 +165,12 @@ impl HashComparator {
             name: name.into(),
         }
     }
-    
+
     /// Creates the default hash comparator
     pub fn with_default() -> Self {
-        Self::new(
-            "default-hash",
-            super::utils::hash_value,
-            |a, b| a == b,
-        )
+        Self::new("default-hash", super::utils::hash_value, |a, b| a == b)
     }
-    
+
     /// Creates a case-insensitive string hash comparator
     pub fn string_ci() -> Self {
         Self::new(
@@ -188,25 +184,23 @@ impl HashComparator {
                     super::utils::hash_value(v)
                 }
             },
-            |a, b| {
-                match (a.as_string(), b.as_string()) {
-                    (Some(s1), Some(s2)) => s1.to_lowercase() == s2.to_lowercase(),
-                    _ => a == b,
-                }
+            |a, b| match (a.as_string(), b.as_string()) {
+                (Some(s1), Some(s2)) => s1.to_lowercase() == s2.to_lowercase(),
+                _ => a == b,
             },
         )
     }
-    
+
     /// Hashes a value using this comparator
     pub fn hash(&self, value: &Value) -> u64 {
         (self.hash_fn)(value)
     }
-    
+
     /// Tests equality of two values using this comparator
     pub fn eq(&self, a: &Value, b: &Value) -> bool {
         (self.eq_fn)(a, b)
     }
-    
+
     /// Gets the name of this comparator
     pub fn name(&self) -> &str {
         &self.name
@@ -243,17 +237,17 @@ impl<T> Comparable<T> {
     pub fn new(value: T, comparator: Comparator) -> Self {
         Self { value, comparator }
     }
-    
+
     /// Gets the wrapped value
     pub fn value(&self) -> &T {
         &self.value
     }
-    
+
     /// Gets the comparator
     pub fn comparator(&self) -> &Comparator {
         &self.comparator
     }
-    
+
     /// Unwraps the value
     pub fn into_inner(self) -> T {
         self.value
@@ -277,7 +271,7 @@ impl Comparable<Value> {
     pub fn compare(&self, other: &Self) -> Ordering {
         self.comparator.compare(&self.value, &other.value)
     }
-    
+
     /// Hashes this comparable value
     pub fn hash_value(&self) -> u64 {
         self.comparator.hash(&self.value)
@@ -326,7 +320,7 @@ impl ComparatorBuilder {
             hash_fn: None,
         }
     }
-    
+
     /// Sets the comparison function
     pub fn compare<F>(mut self, f: F) -> Self
     where
@@ -335,7 +329,7 @@ impl ComparatorBuilder {
         self.compare_fn = Some(Arc::new(f));
         self
     }
-    
+
     /// Sets the hash function
     pub fn hash<F>(mut self, f: F) -> Self
     where
@@ -344,17 +338,17 @@ impl ComparatorBuilder {
         self.hash_fn = Some(Arc::new(f));
         self
     }
-    
+
     /// Builds the comparator
     pub fn build(self) -> Comparator {
-        let compare_fn = self.compare_fn.unwrap_or_else(|| {
-            Arc::new(super::utils::compare_values)
-        });
-        
-        let hash_fn = self.hash_fn.unwrap_or_else(|| {
-            Arc::new(super::utils::hash_value)
-        });
-        
+        let compare_fn = self
+            .compare_fn
+            .unwrap_or_else(|| Arc::new(super::utils::compare_values));
+
+        let hash_fn = self
+            .hash_fn
+            .unwrap_or_else(|| Arc::new(super::utils::hash_value));
+
         Comparator {
             compare_fn,
             hash_fn,
@@ -366,74 +360,74 @@ impl ComparatorBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_default_comparator() {
         let comp = Comparator::with_default();
         let v1 = Value::number(1.0);
         let v2 = Value::number(2.0);
-        
+
         assert_eq!(comp.compare(&v1, &v2), Ordering::Less);
         assert_eq!(comp.compare(&v2, &v1), Ordering::Greater);
         assert_eq!(comp.compare(&v1, &v1), Ordering::Equal);
     }
-    
+
     #[test]
     fn test_numeric_comparator() {
         let comp = Comparator::numeric();
         let v1 = Value::number(std::f64::consts::PI);
         let v2 = Value::number(2.71_f64);
         let v3 = Value::string("not a number");
-        
+
         assert_eq!(comp.compare(&v1, &v2), Ordering::Greater);
         assert_eq!(comp.compare(&v1, &v3), Ordering::Equal); // Non-numbers are equal
     }
-    
+
     #[test]
     fn test_string_comparator() {
         let comp = Comparator::string();
         let v1 = Value::string("apple");
         let v2 = Value::string("banana");
         let v3 = Value::number(42.0);
-        
+
         assert_eq!(comp.compare(&v1, &v2), Ordering::Less);
         assert_eq!(comp.compare(&v1, &v3), Ordering::Equal); // Non-strings are equal
     }
-    
+
     #[test]
     fn test_hash_comparator() {
         let comp = HashComparator::with_default();
         let v1 = Value::string("hello");
         let v2 = Value::string("hello");
         let v3 = Value::string("world");
-        
+
         assert!(comp.eq(&v1, &v2));
         assert!(!comp.eq(&v1, &v3));
         assert_eq!(comp.hash(&v1), comp.hash(&v2));
     }
-    
+
     #[test]
     fn test_string_ci_comparator() {
         let comp = HashComparator::string_ci();
         let v1 = Value::string("Hello");
         let v2 = Value::string("HELLO");
         let v3 = Value::string("world");
-        
+
         assert!(comp.eq(&v1, &v2));
         assert!(!comp.eq(&v1, &v3));
         assert_eq!(comp.hash(&v1), comp.hash(&v2));
     }
-    
+
     #[test]
     fn test_comparable_wrapper() {
         let comp = Comparator::numeric();
         let c1 = Comparable::new(Value::number(1.0), comp.clone());
         let c2 = Comparable::new(Value::number(2.0), comp.clone());
-        
+
         assert!(c1 < c2);
         assert_eq!(c1.compare(&c2), Ordering::Less);
     }
-    
+
     #[test]
     fn test_comparator_builder() {
         let comp = ComparatorBuilder::new("custom")
@@ -446,10 +440,10 @@ mod tests {
             })
             .hash(|v| v.as_number().map(|n| n.to_bits()).unwrap_or(0))
             .build();
-        
+
         let v1 = Value::number(1.0);
         let v2 = Value::number(2.0);
-        
+
         // Should be reversed
         assert_eq!(comp.compare(&v1, &v2), Ordering::Greater);
         assert_eq!(comp.name(), "custom");

@@ -153,7 +153,11 @@ impl CompletionProvider {
         self.add_builtin_function("<", "Less than", Some("(< number1 number2 ...)"));
         self.add_builtin_function(">", "Greater than", Some("(> number1 number2 ...)"));
         self.add_builtin_function("<=", "Less than or equal", Some("(<= number1 number2 ...)"));
-        self.add_builtin_function(">=", "Greater than or equal", Some("(>= number1 number2 ...)"));
+        self.add_builtin_function(
+            ">=",
+            "Greater than or equal",
+            Some("(>= number1 number2 ...)"),
+        );
 
         // List functions
         self.add_builtin_function("car", "First element of pair", Some("(car pair)"));
@@ -163,10 +167,22 @@ impl CompletionProvider {
         self.add_builtin_function("length", "List length", Some("(length list)"));
         self.add_builtin_function("append", "Append lists", Some("(append list ...)"));
         self.add_builtin_function("reverse", "Reverse list", Some("(reverse list)"));
-        self.add_builtin_function("map", "Apply function to list elements", Some("(map proc list1 list2 ...)"));
+        self.add_builtin_function(
+            "map",
+            "Apply function to list elements",
+            Some("(map proc list1 list2 ...)"),
+        );
         self.add_builtin_function("filter", "Filter list elements", Some("(filter pred list)"));
-        self.add_builtin_function("fold-left", "Left fold over list", Some("(fold-left proc init list1 list2 ...)"));
-        self.add_builtin_function("fold-right", "Right fold over list", Some("(fold-right proc init list1 list2 ...)"));
+        self.add_builtin_function(
+            "fold-left",
+            "Left fold over list",
+            Some("(fold-left proc init list1 list2 ...)"),
+        );
+        self.add_builtin_function(
+            "fold-right",
+            "Right fold over list",
+            Some("(fold-right proc init list1 list2 ...)"),
+        );
 
         // Predicates
         self.add_builtin_function("null?", "Test for empty list", Some("(null? obj)"));
@@ -179,11 +195,31 @@ impl CompletionProvider {
         self.add_builtin_function("procedure?", "Test for procedure", Some("(procedure? obj)"));
 
         // String functions
-        self.add_builtin_function("string-length", "String length", Some("(string-length string)"));
-        self.add_builtin_function("string-append", "Append strings", Some("(string-append string ...)"));
-        self.add_builtin_function("substring", "Extract substring", Some("(substring string start end)"));
-        self.add_builtin_function("string=?", "String equality", Some("(string=? string1 string2)"));
-        self.add_builtin_function("string<?", "String less than", Some("(string<? string1 string2)"));
+        self.add_builtin_function(
+            "string-length",
+            "String length",
+            Some("(string-length string)"),
+        );
+        self.add_builtin_function(
+            "string-append",
+            "Append strings",
+            Some("(string-append string ...)"),
+        );
+        self.add_builtin_function(
+            "substring",
+            "Extract substring",
+            Some("(substring string start end)"),
+        );
+        self.add_builtin_function(
+            "string=?",
+            "String equality",
+            Some("(string=? string1 string2)"),
+        );
+        self.add_builtin_function(
+            "string<?",
+            "String less than",
+            Some("(string<? string1 string2)"),
+        );
 
         // I/O functions
         self.add_builtin_function("display", "Display object", Some("(display obj [port])"));
@@ -195,21 +231,53 @@ impl CompletionProvider {
     }
 
     fn initialize_special_forms(&mut self) -> Result<()> {
-        self.add_special_form("define", "Define variable or function", Some("(define name value) or (define (name params) body)"));
+        self.add_special_form(
+            "define",
+            "Define variable or function",
+            Some("(define name value) or (define (name params) body)"),
+        );
         self.add_special_form("lambda", "Create procedure", Some("(lambda (params) body)"));
         self.add_special_form("if", "Conditional expression", Some("(if test then else)"));
-        self.add_special_form("cond", "Multi-way conditional", Some("(cond (test result) ...)"));
-        self.add_special_form("case", "Dispatch on value", Some("(case key ((datums) result) ...)"));
+        self.add_special_form(
+            "cond",
+            "Multi-way conditional",
+            Some("(cond (test result) ...)"),
+        );
+        self.add_special_form(
+            "case",
+            "Dispatch on value",
+            Some("(case key ((datums) result) ...)"),
+        );
         self.add_special_form("and", "Logical and", Some("(and test ...)"));
         self.add_special_form("or", "Logical or", Some("(or test ...)"));
         self.add_special_form("let", "Local binding", Some("(let ((var val) ...) body)"));
-        self.add_special_form("let*", "Sequential local binding", Some("(let* ((var val) ...) body)"));
-        self.add_special_form("letrec", "Recursive local binding", Some("(letrec ((var val) ...) body)"));
+        self.add_special_form(
+            "let*",
+            "Sequential local binding",
+            Some("(let* ((var val) ...) body)"),
+        );
+        self.add_special_form(
+            "letrec",
+            "Recursive local binding",
+            Some("(letrec ((var val) ...) body)"),
+        );
         self.add_special_form("begin", "Sequential evaluation", Some("(begin expr ...)"));
         self.add_special_form("quote", "Quote expression", Some("(quote expr) or 'expr"));
-        self.add_special_form("quasiquote", "Quasi-quote expression", Some("(quasiquote expr) or `expr"));
-        self.add_special_form("unquote", "Unquote in quasi-quote", Some("(unquote expr) or ,expr"));
-        self.add_special_form("unquote-splicing", "Unquote-splicing in quasi-quote", Some("(unquote-splicing expr) or ,@expr"));
+        self.add_special_form(
+            "quasiquote",
+            "Quasi-quote expression",
+            Some("(quasiquote expr) or `expr"),
+        );
+        self.add_special_form(
+            "unquote",
+            "Unquote in quasi-quote",
+            Some("(unquote expr) or ,expr"),
+        );
+        self.add_special_form(
+            "unquote-splicing",
+            "Unquote-splicing in quasi-quote",
+            Some("(unquote-splicing expr) or ,@expr"),
+        );
         self.add_special_form("set!", "Assignment", Some("(set! var value)"));
 
         Ok(())
@@ -217,8 +285,15 @@ impl CompletionProvider {
 
     fn initialize_keywords(&mut self) -> Result<()> {
         let keywords = vec![
-            "else", "=>", "...", "unquote", "unquote-splicing",
-            "#t", "#f", "#true", "#false"
+            "else",
+            "=>",
+            "...",
+            "unquote",
+            "unquote-splicing",
+            "#t",
+            "#f",
+            "#true",
+            "#false",
         ];
 
         for keyword in keywords {
@@ -230,81 +305,162 @@ impl CompletionProvider {
 
     fn initialize_srfi_modules(&mut self) -> Result<()> {
         // SRFI-1: List Library
-        self.srfi_modules.insert("srfi-1".to_string(), SrfiModuleInfo {
-            srfi_number: 1,
-            title: "List Library".to_string(),
-            exports: vec![
-                "xcons".to_string(), "list-tabulate".to_string(), "list-copy".to_string(),
-                "circular-list".to_string(), "iota".to_string(), "proper-list?".to_string(),
-                "circular-list?".to_string(), "dotted-list?".to_string(), "not-pair?".to_string(),
-                "null-list?".to_string(), "list=".to_string(), "first".to_string(), "second".to_string(),
-                "third".to_string(), "fourth".to_string(), "fifth".to_string(), "sixth".to_string(),
-                "seventh".to_string(), "eighth".to_string(), "ninth".to_string(), "tenth".to_string(),
-                "take".to_string(), "drop".to_string(), "take-right".to_string(), "drop-right".to_string(),
-                "take!".to_string(), "drop-right!".to_string(), "split-at".to_string(), "split-at!".to_string(),
-                "last".to_string(), "last-pair".to_string(), "zip".to_string(), "unzip1".to_string(),
-                "unzip2".to_string(), "unzip3".to_string(), "unzip4".to_string(), "unzip5".to_string(),
-                "count".to_string(), "fold".to_string(), "unfold".to_string(), "pair-fold".to_string(),
-                "reduce".to_string(), "unfold-right".to_string(), "pair-fold-right".to_string(),
-                "reduce-right".to_string(), "append-map".to_string(), "append-map!".to_string(),
-                "map!".to_string(), "pair-for-each".to_string(), "filter-map".to_string(),
-                "map-in-order".to_string(), "filter!".to_string(), "partition".to_string(),
-                "partition!".to_string(), "remove".to_string(), "remove!".to_string(),
-                // ... more SRFI-1 exports
-            ],
-        });
+        self.srfi_modules.insert(
+            "srfi-1".to_string(),
+            SrfiModuleInfo {
+                srfi_number: 1,
+                title: "List Library".to_string(),
+                exports: vec![
+                    "xcons".to_string(),
+                    "list-tabulate".to_string(),
+                    "list-copy".to_string(),
+                    "circular-list".to_string(),
+                    "iota".to_string(),
+                    "proper-list?".to_string(),
+                    "circular-list?".to_string(),
+                    "dotted-list?".to_string(),
+                    "not-pair?".to_string(),
+                    "null-list?".to_string(),
+                    "list=".to_string(),
+                    "first".to_string(),
+                    "second".to_string(),
+                    "third".to_string(),
+                    "fourth".to_string(),
+                    "fifth".to_string(),
+                    "sixth".to_string(),
+                    "seventh".to_string(),
+                    "eighth".to_string(),
+                    "ninth".to_string(),
+                    "tenth".to_string(),
+                    "take".to_string(),
+                    "drop".to_string(),
+                    "take-right".to_string(),
+                    "drop-right".to_string(),
+                    "take!".to_string(),
+                    "drop-right!".to_string(),
+                    "split-at".to_string(),
+                    "split-at!".to_string(),
+                    "last".to_string(),
+                    "last-pair".to_string(),
+                    "zip".to_string(),
+                    "unzip1".to_string(),
+                    "unzip2".to_string(),
+                    "unzip3".to_string(),
+                    "unzip4".to_string(),
+                    "unzip5".to_string(),
+                    "count".to_string(),
+                    "fold".to_string(),
+                    "unfold".to_string(),
+                    "pair-fold".to_string(),
+                    "reduce".to_string(),
+                    "unfold-right".to_string(),
+                    "pair-fold-right".to_string(),
+                    "reduce-right".to_string(),
+                    "append-map".to_string(),
+                    "append-map!".to_string(),
+                    "map!".to_string(),
+                    "pair-for-each".to_string(),
+                    "filter-map".to_string(),
+                    "map-in-order".to_string(),
+                    "filter!".to_string(),
+                    "partition".to_string(),
+                    "partition!".to_string(),
+                    "remove".to_string(),
+                    "remove!".to_string(),
+                    // ... more SRFI-1 exports
+                ],
+            },
+        );
 
         // SRFI-13: String Libraries
-        self.srfi_modules.insert("srfi-13".to_string(), SrfiModuleInfo {
-            srfi_number: 13,
-            title: "String Libraries".to_string(),
-            exports: vec![
-                "string-null?".to_string(), "string-every".to_string(), "string-any".to_string(),
-                "string-tabulate".to_string(), "string-unfold".to_string(), "string-unfold-right".to_string(),
-                "reverse-list->string".to_string(), "string-take".to_string(), "string-drop".to_string(),
-                "string-take-right".to_string(), "string-drop-right".to_string(), "string-pad".to_string(),
-                "string-pad-right".to_string(), "string-trim".to_string(), "string-trim-right".to_string(),
-                "string-trim-both".to_string(), "string-compare".to_string(), "string-compare-ci".to_string(),
-                "string-hash".to_string(), "string-hash-ci".to_string(), "string-prefix-length".to_string(),
-                "string-suffix-length".to_string(), "string-prefix-length-ci".to_string(),
-                "string-suffix-length-ci".to_string(), "string-prefix?".to_string(), "string-suffix?".to_string(),
-                "string-prefix-ci?".to_string(), "string-suffix-ci?".to_string(), "string-index".to_string(),
-                "string-index-right".to_string(), "string-skip".to_string(), "string-skip-right".to_string(),
-                "string-count".to_string(), "string-contains".to_string(), "string-contains-ci".to_string(),
-                // ... more SRFI-13 exports
-            ],
-        });
+        self.srfi_modules.insert(
+            "srfi-13".to_string(),
+            SrfiModuleInfo {
+                srfi_number: 13,
+                title: "String Libraries".to_string(),
+                exports: vec![
+                    "string-null?".to_string(),
+                    "string-every".to_string(),
+                    "string-any".to_string(),
+                    "string-tabulate".to_string(),
+                    "string-unfold".to_string(),
+                    "string-unfold-right".to_string(),
+                    "reverse-list->string".to_string(),
+                    "string-take".to_string(),
+                    "string-drop".to_string(),
+                    "string-take-right".to_string(),
+                    "string-drop-right".to_string(),
+                    "string-pad".to_string(),
+                    "string-pad-right".to_string(),
+                    "string-trim".to_string(),
+                    "string-trim-right".to_string(),
+                    "string-trim-both".to_string(),
+                    "string-compare".to_string(),
+                    "string-compare-ci".to_string(),
+                    "string-hash".to_string(),
+                    "string-hash-ci".to_string(),
+                    "string-prefix-length".to_string(),
+                    "string-suffix-length".to_string(),
+                    "string-prefix-length-ci".to_string(),
+                    "string-suffix-length-ci".to_string(),
+                    "string-prefix?".to_string(),
+                    "string-suffix?".to_string(),
+                    "string-prefix-ci?".to_string(),
+                    "string-suffix-ci?".to_string(),
+                    "string-index".to_string(),
+                    "string-index-right".to_string(),
+                    "string-skip".to_string(),
+                    "string-skip-right".to_string(),
+                    "string-count".to_string(),
+                    "string-contains".to_string(),
+                    "string-contains-ci".to_string(),
+                    // ... more SRFI-13 exports
+                ],
+            },
+        );
 
         // SRFI-26: Notation for Specializing Parameters
-        self.srfi_modules.insert("srfi-26".to_string(), SrfiModuleInfo {
-            srfi_number: 26,
-            title: "Notation for Specializing Parameters".to_string(),
-            exports: vec![
-                "cut".to_string(), "<>".to_string(), "<...>".to_string(), "cute".to_string(),
-            ],
-        });
+        self.srfi_modules.insert(
+            "srfi-26".to_string(),
+            SrfiModuleInfo {
+                srfi_number: 26,
+                title: "Notation for Specializing Parameters".to_string(),
+                exports: vec![
+                    "cut".to_string(),
+                    "<>".to_string(),
+                    "<...>".to_string(),
+                    "cute".to_string(),
+                ],
+            },
+        );
 
         Ok(())
     }
 
     fn add_builtin_function(&mut self, name: &str, description: &str, signature: Option<&str>) {
-        self.builtin_functions.insert(name.to_string(), CompletionInfo {
-            name: name.to_string(),
-            completion_type: CompletionType::Function,
-            description: description.to_string(),
-            signature: signature.map(|s| s.to_string()),
-            module: None,
-        });
+        self.builtin_functions.insert(
+            name.to_string(),
+            CompletionInfo {
+                name: name.to_string(),
+                completion_type: CompletionType::Function,
+                description: description.to_string(),
+                signature: signature.map(|s| s.to_string()),
+                module: None,
+            },
+        );
     }
 
     fn add_special_form(&mut self, name: &str, description: &str, signature: Option<&str>) {
-        self.special_forms.insert(name.to_string(), CompletionInfo {
-            name: name.to_string(),
-            completion_type: CompletionType::SpecialForm,
-            description: description.to_string(),
-            signature: signature.map(|s| s.to_string()),
-            module: None,
-        });
+        self.special_forms.insert(
+            name.to_string(),
+            CompletionInfo {
+                name: name.to_string(),
+                completion_type: CompletionType::SpecialForm,
+                description: description.to_string(),
+                signature: signature.map(|s| s.to_string()),
+                module: None,
+            },
+        );
     }
 
     fn update_from_runtime(&mut self, _lambdust: &Lambdust) -> Result<()> {
@@ -387,7 +543,7 @@ impl CompletionProvider {
             // Exact matches first
             let a_exact = a.text.to_lowercase() == *prefix;
             let b_exact = b.text.to_lowercase() == *prefix;
-            
+
             if a_exact && !b_exact {
                 return std::cmp::Ordering::Less;
             }
@@ -398,7 +554,7 @@ impl CompletionProvider {
             // Then by completion type priority
             let a_priority = Self::completion_type_priority(&a.completion_type);
             let b_priority = Self::completion_type_priority(&b.completion_type);
-            
+
             if a_priority != b_priority {
                 return a_priority.cmp(&b_priority);
             }
@@ -427,13 +583,15 @@ impl CompletionProvider {
 
     fn get_file_completions(&self, prefix: &str) -> Vec<Completion> {
         let mut completions = Vec::new();
-        
+
         let path = Path::new(prefix);
         let (dir, filename_prefix) = if prefix.ends_with('/') || prefix.ends_with('\\') {
             (path, "")
         } else {
-            (path.parent().unwrap_or(Path::new(".")), 
-             path.file_name().and_then(|n| n.to_str()).unwrap_or(""))
+            (
+                path.parent().unwrap_or(Path::new(".")),
+                path.file_name().and_then(|n| n.to_str()).unwrap_or(""),
+            )
         };
 
         if let Ok(entries) = std::fs::read_dir(dir) {
@@ -456,7 +614,7 @@ impl CompletionProvider {
 
                         completions.push(
                             Completion::new(full_path, CompletionType::FilePath)
-                                .with_display(display)
+                                .with_display(display),
                         );
                     }
                 }
@@ -469,7 +627,7 @@ impl CompletionProvider {
     pub fn analyze_context(&self, input: &str, cursor_position: usize) -> CompletionContext {
         let chars: Vec<char> = input.chars().collect();
         let cursor_pos = cursor_position.min(chars.len());
-        
+
         let mut in_string = false;
         let mut in_comment = false;
         let mut paren_depth: usize = 0;
@@ -479,7 +637,7 @@ impl CompletionProvider {
         // Analyze the input up to cursor position
         for (i, &ch) in chars[..cursor_pos].iter().enumerate() {
             match ch {
-                '"' if i == 0 || chars[i-1] != '\\' => in_string = !in_string,
+                '"' if i == 0 || chars[i - 1] != '\\' => in_string = !in_string,
                 ';' if !in_string => in_comment = true,
                 '\n' => in_comment = false,
                 '(' if !in_string && !in_comment => paren_depth += 1,
@@ -494,8 +652,11 @@ impl CompletionProvider {
         }
 
         // Find the current word
-        while current_word_start < cursor_pos && 
-              chars.get(current_word_start).is_some_and(|c| c.is_whitespace()) {
+        while current_word_start < cursor_pos
+            && chars
+                .get(current_word_start)
+                .is_some_and(|c| c.is_whitespace())
+        {
             current_word_start += 1;
         }
 
@@ -520,7 +681,12 @@ impl CompletionProvider {
         }
     }
 
-    fn determine_context_type(&self, chars: &[char], cursor_pos: usize, _paren_depth: usize) -> ContextType {
+    fn determine_context_type(
+        &self,
+        chars: &[char],
+        cursor_pos: usize,
+        _paren_depth: usize,
+    ) -> ContextType {
         // Look backward to find context clues
         let mut i = cursor_pos;
         while i > 0 {
@@ -531,12 +697,12 @@ impl CompletionProvider {
                 while j < chars.len() && chars[j].is_whitespace() {
                     j += 1;
                 }
-                
+
                 let word_start = j;
                 while j < chars.len() && !chars[j].is_whitespace() && chars[j] != ')' {
                     j += 1;
                 }
-                
+
                 if word_start < j {
                     let word: String = chars[word_start..j].iter().collect();
                     return match word.as_str() {
@@ -547,11 +713,11 @@ impl CompletionProvider {
                         _ => ContextType::FunctionCall,
                     };
                 }
-                
+
                 return ContextType::Expression;
             }
         }
-        
+
         ContextType::Expression
     }
 
@@ -576,18 +742,18 @@ mod tests {
     fn test_completion_context_analysis() {
         let lambdust = crate::Lambdust::new();
         let provider = CompletionProvider::new(&lambdust).unwrap();
-        
+
         // Test basic function completion
         let context = provider.analyze_context("(+ 1 2", 6);
         assert_eq!(context.current_word, "2");
         assert_eq!(context.paren_depth, 1);
         assert!(!context.in_string);
-        
+
         // Test string context
         let context = provider.analyze_context("(load \"test", 11);
         assert_eq!(context.current_word, "test");
         assert!(context.in_string);
-        
+
         // Test function name completion
         let context = provider.analyze_context("(def", 4);
         assert_eq!(context.current_word, "def");
@@ -598,7 +764,7 @@ mod tests {
     fn test_completion_generation() {
         let lambdust = crate::Lambdust::new();
         let provider = CompletionProvider::new(&lambdust).unwrap();
-        
+
         let context = CompletionContext {
             input: "(+".to_string(),
             cursor_position: 2,
@@ -609,13 +775,16 @@ mod tests {
             paren_depth: 1,
             context_type: ContextType::Expression,
         };
-        
+
         let completions = provider.get_completions(&context);
         assert!(!completions.is_empty());
-        
+
         // Should find the + function
         let plus_completion = completions.iter().find(|c| c.text == "+");
         assert!(plus_completion.is_some());
-        assert_eq!(plus_completion.unwrap().completion_type, CompletionType::Function);
+        assert_eq!(
+            plus_completion.unwrap().completion_type,
+            CompletionType::Function
+        );
     }
 }

@@ -50,7 +50,7 @@
 //! - Terms of type Id_{Id_A(a,b)}(p, q) are homotopies between paths p and q
 //! - This extends to infinite dimensional groupoid structure
 
-use super::core::{DependentType, DependentTerm, TypingContext, Normalizer, UniverseLevel};
+use super::core::{DependentTerm, DependentType, Normalizer, TypingContext, UniverseLevel};
 use crate::diagnostics::{Error, Result, Span};
 use std::collections::HashMap;
 use std::fmt;
@@ -73,7 +73,11 @@ pub struct IdentityType {
 
 impl IdentityType {
     /// Construct a new identity type with automatic universe level calculation.
-    pub fn new(base_type: DependentType, left: DependentTerm, right: DependentTerm) -> Result<Self> {
+    pub fn new(
+        base_type: DependentType,
+        left: DependentTerm,
+        right: DependentTerm,
+    ) -> Result<Self> {
         let universe_level = Self::infer_universe_level(&base_type)?;
 
         Ok(Self {
@@ -89,7 +93,7 @@ impl IdentityType {
         base_type: DependentType,
         left: DependentTerm,
         right: DependentTerm,
-        universe_level: UniverseLevel
+        universe_level: UniverseLevel,
     ) -> Self {
         Self {
             base_type: Box::new(base_type),
@@ -117,7 +121,9 @@ impl IdentityType {
     fn infer_universe_level(ty: &DependentType) -> Result<UniverseLevel> {
         match ty {
             DependentType::Universe(level) => Ok(*level),
-            DependentType::Pi { domain, codomain, .. } => {
+            DependentType::Pi {
+                domain, codomain, ..
+            } => {
                 let domain_level = Self::infer_universe_level(domain)?;
                 let codomain_level = Self::infer_universe_level(codomain)?;
                 Ok(domain_level.max(codomain_level))
@@ -127,12 +133,8 @@ impl IdentityType {
                 let second_level = Self::infer_universe_level(second)?;
                 Ok(first_level.max(second_level))
             }
-            DependentType::Identity { ty, .. } => {
-                Self::infer_universe_level(ty)
-            }
-            DependentType::Inductive { universe_level, .. } => {
-                Ok(*universe_level)
-            }
+            DependentType::Identity { ty, .. } => Self::infer_universe_level(ty),
+            DependentType::Inductive { universe_level, .. } => Ok(*universe_level),
         }
     }
 
@@ -140,23 +142,25 @@ impl IdentityType {
     fn check_type_well_formed(ty: &DependentType, context: &TypingContext) -> Result<()> {
         match ty {
             DependentType::Universe(_) => Ok(()),
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 Self::check_type_well_formed(domain, context)?;
-                
+
                 let mut extended_context = context.clone();
                 extended_context.bind_variable(var.clone(), *domain.clone());
                 Self::check_type_well_formed(codomain, &extended_context)
             }
             DependentType::Sigma { var, first, second } => {
                 Self::check_type_well_formed(first, context)?;
-                
+
                 let mut extended_context = context.clone();
                 extended_context.bind_variable(var.clone(), *first.clone());
                 Self::check_type_well_formed(second, &extended_context)
             }
-            DependentType::Identity { ty, .. } => {
-                Self::check_type_well_formed(ty, context)
-            }
+            DependentType::Identity { ty, .. } => Self::check_type_well_formed(ty, context),
             DependentType::Inductive { constructors, .. } => {
                 for (_, ctor_type) in constructors {
                     Self::check_type_well_formed(ctor_type, context)?;
@@ -167,7 +171,12 @@ impl IdentityType {
     }
 
     /// Check that a term has a given type (simplified).
-    fn check_term_type(&self, term: &DependentTerm, expected_type: &DependentType, context: &TypingContext) -> Result<()> {
+    fn check_term_type(
+        &self,
+        term: &DependentTerm,
+        expected_type: &DependentType,
+        context: &TypingContext,
+    ) -> Result<()> {
         match term {
             DependentTerm::Variable(name) => {
                 if let Some(actual_type) = context.lookup_variable(name) {
@@ -175,14 +184,17 @@ impl IdentityType {
                         Ok(())
                     } else {
                         Err(Box::new(Error::type_error(
-                            format!("Variable {} has type {:?}, expected {:?}", name, actual_type, expected_type),
-                            Span::new(0, 0)
+                            format!(
+                                "Variable {} has type {:?}, expected {:?}",
+                                name, actual_type, expected_type
+                            ),
+                            Span::new(0, 0),
                         )))
                     }
                 } else {
                     Err(Box::new(Error::type_error(
                         format!("Unbound variable: {}", name),
-                        Span::new(0, 0)
+                        Span::new(0, 0),
                     )))
                 }
             }
@@ -236,13 +248,19 @@ impl ReflexivityProof {
     }
 
     /// Type check this reflexivity proof against an expected identity type.
-    pub fn type_check(&self, expected_identity: &IdentityType, context: &mut TypingContext) -> Result<()> {
+    pub fn type_check(
+        &self,
+        expected_identity: &IdentityType,
+        context: &mut TypingContext,
+    ) -> Result<()> {
         // Check that the term has the expected base type
         if *self.term_type != *expected_identity.base_type {
             return Err(Box::new(Error::type_error(
-                format!("Term type mismatch: expected {:?}, got {:?}",
-                       expected_identity.base_type, self.term_type),
-                Span::new(0, 0)
+                format!(
+                    "Term type mismatch: expected {:?}, got {:?}",
+                    expected_identity.base_type, self.term_type
+                ),
+                Span::new(0, 0),
             )));
         }
 
@@ -255,7 +273,7 @@ impl ReflexivityProof {
         if norm_term != norm_left || norm_term != norm_right {
             return Err(Box::new(Error::type_error(
                 "Reflexivity proof requires both sides to be equal to the term".to_string(),
-                Span::new(0, 0)
+                Span::new(0, 0),
             )));
         }
 
@@ -303,7 +321,7 @@ impl JEliminator {
         motive: DependentType,
         base_case: DependentTerm,
         proof: DependentTerm,
-        identity_type: IdentityType
+        identity_type: IdentityType,
     ) -> Self {
         Self {
             motive: Box::new(motive),
@@ -331,49 +349,67 @@ impl JEliminator {
     }
 
     /// Check that the motive is well-formed.
-    /// 
+    ///
     /// The motive should have the form: (x : A) → (y : A) → Id_A(x,y) → Type_i
     /// where A is the base type of the identity type.
     fn check_motive_well_formed(&self, context: &TypingContext) -> Result<()> {
         // The motive should be: (x : A) → (y : A) → Id_A(x,y) → Type_i
         match self.motive.as_ref() {
-            DependentType::Pi { var: x_var, domain: x_domain, codomain: rest1 } => {
+            DependentType::Pi {
+                var: x_var,
+                domain: x_domain,
+                codomain: rest1,
+            } => {
                 // First argument: x : A
                 if **x_domain != *self.identity_type.base_type {
                     return Err(Box::new(Error::type_error(
-                        format!("Motive first domain must match identity type base: expected {:?}, got {:?}", 
-                               self.identity_type.base_type, x_domain),
-                        Span::new(0, 0)
+                        format!(
+                            "Motive first domain must match identity type base: expected {:?}, got {:?}",
+                            self.identity_type.base_type, x_domain
+                        ),
+                        Span::new(0, 0),
                     )));
                 }
 
                 // Second level: (y : A) → Id_A(x,y) → Type_i
                 match rest1.as_ref() {
-                    DependentType::Pi { var: y_var, domain: y_domain, codomain: rest2 } => {
+                    DependentType::Pi {
+                        var: y_var,
+                        domain: y_domain,
+                        codomain: rest2,
+                    } => {
                         // Second argument: y : A
                         if **y_domain != *self.identity_type.base_type {
                             return Err(Box::new(Error::type_error(
-                                format!("Motive second domain must match identity type base: expected {:?}, got {:?}", 
-                                       self.identity_type.base_type, y_domain),
-                                Span::new(0, 0)
+                                format!(
+                                    "Motive second domain must match identity type base: expected {:?}, got {:?}",
+                                    self.identity_type.base_type, y_domain
+                                ),
+                                Span::new(0, 0),
                             )));
                         }
 
                         // Third level: Id_A(x,y) → Type_i
                         match rest2.as_ref() {
-                            DependentType::Pi { var: _p_var, domain: p_domain, codomain: result_type } => {
+                            DependentType::Pi {
+                                var: _p_var,
+                                domain: p_domain,
+                                codomain: result_type,
+                            } => {
                                 // Third argument: p : Id_A(x,y)
                                 let expected_identity = DependentType::Identity {
                                     ty: self.identity_type.base_type.clone(),
                                     left: Box::new(DependentTerm::Variable(x_var.clone())),
                                     right: Box::new(DependentTerm::Variable(y_var.clone())),
                                 };
-                                
+
                                 if **p_domain != expected_identity {
                                     return Err(Box::new(Error::type_error(
-                                        format!("Motive third domain must be identity type Id_A(x,y): expected {:?}, got {:?}", 
-                                               expected_identity, p_domain),
-                                        Span::new(0, 0)
+                                        format!(
+                                            "Motive third domain must be identity type Id_A(x,y): expected {:?}, got {:?}",
+                                            expected_identity, p_domain
+                                        ),
+                                        Span::new(0, 0),
                                     )));
                                 }
 
@@ -381,93 +417,102 @@ impl JEliminator {
                                 match result_type.as_ref() {
                                     DependentType::Universe(_) => Ok(()),
                                     _ => Err(Box::new(Error::type_error(
-                                        format!("Motive result must be a universe type, got {:?}", result_type),
-                                        Span::new(0, 0)
-                                    )))
+                                        format!(
+                                            "Motive result must be a universe type, got {:?}",
+                                            result_type
+                                        ),
+                                        Span::new(0, 0),
+                                    ))),
                                 }
                             }
                             _ => Err(Box::new(Error::type_error(
-                                "Motive must have form (x:A) → (y:A) → Id_A(x,y) → Type_i".to_string(),
-                                Span::new(0, 0)
-                            )))
+                                "Motive must have form (x:A) → (y:A) → Id_A(x,y) → Type_i"
+                                    .to_string(),
+                                Span::new(0, 0),
+                            ))),
                         }
                     }
                     _ => Err(Box::new(Error::type_error(
                         "Motive must have form (x:A) → (y:A) → Id_A(x,y) → Type_i".to_string(),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))),
                 }
             }
             _ => Err(Box::new(Error::type_error(
                 "J-eliminator motive must be a dependent function type".to_string(),
-                Span::new(0, 0)
-            )))
+                Span::new(0, 0),
+            ))),
         }
     }
 
     /// Check that the base case has the correct type.
-    /// 
+    ///
     /// The base case should have type: (z : A) → C(z, z, refl_z)
     /// where C is the motive and A is the base type of the identity type.
     fn check_base_case_type(&self, context: &TypingContext) -> Result<()> {
         // Extract the motive structure to construct the expected base case type
         let normalizer = Normalizer::new();
-        
+
         // The expected type is: (z : A) → C(z, z, refl_z)
         let base_type = self.identity_type.base_type.clone();
-        
+
         // Create refl_z term for the type
         let refl_z = DependentTerm::Refl {
             ty: base_type.clone(),
         };
-        
+
         // Apply the motive C to (z, z, refl_z) to get C(z, z, refl_z)
         // First application: C(z) where z : A
         let z_var = DependentTerm::Variable("z".to_string());
-        
+
         // C(z)
         let motive_applied_once = DependentTerm::Application {
             function: Box::new(DependentTerm::from(self.motive.as_ref().clone())),
             argument: Box::new(z_var.clone()),
         };
-        
+
         // C(z)(z) - apply to second z
         let motive_applied_twice = DependentTerm::Application {
             function: Box::new(motive_applied_once),
             argument: Box::new(z_var.clone()),
         };
-        
+
         // C(z)(z)(refl_z) - apply to reflexivity proof
         let motive_fully_applied = DependentTerm::Application {
             function: Box::new(motive_applied_twice),
             argument: Box::new(refl_z),
         };
-        
+
         // Normalize to get the expected result type
         let expected_result_type = normalizer.normalize_term(&motive_fully_applied)?;
-        
+
         // Convert the normalized term back to a type (this is a simplified conversion)
-        let expected_result_type_as_type = self.term_to_type_approximation(&expected_result_type)?;
-        
+        let expected_result_type_as_type =
+            self.term_to_type_approximation(&expected_result_type)?;
+
         // Construct the expected base case type: (z : A) → C(z, z, refl_z)
         let expected_base_case_type = DependentType::Pi {
             var: "z".to_string(),
             domain: base_type,
             codomain: Box::new(expected_result_type_as_type),
         };
-        
+
         // For now, we'll do a structural check (in a full implementation, we'd use proper type inference)
         match self.base_case.as_ref() {
-            DependentTerm::Lambda { param, param_type, .. } => {
+            DependentTerm::Lambda {
+                param, param_type, ..
+            } => {
                 // Check that the parameter type matches A
                 if **param_type != *self.identity_type.base_type {
                     return Err(Box::new(Error::type_error(
-                        format!("Base case parameter type must match identity type base: expected {:?}, got {:?}",
-                               self.identity_type.base_type, param_type),
-                        Span::new(0, 0)
+                        format!(
+                            "Base case parameter type must match identity type base: expected {:?}, got {:?}",
+                            self.identity_type.base_type, param_type
+                        ),
+                        Span::new(0, 0),
                     )));
                 }
-                
+
                 // Additional checks would require full type inference of the body
                 // For now, we'll assume it's well-formed if the parameter type is correct
                 Ok(())
@@ -481,7 +526,7 @@ impl JEliminator {
     }
 
     /// Check that the proof has the expected identity type.
-    /// 
+    ///
     /// Verifies that the proof term has type Id_A(a, b) where A, a, b match the identity_type.
     fn check_proof_type(&self, context: &TypingContext) -> Result<()> {
         // Check if the proof is a reflexivity proof
@@ -491,58 +536,64 @@ impl JEliminator {
                 let normalizer = Normalizer::new();
                 let norm_left = normalizer.normalize_term(&self.identity_type.left)?;
                 let norm_right = normalizer.normalize_term(&self.identity_type.right)?;
-                
+
                 if norm_left != norm_right {
                     return Err(Box::new(Error::type_error(
                         "Reflexivity proof requires equal left and right terms".to_string(),
-                        Span::new(0, 0)
+                        Span::new(0, 0),
                     )));
                 }
-                
+
                 // Check that the type annotation matches the base type
                 if **ty != *self.identity_type.base_type {
                     return Err(Box::new(Error::type_error(
-                        format!("Reflexivity proof type annotation must match identity base type: expected {:?}, got {:?}",
-                               self.identity_type.base_type, ty),
-                        Span::new(0, 0)
+                        format!(
+                            "Reflexivity proof type annotation must match identity base type: expected {:?}, got {:?}",
+                            self.identity_type.base_type, ty
+                        ),
+                        Span::new(0, 0),
                     )));
                 }
-                
+
                 Ok(())
             }
             DependentTerm::Variable(name) => {
                 // For variable proofs, check context (simplified)
                 if let Some(proof_type) = context.lookup_variable(name) {
                     let expected_identity_type = self.identity_type.to_dependent_type();
-                    
+
                     // Check if the proof type matches the expected identity type
                     if *proof_type == expected_identity_type {
                         Ok(())
                     } else {
                         Err(Box::new(Error::type_error(
-                            format!("Proof variable type mismatch: expected {:?}, got {:?}",
-                                   expected_identity_type, proof_type),
-                            Span::new(0, 0)
+                            format!(
+                                "Proof variable type mismatch: expected {:?}, got {:?}",
+                                expected_identity_type, proof_type
+                            ),
+                            Span::new(0, 0),
                         )))
                     }
                 } else {
                     Err(Box::new(Error::type_error(
                         format!("Unbound proof variable: {}", name),
-                        Span::new(0, 0)
+                        Span::new(0, 0),
                     )))
                 }
             }
             DependentTerm::Constructor { result_type, .. } => {
                 // For constructor terms, check result type
                 let expected_identity_type = self.identity_type.to_dependent_type();
-                
+
                 if **result_type == expected_identity_type {
                     Ok(())
                 } else {
                     Err(Box::new(Error::type_error(
-                        format!("Constructor result type mismatch: expected {:?}, got {:?}",
-                               expected_identity_type, result_type),
-                        Span::new(0, 0)
+                        format!(
+                            "Constructor result type mismatch: expected {:?}, got {:?}",
+                            expected_identity_type, result_type
+                        ),
+                        Span::new(0, 0),
                     )))
                 }
             }
@@ -555,44 +606,44 @@ impl JEliminator {
     }
 
     /// Instantiate the motive with the specific terms from the identity type.
-    /// 
+    ///
     /// This applies the motive C to the terms a, b, and proof to get C(a, b, proof).
     /// The motive has type (x : A) → (y : A) → Id_A(x,y) → Type_i
     fn instantiate_motive(&self) -> Result<DependentType> {
         let normalizer = Normalizer::new();
-        
+
         // Apply the motive step by step: C(a)(b)(proof)
         // First application: C(a) where a is from the identity type
         let motive_term = DependentTerm::from(self.motive.as_ref().clone());
-        
+
         // C(a)
         let motive_applied_to_a = DependentTerm::Application {
             function: Box::new(motive_term),
             argument: self.identity_type.left.clone(),
         };
-        
+
         // C(a)(b) - apply to the second term
         let motive_applied_to_ab = DependentTerm::Application {
             function: Box::new(motive_applied_to_a),
             argument: self.identity_type.right.clone(),
         };
-        
+
         // C(a)(b)(proof) - apply to the proof term
         let motive_fully_applied = DependentTerm::Application {
             function: Box::new(motive_applied_to_ab),
             argument: self.proof.clone(),
         };
-        
+
         // Normalize the result to get the canonical type
         let normalized_result = normalizer.normalize_term(&motive_fully_applied)?;
-        
+
         // Convert the normalized term back to a type
         // This step requires careful handling as we're dealing with dependent types
         match normalized_result {
             // If it reduces to a universe constructor
-            DependentTerm::Constructor { name, result_type, .. } if name.starts_with("Type") => {
-                Ok(result_type.as_ref().clone())
-            }
+            DependentTerm::Constructor {
+                name, result_type, ..
+            } if name.starts_with("Type") => Ok(result_type.as_ref().clone()),
             // If it reduces to a variable (might be a type variable)
             DependentTerm::Variable(name) if name.starts_with("Type") => {
                 if let Some(level_str) = name.strip_prefix("Type_") {
@@ -618,9 +669,9 @@ impl JEliminator {
             }
         }
     }
-    
+
     /// Reconstruct a dependent type from an application term.
-    /// 
+    ///
     /// This handles cases where the motive instantiation results in a complex
     /// type expression represented as nested applications.
     fn reconstruct_type_from_application(&self, term: &DependentTerm) -> Result<DependentType> {
@@ -628,7 +679,10 @@ impl JEliminator {
             DependentTerm::Application { function, argument } => {
                 // Try to reconstruct based on the function part
                 match function.as_ref() {
-                    DependentTerm::Application { function: inner_func, argument: first_arg } => {
+                    DependentTerm::Application {
+                        function: inner_func,
+                        argument: first_arg,
+                    } => {
                         // This might be C(a)(b) where we need to apply to the proof
                         // For complex cases, we'll create an identity type as a reasonable approximation
                         Ok(DependentType::Identity {
@@ -640,13 +694,11 @@ impl JEliminator {
                     DependentTerm::Variable(name) if name == "Id" || name.contains("Identity") => {
                         // This looks like an identity type constructor
                         match argument.as_ref() {
-                            DependentTerm::Pair { first, second } => {
-                                Ok(DependentType::Identity {
-                                    ty: self.identity_type.base_type.clone(),
-                                    left: first.clone(),
-                                    right: second.clone(),
-                                })
-                            }
+                            DependentTerm::Pair { first, second } => Ok(DependentType::Identity {
+                                ty: self.identity_type.base_type.clone(),
+                                left: first.clone(),
+                                right: second.clone(),
+                            }),
                             _ => {
                                 // Single argument to identity type constructor
                                 Ok(DependentType::Identity {
@@ -671,32 +723,33 @@ impl JEliminator {
     }
 
     /// Perform J-reduction when the proof is a reflexivity proof.
-    /// 
+    ///
     /// Implements the computation rule: J(C, d, a, a, refl_a) ≡ d(a)
     /// where C is the motive, d is the base case, and refl_a is the reflexivity proof.
     pub fn reduce(&self, normalizer: &Normalizer) -> Result<DependentTerm> {
         match self.proof.as_ref() {
             DependentTerm::Refl { ty } => {
                 // This is the key computation rule: J(C, d, a, a, refl_a) ≡ d(a)
-                
+
                 // First, we need to extract the term 'a' from the reflexivity context
                 // For refl_a : Id_A(a, a), we need to identify what 'a' is
-                
+
                 let normalizer = Normalizer::new();
                 let norm_left = normalizer.normalize_term(&self.identity_type.left)?;
                 let norm_right = normalizer.normalize_term(&self.identity_type.right)?;
-                
+
                 // For reflexivity, left and right should be equal
                 if norm_left != norm_right {
                     return Err(Box::new(Error::type_error(
-                        "J-reduction on reflexivity proof requires equal left and right terms".to_string(),
-                        Span::new(0, 0)
+                        "J-reduction on reflexivity proof requires equal left and right terms"
+                            .to_string(),
+                        Span::new(0, 0),
                     )));
                 }
-                
+
                 // The term 'a' is the normalized left (or right) term
                 let term_a = norm_left;
-                
+
                 // Now we apply the base case d to the term a: d(a)
                 match self.base_case.as_ref() {
                     DependentTerm::Lambda { .. } => {
@@ -719,7 +772,7 @@ impl JEliminator {
                         // d is a constructor term, apply it to a
                         let mut new_args = args.clone();
                         new_args.push(term_a);
-                        
+
                         Ok(DependentTerm::Constructor {
                             name: name.clone(),
                             args: new_args,
@@ -740,16 +793,16 @@ impl JEliminator {
                 // Cannot reduce non-reflexivity proofs directly
                 // Return the J-eliminator as a constructor term
                 let result_type = self.instantiate_motive()?;
-                
+
                 Ok(DependentTerm::Constructor {
                     name: "J".to_string(),
                     args: vec![
                         // Include all relevant components in the J-eliminator term
                         DependentTerm::from(self.motive.as_ref().clone()), // Motive C
-                        self.base_case.as_ref().clone(),                    // Base case d
-                        self.identity_type.left.as_ref().clone(),           // Left term a
-                        self.identity_type.right.as_ref().clone(),          // Right term b  
-                        self.proof.as_ref().clone(),                        // Proof p
+                        self.base_case.as_ref().clone(),                   // Base case d
+                        self.identity_type.left.as_ref().clone(),          // Left term a
+                        self.identity_type.right.as_ref().clone(),         // Right term b
+                        self.proof.as_ref().clone(),                       // Proof p
                     ],
                     result_type: Box::new(result_type),
                 })
@@ -761,21 +814,20 @@ impl JEliminator {
     pub fn to_dependent_term(&self) -> DependentTerm {
         DependentTerm::Constructor {
             name: "J".to_string(),
-            args: vec![
-                self.base_case.as_ref().clone(),
-                self.proof.as_ref().clone(),
-            ],
+            args: vec![self.base_case.as_ref().clone(), self.proof.as_ref().clone()],
             result_type: Box::new(self.identity_type.to_dependent_type()),
         }
     }
 
     /// Helper method to convert a term back to a type (simplified approximation).
-    /// 
+    ///
     /// In full dependent type theory, terms and types can be interconvertible
     /// through the judgmental equality system. This is a simplified approximation.
     fn term_to_type_approximation(&self, term: &DependentTerm) -> Result<DependentType> {
         match term {
-            DependentTerm::Constructor { name, result_type, .. } if name.starts_with("Type") => {
+            DependentTerm::Constructor {
+                name, result_type, ..
+            } if name.starts_with("Type") => {
                 // Try to extract universe level from constructor name
                 if let Some(level_str) = name.strip_prefix("Type_") {
                     if let Ok(level) = level_str.parse::<u32>() {
@@ -816,7 +868,7 @@ impl PathOperations {
         // sym(p) := J(λx.Id_A(x, a), refl_a, p)
         let base_type = identity_type.base_type.clone();
         let left_term = identity_type.left.clone();
-        
+
         // Create the motive: λx.Id_A(x, a)
         let motive = DependentType::Pi {
             var: "x".to_string(),
@@ -829,16 +881,9 @@ impl PathOperations {
         };
 
         // Create the base case: refl_a
-        let base_case = DependentTerm::Refl {
-            ty: base_type,
-        };
+        let base_case = DependentTerm::Refl { ty: base_type };
 
-        let j_eliminator = JEliminator::new(
-            motive,
-            base_case,
-            proof,
-            identity_type.clone()
-        );
+        let j_eliminator = JEliminator::new(motive, base_case, proof, identity_type.clone());
 
         Ok(j_eliminator.to_dependent_term())
     }
@@ -848,19 +893,19 @@ impl PathOperations {
         proof1: DependentTerm,
         proof2: DependentTerm,
         identity1: &IdentityType,
-        identity2: &IdentityType
+        identity2: &IdentityType,
     ) -> Result<DependentTerm> {
         // Check that the types are compatible (b from first = b from second)
         if identity1.right != identity2.left {
             return Err(Box::new(Error::type_error(
                 "Cannot compose non-matching identity proofs".to_string(),
-                Span::new(0, 0)
+                Span::new(0, 0),
             )));
         }
 
         // trans(p, q) := J(λy.λr.Id_A(a, y), λ_.refl_a, proof2)(proof1)
         // This is a complex construction requiring nested J-eliminators
-        
+
         let base_type = identity1.base_type.clone();
         let left_term = identity1.left.clone();
         let right_term = identity2.right.clone();
@@ -869,7 +914,7 @@ impl PathOperations {
         let composed_identity = IdentityType::new(
             (*base_type).clone(),
             (*left_term).clone(),
-            (*right_term).clone()
+            (*right_term).clone(),
         )?;
 
         // For now, return a constructor term representing the composition
@@ -885,10 +930,10 @@ impl PathOperations {
         type_family: DependentType,
         proof: DependentTerm,
         term: DependentTerm,
-        identity_type: &IdentityType
+        identity_type: &IdentityType,
     ) -> Result<DependentTerm> {
         // transport(P, p, u) := J(λy.λr.P(y), λ_.u, p)
-        
+
         // Create the motive: λy.λr.P(y)
         let motive = DependentType::Pi {
             var: "y".to_string(),
@@ -906,12 +951,7 @@ impl PathOperations {
 
         let base_case = term;
 
-        let j_eliminator = JEliminator::new(
-            motive,
-            base_case,
-            proof,
-            identity_type.clone()
-        );
+        let j_eliminator = JEliminator::new(motive, base_case, proof, identity_type.clone());
 
         Ok(j_eliminator.to_dependent_term())
     }
@@ -921,10 +961,10 @@ impl PathOperations {
         function: DependentTerm,
         proof: DependentTerm,
         identity_type: &IdentityType,
-        target_type: DependentType
+        target_type: DependentType,
     ) -> Result<DependentTerm> {
         // cong(f, p) := J(λy.λr.Id_B(f(a), f(y)), refl_{f(a)}, p)
-        
+
         let left_applied = DependentTerm::Application {
             function: Box::new(function.clone()),
             argument: identity_type.left.clone(),
@@ -957,12 +997,7 @@ impl PathOperations {
             ty: Box::new(target_type),
         };
 
-        let j_eliminator = JEliminator::new(
-            motive,
-            base_case,
-            proof,
-            identity_type.clone()
-        );
+        let j_eliminator = JEliminator::new(motive, base_case, proof, identity_type.clone());
 
         Ok(j_eliminator.to_dependent_term())
     }
@@ -971,7 +1006,7 @@ impl PathOperations {
     pub fn proof_equality(
         proof1: DependentTerm,
         proof2: DependentTerm,
-        identity_type: &IdentityType
+        identity_type: &IdentityType,
     ) -> IdentityType {
         // Create Id_{Id_A(a,b)}(proof1, proof2)
         IdentityType {
@@ -998,7 +1033,7 @@ impl HigherInductiveTypes {
             parameters: vec![],
             universe_level: 0,
             constructors: vec![
-                ("base".to_string(), DependentType::Universe(0)) // Placeholder
+                ("base".to_string(), DependentType::Universe(0)), // Placeholder
             ],
             induction_principle: None,
         };
@@ -1030,7 +1065,7 @@ impl HigherInductiveTypes {
             universe_level: 0,
             constructors: vec![
                 ("i0".to_string(), DependentType::Universe(0)),
-                ("i1".to_string(), DependentType::Universe(0))
+                ("i1".to_string(), DependentType::Universe(0)),
             ],
             induction_principle: None,
         };
@@ -1104,7 +1139,7 @@ mod tests {
         let base_type = DependentType::Universe(0);
         let term_a = DependentTerm::Variable("a".to_string());
         let term_b = DependentTerm::Variable("b".to_string());
-        
+
         let identity = IdentityType::new(base_type, term_a, term_b).unwrap();
         assert_eq!(identity.universe_level, 0);
     }
@@ -1113,9 +1148,9 @@ mod tests {
     fn test_reflexive_identity() {
         let base_type = DependentType::Universe(0);
         let term = DependentTerm::Variable("a".to_string());
-        
+
         let reflexive_id = IdentityType::reflexive(base_type, term).unwrap();
-        
+
         let normalizer = Normalizer::new();
         assert!(reflexive_id.is_reflexive(&normalizer).unwrap());
     }
@@ -1124,10 +1159,10 @@ mod tests {
     fn test_reflexivity_proof() {
         let term = DependentTerm::Variable("a".to_string());
         let term_type = DependentType::Universe(0);
-        
+
         let refl_proof = ReflexivityProof::new(term, term_type);
         let identity_type = refl_proof.identity_type();
-        
+
         // Reflexivity proof should create identity between the term and itself
         let normalizer = Normalizer::new();
         assert!(identity_type.is_reflexive(&normalizer).unwrap());
@@ -1138,12 +1173,12 @@ mod tests {
         let base_type = DependentType::Universe(0);
         let term_a = DependentTerm::Variable("a".to_string());
         let term_b = DependentTerm::Variable("b".to_string());
-        
+
         let identity = IdentityType::new(base_type, term_a, term_b).unwrap();
         let proof = DependentTerm::Variable("p".to_string());
-        
+
         let symmetric_proof = PathOperations::symmetry(proof, &identity).unwrap();
-        
+
         // Should create a valid dependent term
         match symmetric_proof {
             DependentTerm::Constructor { name, .. } => {
@@ -1156,7 +1191,7 @@ mod tests {
     #[test]
     fn test_higher_inductive_circle() {
         let (circle_type, base_point, loop_path) = HigherInductiveTypes::circle_type();
-        
+
         // Check that we got the expected constructors
         match circle_type {
             DependentType::Inductive { name, .. } => {
@@ -1164,14 +1199,14 @@ mod tests {
             }
             _ => panic!("Expected inductive type"),
         }
-        
+
         match base_point {
             DependentTerm::Constructor { name, .. } => {
                 assert_eq!(name, "base");
             }
             _ => panic!("Expected constructor term"),
         }
-        
+
         match loop_path {
             DependentTerm::Constructor { name, .. } => {
                 assert_eq!(name, "loop");
@@ -1188,11 +1223,12 @@ mod tests {
         let identity_type = IdentityType::new(
             DependentType::Universe(0),
             DependentTerm::Variable("a".to_string()),
-            DependentTerm::Variable("b".to_string())
-        ).unwrap();
-        
+            DependentTerm::Variable("b".to_string()),
+        )
+        .unwrap();
+
         let j_elim = JEliminator::new(motive, base_case, proof, identity_type);
-        
+
         // Should create a valid J-eliminator
         let term = j_elim.to_dependent_term();
         match term {
@@ -1208,10 +1244,10 @@ mod tests {
         let base_type = DependentType::Universe(0);
         let term_a = DependentTerm::Variable("a".to_string());
         let term_b = DependentTerm::Variable("b".to_string());
-        
+
         let identity = IdentityType::new(base_type, term_a, term_b).unwrap();
         let display = format!("{}", identity);
-        
+
         assert!(display.contains("Id_"));
         assert!(display.contains("a"));
         assert!(display.contains("b"));
@@ -1221,7 +1257,7 @@ mod tests {
     fn test_j_eliminator_motive_well_formedness() {
         // Test proper motive structure: (x : A) → (y : A) → Id_A(x,y) → Type_0
         let base_type = DependentType::Universe(0);
-        
+
         // Create a well-formed motive
         let motive = DependentType::Pi {
             var: "x".to_string(),
@@ -1240,24 +1276,25 @@ mod tests {
                 }),
             }),
         };
-        
+
         let base_case = DependentTerm::Lambda {
             param: "z".to_string(),
             param_type: Box::new(base_type.clone()),
             body: Box::new(DependentTerm::Variable("z".to_string())), // Identity function
         };
-        
+
         let identity_type = IdentityType::new(
             base_type,
             DependentTerm::Variable("a".to_string()),
-            DependentTerm::Variable("b".to_string())
-        ).unwrap();
-        
+            DependentTerm::Variable("b".to_string()),
+        )
+        .unwrap();
+
         let proof = DependentTerm::Variable("p".to_string());
-        
+
         let j_elim = JEliminator::new(motive, base_case, proof, identity_type);
         let mut context = TypingContext::new();
-        
+
         // Should pass motive well-formedness check
         assert!(j_elim.check_motive_well_formed(&context).is_ok());
     }
@@ -1267,19 +1304,20 @@ mod tests {
         // Test malformed motive (just a universe type, not a function)
         let base_type = DependentType::Universe(0);
         let malformed_motive = DependentType::Universe(1);
-        
+
         let base_case = DependentTerm::Variable("base".to_string());
         let identity_type = IdentityType::new(
             base_type,
             DependentTerm::Variable("a".to_string()),
-            DependentTerm::Variable("b".to_string())
-        ).unwrap();
-        
+            DependentTerm::Variable("b".to_string()),
+        )
+        .unwrap();
+
         let proof = DependentTerm::Variable("p".to_string());
-        
+
         let j_elim = JEliminator::new(malformed_motive, base_case, proof, identity_type);
         let context = TypingContext::new();
-        
+
         // Should fail motive well-formedness check
         assert!(j_elim.check_motive_well_formed(&context).is_err());
     }
@@ -1289,10 +1327,10 @@ mod tests {
         // Test the computation rule: J(..., refl_a) ≡ d(a)
         let base_type = DependentType::Universe(0);
         let term_a = DependentTerm::Variable("a".to_string());
-        
+
         // Create reflexive identity type
         let identity_type = IdentityType::reflexive(base_type.clone(), term_a.clone()).unwrap();
-        
+
         // Simple motive for testing
         let motive = DependentType::Pi {
             var: "x".to_string(),
@@ -1311,7 +1349,7 @@ mod tests {
                 }),
             }),
         };
-        
+
         // Base case d: λz.something(z)
         let base_case = DependentTerm::Lambda {
             param: "z".to_string(),
@@ -1322,18 +1360,18 @@ mod tests {
                 result_type: Box::new(DependentType::Universe(0)),
             }),
         };
-        
+
         // Reflexivity proof
         let refl_proof = DependentTerm::Refl {
             ty: Box::new(base_type),
         };
-        
+
         let j_elim = JEliminator::new(motive, base_case, refl_proof, identity_type);
         let normalizer = Normalizer::new();
-        
+
         // Apply J-reduction
         let result = j_elim.reduce(&normalizer).unwrap();
-        
+
         // The result should be d(a), which after β-reduction should be result(a)
         match result {
             DependentTerm::Constructor { name, args, .. } => {
@@ -1343,48 +1381,57 @@ mod tests {
                     assert_eq!(var_name, "a");
                 }
             }
-            _ => panic!("Expected constructor term from J-reduction, got {:?}", result),
+            _ => panic!(
+                "Expected constructor term from J-reduction, got {:?}",
+                result
+            ),
         }
     }
 
     #[test]
     fn test_j_eliminator_base_case_type_check() {
         let base_type = DependentType::Universe(0);
-        
+
         // Valid base case: λz:A.something
         let valid_base_case = DependentTerm::Lambda {
             param: "z".to_string(),
             param_type: Box::new(base_type.clone()),
             body: Box::new(DependentTerm::Variable("z".to_string())),
         };
-        
-        // Invalid base case: wrong parameter type  
+
+        // Invalid base case: wrong parameter type
         let invalid_base_case = DependentTerm::Lambda {
             param: "z".to_string(),
             param_type: Box::new(DependentType::Universe(1)), // Wrong type
             body: Box::new(DependentTerm::Variable("z".to_string())),
         };
-        
+
         let motive = DependentType::Pi {
             var: "x".to_string(),
             domain: Box::new(base_type.clone()),
             codomain: Box::new(DependentType::Universe(0)),
         };
-        
+
         let identity_type = IdentityType::new(
             base_type,
             DependentTerm::Variable("a".to_string()),
-            DependentTerm::Variable("b".to_string())
-        ).unwrap();
-        
+            DependentTerm::Variable("b".to_string()),
+        )
+        .unwrap();
+
         let proof = DependentTerm::Variable("p".to_string());
-        
+
         // Valid case should pass
-        let valid_j_elim = JEliminator::new(motive.clone(), valid_base_case, proof.clone(), identity_type.clone());
+        let valid_j_elim = JEliminator::new(
+            motive.clone(),
+            valid_base_case,
+            proof.clone(),
+            identity_type.clone(),
+        );
         let context = TypingContext::new();
         assert!(valid_j_elim.check_base_case_type(&context).is_ok());
-        
-        // Invalid case should fail  
+
+        // Invalid case should fail
         let invalid_j_elim = JEliminator::new(motive, invalid_base_case, proof, identity_type);
         assert!(invalid_j_elim.check_base_case_type(&context).is_err());
     }
@@ -1393,29 +1440,34 @@ mod tests {
     fn test_j_eliminator_proof_verification() {
         let base_type = DependentType::Universe(0);
         let term_a = DependentTerm::Variable("a".to_string());
-        
+
         // Create identity type
         let identity_type = IdentityType::reflexive(base_type.clone(), term_a.clone()).unwrap();
-        
+
         // Valid reflexivity proof
         let valid_proof = DependentTerm::Refl {
             ty: Box::new(base_type.clone()),
         };
-        
+
         // Invalid reflexivity proof (wrong type annotation)
         let invalid_proof = DependentTerm::Refl {
             ty: Box::new(DependentType::Universe(1)), // Wrong type
         };
-        
+
         let motive = DependentType::Universe(0);
         let base_case = DependentTerm::Variable("base".to_string());
-        
+
         // Test valid proof
-        let valid_j_elim = JEliminator::new(motive.clone(), base_case.clone(), valid_proof, identity_type.clone());
+        let valid_j_elim = JEliminator::new(
+            motive.clone(),
+            base_case.clone(),
+            valid_proof,
+            identity_type.clone(),
+        );
         let context = TypingContext::new();
         assert!(valid_j_elim.check_proof_type(&context).is_ok());
-        
-        // Test invalid proof  
+
+        // Test invalid proof
         let invalid_j_elim = JEliminator::new(motive, base_case, invalid_proof, identity_type);
         assert!(invalid_j_elim.check_proof_type(&context).is_err());
     }
@@ -1424,7 +1476,7 @@ mod tests {
     fn test_j_eliminator_type_checking() {
         // Complete type checking test for J-eliminator
         let base_type = DependentType::Universe(0);
-        
+
         // Well-formed motive
         let motive = DependentType::Pi {
             var: "x".to_string(),
@@ -1443,22 +1495,24 @@ mod tests {
                 }),
             }),
         };
-        
+
         // Well-formed base case
         let base_case = DependentTerm::Lambda {
             param: "z".to_string(),
             param_type: Box::new(base_type.clone()),
             body: Box::new(DependentTerm::Variable("z".to_string())),
         };
-        
+
         // Identity type and reflexivity proof
         let term_a = DependentTerm::Variable("a".to_string());
         let identity_type = IdentityType::reflexive(base_type.clone(), term_a).unwrap();
-        let proof = DependentTerm::Refl { ty: Box::new(base_type) };
-        
+        let proof = DependentTerm::Refl {
+            ty: Box::new(base_type),
+        };
+
         let j_elim = JEliminator::new(motive, base_case, proof, identity_type);
         let mut context = TypingContext::new();
-        
+
         // Complete type check should succeed
         let result_type = j_elim.type_check(&mut context);
         assert!(result_type.is_ok());
@@ -1468,7 +1522,7 @@ mod tests {
     fn test_j_eliminator_motive_instantiation() {
         // Test that motive instantiation works correctly
         let base_type = DependentType::Universe(0);
-        
+
         // Create a motive that returns a specific type
         let motive = DependentType::Pi {
             var: "x".to_string(),
@@ -1487,21 +1541,22 @@ mod tests {
                 }),
             }),
         };
-        
+
         let base_case = DependentTerm::Variable("d".to_string());
         let identity_type = IdentityType::new(
             base_type,
             DependentTerm::Variable("a".to_string()),
-            DependentTerm::Variable("b".to_string())
-        ).unwrap();
+            DependentTerm::Variable("b".to_string()),
+        )
+        .unwrap();
         let proof = DependentTerm::Variable("p".to_string());
-        
+
         let j_elim = JEliminator::new(motive, base_case, proof, identity_type);
-        
+
         // Instantiate the motive C(a, b, p)
         let instantiated = j_elim.instantiate_motive();
         assert!(instantiated.is_ok());
-        
+
         // The result should be some type (specific result depends on implementation details)
         let result_type = instantiated.unwrap();
         match result_type {

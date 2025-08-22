@@ -22,7 +22,7 @@ pub enum GradualDependentType {
     /// Type-level dynamic: ⋆ (star)
     /// Represents unknown or dynamic computation at type level
     TypeDynamic,
-    
+
     /// Partially known Π-type: (x : A) → B(x)
     /// where A or B might contain TypeDynamic
     GradualPi {
@@ -30,15 +30,15 @@ pub enum GradualDependentType {
         domain: Box<Type>,
         codomain: Box<Type>,
     },
-    
+
     /// Partially known Σ-type: (x : A) × B(x)
-    /// where A or B might contain TypeDynamic  
+    /// where A or B might contain TypeDynamic
     GradualSigma {
         var: String,
         first: Box<Type>,
         second: Box<Type>,
     },
-    
+
     /// Refinement type with gradual predicate: {x : T | P(x)}
     /// where P might be unknown (TypeDynamic)
     GradualRefinement {
@@ -46,7 +46,7 @@ pub enum GradualDependentType {
         base_type: Box<Type>,
         predicate: GradualTerm,
     },
-    
+
     /// Type family application with gradual indices
     GradualIndexed {
         family: String,
@@ -59,16 +59,16 @@ pub enum GradualDependentType {
 pub enum GradualTerm {
     /// Fully known term
     Known(Term),
-    
+
     /// Dynamic/unknown term: ⋆
     Dynamic,
-    
+
     /// Gradual application: f(args) where f or args might be dynamic
     GradualApp {
         function: Box<GradualTerm>,
         arguments: Vec<GradualTerm>,
     },
-    
+
     /// Gradual abstraction: λx.e where e might be dynamic
     GradualLambda {
         param: String,
@@ -85,7 +85,7 @@ pub fn gradual_dependent_consistent(t1: &Type, t2: &Type) -> bool {
     if gradual::consistent(t1, t2) {
         return true;
     }
-    
+
     // Then check dependent-specific consistency
     match (t1, t2) {
         // Pi types are consistent if domains and codomains are consistent
@@ -94,18 +94,18 @@ pub fn gradual_dependent_consistent(t1: &Type, t2: &Type) -> bool {
             let (dom2, cod2) = extract_pi_parts(t2);
             gradual::consistent(&dom1, &dom2) && gradual::consistent(&cod1, &cod2)
         }
-        
+
         // Sigma types are consistent if components are consistent
         _ if is_sigma_like(t1) && is_sigma_like(t2) => {
             let (fst1, snd1) = extract_sigma_parts(t1);
             let (fst2, snd2) = extract_sigma_parts(t2);
             gradual::consistent(&fst1, &fst2) && gradual::consistent(&snd1, &snd2)
         }
-        
+
         // A dependent type is consistent with Dynamic
         _ if has_dependent_structure(t1) => *t2 == Type::Dynamic,
         _ if has_dependent_structure(t2) => *t1 == Type::Dynamic,
-        
+
         _ => false,
     }
 }
@@ -117,33 +117,33 @@ pub fn gradual_dependent_join(t1: &Type, t2: &Type) -> Option<Type> {
     if !gradual_dependent_consistent(t1, t2) {
         return None;
     }
-    
+
     match (t1, t2) {
         // If either is Dynamic, result is Dynamic
         (Type::Dynamic, _) | (_, Type::Dynamic) => Some(Type::Dynamic),
-        
+
         // Join Pi types
         _ if is_pi_like(t1) && is_pi_like(t2) => {
             let (dom1, cod1) = extract_pi_parts(t1);
             let (dom2, cod2) = extract_pi_parts(t2);
-            
+
             let joined_domain = gradual::join_types(&dom1, &dom2)?;
             let joined_codomain = gradual::join_types(&cod1, &cod2)?;
-            
+
             Some(Type::function(vec![joined_domain], joined_codomain))
         }
-        
+
         // Join Sigma types (pairs)
         _ if is_sigma_like(t1) && is_sigma_like(t2) => {
             let (fst1, snd1) = extract_sigma_parts(t1);
             let (fst2, snd2) = extract_sigma_parts(t2);
-            
+
             let joined_first = gradual::join_types(&fst1, &fst2)?;
             let joined_second = gradual::join_types(&snd1, &snd2)?;
-            
+
             Some(Type::pair(joined_first, joined_second))
         }
-        
+
         // Fallback to regular gradual join
         _ => gradual::join_types(t1, t2),
     }
@@ -156,13 +156,13 @@ pub fn gradual_dependent_join(t1: &Type, t2: &Type) -> Option<Type> {
 pub enum GradualDependentCast {
     /// Basic gradual cast
     Basic(gradual::Cast),
-    
+
     /// Dependent upcast: static dependent → dynamic
     DependentUpcast {
         from: DependentType,
         to: Type,
     },
-    
+
     /// Dependent downcast: dynamic → static dependent (with runtime check)
     DependentDowncast {
         from: Type,
@@ -170,7 +170,7 @@ pub enum GradualDependentCast {
         /// Predicate to check at runtime
         check: GradualTerm,
     },
-    
+
     /// Index cast: cast for type family indices
     IndexCast {
         family: String,
@@ -190,7 +190,7 @@ pub fn insert_gradual_dependent_cast(source: &Type, target: &Type) -> GradualDep
                     to: target.clone(),
                 }
             }
-            
+
             // Downcast from dynamic to dependent
             (Type::Dynamic, dep) if has_dependent_structure(dep) => {
                 GradualDependentCast::DependentDowncast {
@@ -199,7 +199,7 @@ pub fn insert_gradual_dependent_cast(source: &Type, target: &Type) -> GradualDep
                     check: generate_runtime_check(dep),
                 }
             }
-            
+
             // Other cases fall back to basic cast
             _ => GradualDependentCast::Basic(gradual::insert_cast(source, target)),
         }
@@ -215,30 +215,30 @@ pub fn insert_gradual_dependent_cast(source: &Type, target: &Type) -> GradualDep
 pub fn normalize_gradual_dependent(type_: &Type) -> Result<Type> {
     match type_ {
         Type::Dynamic => Ok(Type::Dynamic),
-        
+
         Type::Function { params, return_type } => {
             // Try to normalize function types
             let normalized_params: Result<Vec<Type>> = params.iter()
                 .map(normalize_gradual_dependent)
                 .collect();
             let normalized_return = normalize_gradual_dependent(return_type)?;
-            
+
             Ok(Type::function(normalized_params?, normalized_return))
         }
-        
+
         Type::Pair(a, b) => {
             let normalized_a = normalize_gradual_dependent(a)?;
             let normalized_b = normalize_gradual_dependent(b)?;
             Ok(Type::pair(normalized_a, normalized_b))
         }
-        
+
         // For dependent types with dynamic parts, partial normalization
         _ if has_dependent_structure(type_) => {
             // Perform whatever normalization is possible
             // Dynamic parts remain dynamic
             Ok(type_.clone()) // Simplified for now
         }
-        
+
         // Base types need no normalization
         _ => Ok(type_.clone()),
     }
@@ -249,7 +249,7 @@ pub fn normalize_gradual_dependent(type_: &Type) -> Result<Type> {
 /// Converts gradual dependent types to more precise static types
 /// as more information becomes available.
 pub fn refine_gradual_dependent(
-    original: &Type, 
+    original: &Type,
     additional_info: &HashMap<String, Type>
 ) -> Type {
     match original {
@@ -257,23 +257,23 @@ pub fn refine_gradual_dependent(
             // Try to infer a more specific type based on context
             Type::Dynamic // Simplified - would use sophisticated inference
         }
-        
+
         Type::Function { params, return_type } => {
             let refined_params = params.iter()
                 .map(|p| refine_gradual_dependent(p, additional_info))
                 .collect();
             let refined_return = refine_gradual_dependent(return_type, additional_info);
-            
+
             Type::function(refined_params, refined_return)
         }
-        
+
         Type::Variable(var) => {
             // Try to resolve variable from additional info
             additional_info.get(&format!("var_{}", var.id))
                 .cloned()
                 .unwrap_or_else(|| original.clone())
         }
-        
+
         _ => original.clone(),
     }
 }
@@ -375,17 +375,17 @@ pub fn compute_gradual_type(term: &GradualTerm) -> Result<Type> {
             let mut checker = DependentTypeChecker::new();
             checker.check_term(t, None)
         }
-        
+
         GradualTerm::Dynamic => Ok(Type::Dynamic),
-        
+
         GradualTerm::GradualApp { function, arguments } => {
             let func_type = compute_gradual_type(function)?;
-            
+
             // If function is dynamic, result is dynamic
             if func_type == Type::Dynamic {
                 return Ok(Type::Dynamic);
             }
-            
+
             // Otherwise try to apply
             match func_type {
                 Type::Function { params, return_type } => {
@@ -398,7 +398,7 @@ pub fn compute_gradual_type(term: &GradualTerm) -> Result<Type> {
                 _ => Ok(Type::Dynamic),
             }
         }
-        
+
         GradualTerm::GradualLambda { param_type, body, .. } => {
             let body_type = compute_gradual_type(body)?;
             Ok(Type::function(vec![(**param_type).clone()], body_type))
@@ -427,16 +427,16 @@ mod tests {
     fn test_gradual_dependent_consistency() {
         let pi_type = Type::function(vec![Type::Number], Type::String);
         let dynamic = Type::Dynamic;
-        
+
         assert!(gradual_dependent_consistent(&pi_type, &dynamic));
         assert!(gradual_dependent_consistent(&dynamic, &pi_type));
     }
-    
+
     #[test]
     fn test_gradual_dependent_join() {
         let pi1 = Type::function(vec![Type::Number], Type::String);
         let pi2 = Type::function(vec![Type::Dynamic], Type::String);
-        
+
         let joined = gradual_dependent_join(&pi1, &pi2).unwrap();
         match joined {
             Type::Function { params, return_type } => {
@@ -446,36 +446,36 @@ mod tests {
             _ => panic!("Expected function type"),
         }
     }
-    
+
     #[test]
     fn test_dependent_cast_insertion() {
         let dep_type = Type::function(vec![Type::Number], Type::String);
         let dynamic = Type::Dynamic;
-        
+
         let cast = insert_gradual_dependent_cast(&dep_type, &dynamic);
         assert!(matches!(cast, GradualDependentCast::DependentUpcast { .. }));
-        
+
         let cast = insert_gradual_dependent_cast(&dynamic, &dep_type);
         assert!(matches!(cast, GradualDependentCast::DependentDowncast { .. }));
     }
-    
+
     #[test]
     fn test_gradual_term_computation() {
         let known_term = GradualTerm::Known(Term::Int(42));
         let computed = compute_gradual_type(&known_term).unwrap();
         assert_eq!(computed, Type::Number);
-        
+
         let dynamic_term = GradualTerm::Dynamic;
         let computed = compute_gradual_type(&dynamic_term).unwrap();
         assert_eq!(computed, Type::Dynamic);
     }
-    
+
     #[test]
     fn test_type_refinement() {
         let gradual_func = Type::function(vec![Type::Dynamic], Type::String);
         let mut context = HashMap::new();
         // Would add refinement information to context
-        
+
         let refined = refine_gradual_dependent(&gradual_func, &context);
         // In a full implementation, this would show more specific types
         assert!(matches!(refined, Type::Function { .. }));

@@ -26,12 +26,12 @@ impl EffectHandlerRef {
             handler,
         }
     }
-    
+
     /// Gets the effect name.
     pub fn effect_name(&self) -> &str {
         &self.effect_name
     }
-    
+
     /// Gets a reference to the handler.
     pub fn handler(&self) -> &Arc<dyn EffectHandler + Send + Sync> {
         &self.handler

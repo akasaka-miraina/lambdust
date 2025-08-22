@@ -4,9 +4,9 @@
 //! analyzing performance trends over time, and generating actionable
 //! optimization recommendations based on benchmark results.
 
-use std::time::Duration;
-use serde::{Deserialize, Serialize};
 use super::statistical_analysis_results::StatisticalSignificance;
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 /// Performance regression analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,13 +57,13 @@ pub struct PerformanceImprovement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RegressionSeverity {
     /// Minor regression (< 10% performance loss)
-    Minor,      // < 10% performance loss
+    Minor, // < 10% performance loss
     /// Moderate regression (10-25% performance loss)
-    Moderate,   // 10-25% performance loss
+    Moderate, // 10-25% performance loss
     /// Major regression (25-50% performance loss)
-    Major,      // 25-50% performance loss
+    Major, // 25-50% performance loss
     /// Critical regression (> 50% performance loss)
-    Critical,   // > 50% performance loss
+    Critical, // > 50% performance loss
 }
 
 /// Trend analysis over time

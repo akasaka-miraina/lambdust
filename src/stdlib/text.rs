@@ -4,16 +4,16 @@
 //! Unicode support, rope data structures, and Copy-on-Write optimization.
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
 use crate::effects::Effect;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use std::sync::Arc;
 // use regex::Regex; // Replaced with internal engine
 use crate::regex::compat::LightRegex;
 use std::fmt;
 use unicode_segmentation::UnicodeSegmentation;
 // regex = "1.10"
-use std::collections::HashMap;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 // ============= TEXT TYPE DEFINITION =============
 
@@ -96,7 +96,7 @@ impl TextRegex {
                 None,
             ))
         })?;
-        
+
         Ok(Self {
             regex,
             pattern: pattern.to_string(),
@@ -190,7 +190,7 @@ impl Text {
         let byte_length = s.len();
         let char_length = s.chars().count();
         let grapheme_length = s.graphemes(true).count();
-        
+
         Self {
             content: Arc::new(TextContent::Leaf(s)),
             byte_length,
@@ -257,7 +257,7 @@ impl Text {
         // Convert character indices to byte indices
         let s = self.as_string();
         let mut char_indices = s.char_indices();
-        
+
         let start_byte = if start == 0 {
             0
         } else {
@@ -267,7 +267,9 @@ impl Text {
         let end_byte = if end == self.char_length {
             s.len()
         } else {
-            char_indices.nth(end - start - 1).map(|(i, _)| i)
+            char_indices
+                .nth(end - start - 1)
+                .map(|(i, _)| i)
                 .unwrap_or(s.len())
         };
 
@@ -309,7 +311,7 @@ impl Text {
         if prefix.char_length > self.char_length {
             return false;
         }
-        
+
         let self_str = self.as_string();
         let prefix_str = prefix.as_string();
         self_str.starts_with(&prefix_str)
@@ -320,7 +322,7 @@ impl Text {
         if suffix.char_length > self.char_length {
             return false;
         }
-        
+
         let self_str = self.as_string();
         let suffix_str = suffix.as_string();
         self_str.ends_with(&suffix_str)
@@ -330,20 +332,20 @@ impl Text {
     pub fn find(&self, needle: &Self) -> Option<usize> {
         let haystack = self.as_string();
         let needle_str = needle.as_string();
-        
-        haystack.find(&needle_str).map(|byte_pos| {
-            haystack[..byte_pos].chars().count()
-        })
+
+        haystack
+            .find(&needle_str)
+            .map(|byte_pos| haystack[..byte_pos].chars().count())
     }
 
     /// Finds the last occurrence of a substring.
     pub fn rfind(&self, needle: &Self) -> Option<usize> {
         let haystack = self.as_string();
         let needle_str = needle.as_string();
-        
-        haystack.rfind(&needle_str).map(|byte_pos| {
-            haystack[..byte_pos].chars().count()
-        })
+
+        haystack
+            .rfind(&needle_str)
+            .map(|byte_pos| haystack[..byte_pos].chars().count())
     }
 
     /// Checks if this text contains the given substring.
@@ -355,12 +357,15 @@ impl Text {
     pub fn split(&self, delimiter: &Self) -> Vec<Self> {
         let s = self.as_string();
         let delim = delimiter.as_string();
-        
+
         if delim.is_empty() {
             // Split into individual characters
-            return s.chars().map(|c| Self::from_string(c.to_string())).collect();
+            return s
+                .chars()
+                .map(|c| Self::from_string(c.to_string()))
+                .collect();
         }
-        
+
         s.split(&delim)
             .map(|part| Self::from_string(part.to_string()))
             .collect()
@@ -371,7 +376,7 @@ impl Text {
         let s = self.as_string();
         let pattern_str = pattern.as_string();
         let replacement_str = replacement.as_string();
-        
+
         let replaced = s.replace(&pattern_str, &replacement_str);
         Self::from_string(replaced)
     }
@@ -393,7 +398,7 @@ impl Text {
         let s = self.as_string();
         let mut result = String::new();
         let mut first = true;
-        
+
         for ch in s.chars() {
             if first && ch.is_alphabetic() {
                 result.extend(ch.to_uppercase());
@@ -405,7 +410,7 @@ impl Text {
                 result.extend(ch.to_lowercase());
             }
         }
-        
+
         Self::from_string(result)
     }
 
@@ -447,10 +452,12 @@ impl Text {
         let s = self.as_string();
         // Simplified implementation - in production would use proper Unicode normalization
         let normalized = match form {
-            NormalizationForm::NFC | NormalizationForm::NFD | 
-            NormalizationForm::NFKC | NormalizationForm::NFKD => s,
+            NormalizationForm::NFC
+            | NormalizationForm::NFD
+            | NormalizationForm::NFKC
+            | NormalizationForm::NFKD => s,
         };
-        
+
         let mut result = Self::from_string(normalized);
         result.normalization = Some(form);
         result
@@ -485,7 +492,10 @@ impl Text {
 
     /// Iterates over grapheme clusters.
     pub fn graphemes(&self) -> Vec<String> {
-        self.as_string().graphemes(true).map(|s| s.to_string()).collect()
+        self.as_string()
+            .graphemes(true)
+            .map(|s| s.to_string())
+            .collect()
     }
 
     /// Gets grapheme cluster boundaries.
@@ -493,12 +503,12 @@ impl Text {
     pub fn grapheme_indices(&self) -> Vec<(usize, String)> {
         let mut result = Vec::new();
         let mut byte_index = 0;
-        
+
         for ch in self.chars() {
             result.push((byte_index, ch.to_string()));
             byte_index += ch.len_utf8();
         }
-        
+
         result
     }
 }
@@ -561,12 +571,12 @@ impl TextBuilder {
         if self.parts.is_empty() {
             return Text::new();
         }
-        
+
         let mut result = String::with_capacity(self.total_length);
         for part in self.parts {
             result.push_str(&part);
         }
-        
+
         Text::from_string(result)
     }
 
@@ -679,22 +689,22 @@ impl TryFrom<&Value> for Text {
 pub fn create_text_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // Text constructors
     bind_text_constructors(env);
-    
+
     // Text predicates
     bind_text_predicates(env);
-    
+
     // Text accessors
     bind_text_accessors(env);
-    
+
     // Text comparison
     bind_text_comparison(env);
-    
+
     // Text manipulation
     bind_text_manipulation(env);
-    
+
     // Text conversion
     bind_text_conversion(env);
-    
+
     // Unicode operations
     bind_unicode_operations(env);
 }
@@ -702,211 +712,274 @@ pub fn create_text_bindings(env: &Arc<ThreadSafeEnvironment>) {
 /// Binds text constructor operations.
 fn bind_text_constructors(env: &Arc<ThreadSafeEnvironment>) {
     // text
-    env.define("text".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_text),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "text".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text".to_string(),
+            arity_min: 0,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_text),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // make-text
-    env.define("make-text".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "make-text".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_make_text),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "make-text".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "make-text".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_make_text),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text-tabulate
-    env.define("text-tabulate".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-tabulate".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_text_tabulate),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "text-tabulate".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-tabulate".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_text_tabulate),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds text predicate operations.
 fn bind_text_predicates(env: &Arc<ThreadSafeEnvironment>) {
     // text?
-    env.define("text?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text?".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_text_p),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "text?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_text_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text-null?
-    env.define("text-null?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-null?".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_text_null_p),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "text-null?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-null?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_text_null_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds text accessor operations.
 fn bind_text_accessors(env: &Arc<ThreadSafeEnvironment>) {
-    // text-length    
-    env.define("text-length".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-length".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_text_length),
-        effects: vec![Effect::Pure],
-    })));
-    
+    // text-length
+    env.define(
+        "text-length".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-length".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_text_length),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text-ref
-    env.define("text-ref".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-ref".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_text_ref),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "text-ref".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-ref".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_text_ref),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds text comparison operations.
 fn bind_text_comparison(env: &Arc<ThreadSafeEnvironment>) {
     // text=?
-    env.define("text=?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text=?".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_text_equal),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "text=?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text=?".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_text_equal),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text<?
-    env.define("text<?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text<?".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_text_less),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "text<?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text<?".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_text_less),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text-ci=?
-    env.define("text-ci=?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-ci=?".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_text_ci_equal),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "text-ci=?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-ci=?".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_text_ci_equal),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds text manipulation operations.
 fn bind_text_manipulation(env: &Arc<ThreadSafeEnvironment>) {
     // text-append
-    env.define("text-append".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-append".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_text_append),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "text-append".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-append".to_string(),
+            arity_min: 0,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_text_append),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // subtext
-    env.define("subtext".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "subtext".to_string(),
-        arity_min: 2,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_subtext),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "subtext".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "subtext".to_string(),
+            arity_min: 2,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_subtext),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text-copy
-    env.define("text-copy".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-copy".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_text_copy),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "text-copy".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-copy".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_text_copy),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds text conversion operations.
 fn bind_text_conversion(env: &Arc<ThreadSafeEnvironment>) {
     // string->text
-    env.define("string->text".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "string->text".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_string_to_text),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "string->text".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "string->text".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_string_to_text),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text->string
-    env.define("text->string".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text->string".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_text_to_string),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "text->string".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text->string".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_text_to_string),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text->list
-    env.define("text->list".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text->list".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_text_to_list),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "text->list".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text->list".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_text_to_list),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // list->text
-    env.define("list->text".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "list->text".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_list_to_text),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "list->text".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "list->text".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_list_to_text),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds Unicode normalization operations.
 fn bind_unicode_operations(env: &Arc<ThreadSafeEnvironment>) {
     // text-normalize-nfc
-    env.define("text-normalize-nfc".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-normalize-nfc".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_text_normalize_nfc),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "text-normalize-nfc".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-normalize-nfc".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_text_normalize_nfc),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text-normalize-nfd
-    env.define("text-normalize-nfd".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-normalize-nfd".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_text_normalize_nfd),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "text-normalize-nfd".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-normalize-nfd".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_text_normalize_nfd),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text-normalize-nfkc
-    env.define("text-normalize-nfkc".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-normalize-nfkc".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_text_normalize_nfkc),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "text-normalize-nfkc".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-normalize-nfkc".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_text_normalize_nfkc),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // text-normalize-nfkd
-    env.define("text-normalize-nfkd".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "text-normalize-nfkd".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_text_normalize_nfkd),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "text-normalize-nfkd".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "text-normalize-nfkd".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_text_normalize_nfkd),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 // ============= PRIMITIVE IMPLEMENTATIONS =============
@@ -914,7 +987,7 @@ fn bind_unicode_operations(env: &Arc<ThreadSafeEnvironment>) {
 /// text constructor
 fn primitive_text(args: &[Value]) -> Result<Value> {
     let mut builder = TextBuilder::new();
-    
+
     for arg in args {
         match arg {
             Value::Literal(crate::ast::Literal::Character(ch)) => {
@@ -928,7 +1001,7 @@ fn primitive_text(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     Ok(builder.build().into())
 }
 
@@ -940,15 +1013,14 @@ fn primitive_make_text(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let len = args[0].as_integer().ok_or_else(|| {
-        Box::new(
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "make-text first argument must be an integer".to_string(),
             None,
         ))
     })? as usize;
-    
+
     let ch = if args.len() > 1 {
         match &args[1] {
             Value::Literal(crate::ast::Literal::Character(c)) => *c,
@@ -962,7 +1034,7 @@ fn primitive_make_text(args: &[Value]) -> Result<Value> {
     } else {
         ' '
     };
-    
+
     Ok(Text::repeat_char(ch, len).into())
 }
 
@@ -974,7 +1046,7 @@ fn primitive_text_p(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let is_text = matches!(args[0], Value::Literal(crate::ast::Literal::String(_)));
     Ok(Value::boolean(is_text))
 }
@@ -987,7 +1059,7 @@ fn primitive_text_null_p(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(Value::boolean(text.is_empty()))
 }
@@ -1000,7 +1072,7 @@ fn primitive_text_length(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(Value::integer(text.char_length() as i64))
 }
@@ -1013,16 +1085,15 @@ fn primitive_text_ref(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     let index = args[1].as_integer().ok_or_else(|| {
-        Box::new(
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "text-ref index must be an integer".to_string(),
             None,
         ))
     })? as usize;
-    
+
     match text.char_at(index) {
         Some(ch) => Ok(Value::Literal(crate::ast::Literal::Character(ch))),
         None => Err(Box::new(DiagnosticError::runtime_error(
@@ -1040,16 +1111,16 @@ fn primitive_text_equal(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let first = Text::try_from(&args[0])?;
-    
+
     for arg in &args[1..] {
         let text = Text::try_from(arg)?;
         if first != text {
             return Ok(Value::boolean(false));
         }
     }
-    
+
     Ok(Value::boolean(true))
 }
 
@@ -1061,7 +1132,7 @@ fn primitive_text_less(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     for window in args.windows(2) {
         let t1 = Text::try_from(&window[0])?;
         let t2 = Text::try_from(&window[1])?;
@@ -1069,7 +1140,7 @@ fn primitive_text_less(args: &[Value]) -> Result<Value> {
             return Ok(Value::boolean(false));
         }
     }
-    
+
     Ok(Value::boolean(true))
 }
 
@@ -1081,16 +1152,16 @@ fn primitive_text_ci_equal(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let first = Text::try_from(&args[0])?.fold_case();
-    
+
     for arg in &args[1..] {
         let text = Text::try_from(arg)?.fold_case();
         if first != text {
             return Ok(Value::boolean(false));
         }
     }
-    
+
     Ok(Value::boolean(true))
 }
 
@@ -1099,14 +1170,14 @@ fn primitive_text_append(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
         return Ok(Text::new().into());
     }
-    
+
     let mut result = Text::try_from(&args[0])?;
-    
+
     for arg in &args[1..] {
         let text = Text::try_from(arg)?;
         result = result.append(&text);
     }
-    
+
     Ok(result.into())
 }
 
@@ -1118,20 +1189,18 @@ fn primitive_subtext(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     let start = args[1].as_integer().ok_or_else(|| {
-        Box::new(
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "subtext start index must be an integer".to_string(),
             None,
         ))
     })? as usize;
-    
+
     let end = if args.len() > 2 {
         args[2].as_integer().ok_or_else(|| {
-        Box::new(
-            DiagnosticError::runtime_error(
+            Box::new(DiagnosticError::runtime_error(
                 "subtext end index must be an integer".to_string(),
                 None,
             ))
@@ -1139,7 +1208,7 @@ fn primitive_subtext(args: &[Value]) -> Result<Value> {
     } else {
         text.char_length()
     };
-    
+
     match text.substring(start, end) {
         Some(subtext) => Ok(subtext.into()),
         None => Err(Box::new(DiagnosticError::runtime_error(
@@ -1157,25 +1226,23 @@ fn primitive_text_copy(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
-    
+
     if args.len() == 1 {
-        return Ok(text.into())
+        return Ok(text.into());
     }
-    
+
     let start = args[1].as_integer().ok_or_else(|| {
-        Box::new(
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "text-copy start index must be an integer".to_string(),
             None,
         ))
     })? as usize;
-    
+
     let end = if args.len() > 2 {
         args[2].as_integer().ok_or_else(|| {
-        Box::new(
-            DiagnosticError::runtime_error(
+            Box::new(DiagnosticError::runtime_error(
                 "text-copy end index must be an integer".to_string(),
                 None,
             ))
@@ -1183,7 +1250,7 @@ fn primitive_text_copy(args: &[Value]) -> Result<Value> {
     } else {
         text.char_length()
     };
-    
+
     match text.substring(start, end) {
         Some(copy) => Ok(copy.into()),
         None => Err(Box::new(DiagnosticError::runtime_error(
@@ -1201,15 +1268,14 @@ fn primitive_string_to_text(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let s = args[0].as_string().ok_or_else(|| {
-        Box::new(
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "string->text first argument must be a string".to_string(),
             None,
         ))
     })?;
-    
+
     // For now, we just convert the entire string
     // In a full implementation, we'd handle start/end indices
     let text = Text::from_string_slice(s);
@@ -1224,9 +1290,9 @@ fn primitive_text_to_string(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
-    
+
     // For now, we just convert the entire text
     // In a full implementation, we'd handle start/end indices
     Ok(Value::string(text.as_string()))
@@ -1240,14 +1306,15 @@ fn primitive_text_to_list(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
-    
-    let chars: Vec<Value> = text.chars()
+
+    let chars: Vec<Value> = text
+        .chars()
         .iter()
         .map(|ch| Value::Literal(crate::ast::Literal::Character(*ch)))
         .collect();
-    
+
     Ok(Value::list(chars))
 }
 
@@ -1259,17 +1326,16 @@ fn primitive_list_to_text(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let list = args[0].as_list().ok_or_else(|| {
-        Box::new(
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "list->text argument must be a list".to_string(),
             None,
         ))
     })?;
-    
+
     let mut builder = TextBuilder::new();
-    
+
     for item in list {
         match item {
             Value::Literal(crate::ast::Literal::Character(ch)) => {
@@ -1283,7 +1349,7 @@ fn primitive_list_to_text(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     Ok(builder.build().into())
 }
 
@@ -1295,15 +1361,14 @@ fn primitive_text_tabulate(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let len = args[0].as_integer().ok_or_else(|| {
-        Box::new(
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "text-tabulate first argument must be an integer".to_string(),
             None,
         ))
     })? as usize;
-    
+
     let proc = &args[1];
     if !proc.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
@@ -1311,7 +1376,7 @@ fn primitive_text_tabulate(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // For now, we'll create a simple implementation
     // In a full implementation, we'd call the procedure for each index
     let mut builder = TextBuilder::new();
@@ -1319,7 +1384,7 @@ fn primitive_text_tabulate(args: &[Value]) -> Result<Value> {
         // This is a simplified version - would need proper procedure call
         builder.push_char((b'a' + (i % 26) as u8) as char);
     }
-    
+
     Ok(builder.build().into())
 }
 
@@ -1331,7 +1396,7 @@ fn primitive_text_normalize_nfc(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(text.normalize(NormalizationForm::NFC).into())
 }
@@ -1343,7 +1408,7 @@ fn primitive_text_normalize_nfd(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(text.normalize(NormalizationForm::NFD).into())
 }
@@ -1355,7 +1420,7 @@ fn primitive_text_normalize_nfkc(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(text.normalize(NormalizationForm::NFKC).into())
 }
@@ -1367,7 +1432,7 @@ fn primitive_text_normalize_nfkd(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(text.normalize(NormalizationForm::NFKD).into())
 }
@@ -1389,7 +1454,7 @@ mod tests {
         let t1 = Text::from_string_slice("Hello");
         let t2 = Text::from_string_slice(", World!");
         let result = t1.concat(&t2);
-        
+
         assert_eq!(result.as_string(), "Hello, World!");
         assert_eq!(result.char_length(), 13);
     }
@@ -1398,7 +1463,7 @@ mod tests {
     fn test_text_substring() {
         let text = Text::from_string_slice("Hello, World!");
         let sub = text.substring(0, 5).unwrap();
-        
+
         assert_eq!(sub.as_string(), "Hello");
         assert_eq!(sub.char_length(), 5);
     }
@@ -1407,10 +1472,10 @@ mod tests {
     fn test_unicode_normalization() {
         let text = Text::from_string_slice("é"); // composed
         let nfd = text.normalize(NormalizationForm::NFD);
-        
+
         // NFD should have more characters (base + combining)
         assert!(nfd.char_length() > text.char_length());
-        
+
         let nfc = nfd.normalize(NormalizationForm::NFC);
         assert_eq!(nfc.as_string(), text.as_string());
     }
@@ -1421,7 +1486,7 @@ mod tests {
         builder.push_str("Hello");
         builder.push_char(',');
         builder.push_str(" World!");
-        
+
         let text = builder.build();
         assert_eq!(text.as_string(), "Hello, World!");
     }
@@ -1431,7 +1496,7 @@ mod tests {
         let t1 = Text::from_string_slice("abc");
         let t2 = Text::from_string_slice("def");
         let t3 = Text::from_string_slice("ABC");
-        
+
         assert_eq!(t1.compare(&t2), Ordering::Less);
         assert_eq!(t1.compare_ci(&t3), Ordering::Equal);
     }

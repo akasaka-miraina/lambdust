@@ -4,11 +4,11 @@
 //! minimize the cost of variable lookups, especially for frequently accessed
 //! variables and deep environment chains.
 
-use crate::eval::{Value, Generation};
+use crate::eval::{Generation, Value};
 use crate::utils::SymbolId;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, RwLock};
 
 /// Cache for frequently accessed variables to avoid deep lookups
 #[derive(Debug)]
@@ -77,7 +77,7 @@ impl VariableCache {
             generation: 0,
         }
     }
-    
+
     fn get(&mut self, symbol: SymbolId, current_generation: Generation) -> Option<Value> {
         // First, check if we have the entry and whether it's valid
         let should_remove = if let Some(entry) = self.entries.get(&symbol) {
@@ -85,14 +85,14 @@ impl VariableCache {
         } else {
             false
         };
-        
+
         // If we need to remove a stale entry, do it now
         if should_remove {
             self.entries.remove(&symbol);
             self.misses += 1;
             return None;
         }
-        
+
         // Now we can safely get a mutable reference to update access count
         if let Some(entry) = self.entries.get_mut(&symbol) {
             entry.access_count += 1;
@@ -103,43 +103,47 @@ impl VariableCache {
             None
         }
     }
-    
+
     fn insert(&mut self, symbol: SymbolId, value: Value, generation: Generation, depth: usize) {
         // If cache is full, remove least recently used entry
         if self.entries.len() >= self.max_size {
             self.evict_lru();
         }
-        
+
         let entry = CacheEntry {
             value,
             generation,
             depth,
             access_count: 1,
         };
-        
+
         self.entries.insert(symbol, entry);
     }
-    
+
     fn evict_lru(&mut self) {
         // Find and remove the entry with the lowest access count
-        if let Some((&symbol_to_remove, _)) = self.entries.iter()
-            .min_by_key(|(_, entry)| entry.access_count) {
+        if let Some((&symbol_to_remove, _)) = self
+            .entries
+            .iter()
+            .min_by_key(|(_, entry)| entry.access_count)
+        {
             self.entries.remove(&symbol_to_remove);
         }
     }
-    
+
     fn invalidate(&mut self, generation: Generation) {
         self.generation = generation;
         // Remove stale entries
-        self.entries.retain(|_, entry| entry.generation <= generation);
+        self.entries
+            .retain(|_, entry| entry.generation <= generation);
     }
-    
+
     fn stats(&self) -> (usize, usize, f64) {
         let total = self.hits + self.misses;
-        let hit_rate = if total > 0 { 
-            (self.hits as f64 / total as f64) * 100.0 
-        } else { 
-            0.0 
+        let hit_rate = if total > 0 {
+            (self.hits as f64 / total as f64) * 100.0
+        } else {
+            0.0
         };
         (self.hits, self.misses, hit_rate)
     }
@@ -160,13 +164,13 @@ impl OptimizedEnvironment {
             id,
         }
     }
-    
+
     /// Creates a new child environment
     pub fn new_child(parent: Arc<OptimizedEnvironment>) -> Self {
         let id = ENVIRONMENT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let depth = parent.depth + 1;
         let generation = parent.generation + 1;
-        
+
         Self {
             bindings: HashMap::new(),
             parent: Some(parent),
@@ -176,42 +180,43 @@ impl OptimizedEnvironment {
             id,
         }
     }
-    
+
     /// Binds a variable in this environment
     pub fn bind(&mut self, symbol: SymbolId, value: Value) {
         self.bindings.insert(symbol, value.clone());
-        
+
         // Update cache with the new binding
         if let Ok(mut cache) = self.cache.write() {
             cache.insert(symbol, value, self.generation, 0);
         }
-        
+
         // Invalidate parent caches since binding might shadow parent variables
         self.invalidate_parent_caches();
     }
-    
+
     /// Sets a variable (updates existing binding or creates new one)
     pub fn set(&mut self, symbol: SymbolId, value: Value) -> Result<(), String> {
         // Try to update local binding first
-        if let std::collections::hash_map::Entry::Occupied(mut entry) = self.bindings.entry(symbol) {
+        if let std::collections::hash_map::Entry::Occupied(mut entry) = self.bindings.entry(symbol)
+        {
             entry.insert(value.clone());
-            
+
             // Update cache
             if let Ok(mut cache) = self.cache.write() {
                 cache.insert(symbol, value, self.generation, 0);
             }
-            
+
             return Ok(());
         }
-        
+
         // Try to update in parent environments
         if let Some(ref parent) = self.parent {
             return self.set_in_parent(symbol, value, parent.clone(), 1);
         }
-        
+
         Err(format!("Undefined variable: {symbol:?}"))
     }
-    
+
     /// Looks up a variable value with optimized caching
     pub fn lookup(&self, symbol: SymbolId) -> Option<Value> {
         // First check the cache
@@ -220,7 +225,7 @@ impl OptimizedEnvironment {
                 return Some(value);
             }
         }
-        
+
         // Check local bindings
         if let Some(value) = self.bindings.get(&symbol) {
             // Cache the result
@@ -229,7 +234,7 @@ impl OptimizedEnvironment {
             }
             return Some(value.clone());
         }
-        
+
         // Check parent environments
         if let Some(ref parent) = self.parent {
             if let Some(value) = parent.lookup_with_depth(symbol, 1) {
@@ -240,17 +245,17 @@ impl OptimizedEnvironment {
                 return Some(value);
             }
         }
-        
+
         None
     }
-    
+
     /// Internal lookup with depth tracking for cache optimization
     fn lookup_with_depth(&self, symbol: SymbolId, _current_depth: usize) -> Option<Value> {
         // Check local bindings
         if let Some(value) = self.bindings.get(&symbol) {
             return Some(value.clone());
         }
-        
+
         // Check parent environments
         if let Some(ref parent) = self.parent {
             parent.lookup_with_depth(symbol, _current_depth + 1)
@@ -258,14 +263,20 @@ impl OptimizedEnvironment {
             None
         }
     }
-    
+
     /// Helper method to set variables in parent environments
-    fn set_in_parent(&self, symbol: SymbolId, value: Value, parent: Arc<OptimizedEnvironment>, depth: usize) -> Result<(), String> {
+    fn set_in_parent(
+        &self,
+        symbol: SymbolId,
+        value: Value,
+        parent: Arc<OptimizedEnvironment>,
+        depth: usize,
+    ) -> Result<(), String> {
         // This is a simplified version - in a real implementation, we would need
         // proper mutable access to parent environments
         Err("Setting variables in parent environments requires mutable access".to_string())
     }
-    
+
     /// Invalidates caches in parent environments
     fn invalidate_parent_caches(&self) {
         if let Some(ref parent) = self.parent {
@@ -275,7 +286,7 @@ impl OptimizedEnvironment {
             parent.invalidate_parent_caches();
         }
     }
-    
+
     /// Gets environment statistics for performance analysis
     pub fn get_stats(&self) -> EnvironmentStats {
         let mut total_lookups = 0;
@@ -283,32 +294,35 @@ impl OptimizedEnvironment {
         let mut cache_misses = 0;
         let mut total_depth = 0;
         let mut hot_variables = Vec::new();
-        
-        if let Ok(cache) = self.cache.read() {
+
+        if let Ok(cache) = self.cache.try_read() {
             let (hits, misses, _) = cache.stats();
             cache_hits += hits;
             cache_misses += misses;
             total_lookups += hits + misses;
-            
+
             // Collect hot variables
-            let mut var_stats: Vec<_> = cache.entries.iter()
+            let mut var_stats: Vec<_> = cache
+                .entries
+                .iter()
                 .map(|(&symbol, entry)| (symbol, entry.access_count))
                 .collect();
             var_stats.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
             hot_variables = var_stats.into_iter().take(10).collect();
-            
+
             // Calculate average depth
-            let total_weighted_depth: usize = cache.entries.values()
+            let total_weighted_depth: usize = cache
+                .entries
+                .values()
                 .map(|entry| entry.depth * entry.access_count)
                 .sum();
-            let total_accesses: usize = cache.entries.values()
-                .map(|entry| entry.access_count)
-                .sum();
+            let total_accesses: usize =
+                cache.entries.values().map(|entry| entry.access_count).sum();
             if total_accesses > 0 {
                 total_depth = total_weighted_depth / total_accesses;
             }
         }
-        
+
         // Recursively collect stats from parent environments
         if let Some(ref parent) = self.parent {
             let parent_stats = parent.get_stats();
@@ -316,13 +330,13 @@ impl OptimizedEnvironment {
             cache_hits += parent_stats.cache_hits;
             cache_misses += parent_stats.cache_misses;
         }
-        
+
         let hit_rate = if total_lookups > 0 {
             (cache_hits as f64 / total_lookups as f64) * 100.0
         } else {
             0.0
         };
-        
+
         EnvironmentStats {
             total_lookups,
             cache_hits,
@@ -332,7 +346,7 @@ impl OptimizedEnvironment {
             hot_variables,
         }
     }
-    
+
     /// Optimizes the environment by pre-loading frequently used variables into cache
     pub fn optimize(&mut self, hot_variables: &[(SymbolId, usize)]) {
         if let Ok(mut cache) = self.cache.write() {
@@ -350,7 +364,7 @@ impl OptimizedEnvironment {
             }
         }
     }
-    
+
     /// Clears the variable cache (useful for testing or memory management)
     pub fn clear_cache(&mut self) {
         if let Ok(mut cache) = self.cache.write() {
@@ -359,35 +373,44 @@ impl OptimizedEnvironment {
             cache.misses = 0;
         }
     }
-    
+
     /// Gets the environment depth
     pub fn depth(&self) -> usize {
         self.depth
     }
-    
+
     /// Gets the environment ID
     pub fn id(&self) -> u64 {
         self.id
     }
-    
+
     /// Dumps environment contents for debugging
     pub fn dump_debug_info(&self) -> String {
         let mut info = String::new();
-        info.push_str(&format!("Environment {} (depth: {})\n", self.id, self.depth));
+        info.push_str(&format!(
+            "Environment {} (depth: {})\n",
+            self.id, self.depth
+        ));
         info.push_str(&format!("Local bindings: {}\n", self.bindings.len()));
-        
-        if let Ok(cache) = self.cache.read() {
+
+        if let Ok(cache) = self.cache.try_read() {
             let (hits, misses, hit_rate) = cache.stats();
-            info.push_str(&format!("Cache: {hits} hits, {misses} misses, {hit_rate:.1}% hit rate\n"));
-            info.push_str(&format!("Cache entries: {}/{}\n", cache.entries.len(), cache.max_size));
+            info.push_str(&format!(
+                "Cache: {hits} hits, {misses} misses, {hit_rate:.1}% hit rate\n"
+            ));
+            info.push_str(&format!(
+                "Cache entries: {}/{}\n",
+                cache.entries.len(),
+                cache.max_size
+            ));
         }
-        
+
         if let Some(ref parent) = self.parent {
             info.push_str("Parent environment: Yes\n");
         } else {
             info.push_str("Parent environment: None (top-level)\n");
         }
-        
+
         info
     }
 }
@@ -414,33 +437,33 @@ impl OptimizedEnvironmentBuilder {
             pre_populate_cache: false,
         }
     }
-    
+
     /// Sets the cache size for the optimized environment.
     pub fn cache_size(mut self, size: usize) -> Self {
         self.cache_size = size;
         self
     }
-    
+
     /// Enables or disables caching for the environment.
     pub fn enable_caching(mut self, enable: bool) -> Self {
         self.enable_caching = enable;
         self
     }
-    
+
     /// Sets whether to pre-populate the cache on build.
     pub fn pre_populate_cache(mut self, pre_populate: bool) -> Self {
         self.pre_populate_cache = pre_populate;
         self
     }
-    
+
     /// Builds the optimized environment with the configured settings.
     pub fn build(self) -> OptimizedEnvironment {
         let mut env = OptimizedEnvironment::new();
-        
+
         if !self.enable_caching {
             env.clear_cache();
         }
-        
+
         // In a real implementation, we would configure the cache size here
         env
     }
@@ -456,89 +479,89 @@ impl Default for OptimizedEnvironmentBuilder {
 mod tests {
     use super::*;
     use crate::utils::intern_symbol;
-    
+
     #[test]
     fn test_optimized_environment_basic_operations() {
         let mut env = OptimizedEnvironment::new();
         let symbol = intern_symbol("test-var");
         let value = Value::integer(42);
-        
+
         // Test binding
         env.bind(symbol, value.clone());
-        
+
         // Test lookup
         let result = env.lookup(symbol);
         assert!(result.is_some());
         assert_eq!(result.unwrap().as_integer(), Some(42));
-        
+
         // Test cache hit on second lookup
         let result2 = env.lookup(symbol);
         assert!(result2.is_some());
     }
-    
+
     #[test]
     fn test_environment_hierarchy() {
         let mut parent = OptimizedEnvironment::new();
         let parent_symbol = intern_symbol("parent-var");
         parent.bind(parent_symbol, Value::integer(100));
-        
+
         let child = OptimizedEnvironment::new_child(Arc::new(parent));
         let child_symbol = intern_symbol("child-var");
-        
+
         // Child should be able to see parent variables
         let parent_value = child.lookup(parent_symbol);
         assert!(parent_value.is_some());
         assert_eq!(parent_value.unwrap().as_integer(), Some(100));
     }
-    
+
     #[test]
     fn test_cache_performance() {
         let mut env = OptimizedEnvironment::new();
         let symbol = intern_symbol("cached-var");
         env.bind(symbol, Value::integer(42));
-        
+
         // First lookup should populate cache
         let _ = env.lookup(symbol);
-        
+
         // Subsequent lookups should hit cache
         for _ in 0..10 {
             let _ = env.lookup(symbol);
         }
-        
+
         let stats = env.get_stats();
         assert!(stats.cache_hits > 0);
         assert!(stats.hit_rate > 0.0);
     }
-    
+
     #[test]
     fn test_environment_stats() {
         let mut env = OptimizedEnvironment::new();
         let symbols: Vec<_> = (0..5).map(|i| intern_symbol(format!("var_{i}"))).collect();
-        
+
         // Bind variables
         for (i, &symbol) in symbols.iter().enumerate() {
             env.bind(symbol, Value::integer(i as i64));
         }
-        
+
         // Access variables with different frequencies
         for (i, &symbol) in symbols.iter().enumerate() {
             for _ in 0..=i {
                 let _ = env.lookup(symbol);
             }
         }
-        
+
         let stats = env.get_stats();
         assert!(stats.total_lookups > 0);
         assert!(!stats.hot_variables.is_empty());
     }
-    
+
     #[test]
     fn test_environment_builder() {
         let env = OptimizedEnvironmentBuilder::new()
             .cache_size(50)
             .enable_caching(true)
             .build();
-        
+
         assert_eq!(env.depth(), 0);
         assert_eq!(env.id(), env.id()); // ID should be consistent
     }

@@ -22,25 +22,25 @@ use crate::{
 pub fn register_all_core_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::diagnostics::Result<()> {
     // Register arithmetic primitives (12 total)
     register_arithmetic_primitives(registry)?;
-    
+
     // Register comparison primitives (6 total)
     register_comparison_primitives(registry)?;
-    
+
     // Register list primitives (8 total)
     register_list_primitives(registry)?;
-    
+
     // Register type predicate primitives (6 total)
     register_type_predicate_primitives(registry)?;
-    
+
     // Register equality and logic primitives (4 total)
     register_equality_primitives(registry)?;
-    
+
     // Register control flow primitives (3 total)
     register_control_flow_primitives(registry)?;
-    
+
     // Register I/O primitives (3 total)
     register_io_primitives(registry)?;
-    
+
     Ok(())
 }
 
@@ -52,7 +52,7 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
         identity: 0.0,
         operation: |a, b| a + b
     );
-    
+
     // Subtraction (-)
     define_arithmetic_primitive!(
         "-",
@@ -61,14 +61,14 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
         commutative: false,
         operation: |a, b| a - b
     );
-    
+
     // Multiplication (*)
     define_arithmetic_primitive!(
         "*",
         identity: 1.0,
         operation: |a, b| a * b
     );
-    
+
     // Division (/)
     define_arithmetic_primitive!(
         "/",
@@ -82,7 +82,7 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
             a / b
         }
     );
-    
+
     // Quotient
     define_jit_primitive! {
         name: "quotient",
@@ -96,15 +96,15 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
         eval: |args| {
             let a = crate::validate_type!(args[0], number)?;
             let b = crate::validate_type!(args[1], number)?;
-            
+
             if b == 0.0 {
                 return Err(crate::eval::unified_eval_errors::EvalUnifiedError::division_by_zero().into_unified());
             }
-            
+
             Ok(Value::number((a / b).trunc()))
         }
     }
-    
+
     // Remainder
     define_jit_primitive! {
         name: "remainder",
@@ -118,15 +118,15 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
         eval: |args| {
             let a = crate::validate_type!(args[0], number)?;
             let b = crate::validate_type!(args[1], number)?;
-            
+
             if b == 0.0 {
                 return Err(crate::eval::unified_eval_errors::EvalUnifiedError::division_by_zero().into_unified());
             }
-            
+
             Ok(Value::number(a % b))
         }
     }
-    
+
     // Modulo
     define_jit_primitive! {
         name: "modulo",
@@ -135,17 +135,17 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
         eval: |args| {
             let a = crate::validate_type!(args[0], number)?;
             let b = crate::validate_type!(args[1], number)?;
-            
+
             if b == 0.0 {
                 return Err(crate::eval::unified_eval_errors::EvalUnifiedError::division_by_zero().into_unified());
             }
-            
+
             // Scheme modulo has different semantics than Rust %
             let result = a - b * (a / b).floor();
             Ok(Value::number(result))
         }
     }
-    
+
     // Absolute value
     define_jit_primitive! {
         name: "abs",
@@ -156,7 +156,7 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
             Ok(Value::number(n.abs()))
         }
     }
-    
+
     // Greatest common divisor
     define_jit_primitive! {
         name: "gcd",
@@ -167,18 +167,18 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
             if args.is_empty() {
                 return Ok(Value::number(0.0));
             }
-            
+
             let mut result = crate::validate_type!(args[0], number)?.abs() as i64;
-            
+
             for arg in &args[1..] {
                 let n = crate::validate_type!(arg.clone(), number)?.abs() as i64;
                 result = gcd_impl(result, n);
             }
-            
+
             Ok(Value::number(result as f64))
         }
     }
-    
+
     // Least common multiple
     define_jit_primitive! {
         name: "lcm",
@@ -189,18 +189,18 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
             if args.is_empty() {
                 return Ok(Value::number(1.0));
             }
-            
+
             let mut result = crate::validate_type!(args[0], number)?.abs() as i64;
-            
+
             for arg in &args[1..] {
                 let n = crate::validate_type!(arg.clone(), number)?.abs() as i64;
                 result = (result * n) / gcd_impl(result, n);
             }
-            
+
             Ok(Value::number(result as f64))
         }
     }
-    
+
     // Floor
     define_jit_primitive! {
         name: "floor",
@@ -211,7 +211,7 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
             Ok(Value::number(n.floor()))
         }
     }
-    
+
     // Ceiling
     define_jit_primitive! {
         name: "ceiling",
@@ -236,7 +236,7 @@ fn register_arithmetic_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
     registry.register(LcmPrimitive)?;
     registry.register(FloorPrimitive)?;
     registry.register(CeilingPrimitive)?;
-    
+
     Ok(())
 }
 
@@ -247,31 +247,31 @@ fn register_comparison_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
         "=",
         |a, b| (a - b).abs() < f64::EPSILON
     );
-    
+
     // Less than (<)
     define_comparison_primitive!(
         "<",
         |a, b| a < b
     );
-    
+
     // Greater than (>)
     define_comparison_primitive!(
         ">",
         |a, b| a > b
     );
-    
+
     // Less than or equal (<=)
     define_comparison_primitive!(
         "<=",
         |a, b| a <= b
     );
-    
+
     // Greater than or equal (>=)
     define_comparison_primitive!(
         ">=",
         |a, b| a >= b
     );
-    
+
     // Maximum
     define_jit_primitive! {
         name: "max",
@@ -280,14 +280,14 @@ fn register_comparison_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
         variadic: true,
         eval: |args| {
             let mut result = crate::validate_type!(args[0], number)?;
-            
+
             for arg in &args[1..] {
                 let n = crate::validate_type!(arg.clone(), number)?;
                 if n > result {
                     result = n;
                 }
     }
-            
+
             Ok(Value::number(result))
         }
     }
@@ -299,7 +299,7 @@ fn register_comparison_primitives(registry: &mut GenericPrimitiveRegistry) -> cr
     registry.register(LessEqualComparisonPrimitive)?;
     registry.register(GreaterEqualComparisonPrimitive)?;
     registry.register(MaxPrimitive)?;
-    
+
     Ok(())
 }
 
@@ -312,7 +312,7 @@ fn register_list_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::d
             Ok(Value::cons(args[0].clone(), args[1].clone()))
         }
     );
-    
+
     // Car
     define_list_primitive!(
         "car",
@@ -328,7 +328,7 @@ fn register_list_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::d
             }
         }
     );
-    
+
     // Cdr
     define_list_primitive!(
         "cdr",
@@ -344,7 +344,7 @@ fn register_list_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::d
             }
         }
     );
-    
+
     // Null?
     define_list_primitive!(
         "null?",
@@ -352,7 +352,7 @@ fn register_list_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::d
             Ok(Value::boolean(matches!(args[0], Value::Nil)))
         }
     );
-    
+
     // Pair?
     define_list_primitive!(
         "pair?",
@@ -360,7 +360,7 @@ fn register_list_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::d
             Ok(Value::boolean(matches!(args[0], Value::Pair(_, _))))
         }
     );
-    
+
     // List constructor
     define_list_primitive!(
         "list",
@@ -372,14 +372,14 @@ fn register_list_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::d
             Ok(result)
         }
     );
-    
+
     // Length
     define_list_primitive!(
         "length",
         |args| {
             let mut count = 0;
             let mut current = &args[0];
-            
+
             loop {
                 match current {
                     Value::Nil => return Ok(Value::number(count as f64)),
@@ -394,7 +394,7 @@ fn register_list_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::d
             }
         }
     );
-    
+
     // Append
     define_list_primitive!(
         "append",
@@ -402,13 +402,13 @@ fn register_list_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::d
             if args.is_empty() {
                 return Ok(Value::Nil);
             }
-            
+
             let mut result = args.last().unwrap().clone();
-            
+
             for arg in args.iter().rev().skip(1) {
                 result = append_lists(arg.clone(), result)?;
             }
-            
+
             Ok(result)
         }
     );
@@ -421,7 +421,7 @@ fn register_list_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::d
     registry.register(ListListPrimitive)?;
     registry.register(LengthListPrimitive)?;
     registry.register(AppendListPrimitive)?;
-    
+
     Ok(())
 }
 
@@ -429,21 +429,21 @@ fn register_list_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::d
 fn register_type_predicate_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::diagnostics::Result<()> {
     // Number?
     define_type_predicate!("number?", |value| value.is_number());
-    
+
     // String?
     define_type_predicate!("string?", |value| matches!(value, Value::String(_)));
-    
+
     // Symbol?
     define_type_predicate!("symbol?", |value| matches!(value, Value::Symbol(_)));
-    
+
     // Boolean?
     define_type_predicate!("boolean?", |value| matches!(value, Value::Boolean(_)));
-    
+
     // Procedure?
-    define_type_predicate!("procedure?", |value| 
+    define_type_predicate!("procedure?", |value|
         matches!(value, Value::Closure(_, _, _) | Value::Primitive(_))
     );
-    
+
     // Vector?
     define_type_predicate!("vector?", |value| matches!(value, Value::Vector(_)));
 
@@ -453,7 +453,7 @@ fn register_type_predicate_primitives(registry: &mut GenericPrimitiveRegistry) -
     registry.register(BooleanQuestionPredicatePrimitive)?;
     registry.register(ProcedureQuestionPredicatePrimitive)?;
     registry.register(VectorQuestionPredicatePrimitive)?;
-    
+
     Ok(())
 }
 
@@ -468,7 +468,7 @@ fn register_equality_primitives(registry: &mut GenericPrimitiveRegistry) -> crat
             Ok(Value::boolean(std::ptr::eq(&args[0], &args[1])))
         }
     }
-    
+
     // eqv? (equivalence)
     define_jit_primitive! {
         name: "eqv?",
@@ -478,7 +478,7 @@ fn register_equality_primitives(registry: &mut GenericPrimitiveRegistry) -> crat
             Ok(Value::boolean(values_eqv(&args[0], &args[1])))
         }
     }
-    
+
     // equal? (structural equality)
     define_jit_primitive! {
         name: "equal?",
@@ -488,7 +488,7 @@ fn register_equality_primitives(registry: &mut GenericPrimitiveRegistry) -> crat
             Ok(Value::boolean(values_equal(&args[0], &args[1])))
         }
     }
-    
+
     // not (logical negation)
     define_jit_primitive! {
         name: "not",
@@ -503,7 +503,7 @@ fn register_equality_primitives(registry: &mut GenericPrimitiveRegistry) -> crat
     registry.register(EqvQuestionPrimitive)?;
     registry.register(EqualQuestionPrimitive)?;
     registry.register(NotPrimitive)?;
-    
+
     Ok(())
 }
 
@@ -524,7 +524,7 @@ fn register_control_flow_primitives(registry: &mut GenericPrimitiveRegistry) -> 
             ).into_unified())
         }
     }
-    
+
     // call/cc (call with current continuation)
     define_jit_primitive! {
         name: "call/cc",
@@ -539,7 +539,7 @@ fn register_control_flow_primitives(registry: &mut GenericPrimitiveRegistry) -> 
             ).into_unified())
         }
     }
-    
+
     // values (multiple value constructor)
     define_jit_primitive! {
         name: "values",
@@ -561,7 +561,7 @@ fn register_control_flow_primitives(registry: &mut GenericPrimitiveRegistry) -> 
     registry.register(ApplyPrimitive)?;
     registry.register(CallCcPrimitive)?;
     registry.register(ValuesPrimitive)?;
-    
+
     Ok(())
 }
 
@@ -579,7 +579,7 @@ fn register_io_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::dia
             Ok(Value::Nil)
         }
     }
-    
+
     // Newline
     define_jit_primitive! {
         name: "newline",
@@ -591,7 +591,7 @@ fn register_io_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::dia
             Ok(Value::Nil)
         }
     }
-    
+
     // Read
     define_jit_primitive! {
         name: "read",
@@ -610,7 +610,7 @@ fn register_io_primitives(registry: &mut GenericPrimitiveRegistry) -> crate::dia
     registry.register(DisplayPrimitive)?;
     registry.register(NewlinePrimitive)?;
     registry.register(ReadPrimitive)?;
-    
+
     Ok(())
 }
 
@@ -679,7 +679,7 @@ fn format_value_for_display(value: &Value) -> String {
         Value::Nil => "()".to_string(),
         Value::Pair(_, _) => format_list_for_display(value),
         Value::Vector(v) => {
-            if let Ok(vec) = v.read() {
+            if let Ok(vec) = v.try_read() {
                 let elements: Vec<String> = vec.iter().map(format_value_for_display).collect();
                 format!("#({})", elements.join(" "))
             } else {
@@ -694,7 +694,7 @@ fn format_list_for_display(value: &Value) -> String {
     let mut result = String::from("(");
     let mut current = value;
     let mut first = true;
-    
+
     loop {
         match current {
             Value::Nil => {
@@ -717,7 +717,7 @@ fn format_list_for_display(value: &Value) -> String {
             }
         }
     }
-    
+
     result
 }
 
@@ -729,10 +729,10 @@ mod tests {
     fn test_all_primitives_registration() {
         let mut registry = GenericPrimitiveRegistry::new();
         register_all_core_primitives(&mut registry).unwrap();
-        
+
         let names = registry.primitive_names();
         assert_eq!(names.len(), 42);
-        
+
         // Verify specific primitives are registered
         assert!(names.contains(&"+".to_string()));
         assert!(names.contains(&"cons".to_string()));
@@ -745,11 +745,11 @@ mod tests {
     fn test_arithmetic_primitives() {
         let mut registry = GenericPrimitiveRegistry::new();
         register_arithmetic_primitives(&mut registry).unwrap();
-        
+
         let add = registry.get("+").unwrap();
         let result = add.evaluate(&[Value::number(2.0), Value::number(3.0)]).unwrap();
         assert_eq!(result.as_number().unwrap(), 5.0);
-        
+
         let multiply = registry.get("*").unwrap();
         let result = multiply.evaluate(&[Value::number(4.0), Value::number(5.0)]).unwrap();
         assert_eq!(result.as_number().unwrap(), 20.0);
@@ -759,11 +759,11 @@ mod tests {
     fn test_comparison_primitives() {
         let mut registry = GenericPrimitiveRegistry::new();
         register_comparison_primitives(&mut registry).unwrap();
-        
+
         let lt = registry.get("<").unwrap();
         let result = lt.evaluate(&[Value::number(2.0), Value::number(3.0)]).unwrap();
         assert_eq!(result.as_boolean().unwrap(), true);
-        
+
         let eq = registry.get("=").unwrap();
         let result = eq.evaluate(&[Value::number(2.0), Value::number(2.0)]).unwrap();
         assert_eq!(result.as_boolean().unwrap(), true);
@@ -773,14 +773,14 @@ mod tests {
     fn test_list_primitives() {
         let mut registry = GenericPrimitiveRegistry::new();
         register_list_primitives(&mut registry).unwrap();
-        
+
         let cons = registry.get("cons").unwrap();
         let result = cons.evaluate(&[Value::number(1.0), Value::Nil]).unwrap();
-        
+
         let car = registry.get("car").unwrap();
         let first = car.evaluate(&[result.clone()]).unwrap();
         assert_eq!(first.as_number().unwrap(), 1.0);
-        
+
         let cdr = registry.get("cdr").unwrap();
         let rest = cdr.evaluate(&[result]).unwrap();
         assert!(matches!(rest, Value::Nil));
@@ -790,11 +790,11 @@ mod tests {
     fn test_type_predicates() {
         let mut registry = GenericPrimitiveRegistry::new();
         register_type_predicate_primitives(&mut registry).unwrap();
-        
+
         let number_pred = registry.get("number?").unwrap();
         let result = number_pred.evaluate(&[Value::number(42.0)]).unwrap();
         assert_eq!(result.as_boolean().unwrap(), true);
-        
+
         let result = number_pred.evaluate(&[Value::string("hello")]).unwrap();
         assert_eq!(result.as_boolean().unwrap(), false);
     }
@@ -803,11 +803,11 @@ mod tests {
     fn test_equality_primitives() {
         let mut registry = GenericPrimitiveRegistry::new();
         register_equality_primitives(&mut registry).unwrap();
-        
+
         let equal = registry.get("equal?").unwrap();
         let result = equal.evaluate(&[Value::string("hello".to_string()), Value::string("hello".to_string())]).unwrap();
         assert_eq!(result.as_boolean().unwrap(), true);
-        
+
         let not_fn = registry.get("not").unwrap();
         let result = not_fn.evaluate(&[Value::boolean(false)]).unwrap();
         match result {

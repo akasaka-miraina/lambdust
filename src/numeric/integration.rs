@@ -3,13 +3,13 @@
 //! Provides registration functions to integrate the advanced numeric primitives
 //! with the existing Lambdust primitive system.
 
-use crate::runtime::{MinimalPrimitiveRegistry, MinimalPrimitive, MinimalPrimitiveCategory};
 use super::primitives::*;
+use crate::runtime::{MinimalPrimitive, MinimalPrimitiveCategory, MinimalPrimitiveRegistry};
 
 /// Registers all numeric primitives with the primitive registry
 pub fn register_numeric_primitives(registry: &mut MinimalPrimitiveRegistry) {
     // ============= ARITHMETIC OPERATIONS =============
-    
+
     registry.register(MinimalPrimitive {
         name: "+".to_string(),
         category: MinimalPrimitiveCategory::Arithmetic,
@@ -51,7 +51,7 @@ pub fn register_numeric_primitives(registry: &mut MinimalPrimitiveRegistry) {
     });
 
     // ============= COMPARISON OPERATIONS =============
-    
+
     registry.register(MinimalPrimitive {
         name: "=".to_string(),
         category: MinimalPrimitiveCategory::Arithmetic,
@@ -103,7 +103,7 @@ pub fn register_numeric_primitives(registry: &mut MinimalPrimitiveRegistry) {
     });
 
     // ============= MATHEMATICAL FUNCTIONS =============
-    
+
     registry.register(MinimalPrimitive {
         name: "exp".to_string(),
         category: MinimalPrimitiveCategory::Arithmetic,
@@ -175,7 +175,7 @@ pub fn register_numeric_primitives(registry: &mut MinimalPrimitiveRegistry) {
     });
 
     // ============= SPECIAL FUNCTIONS =============
-    
+
     registry.register(MinimalPrimitive {
         name: "gamma".to_string(),
         category: MinimalPrimitiveCategory::Arithmetic,
@@ -207,7 +207,7 @@ pub fn register_numeric_primitives(registry: &mut MinimalPrimitiveRegistry) {
     });
 
     // ============= TYPE PREDICATES =============
-    
+
     registry.register(MinimalPrimitive {
         name: "number?".to_string(),
         category: MinimalPrimitiveCategory::Types,
@@ -269,7 +269,7 @@ pub fn register_numeric_primitives(registry: &mut MinimalPrimitiveRegistry) {
     });
 
     // ============= EXACTNESS CONVERSION =============
-    
+
     registry.register(MinimalPrimitive {
         name: "exact".to_string(),
         category: MinimalPrimitiveCategory::Arithmetic,
@@ -291,7 +291,7 @@ pub fn register_numeric_primitives(registry: &mut MinimalPrimitiveRegistry) {
     });
 
     // ============= CONSTANTS AND UTILITIES =============
-    
+
     registry.register(MinimalPrimitive {
         name: "constant".to_string(),
         category: MinimalPrimitiveCategory::Arithmetic,
@@ -327,33 +327,33 @@ mod tests {
     #[test]
     fn test_registry_creation() {
         let registry = create_numeric_registry();
-        
+
         // Test that basic arithmetic primitives are registered
         assert!(registry.get_primitive("+").is_some());
         assert!(registry.get_primitive("-").is_some());
         assert!(registry.get_primitive("*").is_some());
         assert!(registry.get_primitive("/").is_some());
-        
+
         // Test that comparison primitives are registered
         assert!(registry.get_primitive("=").is_some());
         assert!(registry.get_primitive("<").is_some());
         assert!(registry.get_primitive(">").is_some());
-        
+
         // Test that mathematical functions are registered
         assert!(registry.get_primitive("sin").is_some());
         assert!(registry.get_primitive("cos").is_some());
         assert!(registry.get_primitive("exp").is_some());
         assert!(registry.get_primitive("sqrt").is_some());
-        
+
         // Test that type predicates are registered
         assert!(registry.get_primitive("number?").is_some());
         assert!(registry.get_primitive("exact?").is_some());
         assert!(registry.get_primitive("integer?").is_some());
-        
+
         // Test that special functions are registered
         assert!(registry.get_primitive("gamma").is_some());
         assert!(registry.get_primitive("erf").is_some());
-        
+
         // Test that constants utilities are registered
         assert!(registry.get_primitive("constant").is_some());
         assert!(registry.get_primitive("list-constants").is_some());
@@ -362,10 +362,11 @@ mod tests {
     #[test]
     fn test_primitive_categorization() {
         let registry = create_numeric_registry();
-        
-        let arithmetic_primitives = registry.get_primitives_by_category(&MinimalPrimitiveCategory::Arithmetic);
+
+        let arithmetic_primitives =
+            registry.get_primitives_by_category(&MinimalPrimitiveCategory::Arithmetic);
         assert!(!arithmetic_primitives.is_empty());
-        
+
         let type_primitives = registry.get_primitives_by_category(&MinimalPrimitiveCategory::Types);
         assert!(!type_primitives.is_empty());
     }

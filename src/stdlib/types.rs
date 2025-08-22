@@ -4,21 +4,21 @@
 //! type checking, type manipulation, and gradual typing support.
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
 use crate::effects::Effect;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use std::sync::Arc;
 
 /// Creates type operation bindings for the standard library.
 pub fn create_type_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // Type queries
     bind_type_queries(env);
-    
+
     // Type operations
     bind_type_operations(env);
-    
+
     // Type checking
     bind_type_checking(env);
-    
+
     // Gradual typing support
     bind_gradual_typing(env);
 }
@@ -26,166 +26,217 @@ pub fn create_type_bindings(env: &Arc<ThreadSafeEnvironment>) {
 /// Binds type query operations.
 fn bind_type_queries(env: &Arc<ThreadSafeEnvironment>) {
     // type-of
-    env.define("type-of".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "type-of".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_type_of),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "type-of".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "type-of".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_type_of),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // type?
-    env.define("type?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "type?".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_type_p),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "type?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "type?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_type_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // type-name
-    env.define("type-name".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "type-name".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_type_name),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "type-name".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "type-name".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_type_name),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds type operation functions.
 fn bind_type_operations(env: &Arc<ThreadSafeEnvironment>) {
     // type-union
-    env.define("type-union".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "type-union".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_type_union),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "type-union".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "type-union".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_type_union),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // type-intersection
-    env.define("type-intersection".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "type-intersection".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_type_intersection),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "type-intersection".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "type-intersection".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_type_intersection),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // type-difference
-    env.define("type-difference".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "type-difference".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_type_difference),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "type-difference".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "type-difference".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_type_difference),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // subtype?
-    env.define("subtype?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "subtype?".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_subtype_p),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "subtype?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "subtype?".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_subtype_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // type-equivalent?
-    env.define("type-equivalent?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "type-equivalent?".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_type_equivalent_p),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "type-equivalent?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "type-equivalent?".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_type_equivalent_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds type checking operations.
 fn bind_type_checking(env: &Arc<ThreadSafeEnvironment>) {
     // type-check
-    env.define("type-check".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "type-check".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_type_check),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "type-check".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "type-check".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_type_check),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // type-assert
-    env.define("type-assert".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "type-assert".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_type_assert),
-        effects: vec![Effect::Error], // Can throw type errors
-    })));
-    
+    env.define(
+        "type-assert".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "type-assert".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_type_assert),
+            effects: vec![Effect::Error], // Can throw type errors
+        })),
+    );
+
     // type-cast
-    env.define("type-cast".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "type-cast".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_type_cast),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "type-cast".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "type-cast".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_type_cast),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds gradual typing support.
 fn bind_gradual_typing(env: &Arc<ThreadSafeEnvironment>) {
     // any-type
-    env.define("any-type".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "any-type".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_any_type),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "any-type".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "any-type".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_any_type),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // unknown-type
-    env.define("unknown-type".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "unknown-type".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_unknown_type),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "unknown-type".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "unknown-type".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_unknown_type),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // make-function-type
-    env.define("make-function-type".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "make-function-type".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_make_function_type),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "make-function-type".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "make-function-type".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_make_function_type),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // function-type?
-    env.define("function-type?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "function-type?".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_function_type_p),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "function-type?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "function-type?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_function_type_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // function-parameter-types
-    env.define("function-parameter-types".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "function-parameter-types".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_function_parameter_types),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "function-parameter-types".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "function-parameter-types".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_function_parameter_types),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // function-return-type
-    env.define("function-return-type".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "function-return-type".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_function_return_type),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "function-return-type".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "function-return-type".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_function_return_type),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 // ============= IMPLEMENTATIONS =============
@@ -198,7 +249,7 @@ fn primitive_type_of(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let type_name = get_value_type_name(&args[0]);
     Ok(Value::string(type_name))
 }
@@ -211,7 +262,7 @@ fn primitive_type_p(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Check if the value is a type representation
     let is_type = matches!(args[0], Value::Type(_));
     Ok(Value::boolean(is_type))
@@ -225,7 +276,7 @@ fn primitive_type_name(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     match &args[0] {
         Value::Type(type_val) => {
             let name = match type_val.as_ref() {
@@ -297,12 +348,12 @@ fn primitive_type_check(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // For now, just return whether the value matches the basic type
     let value = &args[0];
     let expected_type = args[1].as_string().unwrap_or("unknown");
     let actual_type = get_value_type_name(value);
-    
+
     Ok(Value::boolean(actual_type == expected_type))
 }
 
@@ -314,15 +365,18 @@ fn primitive_type_assert(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let type_check_result = primitive_type_check(args)?;
-    
+
     if type_check_result.is_truthy() {
         Ok(args[0].clone())
     } else {
         Err(Box::new(DiagnosticError::runtime_error(
-            format!("Type assertion failed: expected {}, got {}", 
-                    args[1], get_value_type_name(&args[0])),
+            format!(
+                "Type assertion failed: expected {}, got {}",
+                args[1],
+                get_value_type_name(&args[0])
+            ),
             None,
         )))
     }
@@ -336,7 +390,7 @@ fn primitive_type_cast(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // For now, just return the value unchanged
     // In a full implementation, this would perform type conversion
     Ok(args[0].clone())
@@ -345,13 +399,17 @@ fn primitive_type_cast(args: &[Value]) -> Result<Value> {
 /// any-type procedure
 fn primitive_any_type(_args: &[Value]) -> Result<Value> {
     // Return a representation of the "any" type
-    Ok(Value::Type(Arc::new(crate::eval::value::TypeValue::Base("any".to_string()))))
+    Ok(Value::Type(Arc::new(crate::eval::value::TypeValue::Base(
+        "any".to_string(),
+    ))))
 }
 
 /// unknown-type procedure
 fn primitive_unknown_type(_args: &[Value]) -> Result<Value> {
     // Return a representation of the "unknown" type
-    Ok(Value::Type(Arc::new(crate::eval::value::TypeValue::Base("unknown".to_string()))))
+    Ok(Value::Type(Arc::new(crate::eval::value::TypeValue::Base(
+        "unknown".to_string(),
+    ))))
 }
 
 /// make-function-type procedure
@@ -362,7 +420,7 @@ fn primitive_make_function_type(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Placeholder implementation
     Err(Box::new(DiagnosticError::runtime_error(
         "make-function-type requires type system integration (not yet implemented)".to_string(),
@@ -378,10 +436,13 @@ fn primitive_function_type_p(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     match &args[0] {
         Value::Type(type_val) => {
-            let is_function = matches!(type_val.as_ref(), crate::eval::value::TypeValue::Function { .. });
+            let is_function = matches!(
+                type_val.as_ref(),
+                crate::eval::value::TypeValue::Function { .. }
+            );
             Ok(Value::boolean(is_function))
         }
         _ => Ok(Value::boolean(false)),
@@ -392,7 +453,8 @@ fn primitive_function_type_p(args: &[Value]) -> Result<Value> {
 fn primitive_function_parameter_types(_args: &[Value]) -> Result<Value> {
     // Placeholder implementation
     Err(Box::new(DiagnosticError::runtime_error(
-        "function-parameter-types requires type system integration (not yet implemented)".to_string(),
+        "function-parameter-types requires type system integration (not yet implemented)"
+            .to_string(),
         None,
     )))
 }
@@ -412,12 +474,16 @@ fn primitive_function_return_type(_args: &[Value]) -> Result<Value> {
 fn get_value_type_name(value: &Value) -> String {
     match value {
         Value::Literal(lit) => match lit {
-            crate::ast::Literal::ExactInteger(_) | crate::ast::Literal::Integer(_) => "integer".to_string(),
+            crate::ast::Literal::ExactInteger(_) | crate::ast::Literal::Integer(_) => {
+                "integer".to_string()
+            }
             crate::ast::Literal::InexactReal(_) => "real".to_string(),
             crate::ast::Literal::Number(_) => "number".to_string(),
             crate::ast::Literal::Rational { .. } => "rational".to_string(),
             crate::ast::Literal::Complex { .. } => "complex".to_string(),
-            crate::ast::Literal::String(_) | crate::ast::Literal::InternedString(_) => "string".to_string(),
+            crate::ast::Literal::String(_) | crate::ast::Literal::InternedString(_) => {
+                "string".to_string()
+            }
             crate::ast::Literal::Character(_) => "character".to_string(),
             crate::ast::Literal::Boolean(_) => "boolean".to_string(),
             crate::ast::Literal::Bytevector(_) => "bytevector".to_string(),
@@ -471,6 +537,7 @@ fn get_value_type_name(value: &Value) -> String {
         Value::Generator(_) => "generator".to_string(),
         Value::Opaque(_) => "opaque".to_string(),
         Value::Environment(_) => "environment".to_string(),
+        Value::Box(_) => "box".to_string(),
     }
 }
 
@@ -483,49 +550,51 @@ mod tests {
         let args = vec![Value::integer(42)];
         let result = primitive_type_of(&args).unwrap();
         assert_eq!(result, Value::string("number"));
-        
+
         let args = vec![Value::string("hello")];
         let result = primitive_type_of(&args).unwrap();
         assert_eq!(result, Value::string("string"));
-        
+
         let args = vec![Value::boolean(true)];
         let result = primitive_type_of(&args).unwrap();
         assert_eq!(result, Value::string("boolean"));
     }
-    
+
     #[test]
     fn test_type_predicate() {
         let not_type = Value::integer(42);
         let result = primitive_type_p(&[not_type]).unwrap();
         assert_eq!(result, Value::boolean(false));
-        
-        let type_val = Value::Type(Arc::new(crate::eval::value::TypeValue::Base("number".to_string())));
+
+        let type_val = Value::Type(Arc::new(crate::eval::value::TypeValue::Base(
+            "number".to_string(),
+        )));
         let result = primitive_type_p(&[type_val]).unwrap();
         assert_eq!(result, Value::boolean(true));
     }
-    
+
     #[test]
     fn test_type_check() {
         let args = vec![Value::integer(42), Value::string("number")];
         let result = primitive_type_check(&args).unwrap();
         assert_eq!(result, Value::boolean(true));
-        
+
         let args = vec![Value::string("hello"), Value::string("number")];
         let result = primitive_type_check(&args).unwrap();
         assert_eq!(result, Value::boolean(false));
     }
-    
+
     #[test]
     fn test_type_assert() {
         let args = vec![Value::integer(42), Value::string("number")];
         let result = primitive_type_assert(&args).unwrap();
         assert_eq!(result, Value::integer(42));
-        
+
         let args = vec![Value::string("hello"), Value::string("number")];
         let result = primitive_type_assert(&args);
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_any_type() {
         let result = primitive_any_type(&[]).unwrap();

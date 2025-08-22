@@ -5,12 +5,12 @@
 //! with Unicode support, named capture groups, and efficient matching.
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
 use crate::effects::Effect;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use crate::stdlib::text::Text;
 use std::sync::Arc;
 // use regex::Captures; // Removed external regex dependency
-use crate::regex::compat::{LightRegex, Captures as LightCaptures};
+use crate::regex::compat::{Captures as LightCaptures, LightRegex};
 use std::collections::HashMap;
 
 // ============= REGEX ENGINE =============
@@ -83,12 +83,11 @@ impl TextRegex {
             .multi_line(flags.multiline)
             .dot_matches_new_line(flags.dot_matches_newline)
             .unicode(flags.unicode);
-        
-        let regex = builder.build().map_err(|e| DiagnosticError::runtime_error(
-            format!("Invalid regex pattern: {e}"),
-            None
-        ))?;
-        
+
+        let regex = builder.build().map_err(|e| {
+            DiagnosticError::runtime_error(format!("Invalid regex pattern: {e}"), None)
+        })?;
+
         Ok(Self {
             pattern: pattern.to_string(),
             flags,
@@ -121,7 +120,7 @@ impl TextRegex {
             let start_char = text_str[..m.start()].chars().count();
             let end_char = text_str[..m.end()].chars().count();
             let matched_text = text.substring(start_char, end_char)?;
-            
+
             Some(TextMatchResult {
                 matched_text,
                 start: start_char,
@@ -143,7 +142,7 @@ impl TextRegex {
                 let start_char = text_str[..m.start()].chars().count();
                 let end_char = text_str[..m.end()].chars().count();
                 let matched_text = text.substring(start_char, end_char)?;
-                
+
                 Some(TextMatchResult {
                     matched_text,
                     start: start_char,
@@ -202,7 +201,7 @@ impl TextRegex {
                 String::new()
             }
         });
-        
+
         Text::from_string(result.into_owned())
     }
 
@@ -235,9 +234,11 @@ impl<'t> Iterator for TextMatchIter<'t> {
             return None;
         }
 
-        let remaining_text = self.text.substring(self.last_end, self.text.char_length())?;
+        let remaining_text = self
+            .text
+            .substring(self.last_end, self.text.char_length())?;
         let match_result = self.regex.find(&remaining_text)?;
-        
+
         // Adjust positions to be relative to original text
         let adjusted_result = TextMatchResult {
             matched_text: match_result.matched_text,
@@ -246,7 +247,7 @@ impl<'t> Iterator for TextMatchIter<'t> {
             groups: match_result.groups,
             named_groups: match_result.named_groups,
         };
-        
+
         self.last_end = adjusted_result.end;
         Some(adjusted_result)
     }
@@ -301,13 +302,13 @@ impl RegexFlags {
 pub fn create_regex_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // Regex compilation
     bind_regex_construction(env);
-    
+
     // Pattern matching
     bind_regex_matching(env);
-    
+
     // Text replacement
     bind_regex_replacement(env);
-    
+
     // Text splitting
     bind_regex_splitting(env);
 }
@@ -315,85 +316,109 @@ pub fn create_regex_bindings(env: &Arc<ThreadSafeEnvironment>) {
 /// Binds regex construction operations.
 fn bind_regex_construction(env: &Arc<ThreadSafeEnvironment>) {
     // regex-compile
-    env.define("regex-compile".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "regex-compile".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_regex_compile),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "regex-compile".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "regex-compile".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_regex_compile),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // regex-compile-ci (case-insensitive)
-    env.define("regex-compile-ci".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "regex-compile-ci".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_regex_compile_ci),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "regex-compile-ci".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "regex-compile-ci".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_regex_compile_ci),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds regex matching operations.
 fn bind_regex_matching(env: &Arc<ThreadSafeEnvironment>) {
     // regex-match?
-    env.define("regex-match?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "regex-match?".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_regex_match_p),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "regex-match?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "regex-match?".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_regex_match_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // regex-search
-    env.define("regex-search".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "regex-search".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_regex_search),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "regex-search".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "regex-search".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_regex_search),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // regex-search-all
-    env.define("regex-search-all".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "regex-search-all".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_regex_search_all),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "regex-search-all".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "regex-search-all".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_regex_search_all),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds regex replacement operations.
 fn bind_regex_replacement(env: &Arc<ThreadSafeEnvironment>) {
     // regex-replace
-    env.define("regex-replace".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "regex-replace".to_string(),
-        arity_min: 3,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_regex_replace),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "regex-replace".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "regex-replace".to_string(),
+            arity_min: 3,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_regex_replace),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // regex-replace-all
-    env.define("regex-replace-all".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "regex-replace-all".to_string(),
-        arity_min: 3,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_regex_replace_all),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "regex-replace-all".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "regex-replace-all".to_string(),
+            arity_min: 3,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_regex_replace_all),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds regex splitting operations.
 fn bind_regex_splitting(env: &Arc<ThreadSafeEnvironment>) {
     // regex-split
-    env.define("regex-split".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "regex-split".to_string(),
-        arity_min: 2,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_regex_split),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "regex-split".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "regex-split".to_string(),
+            arity_min: 2,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_regex_split),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 // ============= PRIMITIVE IMPLEMENTATIONS =============
@@ -406,23 +431,23 @@ fn primitive_regex_compile(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let pattern = args[0].as_string().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "regex-compile pattern must be a string".to_string(),
             None,
         ))
     })?;
-    
+
     let flags = if args.len() > 1 {
         // Parse flags from string or other representation
         RegexFlags::default() // Simplified for now
     } else {
         RegexFlags::default()
     };
-    
+
     let regex = TextRegex::with_flags(pattern, flags)?;
-    
+
     // For now, we'll store the regex as a foreign object
     // In a complete implementation, we'd have a proper regex value type
     Ok(Value::string(format!("regex:{pattern}")))
@@ -436,16 +461,16 @@ fn primitive_regex_compile_ci(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let pattern = args[0].as_string().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "regex-compile-ci pattern must be a string".to_string(),
             None,
         ))
     })?;
-    
+
     let regex = TextRegex::with_flags(pattern, RegexFlags::case_insensitive())?;
-    
+
     Ok(Value::string(format!("regex-ci:{pattern}")))
 }
 
@@ -457,17 +482,17 @@ fn primitive_regex_match_p(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let pattern = args[0].as_string().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "regex-match? pattern must be a string".to_string(),
             None,
         ))
     })?;
-    
+
     let text = Text::try_from(&args[1])?;
     let regex = TextRegex::new(pattern)?;
-    
+
     Ok(Value::boolean(regex.is_match(&text)))
 }
 
@@ -479,17 +504,17 @@ fn primitive_regex_search(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let pattern = args[0].as_string().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "regex-search pattern must be a string".to_string(),
             None,
         ))
     })?;
-    
+
     let text = Text::try_from(&args[1])?;
     let regex = TextRegex::new(pattern)?;
-    
+
     match regex.find(&text) {
         Some(match_result) => {
             // Return a match object - for now, return the matched text
@@ -507,23 +532,20 @@ fn primitive_regex_search_all(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let pattern = args[0].as_string().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "regex-search-all pattern must be a string".to_string(),
             None,
         ))
     })?;
-    
+
     let text = Text::try_from(&args[1])?;
     let regex = TextRegex::new(pattern)?;
-    
+
     let matches = regex.find_all(&text);
-    let match_values: Vec<Value> = matches
-        .into_iter()
-        .map(|m| m.matched_text.into())
-        .collect();
-    
+    let match_values: Vec<Value> = matches.into_iter().map(|m| m.matched_text.into()).collect();
+
     Ok(Value::list(match_values))
 }
 
@@ -535,20 +557,20 @@ fn primitive_regex_replace(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let pattern = args[0].as_string().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "regex-replace pattern must be a string".to_string(),
             None,
         ))
     })?;
-    
+
     let text = Text::try_from(&args[1])?;
     let replacement = Text::try_from(&args[2])?;
-    
+
     let regex = TextRegex::new(pattern)?;
     let result = regex.replace(&text, &replacement);
-    
+
     Ok(result.into())
 }
 
@@ -560,20 +582,20 @@ fn primitive_regex_replace_all(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let pattern = args[0].as_string().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "regex-replace-all pattern must be a string".to_string(),
             None,
         ))
     })?;
-    
+
     let text = Text::try_from(&args[1])?;
     let replacement = Text::try_from(&args[2])?;
-    
+
     let regex = TextRegex::new(pattern)?;
     let result = regex.replace_all(&text, &replacement);
-    
+
     Ok(result.into())
 }
 
@@ -585,17 +607,17 @@ fn primitive_regex_split(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let pattern = args[0].as_string().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "regex-split pattern must be a string".to_string(),
             None,
         ))
     })?;
-    
+
     let text = Text::try_from(&args[1])?;
     let regex = TextRegex::new(pattern)?;
-    
+
     let parts = if args.len() > 2 {
         let limit = args[2].as_integer().ok_or_else(|| {
             Box::new(DiagnosticError::runtime_error(
@@ -607,7 +629,7 @@ fn primitive_regex_split(args: &[Value]) -> Result<Value> {
     } else {
         regex.split(&text)
     };
-    
+
     let part_values: Vec<Value> = parts.into_iter().map(|p| p.into()).collect();
     Ok(Value::list(part_values))
 }
@@ -626,9 +648,9 @@ mod tests {
     fn test_regex_matching() {
         let regex = TextRegex::new(r"\d+").unwrap();
         let text = Text::from_string_slice("abc123def");
-        
+
         assert!(regex.is_match(&text));
-        
+
         let match_result = regex.find(&text).unwrap();
         assert_eq!(match_result.matched_text.to_string(), "123");
         assert_eq!(match_result.start, 3);
@@ -640,10 +662,10 @@ mod tests {
         let regex = TextRegex::new(r"\d+").unwrap();
         let text = Text::from_string_slice("abc123def456");
         let replacement = Text::from_string_slice("XXX");
-        
+
         let result = regex.replace(&text, &replacement);
         assert_eq!(result.to_string(), "abcXXXdef456");
-        
+
         let result_all = regex.replace_all(&text, &replacement);
         assert_eq!(result_all.to_string(), "abcXXXdefXXX");
     }
@@ -652,7 +674,7 @@ mod tests {
     fn test_regex_splitting() {
         let regex = TextRegex::new(r",\s*").unwrap();
         let text = Text::from_string_slice("a, b, c, d");
-        
+
         let parts = regex.split(&text);
         assert_eq!(parts.len(), 4);
         assert_eq!(parts[0].to_string(), "a");
@@ -665,9 +687,9 @@ mod tests {
     fn test_case_insensitive_regex() {
         let regex = TextRegex::with_flags(r"hello", RegexFlags::case_insensitive()).unwrap();
         let text = Text::from_string_slice("Hello World");
-        
+
         assert!(regex.is_match(&text));
-        
+
         let match_result = regex.find(&text).unwrap();
         assert_eq!(match_result.matched_text.to_string(), "Hello");
     }
@@ -676,16 +698,16 @@ mod tests {
     fn test_named_groups() {
         let regex = TextRegex::new(r"(?P<word>\w+)\s+(?P<number>\d+)").unwrap();
         let text = Text::from_string_slice("hello 123");
-        
+
         let match_result = regex.find(&text).unwrap();
-        
+
         assert!(match_result.named_groups.contains_key("word"));
         assert!(match_result.named_groups.contains_key("number"));
-        
+
         if let Some(Some(word)) = match_result.named_groups.get("word") {
             assert_eq!(word.to_string(), "hello");
         }
-        
+
         if let Some(Some(number)) = match_result.named_groups.get("number") {
             assert_eq!(number.to_string(), "123");
         }

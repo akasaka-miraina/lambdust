@@ -1,7 +1,7 @@
 //! Code quality metrics and optimization opportunity analysis.
 
+use super::analysis_types::{OptimizationImpact, OptimizationType};
 use crate::diagnostics::Span;
-use super::analysis_types::{OptimizationType, OptimizationImpact};
 use std::collections::HashMap;
 
 /// Code quality metrics.

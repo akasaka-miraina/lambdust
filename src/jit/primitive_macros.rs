@@ -3,8 +3,10 @@
 //! This module provides compile-time code generation for JIT primitives,
 //! eliminating redundant implementations while maintaining peak performance.
 
+use crate::jit::generic_primitives::{UnifiedGenericPrimitive, ArithmeticPrimitive, ComparisonPrimitive, ListPrimitive, TypePredicatePrimitive, ArithmeticOperation, ComparisonOperation, ListOperation, TypePredicateOperation, PrimitiveCategory};
+
 /// Generates a complete JIT primitive implementation with all optimizations.
-/// 
+///
 /// This macro creates a zero-cost abstraction that produces optimized code
 /// equivalent to hand-written implementations but with significantly less boilerplate.
 #[macro_export]
@@ -29,7 +31,7 @@ macro_rules! define_jit_primitive {
             |$args| $eval_body
         }
     };
-    
+
     (
         name: "eqv?",
         category: $category:ty,
@@ -49,7 +51,7 @@ macro_rules! define_jit_primitive {
             |$args| $eval_body
         }
     };
-    
+
     (
         name: "equal?",
         category: $category:ty,
@@ -69,7 +71,7 @@ macro_rules! define_jit_primitive {
             |$args| $eval_body
         }
     };
-    
+
     (
         name: "not",
         category: $category:ty,
@@ -89,7 +91,7 @@ macro_rules! define_jit_primitive {
             |$args| $eval_body
         }
     };
-    
+
     (
         name: "call/cc",
         category: $category:ty,
@@ -109,7 +111,7 @@ macro_rules! define_jit_primitive {
             |$args| $eval_body
         }
     };
-    
+
     // Basic primitive definition with fixed arity
     (
         name: $name:expr,
@@ -129,7 +131,7 @@ macro_rules! define_jit_primitive {
             eval: |$args| $eval_body
         }
     };
-    
+
     // Basic primitive definition with range arity
     (
         name: $name:expr,
@@ -150,7 +152,7 @@ macro_rules! define_jit_primitive {
             eval: |$args| $eval_body
         }
     };
-    
+
     // Variadic primitive (unlimited arity)
     (
         name: $name:expr,
@@ -171,7 +173,7 @@ macro_rules! define_jit_primitive {
             eval: |$args| $eval_body
         }
     };
-    
+
     // Full primitive definition with all options
     (
         name: $name:expr,
@@ -186,11 +188,11 @@ macro_rules! define_jit_primitive {
     ) => {
         paste::paste! {
             pub struct [<$name:camel Primitive>];
-            
+
             impl $crate::jit::generic_primitives::GenericPrimitive for [<$name:camel Primitive>] {
                 type Category = $category;
-                
-                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig = 
+
+                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig =
                     $crate::jit::generic_primitives::PrimitiveConfig {
                         arity_min: $min,
                         arity_max: $max,
@@ -199,11 +201,11 @@ macro_rules! define_jit_primitive {
                         has_side_effects: $side_fx,
                         constant_foldable: $const_fold,
                     };
-                
+
                 fn name(&self) -> &'static str {
                     $name
                 }
-                
+
                 fn evaluate(&self, $args: &[$crate::eval::Value]) -> $crate::diagnostics::UnifiedResult<$crate::eval::Value> {
                     // Automatic arity validation
                     if $args.len() < Self::CONFIG.arity_min {
@@ -211,7 +213,7 @@ macro_rules! define_jit_primitive {
                             $name, Self::CONFIG.arity_min, $args.len()
                         ).into_unified());
                     }
-                    
+
                     if let Some(max_arity) = Self::CONFIG.arity_max {
                         if $args.len() > max_arity {
                             return Err($crate::eval::unified_eval_errors::EvalUnifiedError::arity_mismatch(
@@ -219,15 +221,15 @@ macro_rules! define_jit_primitive {
                             ).into_unified());
                         }
                     }
-                    
+
                     // Execute the evaluation body
                     $eval_body
                 }
             }
-            
+
             // Auto-generate registration function
-            pub fn [<register_ $name:snake>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry) 
-                -> $crate::diagnostics::Result<()> 
+            pub fn [<register_ $name:snake>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry)
+                -> $crate::diagnostics::Result<()>
             {
                 registry.register([<$name:camel Primitive>])
             }
@@ -251,11 +253,11 @@ macro_rules! define_jit_primitive_impl {
     ) => {
         paste::paste! {
             pub struct [<$struct_name Primitive>];
-            
+
             impl $crate::jit::generic_primitives::GenericPrimitive for [<$struct_name Primitive>] {
                 type Category = $category;
-                
-                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig = 
+
+                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig =
                     $crate::jit::generic_primitives::PrimitiveConfig {
                         arity_min: $arity_min,
                         arity_max: Some($arity_max),
@@ -264,11 +266,11 @@ macro_rules! define_jit_primitive_impl {
                         has_side_effects: $side_effects,
                         constant_foldable: $constant_fold,
                     };
-                
+
                 fn name(&self) -> &'static str {
                     $name
                 }
-                
+
                 fn evaluate(&self, $args: &[$crate::eval::Value]) -> $crate::diagnostics::UnifiedResult<$crate::eval::Value> {
                     // Automatic arity validation
                     if $args.len() < Self::CONFIG.arity_min {
@@ -276,7 +278,7 @@ macro_rules! define_jit_primitive_impl {
                             $name, Self::CONFIG.arity_min, $args.len()
                         ).into_unified());
                     }
-                    
+
                     if let Some(max_arity) = Self::CONFIG.arity_max {
                         if $args.len() > max_arity {
                             return Err($crate::eval::unified_eval_errors::EvalUnifiedError::arity_mismatch(
@@ -284,15 +286,15 @@ macro_rules! define_jit_primitive_impl {
                             ).into_unified());
                         }
                     }
-                    
+
                     // Execute the evaluation body
                     $eval_body
                 }
             }
-            
+
             // Auto-generate registration function
-            pub fn [<register_ $struct_name:snake>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry) 
-                -> $crate::diagnostics::Result<()> 
+            pub fn [<register_ $struct_name:snake>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry)
+                -> $crate::diagnostics::Result<()>
             {
                 registry.register([<$struct_name Primitive>])
             }
@@ -312,11 +314,11 @@ macro_rules! define_arithmetic_primitive_impl {
     ) => {
         paste::paste! {
             pub struct [<$struct_name ArithmeticPrimitive>];
-            
+
             impl $crate::jit::generic_primitives::GenericPrimitive for [<$struct_name ArithmeticPrimitive>] {
                 type Category = $crate::jit::generic_primitives::ArithmeticCategory;
-                
-                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig = 
+
+                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig =
                     $crate::jit::generic_primitives::PrimitiveConfig {
                         arity_min: 0,
                         arity_max: None,
@@ -325,18 +327,18 @@ macro_rules! define_arithmetic_primitive_impl {
                         has_side_effects: false,
                         constant_foldable: true,
                     };
-                
+
                 fn name(&self) -> &'static str {
                     $name
                 }
-                
+
                 fn evaluate(&self, args: &[$crate::eval::Value]) -> $crate::diagnostics::UnifiedResult<$crate::eval::Value> {
                     use $crate::eval::Value;
-                    
+
                     if args.is_empty() {
                         return Ok(Value::number($identity));
                     }
-                    
+
                     let mut result = $identity;
                     for arg in args {
                         if let Some(num) = arg.as_number() {
@@ -349,14 +351,14 @@ macro_rules! define_arithmetic_primitive_impl {
                             ).into_unified());
                         }
                     }
-                    
+
                     Ok(Value::number(result))
                 }
             }
-            
+
             // Auto-generate registration function
-            pub fn [<register_ $struct_name:snake _arithmetic>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry) 
-                -> $crate::diagnostics::Result<()> 
+            pub fn [<register_ $struct_name:snake _arithmetic>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry)
+                -> $crate::diagnostics::Result<()>
             {
                 registry.register([<$struct_name ArithmeticPrimitive>])
             }
@@ -365,7 +367,7 @@ macro_rules! define_arithmetic_primitive_impl {
 }
 
 /// Generates optimized arithmetic primitives with SIMD support.
-/// 
+///
 /// This macro creates highly optimized arithmetic operations with automatic
 /// type specialization and vectorization opportunities.
 #[macro_export]
@@ -384,7 +386,7 @@ macro_rules! define_arithmetic_primitive {
             operation: |$a, $b| $op
         }
     };
-    
+
     (
         "-",
         identity: $identity:expr,
@@ -401,7 +403,7 @@ macro_rules! define_arithmetic_primitive {
             operation: |$a, $b| $op
         }
     };
-    
+
     (
         "*",
         identity: $identity:expr,
@@ -416,7 +418,7 @@ macro_rules! define_arithmetic_primitive {
             operation: |$a, $b| $op
         }
     };
-    
+
     (
         "/",
         identity: $identity:expr,
@@ -460,11 +462,11 @@ macro_rules! define_comparison_primitive_impl {
     ($struct_name:ident, $name:expr, $op:expr) => {
         paste::paste! {
             pub struct [<$struct_name ComparisonPrimitive>];
-            
+
             impl $crate::jit::generic_primitives::GenericPrimitive for [<$struct_name ComparisonPrimitive>] {
                 type Category = $crate::jit::generic_primitives::ComparisonCategory;
-                
-                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig = 
+
+                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig =
                     $crate::jit::generic_primitives::PrimitiveConfig {
                         arity_min: 2,
                         arity_max: None,
@@ -473,14 +475,14 @@ macro_rules! define_comparison_primitive_impl {
                         has_side_effects: false,
                         constant_foldable: true,
                     };
-                
+
                 fn name(&self) -> &'static str {
                     $name
                 }
-                
+
                 fn evaluate(&self, args: &[$crate::eval::Value]) -> $crate::diagnostics::UnifiedResult<$crate::eval::Value> {
                     use $crate::eval::Value;
-                    
+
                     // For chains like (< a b c), check that a < b and b < c
                     for i in 0..args.len()-1 {
                         let a = args[i].as_number().ok_or_else(|| {
@@ -493,19 +495,19 @@ macro_rules! define_comparison_primitive_impl {
                                 $name, "number", &args[i+1]
                             ).into_unified()
                         })?;
-                        
+
                         if !$op(a, b) {
                             return Ok(Value::boolean(false));
                         }
                     }
-                    
+
                     Ok(Value::boolean(true))
                 }
             }
-            
+
             // Auto-generate registration function
-            pub fn [<register_ $struct_name:snake _comparison>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry) 
-                -> $crate::diagnostics::Result<()> 
+            pub fn [<register_ $struct_name:snake _comparison>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry)
+                -> $crate::diagnostics::Result<()>
             {
                 registry.register([<$struct_name ComparisonPrimitive>])
             }
@@ -514,7 +516,7 @@ macro_rules! define_comparison_primitive_impl {
 }
 
 /// Generates type predicate primitives with maximum optimization.
-/// 
+///
 /// These predicates are optimized to compile down to single instruction checks.
 #[macro_export]
 macro_rules! define_type_predicate {
@@ -543,11 +545,11 @@ macro_rules! define_type_predicate_impl {
     ($struct_name:ident, $name:expr, $check:expr) => {
         paste::paste! {
             pub struct [<$struct_name PredicatePrimitive>];
-            
+
             impl $crate::jit::generic_primitives::GenericPrimitive for [<$struct_name PredicatePrimitive>] {
                 type Category = $crate::jit::generic_primitives::TypePredicateCategory;
-                
-                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig = 
+
+                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig =
                     $crate::jit::generic_primitives::PrimitiveConfig {
                         arity_min: 1,
                         arity_max: Some(1),
@@ -556,23 +558,23 @@ macro_rules! define_type_predicate_impl {
                         has_side_effects: false,
                         constant_foldable: true,
                     };
-                
+
                 fn name(&self) -> &'static str {
                     $name
                 }
-                
+
                 #[inline(always)]
                 fn evaluate(&self, args: &[$crate::eval::Value]) -> $crate::diagnostics::UnifiedResult<$crate::eval::Value> {
                     use $crate::eval::Value;
-                    
+
                     debug_assert_eq!(args.len(), 1);
                     Ok(Value::boolean($check(&args[0])))
                 }
             }
-            
+
             // Auto-generate registration function
-            pub fn [<register_ $struct_name:snake _predicate>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry) 
-                -> $crate::diagnostics::Result<()> 
+            pub fn [<register_ $struct_name:snake _predicate>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry)
+                -> $crate::diagnostics::Result<()>
             {
                 registry.register([<$struct_name PredicatePrimitive>])
             }
@@ -614,11 +616,11 @@ macro_rules! define_list_primitive_impl {
     ($struct_name:ident, $name:expr, |$args:ident| $body:expr) => {
         paste::paste! {
             pub struct [<$struct_name ListPrimitive>];
-            
+
             impl $crate::jit::generic_primitives::GenericPrimitive for [<$struct_name ListPrimitive>] {
                 type Category = $crate::jit::generic_primitives::ListCategory;
-                
-                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig = 
+
+                const CONFIG: $crate::jit::generic_primitives::PrimitiveConfig =
                     $crate::jit::generic_primitives::PrimitiveConfig {
                         arity_min: 1,
                         arity_max: None,
@@ -627,19 +629,19 @@ macro_rules! define_list_primitive_impl {
                         has_side_effects: false,
                         constant_foldable: false,
                     };
-                
+
                 fn name(&self) -> &'static str {
                     $name
                 }
-                
+
                 fn evaluate(&self, $args: &[$crate::eval::Value]) -> $crate::diagnostics::UnifiedResult<$crate::eval::Value> {
                     $body
                 }
             }
-            
+
             // Auto-generate registration function
-            pub fn [<register_ $struct_name:snake _list>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry) 
-                -> $crate::diagnostics::Result<()> 
+            pub fn [<register_ $struct_name:snake _list>](registry: &mut $crate::jit::generic_primitives::GenericPrimitiveRegistry)
+                -> $crate::diagnostics::Result<()>
             {
                 registry.register([<$struct_name ListPrimitive>])
             }
@@ -648,7 +650,7 @@ macro_rules! define_list_primitive_impl {
 }
 
 /// Batch registration macro for multiple primitives.
-/// 
+///
 /// This macro generates an efficient registration function that registers
 /// multiple primitives at once with optimal performance.
 #[macro_export]
@@ -658,7 +660,7 @@ macro_rules! register_jit_primitives {
             $primitive::register($registry)?;
         )*
     };
-    
+
     // With category grouping for better optimization
     ($registry:expr, {
         $($category:ident: [ $($primitive:ident),* $(,)? ]),* $(,)?
@@ -668,7 +670,7 @@ macro_rules! register_jit_primitives {
             $(
                 $primitive::register($registry)?;
             )*
-            
+
             // Apply category-specific optimizations
             $registry.optimize_category(stringify!($category))?;
         )*
@@ -676,7 +678,7 @@ macro_rules! register_jit_primitives {
 }
 
 /// Generates SIMD-optimized vector operations for arithmetic primitives.
-/// 
+///
 /// This macro creates vector implementations that can process multiple
 /// values simultaneously using SIMD instructions.
 #[macro_export]
@@ -692,18 +694,18 @@ macro_rules! define_simd_arithmetic {
             pub fn [<$name:snake _simd_ $width>](a: &[f64], b: &[f64]) -> Vec<f64> {
                 assert_eq!(a.len(), b.len());
                 let mut result = Vec::with_capacity(a.len());
-                
+
                 // Process in chunks of vector width
                 let chunks = a.len() / ($width / 64); // 64-bit floats
-                
+
                 for i in 0..chunks {
                     let start = i * ($width / 64);
                     let end = start + ($width / 64);
-                    
+
                     // Load vectors
                     let vec_a = &a[start..end];
                     let vec_b = &b[start..end];
-                    
+
                     // Process vector elements
                     for j in 0..vec_a.len() {
                         let $a = vec_a[j];
@@ -711,14 +713,14 @@ macro_rules! define_simd_arithmetic {
                         result.push($op);
                     }
                 }
-                
+
                 // Handle remaining elements
                 for i in (chunks * ($width / 64))..a.len() {
                     let $a = a[i];
                     let $b = b[i];
                     result.push($op);
                 }
-                
+
                 result
             }
         }
@@ -726,7 +728,7 @@ macro_rules! define_simd_arithmetic {
 }
 
 /// Generates specialized fast paths for common type combinations.
-/// 
+///
 /// This macro creates type-specialized implementations that avoid
 /// dynamic dispatch and type checking overhead.
 #[macro_export]
@@ -748,7 +750,7 @@ macro_rules! define_specialized_fast_path {
 }
 
 /// Generates performance benchmarks for primitives.
-/// 
+///
 /// This macro creates comprehensive benchmarks that measure
 /// performance across different input sizes and types.
 #[macro_export]
@@ -759,32 +761,32 @@ macro_rules! benchmark_primitive {
             mod [<$primitive:snake _benchmarks>] {
                 use super::*;
                 use std::time::Instant;
-                
+
                 #[test]
                 fn [<benchmark_ $primitive:snake _small>]() {
                     let primitive = [<$primitive ArithmeticPrimitive>];
                     let args = vec![$crate::eval::Value::number(1.0), $crate::eval::Value::number(2.0)];
-                    
+
                     let start = Instant::now();
                     for _ in 0..10000 {
-                        let _ = primitive.evaluate(&args).unwrap();
+                        let _ = GenericPrimitive::evaluate(&primitive, &args).unwrap();
                     }
                     let duration = start.elapsed();
-                    
+
                     println!("{} small benchmark: {:?}", stringify!($primitive), duration);
                 }
-                
+
                 #[test]
                 fn [<benchmark_ $primitive:snake _large>]() {
                     let primitive = [<$primitive ArithmeticPrimitive>];
                     let args: Vec<_> = (0..1000).map(|i| $crate::eval::Value::number(i as f64)).collect();
-                    
+
                     let start = Instant::now();
                     for _ in 0..100 {
-                        let _ = primitive.evaluate(&args).unwrap();
+                        let _ = GenericPrimitive::evaluate(&primitive, &args).unwrap();
                     }
                     let duration = start.elapsed();
-                    
+
                     println!("{} large benchmark: {:?}", stringify!($primitive), duration);
                 }
             }
@@ -823,50 +825,50 @@ mod tests {
     #[test]
     fn test_generated_add_primitive() {
         let add = AddArithmeticPrimitive;
-        
+
         // Test identity
-        let result = add.evaluate(&[]).unwrap();
+        let result = GenericPrimitive::evaluate(&add, &[]).unwrap();
         assert_eq!(result.as_number().unwrap(), 0.0);
-        
+
         // Test binary operation
         let args = vec![Value::number(3.0), Value::number(4.0)];
-        let result = add.evaluate(&args).unwrap();
+        let result = GenericPrimitive::evaluate(&add, &args).unwrap();
         assert_eq!(result.as_number().unwrap(), 7.0);
-        
+
         // Test n-ary operation
         let args = vec![
-            Value::number(1.0), 
-            Value::number(2.0), 
-            Value::number(3.0), 
+            Value::number(1.0),
+            Value::number(2.0),
+            Value::number(3.0),
             Value::number(4.0)
         ];
-        let result = add.evaluate(&args).unwrap();
+        let result = GenericPrimitive::evaluate(&add, &args).unwrap();
         assert_eq!(result.as_number().unwrap(), 10.0);
     }
 
     #[test]
     fn test_generated_comparison_primitive() {
         let lt = LessThanComparisonPrimitive;
-        
+
         let args = vec![Value::number(3.0), Value::number(4.0)];
-        let result = lt.evaluate(&args).unwrap();
+        let result = GenericPrimitive::evaluate(&lt, &args).unwrap();
         assert_eq!(result.as_boolean().unwrap(), true);
-        
+
         let args = vec![Value::number(4.0), Value::number(3.0)];
-        let result = lt.evaluate(&args).unwrap();
+        let result = GenericPrimitive::evaluate(&lt, &args).unwrap();
         assert_eq!(result.as_boolean().unwrap(), false);
     }
 
     #[test]
     fn test_generated_type_predicate() {
         let number_pred = NumberQuestionPredicatePrimitive;
-        
+
         let args = vec![Value::number(42.0)];
-        let result = number_pred.evaluate(&args).unwrap();
+        let result = GenericPrimitive::evaluate(&number_pred, &args).unwrap();
         assert_eq!(result.as_boolean().unwrap(), true);
-        
+
         let args = vec![Value::string("hello")];
-        let result = number_pred.evaluate(&args).unwrap();
+        let result = GenericPrimitive::evaluate(&number_pred, &args).unwrap();
         assert_eq!(result.as_boolean().unwrap(), false);
     }
 
@@ -877,7 +879,7 @@ mod tests {
         assert!(AddArithmeticPrimitive::CONFIG.is_commutative);
         assert!(AddArithmeticPrimitive::CONFIG.is_associative);
         assert!(AddArithmeticPrimitive::CONFIG.constant_foldable);
-        
+
         assert_eq!(LessThanComparisonPrimitive::CONFIG.arity_min, 2);
         assert_eq!(LessThanComparisonPrimitive::CONFIG.arity_max, Some(2));
         assert!(!LessThanComparisonPrimitive::CONFIG.is_commutative);

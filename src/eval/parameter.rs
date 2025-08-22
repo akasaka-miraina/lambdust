@@ -5,11 +5,11 @@
 //! called as procedures to retrieve their current value, and used with the
 //! `parameterize` special form to establish dynamic bindings.
 
-use crate::eval::{Value, Parameter};
 use crate::diagnostics::Result;
+use crate::eval::{Parameter, Value};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::cell::RefCell;
 
 thread_local! {
     /// Thread-local parameter binding stack.
@@ -38,7 +38,7 @@ impl Parameter {
     /// Creates a new parameter with the given initial value and optional converter.
     pub fn new(initial_value: Value, converter: Option<Value>) -> Self {
         let id = PARAMETER_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        
+
         // Apply converter to initial value if provided
         let processed_value = if let Some(ref _conv) = converter {
             // For now, we store the converter but don't apply it during construction
@@ -47,7 +47,7 @@ impl Parameter {
         } else {
             initial_value
         };
-        
+
         Parameter {
             id,
             converter: converter.map(Arc::new),
@@ -70,20 +70,19 @@ impl Parameter {
     pub fn get(&self) -> Value {
         // Check thread-local bindings first
         let thread_local_value = PARAMETER_STACK.with(|stack| {
-            let stack = stack.borrow();
-            // Search from top of stack (most recent binding) to bottom
-            for frame in stack.iter().rev() {
-                if let Some(value) = frame.bindings.get(&self.id) {
-                    return Some(value.clone());
+            if let Ok(stack) = stack.try_borrow() {
+                // Search from top of stack (most recent binding) to bottom
+                for frame in stack.iter().rev() {
+                    if let Some(value) = frame.bindings.get(&self.id) {
+                        return Some(value.clone());
+                    }
                 }
             }
             None
         });
 
         // Return thread-local value if found, otherwise global default
-        thread_local_value.unwrap_or_else(|| {
-            self.global_default.read().unwrap().clone()
-        })
+        thread_local_value.unwrap_or_else(|| self.global_default.try_read().unwrap().clone())
     }
 
     /// Sets the global default value of this parameter.
@@ -155,7 +154,7 @@ impl ParameterBinding {
 
     /// Gets the current depth of the parameter stack.
     pub fn stack_depth() -> usize {
-        PARAMETER_STACK.with(|stack| stack.borrow().len())
+        PARAMETER_STACK.with(|stack| stack.try_borrow().map(|s| s.len()).unwrap_or(0))
     }
 
     /// Clears all parameter bindings (used for testing).
@@ -206,11 +205,7 @@ mod tests {
 
     #[test]
     fn test_parameter_with_name() {
-        let param = Parameter::with_name(
-            Value::string("hello"),
-            None,
-            "test-param".to_string()
-        );
+        let param = Parameter::with_name(Value::string("hello"), None, "test-param".to_string());
         assert_eq!(param.get().as_string(), Some("hello"));
         assert_eq!(param.name(), Some("test-param"));
     }
@@ -219,7 +214,7 @@ mod tests {
     fn test_parameter_global_set() {
         let param = Parameter::new(Value::integer(1), None);
         assert_eq!(param.get().as_integer(), Some(1));
-        
+
         param.set_global(Value::integer(2)).unwrap();
         assert_eq!(param.get().as_integer(), Some(2));
     }
@@ -227,18 +222,18 @@ mod tests {
     #[test]
     fn test_parameter_binding() {
         ParameterBinding::clear_stack();
-        
+
         let param = Parameter::new(Value::integer(1), None);
         assert_eq!(param.get().as_integer(), Some(1));
-        
+
         let mut bindings = HashMap::new();
         bindings.insert(param.id(), Value::integer(42));
-        
+
         let result = ParameterBinding::with_bindings(bindings, || {
             assert_eq!(param.get().as_integer(), Some(42));
             param.get().as_integer().unwrap() * 2
         });
-        
+
         // After the binding is removed, should return to global default
         assert_eq!(param.get().as_integer(), Some(1));
         assert_eq!(result, 84);
@@ -247,26 +242,26 @@ mod tests {
     #[test]
     fn test_nested_parameter_bindings() {
         ParameterBinding::clear_stack();
-        
+
         let param = Parameter::new(Value::integer(1), None);
-        
+
         let mut bindings1 = HashMap::new();
         bindings1.insert(param.id(), Value::integer(10));
-        
+
         let mut bindings2 = HashMap::new();
         bindings2.insert(param.id(), Value::integer(20));
-        
+
         ParameterBinding::with_bindings(bindings1, || {
             assert_eq!(param.get().as_integer(), Some(10));
-            
+
             ParameterBinding::with_bindings(bindings2, || {
                 assert_eq!(param.get().as_integer(), Some(20));
             });
-            
+
             // Should return to outer binding
             assert_eq!(param.get().as_integer(), Some(10));
         });
-        
+
         // Should return to global default
         assert_eq!(param.get().as_integer(), Some(1));
     }
@@ -275,18 +270,18 @@ mod tests {
     fn test_stack_depth() {
         ParameterBinding::clear_stack();
         assert_eq!(ParameterBinding::stack_depth(), 0);
-        
+
         let bindings = HashMap::new();
         ParameterBinding::with_bindings(bindings.clone(), || {
             assert_eq!(ParameterBinding::stack_depth(), 1);
-            
+
             ParameterBinding::with_bindings(bindings, || {
                 assert_eq!(ParameterBinding::stack_depth(), 2);
             });
-            
+
             assert_eq!(ParameterBinding::stack_depth(), 1);
         });
-        
+
         assert_eq!(ParameterBinding::stack_depth(), 0);
     }
 }

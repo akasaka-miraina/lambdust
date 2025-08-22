@@ -2,7 +2,7 @@
 
 use crate::effects::Effect;
 use std::thread::ThreadId;
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 /// Configuration for an effect sandbox.
 #[derive(Debug, Clone)]
@@ -105,20 +105,22 @@ impl EffectSandboxHandle {
         // Full implementation would coordinate with EffectCoordinator
         Ok(())
     }
-    
+
     /// Checks if the sandbox is still valid.
     pub fn is_valid(&self) -> bool {
-        // TODO: Fix weak reference issue 
+        // TODO: Fix weak reference issue
         // self.coordinator.strong_count() > 0
         true
     }
-    
+
     /// Gets sandbox statistics.
     pub fn get_statistics(&self) -> SandboxStatistics {
         SandboxStatistics {
             id: self.id,
             thread_id: self.thread_id,
-            uptime: SystemTime::now().duration_since(self.created_at).unwrap_or_default(),
+            uptime: SystemTime::now()
+                .duration_since(self.created_at)
+                .unwrap_or_default(),
             effect_count: 0, // Would be populated in real implementation
             resource_usage: ResourceUsage::default(),
         }

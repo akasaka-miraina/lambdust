@@ -7,10 +7,10 @@
 //! See the formal methods documentation for installation and configuration instructions.
 //!
 //! ## Feature Flags
-//! 
+//!
 //! - `formal-methods`: Basic formal methods support
 //! - `event-b`: Event-B machine translation
-//! - `b-method`: B-Method specification support  
+//! - `b-method`: B-Method specification support
 //! - `isabelle-hol`: Isabelle/HOL proof integration
 //! - `certified-translation`: Full formal verification stack
 
@@ -36,10 +36,10 @@
 // #[cfg(feature = "b-method")]
 // pub use bmethod::*;
 
-use crate::eval::Value;
 use crate::diagnostics::{Error, Result, Span};
-use std::collections::HashMap;
+use crate::eval::Value;
 use chrono;
+use std::collections::HashMap;
 
 /// Represents a formal specification that can be translated to/from Lambdust.
 pub trait FormalSpec {
@@ -52,10 +52,10 @@ pub trait FormalSpec {
 
     /// Translate a Lambdust value to this formal specification's value type.
     fn from_lambdust_value(value: &Value) -> Result<Self::Value>;
-    
+
     /// Translate this formal specification's value type to a Lambdust value.
     fn to_lambdust_value(value: &Self::Value) -> Result<Value>;
-    
+
     /// Check if a state satisfies the invariants of this formal specification.
     fn check_invariants(state: &Self::State) -> Result<bool>;
 }
@@ -64,10 +64,10 @@ pub trait FormalSpec {
 pub trait Translation<From: FormalSpec, To: FormalSpec> {
     /// Translate a specification from the source language to the target language.
     fn translate_spec(from_spec: &From) -> Result<To>;
-    
+
     /// Verify that the translation preserves semantic equivalence.
     fn verify_translation(from_spec: &From, to_spec: &To) -> Result<bool>;
-    
+
     /// Generate proof obligations for the translation.
     fn generate_proof_obligations(from_spec: &From, to_spec: &To) -> Result<Vec<ProofObligation>>;
 }
@@ -99,7 +99,7 @@ impl ProofObligation {
             context: HashMap::new(),
         }
     }
-    
+
     /// Add context information to this proof obligation.
     pub fn with_context(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.context.insert(key.into(), value.into());
@@ -133,7 +133,7 @@ impl TranslationCertificate {
             signature: String::new(), // Would be computed based on content
         }
     }
-    
+
     /// Verify the authenticity of this certificate.
     pub fn verify(&self) -> Result<bool> {
         // Implementation would verify digital signature
@@ -204,7 +204,7 @@ impl FormalTranslationManager {
             certificates: Vec::new(),
         }
     }
-    
+
     /// Start a new translation session.
     pub fn start_translation(
         &mut self,
@@ -223,61 +223,66 @@ impl FormalTranslationManager {
                 current_phase: TranslationPhase::Parsing,
             },
         };
-        
+
         self.sessions.insert(session_id.clone(), session);
         Ok(self.sessions.get_mut(&session_id).unwrap())
     }
-    
+
     /// Get an active translation session.
     pub fn get_session(&mut self, session_id: &str) -> Result<&mut TranslationSession> {
-        self.sessions.get_mut(session_id)
-            .ok_or_else(|| Error::runtime_error(
+        self.sessions.get_mut(session_id).ok_or_else(|| {
+            Error::runtime_error(
                 format!("Translation session not found: {}", session_id),
-                None
-            ).boxed())
+                None,
+            )
+            .boxed()
+        })
     }
-    
+
     /// Complete a translation session and generate a certificate.
     pub fn complete_translation(&mut self, session_id: &str) -> Result<TranslationCertificate> {
         let session = self.get_session(session_id)?;
-        
+
         // Verify all proof obligations are discharged
         if session.progress.discharged_pos < session.progress.total_pos {
-            return Err(Box::new(Error::runtime_error(
-                format!(
-                    "Cannot complete translation: {}/{} proof obligations discharged",
-                    session.progress.discharged_pos,
-                    session.progress.total_pos
-                ),
-                None
-            ).boxed()))
+            return Err(Box::new(
+                *Error::runtime_error(
+                    format!(
+                        "Cannot complete translation: {}/{} proof obligations discharged",
+                        session.progress.discharged_pos, session.progress.total_pos
+                    ),
+                    None,
+                )
+                .boxed(),
+            ));
         }
-        
-        let discharged_pos: Vec<String> = session.proof_obligations
+
+        let discharged_pos: Vec<String> = session
+            .proof_obligations
             .iter()
             .map(|po| po.id.clone())
             .collect();
-            
+
         let certificate = TranslationCertificate::new(
             session.source_type.clone(),
             session.target_type.clone(),
             discharged_pos,
         );
-        
+
         // Update session status
         session.progress.current_phase = TranslationPhase::Completed;
-        
+
         // Store certificate
         self.certificates.push(certificate.clone());
-        
+
         Ok(certificate)
     }
-    
+
     /// Get all verified translation certificates.
     pub fn get_certificates(&self) -> &[TranslationCertificate] {
         &self.certificates
     }
-    
+
     /// Verify a translation certificate.
     pub fn verify_certificate(&self, certificate: &TranslationCertificate) -> Result<bool> {
         certificate.verify()
@@ -293,38 +298,44 @@ impl Default for FormalTranslationManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_proof_obligation_creation() {
         let po = ProofObligation::new(
             "test_po_1",
             "Test proof obligation",
-            "forall x. P(x) => Q(x)"
-        ).with_context("assumption", "P(0) = true");
-        
+            "forall x. P(x) => Q(x)",
+        )
+        .with_context("assumption", "P(0) = true");
+
         assert_eq!(po.id, "test_po_1");
         assert_eq!(po.description, "Test proof obligation");
         assert_eq!(po.statement, "forall x. P(x) => Q(x)");
-        assert_eq!(po.context.get("assumption"), Some(&"P(0) = true".to_string()));
+        assert_eq!(
+            po.context.get("assumption"),
+            Some(&"P(0) = true".to_string())
+        );
     }
-    
+
     #[test]
     fn test_translation_manager() {
         let mut manager = FormalTranslationManager::new();
-        
+
         // Start a translation session
-        let session = manager.start_translation(
-            "test_session".to_string(),
-            "B-Method".to_string(),
-            "Lambdust".to_string(),
-        ).unwrap();
-        
+        let session = manager
+            .start_translation(
+                "test_session".to_string(),
+                "B-Method".to_string(),
+                "Lambdust".to_string(),
+            )
+            .unwrap();
+
         assert_eq!(session.id, "test_session");
         assert_eq!(session.source_type, "B-Method");
         assert_eq!(session.target_type, "Lambdust");
         assert_eq!(session.progress.current_phase, TranslationPhase::Parsing);
     }
-    
+
     #[test]
     fn test_translation_certificate() {
         let certificate = TranslationCertificate::new(
@@ -332,7 +343,7 @@ mod tests {
             "lambdust_spec".to_string(),
             vec!["po1".to_string(), "po2".to_string()],
         );
-        
+
         assert_eq!(certificate.source_spec, "test_spec");
         assert_eq!(certificate.target_spec, "lambdust_spec");
         assert_eq!(certificate.discharged_pos.len(), 2);

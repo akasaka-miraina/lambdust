@@ -16,15 +16,13 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TypeExpr {
     // ============= BASIC TYPE NAMES =============
-    
     /// Type identifier (e.g., Number, String, Boolean)
     Identifier(String),
-    
+
     /// Type variable (e.g., 'a, 'alpha)
     Variable(String),
-    
+
     // ============= COMPOUND TYPES =============
-    
     /// Function type: (A -> B) or (A B -> C)
     Function {
         /// Parameter types
@@ -32,7 +30,7 @@ pub enum TypeExpr {
         /// Return type
         return_type: Box<Spanned<TypeExpr>>,
     },
-    
+
     /// Pair type: (Pair A B)
     Pair {
         /// First type of the pair
@@ -40,21 +38,20 @@ pub enum TypeExpr {
         /// Second type of the pair
         second: Box<Spanned<TypeExpr>>,
     },
-    
+
     /// List type: (List A)
     List {
         /// Element type of the list
         element_type: Box<Spanned<TypeExpr>>,
     },
-    
+
     /// Vector type: (Vector A)
     Vector {
         /// Element type of the vector
         element_type: Box<Spanned<TypeExpr>>,
     },
-    
+
     // ============= POLYMORPHIC TYPES =============
-    
     /// Universal quantification: (forall (a b) Type) or (∀ (a b) Type)
     Forall {
         /// Type variables being quantified
@@ -62,7 +59,7 @@ pub enum TypeExpr {
         /// Type expression body
         body: Box<Spanned<TypeExpr>>,
     },
-    
+
     /// Existential quantification: (exists (a) Type) or (∃ (a) Type)
     Exists {
         /// Type variables being quantified
@@ -70,9 +67,8 @@ pub enum TypeExpr {
         /// Type expression body
         body: Box<Spanned<TypeExpr>>,
     },
-    
+
     // ============= TYPE CONSTRUCTORS =============
-    
     /// Type application: (F A) - applies type constructor F to argument A
     Application {
         /// Type constructor being applied
@@ -80,7 +76,7 @@ pub enum TypeExpr {
         /// Argument to the type constructor
         argument: Box<Spanned<TypeExpr>>,
     },
-    
+
     /// Parametric type: (Maybe A), (Either A B)
     Parametric {
         /// Name of the parametric type constructor
@@ -88,9 +84,8 @@ pub enum TypeExpr {
         /// Type arguments
         args: Vec<Spanned<TypeExpr>>,
     },
-    
+
     // ============= TYPE CONSTRAINTS =============
-    
     /// Constrained type: (Show a => a -> String)
     Constrained {
         /// Type class constraints
@@ -98,9 +93,8 @@ pub enum TypeExpr {
         /// Constrained type expression
         type_expr: Box<Spanned<TypeExpr>>,
     },
-    
+
     // ============= ADVANCED TYPES =============
-    
     /// Record type: {x : Int, y : String}
     Record {
         /// Record field types
@@ -108,13 +102,13 @@ pub enum TypeExpr {
         /// Row variable for row polymorphism: {x : Int | r}
         rest: Option<String>,
     },
-    
+
     /// Variant type: (| Some A | None)
     Variant {
         /// Variant constructor cases
         cases: Vec<VariantCase>,
     },
-    
+
     /// Recursive type: (mu t. List t -> t)
     Recursive {
         /// Recursive type variable
@@ -122,9 +116,8 @@ pub enum TypeExpr {
         /// Type expression body
         body: Box<Spanned<TypeExpr>>,
     },
-    
+
     // ============= EFFECT TYPES =============
-    
     /// Effectful type: (a ~> IO b)
     Effectful {
         /// Input type
@@ -134,20 +127,18 @@ pub enum TypeExpr {
         /// Output type
         output: Box<Spanned<TypeExpr>>,
     },
-    
+
     // ============= GRADUAL TYPING =============
-    
     /// Dynamic type: *
     Dynamic,
-    
+
     /// Unknown type: ?
     Unknown,
-    
+
     // ============= SYNTAX HELPERS =============
-    
     /// Parenthesized type expression
     Parenthesized(Box<Spanned<TypeExpr>>),
-    
+
     /// Type annotation with kind: (A : *)
     Kinded {
         /// Type expression being kinded
@@ -180,12 +171,12 @@ impl TypeExpr {
     pub fn identifier(name: impl Into<String>) -> Self {
         TypeExpr::Identifier(name.into())
     }
-    
+
     /// Creates a type variable expression.
     pub fn variable(name: impl Into<String>) -> Self {
         TypeExpr::Variable(name.into())
     }
-    
+
     /// Creates a function type expression.
     pub fn function(params: Vec<Spanned<TypeExpr>>, return_type: Spanned<TypeExpr>) -> Self {
         TypeExpr::Function {
@@ -193,14 +184,14 @@ impl TypeExpr {
             return_type: Box::new(return_type),
         }
     }
-    
+
     /// Creates a list type expression.
     pub fn list(element_type: Spanned<TypeExpr>) -> Self {
         TypeExpr::List {
             element_type: Box::new(element_type),
         }
     }
-    
+
     /// Creates a pair type expression.
     pub fn pair(first: Spanned<TypeExpr>, second: Spanned<TypeExpr>) -> Self {
         TypeExpr::Pair {
@@ -208,14 +199,14 @@ impl TypeExpr {
             second: Box::new(second),
         }
     }
-    
+
     /// Creates a vector type expression.
     pub fn vector(element_type: Spanned<TypeExpr>) -> Self {
         TypeExpr::Vector {
             element_type: Box::new(element_type),
         }
     }
-    
+
     /// Creates a parametric type expression.
     pub fn parametric(name: impl Into<String>, args: Vec<Spanned<TypeExpr>>) -> Self {
         TypeExpr::Parametric {
@@ -223,7 +214,7 @@ impl TypeExpr {
             args,
         }
     }
-    
+
     /// Creates a universal quantification.
     pub fn forall(vars: Vec<String>, body: Spanned<TypeExpr>) -> Self {
         TypeExpr::Forall {
@@ -231,7 +222,7 @@ impl TypeExpr {
             body: Box::new(body),
         }
     }
-    
+
     /// Creates a type application.
     pub fn application(constructor: Spanned<TypeExpr>, argument: Spanned<TypeExpr>) -> Self {
         TypeExpr::Application {
@@ -239,7 +230,7 @@ impl TypeExpr {
             argument: Box::new(argument),
         }
     }
-    
+
     /// Creates a constrained type.
     pub fn constrained(constraints: Vec<TypeConstraint>, type_expr: Spanned<TypeExpr>) -> Self {
         TypeExpr::Constrained {
@@ -247,17 +238,17 @@ impl TypeExpr {
             type_expr: Box::new(type_expr),
         }
     }
-    
+
     /// Creates a record type.
     pub fn record(fields: Vec<(String, Spanned<TypeExpr>)>, rest: Option<String>) -> Self {
         TypeExpr::Record { fields, rest }
     }
-    
+
     /// Creates a variant type.
     pub fn variant(cases: Vec<VariantCase>) -> Self {
         TypeExpr::Variant { cases }
     }
-    
+
     /// Creates an effectful type.
     pub fn effectful(
         input: Spanned<TypeExpr>,
@@ -270,32 +261,32 @@ impl TypeExpr {
             output: Box::new(output),
         }
     }
-    
+
     /// Creates a parenthesized type expression.
     pub fn parenthesized(inner: Spanned<TypeExpr>) -> Self {
         TypeExpr::Parenthesized(Box::new(inner))
     }
-    
+
     /// Returns true if this type expression is a simple identifier.
     pub fn is_identifier(&self) -> bool {
         matches!(self, TypeExpr::Identifier(_))
     }
-    
+
     /// Returns true if this type expression is a type variable.
     pub fn is_variable(&self) -> bool {
         matches!(self, TypeExpr::Variable(_))
     }
-    
+
     /// Returns true if this type expression is a function type.
     pub fn is_function(&self) -> bool {
         matches!(self, TypeExpr::Function { .. })
     }
-    
+
     /// Returns true if this type expression involves polymorphism.
     pub fn is_polymorphic(&self) -> bool {
         matches!(self, TypeExpr::Forall { .. } | TypeExpr::Exists { .. })
     }
-    
+
     /// Gets the identifier name if this is an identifier.
     pub fn as_identifier(&self) -> Option<&str> {
         match self {
@@ -303,7 +294,7 @@ impl TypeExpr {
             _ => None,
         }
     }
-    
+
     /// Gets the variable name if this is a type variable.
     pub fn as_variable(&self) -> Option<&str> {
         match self {
@@ -331,7 +322,7 @@ impl VariantCase {
             payload: Some(payload),
         }
     }
-    
+
     /// Creates a new variant case without a payload.
     pub fn without_payload(constructor: impl Into<String>) -> Self {
         Self {
@@ -346,7 +337,10 @@ impl fmt::Display for TypeExpr {
         match self {
             TypeExpr::Identifier(name) => write!(f, "{name}"),
             TypeExpr::Variable(name) => write!(f, "'{name}"),
-            TypeExpr::Function { params, return_type } => {
+            TypeExpr::Function {
+                params,
+                return_type,
+            } => {
                 if params.is_empty() {
                     write!(f, "(() -> {})", return_type.inner)
                 } else if params.len() == 1 {
@@ -354,7 +348,9 @@ impl fmt::Display for TypeExpr {
                 } else {
                     write!(f, "(")?;
                     for (i, param) in params.iter().enumerate() {
-                        if i > 0 { write!(f, " ")?; }
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
                         write!(f, "{}", param.inner)?;
                     }
                     write!(f, " -> {})", return_type.inner)
@@ -372,7 +368,9 @@ impl fmt::Display for TypeExpr {
             TypeExpr::Forall { vars, body } => {
                 write!(f, "(∀ (")?;
                 for (i, var) in vars.iter().enumerate() {
-                    if i > 0 { write!(f, " ")?; }
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
                     write!(f, "{var}")?;
                 }
                 write!(f, ") {})", body.inner)
@@ -380,12 +378,17 @@ impl fmt::Display for TypeExpr {
             TypeExpr::Exists { vars, body } => {
                 write!(f, "(∃ (")?;
                 for (i, var) in vars.iter().enumerate() {
-                    if i > 0 { write!(f, " ")?; }
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
                     write!(f, "{var}")?;
                 }
                 write!(f, ") {})", body.inner)
             }
-            TypeExpr::Application { constructor, argument } => {
+            TypeExpr::Application {
+                constructor,
+                argument,
+            } => {
                 write!(f, "({} {})", constructor.inner, argument.inner)
             }
             TypeExpr::Parametric { name, args } => {
@@ -395,10 +398,15 @@ impl fmt::Display for TypeExpr {
                 }
                 write!(f, ")")
             }
-            TypeExpr::Constrained { constraints, type_expr } => {
+            TypeExpr::Constrained {
+                constraints,
+                type_expr,
+            } => {
                 write!(f, "(")?;
                 for (i, constraint) in constraints.iter().enumerate() {
-                    if i > 0 { write!(f, ", ")?; }
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
                     write!(f, "{} {}", constraint.class, constraint.type_expr.inner)?;
                 }
                 write!(f, " => {})", type_expr.inner)
@@ -406,11 +414,15 @@ impl fmt::Display for TypeExpr {
             TypeExpr::Record { fields, rest } => {
                 write!(f, "{{")?;
                 for (i, (name, type_expr)) in fields.iter().enumerate() {
-                    if i > 0 { write!(f, ", ")?; }
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
                     write!(f, "{name} : {}", type_expr.inner)?;
                 }
                 if let Some(rest_var) = rest {
-                    if !fields.is_empty() { write!(f, " | ")?; }
+                    if !fields.is_empty() {
+                        write!(f, " | ")?;
+                    }
                     write!(f, "{rest_var}")?;
                 }
                 write!(f, "}}")
@@ -418,7 +430,9 @@ impl fmt::Display for TypeExpr {
             TypeExpr::Variant { cases } => {
                 write!(f, "(|")?;
                 for (i, case) in cases.iter().enumerate() {
-                    if i > 0 { write!(f, " |")?; }
+                    if i > 0 {
+                        write!(f, " |")?;
+                    }
                     write!(f, " {}", case.constructor)?;
                     if let Some(payload) = &case.payload {
                         write!(f, " {}", payload.inner)?;
@@ -429,7 +443,11 @@ impl fmt::Display for TypeExpr {
             TypeExpr::Recursive { var, body } => {
                 write!(f, "(μ {var}. {})", body.inner)
             }
-            TypeExpr::Effectful { input, effects, output } => {
+            TypeExpr::Effectful {
+                input,
+                effects,
+                output,
+            } => {
                 write!(f, "({}", input.inner)?;
                 if !effects.is_empty() {
                     write!(f, " ~>")?;
@@ -485,7 +503,7 @@ mod tests {
         let int_type = TypeExpr::identifier("Integer");
         assert!(int_type.is_identifier());
         assert_eq!(int_type.as_identifier(), Some("Integer"));
-        
+
         let var_type = TypeExpr::variable("a");
         assert!(var_type.is_variable());
         assert_eq!(var_type.as_variable(), Some("a"));
@@ -495,7 +513,7 @@ mod tests {
     fn test_function_type_display() {
         let int_type = spanned_type(TypeExpr::identifier("Integer"));
         let string_type = spanned_type(TypeExpr::identifier("String"));
-        
+
         let func_type = TypeExpr::function(vec![int_type], string_type);
         assert!(func_type.is_function());
         assert_eq!(format!("{func_type}"), "(Integer -> String)");
@@ -520,12 +538,9 @@ mod tests {
     fn test_record_type_display() {
         let int_type = spanned_type(TypeExpr::identifier("Integer"));
         let string_type = spanned_type(TypeExpr::identifier("String"));
-        
+
         let record_type = TypeExpr::record(
-            vec![
-                ("x".to_string(), int_type),
-                ("y".to_string(), string_type),
-            ],
+            vec![("x".to_string(), int_type), ("y".to_string(), string_type)],
             None,
         );
         assert_eq!(format!("{record_type}"), "{x : Integer, y : String}");
@@ -538,7 +553,7 @@ mod tests {
             VariantCase::with_payload("Some", int_type),
             VariantCase::without_payload("None"),
         ];
-        
+
         let variant_type = TypeExpr::variant(cases);
         assert_eq!(format!("{variant_type}"), "(| Some Integer | None)");
     }
@@ -548,10 +563,10 @@ mod tests {
         let var_a = spanned_type(TypeExpr::variable("a"));
         let string_type = spanned_type(TypeExpr::identifier("String"));
         let func_type = spanned_type(TypeExpr::function(vec![var_a.clone()], string_type));
-        
+
         let constraint = TypeConstraint::new("Show", var_a);
         let constrained_type = TypeExpr::constrained(vec![constraint], func_type);
-        
+
         assert_eq!(format!("{constrained_type}"), "(Show 'a => ('a -> String))");
     }
 }

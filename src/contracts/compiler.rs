@@ -9,19 +9,19 @@
 //! - Cache-friendly code generation
 //! - Higher-order contract preparation
 
-use crate::contracts::{
-    ast::{ContractExpr, ComparisonOp, DependentBinding, FunctionCase},
-    blame::{BlameInfo, BlameTarget, BlameBoundary, BoundaryType},
-    predicates::{ContractPredicate, PredicateRegistry, PredicateComplexity},
-    combinators::{ContractCombinators, CombinatorContext},
-    ContractError, ContractResult, ContractConfig,
-};
-use crate::eval::Value;
 use crate::ast::Expr;
+use crate::contracts::{
+    ContractConfig, ContractError, ContractResult,
+    ast::{ComparisonOp, ContractExpr, DependentBinding, FunctionCase},
+    blame::{BlameBoundary, BlameInfo, BlameTarget, BoundaryType},
+    combinators::{CombinatorContext, ContractCombinators},
+    predicates::{ContractPredicate, PredicateComplexity, PredicateRegistry},
+};
 use crate::diagnostics::{Span, Spanned};
+use crate::eval::Value;
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 use std::fmt;
+use std::sync::Arc;
 
 /// Compiled contract representation for efficient runtime checking.
 pub struct CompiledContract {
@@ -228,7 +228,7 @@ impl ContractCompiler {
     pub fn new(config: &ContractConfig, predicates: PredicateRegistry) -> Self {
         let combinators = ContractCombinators::new(predicates.clone());
         let optimizer = ContractOptimizer::new(config);
-        
+
         Self {
             config: config.clone(),
             predicates,
@@ -291,11 +291,7 @@ impl ContractCompiler {
     }
 
     /// Generates a cache key for a contract and context.
-    fn generate_cache_key(
-        &self,
-        contract: &ContractExpr,
-        context: &CompilationContext,
-    ) -> String {
+    fn generate_cache_key(&self, contract: &ContractExpr, context: &CompilationContext) -> String {
         format!("{:?}:{:?}", contract, context.optimization_level)
     }
 
@@ -316,35 +312,37 @@ impl ContractCompiler {
             ContractExpr::Predicate { name, location } => {
                 self.compile_predicate_checker(name, *location, context)
             }
-            ContractExpr::Any { .. } => {
-                Ok(Arc::new(|_, _| Ok(true)))
-            }
-            ContractExpr::None { .. } => {
-                Ok(Arc::new(|_, _| Ok(false)))
-            }
-            ContractExpr::And { contracts, location } => {
-                self.compile_and_checker(contracts, *location, context)
-            }
-            ContractExpr::Or { contracts, location } => {
-                self.compile_or_checker(contracts, *location, context)
-            }
+            ContractExpr::Any { .. } => Ok(Arc::new(|_, _| Ok(true))),
+            ContractExpr::None { .. } => Ok(Arc::new(|_, _| Ok(false))),
+            ContractExpr::And {
+                contracts,
+                location,
+            } => self.compile_and_checker(contracts, *location, context),
+            ContractExpr::Or {
+                contracts,
+                location,
+            } => self.compile_or_checker(contracts, *location, context),
             ContractExpr::Not { contract, location } => {
                 self.compile_not_checker(contract, *location, context)
             }
-            ContractExpr::Function { domain, codomain, location } => {
-                self.compile_function_checker(domain, codomain, *location, context)
-            }
-            ContractExpr::ListOf { element_contract, location } => {
-                self.compile_listof_checker(element_contract, *location, context)
-            }
-            ContractExpr::VectorOf { element_contract, location } => {
-                self.compile_vectorof_checker(element_contract, *location, context)
-            }
+            ContractExpr::Function {
+                domain,
+                codomain,
+                location,
+            } => self.compile_function_checker(domain, codomain, *location, context),
+            ContractExpr::ListOf {
+                element_contract,
+                location,
+            } => self.compile_listof_checker(element_contract, *location, context),
+            ContractExpr::VectorOf {
+                element_contract,
+                location,
+            } => self.compile_vectorof_checker(element_contract, *location, context),
             _ => {
                 // For unimplemented contract types, use the combinator evaluator
                 let contract_copy = contract.clone();
                 let predicates = context.predicates.clone();
-                
+
                 Ok(Arc::new(move |value, blame| {
                     let mut ctx = CombinatorContext::new(predicates.clone(), blame.clone());
                     let combinators = ContractCombinators::new(predicates.clone());
@@ -361,24 +359,23 @@ impl ContractCompiler {
         location: Span,
         context: &CompilationContext,
     ) -> ContractResult<ContractChecker> {
-        let predicate = context.predicates.lookup(name)
-            .ok_or_else(|| ContractError::CompilationError {
-                message: format!("Unknown predicate: {name}"),
-                location,
-            })?;
+        let predicate =
+            context
+                .predicates
+                .lookup(name)
+                .ok_or_else(|| ContractError::CompilationError {
+                    message: format!("Unknown predicate: {name}"),
+                    location,
+                })?;
 
         // For simple, deterministic predicates, we can inline them
         if predicate.deterministic && predicate.complexity == PredicateComplexity::Constant {
             let pred_fn = predicate.predicate.clone();
-            Ok(Arc::new(move |value, _blame| {
-                Ok(pred_fn(value))
-            }))
+            Ok(Arc::new(move |value, _blame| Ok(pred_fn(value))))
         } else {
             // For complex predicates, use the original function
             let pred_fn = predicate.predicate.clone();
-            Ok(Arc::new(move |value, _blame| {
-                Ok(pred_fn(value))
-            }))
+            Ok(Arc::new(move |value, _blame| Ok(pred_fn(value))))
         }
     }
 
@@ -437,9 +434,7 @@ impl ContractCompiler {
     ) -> ContractResult<ContractChecker> {
         let checker = self.compile_to_checker(&contract.inner, context)?;
 
-        Ok(Arc::new(move |value, blame| {
-            Ok(!checker(value, blame)?)
-        }))
+        Ok(Arc::new(move |value, blame| Ok(!checker(value, blame)?)))
     }
 
     /// Compiles a function contract checker.
@@ -453,10 +448,9 @@ impl ContractCompiler {
         // Function contracts require wrapper generation
         // For now, just check if the value is a procedure
         Ok(Arc::new(|value, _blame| {
-            Ok(matches!(value, 
-                Value::Procedure(_) | 
-                Value::CaseLambda(_) | 
-                Value::Primitive(_)
+            Ok(matches!(
+                value,
+                Value::Procedure(_) | Value::CaseLambda(_) | Value::Primitive(_)
             ))
         }))
     }
@@ -501,25 +495,24 @@ impl ContractCompiler {
     ) -> ContractResult<ContractChecker> {
         let element_checker = self.compile_to_checker(&element_contract.inner, context)?;
 
-        Ok(Arc::new(move |value, blame| {
-            match value {
-                Value::Vector(vec) => {
-                    if let Ok(vector) = vec.read() {
-                        for element in vector.iter() {
-                            if !element_checker(element, blame)? {
-                                return Ok(false);
-                            }
+        Ok(Arc::new(move |value, blame| match value {
+            Value::Vector(vec) => {
+                if let Ok(vector) = vec.try_borrow() {
+                    for element in vector.iter() {
+                        if !element_checker(element, blame)? {
+                            return Ok(false);
                         }
-                        Ok(true)
-                    } else {
-                        Err(ContractError::RuntimeError {
-                            message: "Failed to read vector".to_string(),
-                            location: Span::new(0, 0),
-                        }.into())
                     }
+                    Ok(true)
+                } else {
+                    Err(ContractError::RuntimeError {
+                        message: "Failed to read vector".to_string(),
+                        location: Span::new(0, 0),
+                    }
+                    .into())
                 }
-                _ => Ok(false),
             }
+            _ => Ok(false),
         }))
     }
 
@@ -548,9 +541,12 @@ impl ContractCompiler {
     fn analyze_time_complexity(&self, contract: &ContractExpr) -> (PerformanceComplexity, usize) {
         match contract {
             ContractExpr::Predicate { .. } => (PerformanceComplexity::Constant, 1),
-            ContractExpr::Any { .. } | ContractExpr::None { .. } => (PerformanceComplexity::Constant, 1),
+            ContractExpr::Any { .. } | ContractExpr::None { .. } => {
+                (PerformanceComplexity::Constant, 1)
+            }
             ContractExpr::And { contracts, .. } | ContractExpr::Or { contracts, .. } => {
-                let total_ops: usize = contracts.iter()
+                let total_ops: usize = contracts
+                    .iter()
                     .map(|c| self.analyze_time_complexity(&c.inner).1)
                     .sum();
                 (PerformanceComplexity::Linear, total_ops)
@@ -569,9 +565,9 @@ impl ContractCompiler {
     /// Analyzes space complexity of a contract.
     fn analyze_space_complexity(&self, contract: &ContractExpr) -> PerformanceComplexity {
         match contract {
-            ContractExpr::Predicate { .. } |
-            ContractExpr::Any { .. } |
-            ContractExpr::None { .. } => PerformanceComplexity::Constant,
+            ContractExpr::Predicate { .. }
+            | ContractExpr::Any { .. }
+            | ContractExpr::None { .. } => PerformanceComplexity::Constant,
             ContractExpr::ListOf { .. } | ContractExpr::VectorOf { .. } => {
                 PerformanceComplexity::Linear // Stack depth for recursion
             }
@@ -602,9 +598,9 @@ impl ContractCompiler {
     #[allow(clippy::only_used_in_recursion)]
     fn is_inlinable(&self, contract: &ContractExpr) -> bool {
         match contract {
-            ContractExpr::Predicate { .. } |
-            ContractExpr::Any { .. } |
-            ContractExpr::None { .. } => true,
+            ContractExpr::Predicate { .. }
+            | ContractExpr::Any { .. }
+            | ContractExpr::None { .. } => true,
             ContractExpr::And { contracts, .. } | ContractExpr::Or { contracts, .. } => {
                 contracts.len() <= 3 && contracts.iter().all(|c| self.is_inlinable(&c.inner))
             }
@@ -626,7 +622,7 @@ impl ContractCompiler {
         context: &CompilationContext,
     ) -> CompilationMetadata {
         let original_nodes = self.count_ast_nodes(contract);
-        
+
         CompilationMetadata {
             timestamp: std::time::SystemTime::now(),
             source_location: contract.location(),
@@ -634,7 +630,7 @@ impl ContractCompiler {
             warnings: Vec::new(),
             size_info: SizeInfo {
                 original_nodes,
-                compiled_operations: original_nodes, // Estimate
+                compiled_operations: original_nodes,   // Estimate
                 estimated_memory: original_nodes * 64, // Rough estimate
             },
         }
@@ -644,19 +640,22 @@ impl ContractCompiler {
     #[allow(clippy::only_used_in_recursion)]
     fn count_ast_nodes(&self, contract: &ContractExpr) -> usize {
         match contract {
-            ContractExpr::Predicate { .. } |
-            ContractExpr::Any { .. } |
-            ContractExpr::None { .. } => 1,
+            ContractExpr::Predicate { .. }
+            | ContractExpr::Any { .. }
+            | ContractExpr::None { .. } => 1,
             ContractExpr::And { contracts, .. } | ContractExpr::Or { contracts, .. } => {
-                1 + contracts.iter().map(|c| self.count_ast_nodes(&c.inner)).sum::<usize>()
+                1 + contracts
+                    .iter()
+                    .map(|c| self.count_ast_nodes(&c.inner))
+                    .sum::<usize>()
             }
-            ContractExpr::Not { contract, .. } => {
-                1 + self.count_ast_nodes(&contract.inner)
+            ContractExpr::Not { contract, .. } => 1 + self.count_ast_nodes(&contract.inner),
+            ContractExpr::ListOf {
+                element_contract, ..
             }
-            ContractExpr::ListOf { element_contract, .. } |
-            ContractExpr::VectorOf { element_contract, .. } => {
-                1 + self.count_ast_nodes(&element_contract.inner)
-            }
+            | ContractExpr::VectorOf {
+                element_contract, ..
+            } => 1 + self.count_ast_nodes(&element_contract.inner),
             _ => 1, // Default for other types
         }
     }
@@ -666,7 +665,7 @@ impl ContractOptimizer {
     /// Creates a new contract optimizer.
     pub fn new(config: &ContractConfig) -> Self {
         let mut enabled_optimizations = HashSet::new();
-        
+
         if config.enable_compilation {
             enabled_optimizations.insert(OptimizationType::PredicateInlining);
             enabled_optimizations.insert(OptimizationType::ConstantFolding);
@@ -674,7 +673,9 @@ impl ContractOptimizer {
             enabled_optimizations.insert(OptimizationType::DeadCodeElimination);
         }
 
-        Self { enabled_optimizations }
+        Self {
+            enabled_optimizations,
+        }
     }
 
     /// Optimizes a contract expression.
@@ -687,16 +688,25 @@ impl ContractOptimizer {
 
         // Apply optimizations based on level and enabled flags
         if context.optimization_level >= OptimizationLevel::Basic {
-            if self.enabled_optimizations.contains(&OptimizationType::ConstantFolding) {
+            if self
+                .enabled_optimizations
+                .contains(&OptimizationType::ConstantFolding)
+            {
                 optimized = self.constant_fold(&optimized)?;
             }
-            if self.enabled_optimizations.contains(&OptimizationType::Simplification) {
+            if self
+                .enabled_optimizations
+                .contains(&OptimizationType::Simplification)
+            {
                 optimized = self.simplify(&optimized)?;
             }
         }
 
         if context.optimization_level >= OptimizationLevel::Standard
-            && self.enabled_optimizations.contains(&OptimizationType::DeadCodeElimination) {
+            && self
+                .enabled_optimizations
+                .contains(&OptimizationType::DeadCodeElimination)
+        {
             optimized = self.eliminate_dead_code(&optimized)?;
         }
 
@@ -707,7 +717,10 @@ impl ContractOptimizer {
     #[allow(clippy::only_used_in_recursion)]
     fn constant_fold(&self, contract: &ContractExpr) -> ContractResult<ContractExpr> {
         match contract {
-            ContractExpr::And { contracts, location } => {
+            ContractExpr::And {
+                contracts,
+                location,
+            } => {
                 let mut folded_contracts = Vec::new();
                 for contract in contracts {
                     let folded = self.constant_fold(&contract.inner)?;
@@ -718,31 +731,40 @@ impl ContractOptimizer {
                         }
                         ContractExpr::None { .. } => {
                             // none/c in AND makes the whole thing none/c
-                            return Ok(ContractExpr::None { location: *location });
+                            return Ok(ContractExpr::None {
+                                location: *location,
+                            });
                         }
                         _ => {
                             folded_contracts.push(Spanned::new(folded, contract.span));
                         }
                     }
                 }
-                
+
                 match folded_contracts.len() {
-                    0 => Ok(ContractExpr::Any { location: *location }),
+                    0 => Ok(ContractExpr::Any {
+                        location: *location,
+                    }),
                     1 => Ok(folded_contracts.into_iter().next().unwrap().inner),
-                    _ => Ok(ContractExpr::And { 
-                        contracts: folded_contracts, 
-                        location: *location 
+                    _ => Ok(ContractExpr::And {
+                        contracts: folded_contracts,
+                        location: *location,
                     }),
                 }
             }
-            ContractExpr::Or { contracts, location } => {
+            ContractExpr::Or {
+                contracts,
+                location,
+            } => {
                 let mut folded_contracts = Vec::new();
                 for contract in contracts {
                     let folded = self.constant_fold(&contract.inner)?;
                     match folded {
                         ContractExpr::Any { .. } => {
                             // any/c in OR makes the whole thing any/c
-                            return Ok(ContractExpr::Any { location: *location });
+                            return Ok(ContractExpr::Any {
+                                location: *location,
+                            });
                         }
                         ContractExpr::None { .. } => {
                             // none/c in OR can be removed
@@ -753,28 +775,36 @@ impl ContractOptimizer {
                         }
                     }
                 }
-                
+
                 match folded_contracts.len() {
-                    0 => Ok(ContractExpr::None { location: *location }),
+                    0 => Ok(ContractExpr::None {
+                        location: *location,
+                    }),
                     1 => Ok(folded_contracts.into_iter().next().unwrap().inner),
-                    _ => Ok(ContractExpr::Or { 
-                        contracts: folded_contracts, 
-                        location: *location 
+                    _ => Ok(ContractExpr::Or {
+                        contracts: folded_contracts,
+                        location: *location,
                     }),
                 }
             }
             ContractExpr::Not { contract, location } => {
                 let folded = self.constant_fold(&contract.inner)?;
                 match folded {
-                    ContractExpr::Any { .. } => Ok(ContractExpr::None { location: *location }),
-                    ContractExpr::None { .. } => Ok(ContractExpr::Any { location: *location }),
-                    ContractExpr::Not { contract: inner, .. } => {
+                    ContractExpr::Any { .. } => Ok(ContractExpr::None {
+                        location: *location,
+                    }),
+                    ContractExpr::None { .. } => Ok(ContractExpr::Any {
+                        location: *location,
+                    }),
+                    ContractExpr::Not {
+                        contract: inner, ..
+                    } => {
                         // Double negation elimination
                         Ok(inner.inner)
                     }
-                    _ => Ok(ContractExpr::Not { 
-                        contract: Box::new(Spanned::new(folded, contract.span)), 
-                        location: *location 
+                    _ => Ok(ContractExpr::Not {
+                        contract: Box::new(Spanned::new(folded, contract.span)),
+                        location: *location,
                     }),
                 }
             }
@@ -810,9 +840,9 @@ impl CompilationContext {
 
     /// Creates a default compilation context (for compatibility).
     pub fn new_default() -> Self {
+        use crate::contracts::blame::{BlameBoundary, BlameInfo, BlameTarget, BoundaryType};
         use crate::contracts::predicates::PredicateRegistry;
-        use crate::contracts::blame::{BlameInfo, BlameTarget, BlameBoundary, BoundaryType};
-        
+
         let predicates = PredicateRegistry::new();
         let blame = BlameInfo {
             positive: BlameTarget::System {
@@ -833,7 +863,7 @@ impl CompilationContext {
             id: 0,
             parent: None,
         };
-        
+
         Self::new(predicates, blame)
     }
 
@@ -865,8 +895,8 @@ impl Default for OptimizationLevel {
 mod tests {
     use super::*;
     use crate::contracts::{
+        blame::{BlameBoundary, BlameInfo, BlameTarget, BoundaryType},
         predicates::PredicateRegistry,
-        blame::{BlameInfo, BlameTarget, BlameBoundary, BoundaryType},
     };
     use crate::diagnostics::Span;
     use std::collections::HashMap;
@@ -892,7 +922,7 @@ mod tests {
             id: 1,
             parent: None,
         };
-        
+
         CompilationContext::new(predicates, blame)
     }
 
@@ -901,7 +931,7 @@ mod tests {
         let config = ContractConfig::default();
         let predicates = PredicateRegistry::new();
         let compiler = ContractCompiler::new(&config, predicates);
-        
+
         assert_eq!(compiler.next_id, 1);
         assert!(compiler.cache.is_empty());
     }
@@ -931,8 +961,12 @@ mod tests {
         let mut compiler = ContractCompiler::new(&config, predicates);
         let context = create_test_context();
 
-        let any_contract = ContractExpr::Any { location: Span::new(0, 0) };
-        let none_contract = ContractExpr::None { location: Span::new(0, 0) };
+        let any_contract = ContractExpr::Any {
+            location: Span::new(0, 0),
+        };
+        let none_contract = ContractExpr::None {
+            location: Span::new(0, 0),
+        };
 
         let compiled_any = compiler.compile(&any_contract, &context).unwrap();
         let compiled_none = compiler.compile(&none_contract, &context).unwrap();
@@ -954,11 +988,19 @@ mod tests {
         // Test AND with any/c - should be simplified
         let and_with_any = ContractExpr::And {
             contracts: vec![
-                Spanned::new(ContractExpr::Any { location: Span::new(0, 0) }, Span::new(0, 0)),
-                Spanned::new(ContractExpr::Predicate { 
-                    name: "number?".to_string(), 
-                    location: Span::new(0, 0) 
-                }, Span::new(0, 0)),
+                Spanned::new(
+                    ContractExpr::Any {
+                        location: Span::new(0, 0),
+                    },
+                    Span::new(0, 0),
+                ),
+                Spanned::new(
+                    ContractExpr::Predicate {
+                        name: "number?".to_string(),
+                        location: Span::new(0, 0),
+                    },
+                    Span::new(0, 0),
+                ),
             ],
             location: Span::new(0, 0),
         };
@@ -969,11 +1011,19 @@ mod tests {
         // Test AND with none/c - should become none/c
         let and_with_none = ContractExpr::And {
             contracts: vec![
-                Spanned::new(ContractExpr::None { location: Span::new(0, 0) }, Span::new(0, 0)),
-                Spanned::new(ContractExpr::Predicate { 
-                    name: "number?".to_string(), 
-                    location: Span::new(0, 0) 
-                }, Span::new(0, 0)),
+                Spanned::new(
+                    ContractExpr::None {
+                        location: Span::new(0, 0),
+                    },
+                    Span::new(0, 0),
+                ),
+                Spanned::new(
+                    ContractExpr::Predicate {
+                        name: "number?".to_string(),
+                        location: Span::new(0, 0),
+                    },
+                    Span::new(0, 0),
+                ),
             ],
             location: Span::new(0, 0),
         };

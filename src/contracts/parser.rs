@@ -7,10 +7,8 @@
 //! - Contract combinator syntax
 //! - Higher-order contract syntax
 
-use crate::contracts::ast::{
-    ContractExpr, ComparisonOp, DependentBinding, FunctionCase
-};
 use crate::ast::{Expr, Formals, Literal};
+use crate::contracts::ast::{ComparisonOp, ContractExpr, DependentBinding, FunctionCase};
 use crate::diagnostics::{Error, Result, Span, Spanned};
 use crate::lexer::{Token, TokenKind};
 use std::collections::HashMap;
@@ -54,7 +52,7 @@ impl ContractParser {
     /// Gets the current token.
     fn current_token(&self) -> &Token {
         static EOF_TOKEN: std::sync::OnceLock<Token> = std::sync::OnceLock::new();
-        
+
         if self.at_end() {
             EOF_TOKEN.get_or_init(|| Token::eof(Span::new(0, 0)))
         } else {
@@ -73,7 +71,7 @@ impl ContractParser {
     /// Gets the previous token.
     fn previous_token(&self) -> &Token {
         static EOF_TOKEN: std::sync::OnceLock<Token> = std::sync::OnceLock::new();
-        
+
         if self.position == 0 {
             EOF_TOKEN.get_or_init(|| Token::eof(Span::new(0, 0)))
         } else {
@@ -106,7 +104,12 @@ impl ContractParser {
             Ok(self.advance())
         } else {
             let error = Error::new_spanned(
-                format!("{}: expected {:?}, found {:?}", message, kind, self.current_token().kind),
+                format!(
+                    "{}: expected {:?}, found {:?}",
+                    message,
+                    kind,
+                    self.current_token().kind
+                ),
                 self.current_token().span,
             );
             self.errors.push(error.clone());
@@ -117,26 +120,32 @@ impl ContractParser {
     /// Parses a define/contract expression.
     pub fn parse_define_contract(&mut self) -> Result<Spanned<Expr>> {
         let start_token = self.current_token().clone();
-        self.expect(TokenKind::LeftParen, "Expected opening paren for define/contract")?;
+        self.expect(
+            TokenKind::LeftParen,
+            "Expected opening paren for define/contract",
+        )?;
         self.expect(TokenKind::Identifier, "Expected 'define/contract'")?;
 
         // Parse function signature: (name formals) or just name
         let (name, formals, return_type) = self.parse_function_signature()?;
-        
+
         // Parse contract expression
         let contract = self.parse_contract_expression()?;
-        
+
         // Parse body expressions
         let mut body = Vec::new();
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             body.push(self.parse_expression()?);
         }
-        
-        self.expect(TokenKind::RightParen, "Expected closing paren for define/contract")?;
-        
+
+        self.expect(
+            TokenKind::RightParen,
+            "Expected closing paren for define/contract",
+        )?;
+
         let end_span = self.previous_token().span;
         let span = Span::new(start_token.span.start, end_span.end());
-        
+
         // Create a DefineContract expression
         let define_contract = Expr::DefineContract {
             name,
@@ -145,39 +154,44 @@ impl ContractParser {
             return_type,
             body,
         };
-        
+
         Ok(Spanned::new(define_contract, span))
     }
 
     /// Parses a function signature for define/contract.
-    fn parse_function_signature(&mut self) -> Result<(String, Option<Formals>, Option<Spanned<ContractExpr>>)> {
+    fn parse_function_signature(
+        &mut self,
+    ) -> Result<(String, Option<Formals>, Option<Spanned<ContractExpr>>)> {
         if self.check(&TokenKind::LeftParen) {
             // Function definition: (name formals)
             self.advance(); // consume (
-            
+
             let name = self.parse_identifier()?;
             let formals = Some(self.parse_formals()?);
-            
+
             // Check for return type annotation
             let return_type = if self.match_token(TokenKind::Colon) {
                 Some(self.parse_contract_expression()?)
             } else {
                 None
             };
-            
-            self.expect(TokenKind::RightParen, "Expected closing paren for function signature")?;
+
+            self.expect(
+                TokenKind::RightParen,
+                "Expected closing paren for function signature",
+            )?;
             Ok((name, formals, return_type))
         } else {
             // Variable definition: just name
             let name = self.parse_identifier()?;
-            
+
             // Check for type annotation
             let return_type = if self.match_token(TokenKind::Colon) {
                 Some(self.parse_contract_expression()?)
             } else {
                 None
             };
-            
+
             Ok((name, None, return_type))
         }
     }
@@ -185,7 +199,7 @@ impl ContractParser {
     /// Parses a contract expression.
     pub fn parse_contract_expression(&mut self) -> Result<Spanned<ContractExpr>> {
         let start_span = self.current_token().span;
-        
+
         if self.check(&TokenKind::LeftParen) {
             self.parse_compound_contract()
         } else if self.check(&TokenKind::Identifier) {
@@ -215,14 +229,14 @@ impl ContractParser {
     fn parse_compound_contract(&mut self) -> Result<Spanned<ContractExpr>> {
         let start_token = self.current_token().clone();
         self.expect(TokenKind::LeftParen, "Expected opening paren")?;
-        
+
         if !self.check(&TokenKind::Identifier) {
             return Err(Box::new(Error::new_spanned(
                 "Expected contract combinator name".to_string(),
                 self.current_token().span,
             )));
         }
-        
+
         let combinator_name = self.advance().lexeme().to_string();
         let result = match combinator_name.as_str() {
             "->" => self.parse_function_contract(),
@@ -250,12 +264,12 @@ impl ContractParser {
                 self.parse_parametric_contract(&combinator_name)
             }
         };
-        
+
         self.expect(TokenKind::RightParen, "Expected closing paren")?;
-        
+
         let end_span = self.previous_token().span;
         let span = Span::new(start_token.span.start, end_span.end());
-        
+
         result.map(|contract| Spanned::new(contract, span))
     }
 
@@ -264,17 +278,23 @@ impl ContractParser {
         let token = self.advance();
         let name = token.lexeme().to_string().clone();
         let span = token.span;
-        
+
         // Check if it's a predicate (ends with ?) or any/c, none/c
         if name.ends_with('?') || name == "any/c" || name == "none/c" {
             Ok(Spanned::new(
-                ContractExpr::Predicate { name, location: span },
+                ContractExpr::Predicate {
+                    name,
+                    location: span,
+                },
                 span,
             ))
         } else {
             // Contract reference
             Ok(Spanned::new(
-                ContractExpr::Reference { name, location: span },
+                ContractExpr::Reference {
+                    name,
+                    location: span,
+                },
                 span,
             ))
         }
@@ -284,7 +304,7 @@ impl ContractParser {
     fn parse_function_contract(&mut self) -> Result<ContractExpr> {
         let mut domain = Vec::new();
         let mut codomain = None;
-        
+
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             let contract = self.parse_contract_expression()?;
             if codomain.is_none() {
@@ -295,7 +315,7 @@ impl ContractParser {
                     contract.span,
                 )));
             }
-            
+
             // Last contract is the codomain
             if !domain.is_empty() && !self.check(&TokenKind::RightParen) {
                 // If there's another contract coming, the current last one becomes codomain
@@ -306,7 +326,7 @@ impl ContractParser {
                 }
             }
         }
-        
+
         // If we only have one contract, it's the codomain (nullary function)
         if domain.is_empty() && codomain.is_none() {
             return Err(Box::new(Error::new_spanned(
@@ -314,7 +334,7 @@ impl ContractParser {
                 self.current_token().span,
             )));
         }
-        
+
         if domain.len() == 1 && codomain.is_none() {
             // Single contract is the codomain
             codomain = Some(Box::new(domain.pop().unwrap()))
@@ -322,12 +342,14 @@ impl ContractParser {
             // Last domain contract becomes codomain
             codomain = Some(Box::new(domain.pop().unwrap()))
         }
-        
+
         Ok(ContractExpr::Function {
             domain,
             codomain: codomain.unwrap_or_else(|| {
                 Box::new(Spanned::new(
-                    ContractExpr::Any { location: Span::new(0, 0) },
+                    ContractExpr::Any {
+                        location: Span::new(0, 0),
+                    },
                     Span::new(0, 0),
                 ))
             }),
@@ -338,14 +360,20 @@ impl ContractParser {
     /// Parses a dependent function contract: (->i ([x pred] ...) codomain)
     fn parse_dependent_function_contract(&mut self) -> Result<ContractExpr> {
         self.expect(TokenKind::LeftParen, "Expected opening paren for bindings")?;
-        
+
         let mut bindings = Vec::new();
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
-            self.expect(TokenKind::LeftBracket, "Expected opening bracket for binding")?;
+            self.expect(
+                TokenKind::LeftBracket,
+                "Expected opening bracket for binding",
+            )?;
             let name = self.parse_identifier()?;
             let contract = self.parse_contract_expression()?;
-            self.expect(TokenKind::RightBracket, "Expected closing bracket for binding")?;
-            
+            self.expect(
+                TokenKind::RightBracket,
+                "Expected closing bracket for binding",
+            )?;
+
             bindings.push(DependentBinding::new(
                 name,
                 contract,
@@ -353,11 +381,11 @@ impl ContractParser {
                 self.previous_token().span,
             ))
         }
-        
+
         self.expect(TokenKind::RightParen, "Expected closing paren for bindings")?;
-        
+
         let codomain = Box::new(self.parse_contract_expression()?);
-        
+
         Ok(ContractExpr::DependentFunction {
             bindings,
             codomain,
@@ -368,30 +396,30 @@ impl ContractParser {
     /// Parses a case function contract: (->* (domain ... codomain) ...)
     fn parse_case_function_contract(&mut self) -> Result<ContractExpr> {
         let mut cases = Vec::new();
-        
+
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             self.expect(TokenKind::LeftParen, "Expected opening paren for case")?;
-            
+
             let mut domain = Vec::new();
             let mut codomain = None;
-            
+
             while !self.check(&TokenKind::RightParen) && !self.at_end() {
                 let contract = self.parse_contract_expression()?;
                 domain.push(contract);
             }
-            
+
             // Last contract is the codomain
             if let Some(last) = domain.pop() {
                 codomain = Some(last);
             }
-            
+
             self.expect(TokenKind::RightParen, "Expected closing paren for case")?;
-            
+
             if let Some(cod) = codomain {
                 cases.push(FunctionCase::new(domain, cod, self.previous_token().span))
             }
         }
-        
+
         Ok(ContractExpr::CaseFunction {
             cases,
             location: self.current_token().span,
@@ -401,11 +429,11 @@ impl ContractParser {
     /// Parses an and contract: (and/c contract ...)
     fn parse_and_contract(&mut self) -> Result<ContractExpr> {
         let mut contracts = Vec::new();
-        
+
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             contracts.push(self.parse_contract_expression()?);
         }
-        
+
         Ok(ContractExpr::And {
             contracts,
             location: self.current_token().span,
@@ -415,11 +443,11 @@ impl ContractParser {
     /// Parses an or contract: (or/c contract ...)
     fn parse_or_contract(&mut self) -> Result<ContractExpr> {
         let mut contracts = Vec::new();
-        
+
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             contracts.push(self.parse_contract_expression()?);
         }
-        
+
         Ok(ContractExpr::Or {
             contracts,
             location: self.current_token().span,
@@ -429,7 +457,7 @@ impl ContractParser {
     /// Parses a not contract: (not/c contract)
     fn parse_not_contract(&mut self) -> Result<ContractExpr> {
         let contract = Box::new(self.parse_contract_expression()?);
-        
+
         Ok(ContractExpr::Not {
             contract,
             location: self.current_token().span,
@@ -439,11 +467,11 @@ impl ContractParser {
     /// Parses a one-of contract: (one-of/c value ...)
     fn parse_one_of_contract(&mut self) -> Result<ContractExpr> {
         let mut values = Vec::new();
-        
+
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             values.push(Box::new(self.parse_expression()?))
         }
-        
+
         Ok(ContractExpr::OneOf {
             values,
             location: self.current_token().span,
@@ -454,7 +482,7 @@ impl ContractParser {
     fn parse_between_contract(&mut self) -> Result<ContractExpr> {
         let min = Box::new(self.parse_expression()?);
         let max = Box::new(self.parse_expression()?);
-        
+
         Ok(ContractExpr::Between {
             min,
             max,
@@ -471,14 +499,16 @@ impl ContractParser {
             ">=/c" => ComparisonOp::GreaterThanEqual,
             "=/c" => ComparisonOp::Equal,
             "!=/c" => ComparisonOp::NotEqual,
-            _ => return Err(Box::new(Error::new_spanned(
-                format!("Unknown comparison operator: {operator_str}"),
-                self.current_token().span,
-            ))),
+            _ => {
+                return Err(Box::new(Error::new_spanned(
+                    format!("Unknown comparison operator: {operator_str}"),
+                    self.current_token().span,
+                )));
+            }
         };
-        
+
         let value = Box::new(self.parse_expression()?);
-        
+
         Ok(ContractExpr::Comparison {
             operator,
             value,
@@ -489,7 +519,7 @@ impl ContractParser {
     /// Parses a listof contract: (listof contract)
     fn parse_listof_contract(&mut self) -> Result<ContractExpr> {
         let element_contract = Box::new(self.parse_contract_expression()?);
-        
+
         Ok(ContractExpr::ListOf {
             element_contract,
             location: self.current_token().span,
@@ -499,7 +529,7 @@ impl ContractParser {
     /// Parses a vectorof contract: (vectorof contract)
     fn parse_vectorof_contract(&mut self) -> Result<ContractExpr> {
         let element_contract = Box::new(self.parse_contract_expression()?);
-        
+
         Ok(ContractExpr::VectorOf {
             element_contract,
             location: self.current_token().span,
@@ -510,7 +540,7 @@ impl ContractParser {
     fn parse_hash_contract(&mut self) -> Result<ContractExpr> {
         let key_contract = Box::new(self.parse_contract_expression()?);
         let value_contract = Box::new(self.parse_contract_expression()?);
-        
+
         Ok(ContractExpr::Hash {
             key_contract,
             value_contract,
@@ -521,11 +551,11 @@ impl ContractParser {
     /// Parses a tuple contract: (tuple/c contract ...)
     fn parse_tuple_contract(&mut self) -> Result<ContractExpr> {
         let mut element_contracts = Vec::new();
-        
+
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             element_contracts.push(self.parse_contract_expression()?);
         }
-        
+
         Ok(ContractExpr::Tuple {
             element_contracts,
             location: self.current_token().span,
@@ -535,11 +565,11 @@ impl ContractParser {
     /// Parses a list contract: (list/c contract ...)
     fn parse_list_contract(&mut self) -> Result<ContractExpr> {
         let mut element_contracts = Vec::new();
-        
+
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             element_contracts.push(self.parse_contract_expression()?);
         }
-        
+
         Ok(ContractExpr::List {
             element_contracts,
             location: self.current_token().span,
@@ -549,11 +579,11 @@ impl ContractParser {
     /// Parses a vector contract: (vector/c contract ...)
     fn parse_vector_contract(&mut self) -> Result<ContractExpr> {
         let mut element_contracts = Vec::new();
-        
+
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             element_contracts.push(self.parse_contract_expression()?);
         }
-        
+
         Ok(ContractExpr::Vector {
             element_contracts,
             location: self.current_token().span,
@@ -563,7 +593,7 @@ impl ContractParser {
     /// Parses a flat contract: (flat/c expr)
     fn parse_flat_contract(&mut self) -> Result<ContractExpr> {
         let check_expr = Box::new(self.parse_expression()?);
-        
+
         Ok(ContractExpr::Flat {
             check_expr,
             location: self.current_token().span,
@@ -574,7 +604,7 @@ impl ContractParser {
     fn parse_recursive_contract(&mut self) -> Result<ContractExpr> {
         let name = self.parse_identifier()?;
         let contract = Box::new(self.parse_contract_expression()?);
-        
+
         Ok(ContractExpr::Recursive {
             name,
             contract,
@@ -586,7 +616,7 @@ impl ContractParser {
     fn parse_with_message_contract(&mut self) -> Result<ContractExpr> {
         let contract = Box::new(self.parse_contract_expression()?);
         let message = self.parse_string_literal()?;
-        
+
         Ok(ContractExpr::WithMessage {
             contract,
             message,
@@ -597,11 +627,11 @@ impl ContractParser {
     /// Parses a parametric contract: (name arg ...)
     fn parse_parametric_contract(&mut self, name: &str) -> Result<ContractExpr> {
         let mut parameters = Vec::new();
-        
+
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             parameters.push(self.parse_contract_expression()?);
         }
-        
+
         Ok(ContractExpr::Parametric {
             name: name.to_string(),
             parameters,
@@ -627,7 +657,7 @@ impl ContractParser {
     fn parse_formals(&mut self) -> Result<Formals> {
         // Simplified formals parsing - just collect identifiers
         let mut params = Vec::new();
-        
+
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
             if self.check(&TokenKind::Identifier) {
                 params.push(self.advance().lexeme().to_string().clone())
@@ -635,26 +665,33 @@ impl ContractParser {
                 break;
             }
         }
-        
+
         Ok(Formals::Fixed(params))
     }
 
     /// Parses an expression (simplified for this contract parser).
     fn parse_expression(&mut self) -> Result<Spanned<Expr>> {
         let start_span = self.current_token().span;
-        
+
         if self.check(&TokenKind::Identifier) {
             let name = self.advance().lexeme().to_string().clone();
             Ok(Spanned::new(Expr::Identifier(name), start_span))
-        } else if self.check(&TokenKind::RealNumber) || 
-                  self.check(&TokenKind::IntegerNumber) ||
-                  self.check(&TokenKind::RationalNumber) ||
-                  self.check(&TokenKind::ComplexNumber) {
+        } else if self.check(&TokenKind::RealNumber)
+            || self.check(&TokenKind::IntegerNumber)
+            || self.check(&TokenKind::RationalNumber)
+            || self.check(&TokenKind::ComplexNumber)
+        {
             let token = self.advance();
             if let Ok(num) = token.lexeme().to_string().parse::<f64>() {
-                Ok(Spanned::new(Expr::Literal(Literal::Number(num)), token.span))
+                Ok(Spanned::new(
+                    Expr::Literal(Literal::Number(num)),
+                    token.span,
+                ))
             } else {
-                Err(Box::new(Error::new_spanned("Invalid number literal".to_string(), token.span)))
+                Err(Box::new(Error::new_spanned(
+                    "Invalid number literal".to_string(),
+                    token.span,
+                )))
             }
         } else if self.check(&TokenKind::String) {
             let token = self.advance();
@@ -665,7 +702,10 @@ impl ContractParser {
         } else if self.check(&TokenKind::Boolean) {
             let token = self.advance();
             let value = token.lexeme() == "true";
-            Ok(Spanned::new(Expr::Literal(Literal::Boolean(value)), token.span))
+            Ok(Spanned::new(
+                Expr::Literal(Literal::Boolean(value)),
+                token.span,
+            ))
         } else {
             Err(Box::new(Error::new_spanned(
                 "Expected expression".to_string(),
@@ -689,7 +729,7 @@ impl Expr {
         // For now, we'll represent this as a regular Define with metadata
         // In a real implementation, this would be its own variant
         let metadata = HashMap::new(); // TODO: Store contract information
-        
+
         let value = if let Some(formals) = formals {
             // Function definition
             Box::new(Spanned::new(
@@ -706,13 +746,10 @@ impl Expr {
             if let Some(first_body) = body.into_iter().next() {
                 Box::new(first_body)
             } else {
-                Box::new(Spanned::new(
-                    Expr::Identifier(name.clone()),
-                    contract.span,
-                ))
+                Box::new(Spanned::new(Expr::Identifier(name.clone()), contract.span))
             }
         };
-        
+
         Expr::Define {
             name,
             value,
@@ -729,14 +766,14 @@ impl Expr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::{Lexer, TokenKind};
     use crate::diagnostics::Span;
+    use crate::lexer::{Lexer, TokenKind};
 
     fn create_test_tokens(input: &str) -> Vec<Token> {
         // Simplified tokenization for tests
         let mut tokens = Vec::new();
         let mut pos = 0;
-        
+
         for word in input.split_whitespace() {
             let span = Span::new(pos, pos + word.len());
             let kind = match word {
@@ -753,15 +790,11 @@ mod tests {
                 s if s.parse::<f64>().is_ok() => TokenKind::RealNumber,
                 _ => TokenKind::Identifier,
             };
-            
-            tokens.push(Token {
-                kind,
-                lexeme: word.to_string(),
-                span,
-            });
+
+            tokens.push(Token::new(kind, span, word.to_string()));
             pos += word.len() + 1;
         }
-        
+
         tokens
     }
 
@@ -769,7 +802,7 @@ mod tests {
     fn test_predicate_parsing() {
         let tokens = create_test_tokens("number?");
         let mut parser = ContractParser::new(tokens);
-        
+
         let result = parser.parse_contract_expression().unwrap();
         match result.inner {
             ContractExpr::Predicate { name, .. } => {
@@ -783,10 +816,12 @@ mod tests {
     fn test_function_contract_parsing() {
         let tokens = create_test_tokens("( -> number? string? boolean? )");
         let mut parser = ContractParser::new(tokens);
-        
+
         let result = parser.parse_contract_expression().unwrap();
         match result.inner {
-            ContractExpr::Function { domain, codomain, .. } => {
+            ContractExpr::Function {
+                domain, codomain, ..
+            } => {
                 assert_eq!(domain.len(), 2);
                 assert!(matches!(codomain.inner, ContractExpr::Predicate { .. }))
             }
@@ -798,7 +833,7 @@ mod tests {
     fn test_and_contract_parsing() {
         let tokens = create_test_tokens("( and/c number? positive? )");
         let mut parser = ContractParser::new(tokens);
-        
+
         let result = parser.parse_contract_expression().unwrap();
         match result.inner {
             ContractExpr::And { contracts, .. } => {
@@ -812,17 +847,17 @@ mod tests {
     fn test_listof_contract_parsing() {
         let tokens = create_test_tokens("( listof number? )");
         let mut parser = ContractParser::new(tokens);
-        
+
         let result = parser.parse_contract_expression().unwrap();
         match result.inner {
-            ContractExpr::ListOf { element_contract, .. } => {
-                match element_contract.inner {
-                    ContractExpr::Predicate { name, .. } => {
-                        assert_eq!(name, "number?");
-                    }
-                    _ => panic!("Expected predicate in listof"),
+            ContractExpr::ListOf {
+                element_contract, ..
+            } => match element_contract.inner {
+                ContractExpr::Predicate { name, .. } => {
+                    assert_eq!(name, "number?");
                 }
-            }
+                _ => panic!("Expected predicate in listof"),
+            },
             _ => panic!("Expected listof contract"),
         }
     }
@@ -831,7 +866,7 @@ mod tests {
     fn test_comparison_contract_parsing() {
         let tokens = create_test_tokens("( </c 10 )");
         let mut parser = ContractParser::new(tokens);
-        
+
         let result = parser.parse_contract_expression().unwrap();
         match result.inner {
             ContractExpr::Comparison { operator, .. } => {
@@ -845,13 +880,16 @@ mod tests {
     fn test_nested_contract_parsing() {
         let tokens = create_test_tokens("( and/c number? ( or/c positive? zero? ) )");
         let mut parser = ContractParser::new(tokens);
-        
+
         let result = parser.parse_contract_expression().unwrap();
         match result.inner {
             ContractExpr::And { contracts, .. } => {
                 assert_eq!(contracts.len(), 2);
                 match &contracts[1].inner {
-                    ContractExpr::Or { contracts: or_contracts, .. } => {
+                    ContractExpr::Or {
+                        contracts: or_contracts,
+                        ..
+                    } => {
                         assert_eq!(or_contracts.len(), 2);
                     }
                     _ => panic!("Expected or contract in second position"),
@@ -865,7 +903,7 @@ mod tests {
     fn test_error_handling() {
         let tokens = create_test_tokens("( invalid-combinator )");
         let mut parser = ContractParser::new(tokens);
-        
+
         let result = parser.parse_contract_expression();
         // Should parse as parametric contract or return error
         assert!(result.is_ok() || parser.has_errors())

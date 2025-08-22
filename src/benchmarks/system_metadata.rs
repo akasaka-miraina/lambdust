@@ -4,13 +4,13 @@
 //! test failures, and resource usage statistics for comprehensive
 //! benchmark result analysis and debugging.
 
+use super::benchmark_config::{BenchmarkSuiteConfig, ParameterValue};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
-use serde::{Deserialize, Serialize};
-use super::benchmark_config::{BenchmarkSuiteConfig, ParameterValue};
 
 /// Metadata and contextual information about a benchmark execution.
-/// 
+///
 /// Captures execution environment, configuration, and timing information
 /// necessary for result interpretation and reproducibility.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,7 +30,7 @@ pub struct BenchmarkMetadata {
 }
 
 /// Hardware and system configuration information.
-/// 
+///
 /// Provides context about the execution environment for understanding
 /// performance results and comparing across different systems.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,7 +90,7 @@ pub enum FailureReason {
 pub struct ResourceStats {
     /// CPU usage statistics
     pub cpu: CPUStats,
-    /// Memory usage statistics  
+    /// Memory usage statistics
     pub memory: MemoryStats,
     /// Disk I/O statistics
     pub disk_io: DiskIOStats,

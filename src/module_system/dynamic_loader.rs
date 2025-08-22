@@ -6,17 +6,17 @@
 //! - File system monitoring for automatic reloading
 //! - Safe hot-swapping of library implementations
 
-use super::{Module, ModuleId, ModuleError, runtime_integration};
-use crate::diagnostics::{Error, Result};
-use crate::parser::Parser;
-use crate::lexer::Lexer;
+use super::{Module, ModuleError, ModuleId, runtime_integration};
 use crate::ast::Expr;
+use crate::diagnostics::{Error, Result};
+use crate::lexer::Lexer;
+use crate::parser::Parser;
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
 use std::fs;
-use std::time::{SystemTime, Duration};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, mpsc};
 use std::thread;
+use std::time::{Duration, SystemTime};
 
 /// Dynamic library loader with hot-reload capabilities.
 #[derive(Debug)]
@@ -81,30 +81,30 @@ impl Default for FileMonitorConfig {
 #[derive(Debug, Clone)]
 pub enum ReloadEvent {
     /// A source file has been modified
-    FileModified { 
+    FileModified {
         /// File path that was modified
-        path: PathBuf, 
+        path: PathBuf,
         /// Module ID corresponding to the modified file
-        module_id: ModuleId 
+        module_id: ModuleId,
     },
     /// A library has been successfully reloaded
-    LibraryReloaded { 
+    LibraryReloaded {
         /// Module ID that was reloaded
-        module_id: ModuleId, 
+        module_id: ModuleId,
         /// New generation number after reload
-        generation: u64 
+        generation: u64,
     },
     /// A reload failed with an error
-    ReloadFailed { 
+    ReloadFailed {
         /// Module ID that failed to reload
-        module_id: ModuleId, 
+        module_id: ModuleId,
         /// Error message describing the failure
-        error: String 
+        error: String,
     },
     /// Dependencies have been invalidated
-    DependenciesInvalidated { 
+    DependenciesInvalidated {
         /// List of modules affected by the invalidation
-        affected_modules: Vec<ModuleId> 
+        affected_modules: Vec<ModuleId>,
     },
 }
 
@@ -142,10 +142,10 @@ impl DynamicLibraryLoader {
         enable_hot_reload: bool,
     ) -> Result<Arc<DynamicLibraryInstance>> {
         let module_id = module.id.clone();
-        
+
         // Check if already loaded
         {
-            let active_libs = self.active_libraries.read().unwrap();
+            let active_libs = self.active_libraries.try_read().unwrap();
             if let Some(existing) = active_libs.get(&module_id) {
                 return Ok(Arc::new(existing.clone()));
             }
@@ -169,7 +169,9 @@ impl DynamicLibraryLoader {
             library: library_instance,
             source_path: source_path.clone(),
             last_modified,
-            load_generation: self.reload_generation.load(std::sync::atomic::Ordering::Relaxed),
+            load_generation: self
+                .reload_generation
+                .load(std::sync::atomic::Ordering::Relaxed),
             dependents: HashSet::new(),
             hot_reload_enabled: enable_hot_reload,
         };
@@ -201,27 +203,29 @@ impl DynamicLibraryLoader {
     ) -> Result<()> {
         // Get current instance
         let current_instance = {
-            let active_libs = self.active_libraries.read().unwrap();
+            let active_libs = self.active_libraries.try_read().unwrap();
             active_libs.get(module_id).cloned()
         };
 
         let current_instance = current_instance.ok_or_else(|| {
-            Error::from(ModuleError::DynamicLoadingError(
-                format!("Library not loaded: {}", super::format_module_id(module_id))
-            ))
+            Error::from(ModuleError::DynamicLoadingError(format!(
+                "Library not loaded: {}",
+                super::format_module_id(module_id)
+            )))
         })?;
 
         // Check if hot-reload is enabled
         if !current_instance.hot_reload_enabled {
-            return Err(Box::new(Error::from(ModuleError::HotReloadError(
-                format!("Hot-reload not enabled for library: {}", super::format_module_id(module_id))
-            ))));
+            return Err(Box::new(Error::from(ModuleError::HotReloadError(format!(
+                "Hot-reload not enabled for library: {}",
+                super::format_module_id(module_id)
+            )))));
         }
 
         // Load the module from source
         let source_path = current_instance.source_path.ok_or_else(|| {
             Error::from(ModuleError::HotReloadError(
-                "No source path available for hot-reload".to_string()
+                "No source path available for hot-reload".to_string(),
             ))
         })?;
 
@@ -234,8 +238,11 @@ impl DynamicLibraryLoader {
         let new_instance = instantiator.instantiate_library(reloaded_module)?;
 
         // Update the dynamic instance
-        let new_generation = self.reload_generation.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-        
+        let new_generation = self
+            .reload_generation
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+
         let updated_instance = DynamicLibraryInstance {
             library: new_instance,
             source_path: Some(source_path.clone()),
@@ -291,7 +298,7 @@ impl DynamicLibraryLoader {
 
     /// Gets information about all active libraries.
     pub fn get_active_libraries(&self) -> HashMap<ModuleId, DynamicLibraryInstance> {
-        let active_libs = self.active_libraries.read().unwrap();
+        let active_libs = self.active_libraries.try_read().unwrap();
         active_libs.clone()
     }
 
@@ -315,7 +322,7 @@ impl DynamicLibraryLoader {
     /// Detects file modifications for all monitored libraries.
     fn detect_file_modifications(&self) -> Result<Vec<(ModuleId, PathBuf)>> {
         let mut modifications = Vec::new();
-        let active_libs = self.active_libraries.read().unwrap();
+        let active_libs = self.active_libraries.try_read().unwrap();
 
         for (module_id, instance) in active_libs.iter() {
             if let Some(source_path) = &instance.source_path {
@@ -335,7 +342,11 @@ impl DynamicLibraryLoader {
     /// Loads a module from a file path.
     fn load_module_from_file(&self, path: &Path, module_id: &ModuleId) -> Result<Module> {
         let source_code = fs::read_to_string(path).map_err(|e| {
-            Error::io_error(format!("Failed to read library file {}: {}", path.display(), e))
+            Error::io_error(format!(
+                "Failed to read library file {}: {}",
+                path.display(),
+                e
+            ))
         })?;
 
         // Parse the source code
@@ -347,7 +358,13 @@ impl DynamicLibraryLoader {
 
         // Look for define-library forms
         for expr in &program.expressions {
-            if let Expr::DefineLibrary { name, imports, exports, body } = &expr.inner {
+            if let Expr::DefineLibrary {
+                name,
+                imports,
+                exports,
+                body,
+            } = &expr.inner
+            {
                 // Create module from define-library form
                 let parsed_module = Module {
                     id: module_id.clone(),
@@ -384,16 +401,17 @@ impl DynamicLibraryLoader {
     /// Tracks dependencies for a module.
     fn track_dependencies(&mut self, module: &Module) {
         let module_id = &module.id;
-        
+
         // Track forward dependencies
         self.dependency_tracker.forward_deps.insert(
             module_id.clone(),
-            module.dependencies.iter().cloned().collect()
+            module.dependencies.iter().cloned().collect(),
         );
 
         // Track reverse dependencies
         for dep_id in &module.dependencies {
-            self.dependency_tracker.reverse_deps
+            self.dependency_tracker
+                .reverse_deps
                 .entry(dep_id.clone())
                 .or_default()
                 .insert(module_id.clone());
@@ -413,7 +431,9 @@ impl DynamicLibraryLoader {
         module_id: &ModuleId,
         instantiator: &mut runtime_integration::LibraryInstantiator,
     ) -> Result<()> {
-        let dependents = self.dependency_tracker.reverse_deps
+        let dependents = self
+            .dependency_tracker
+            .reverse_deps
             .get(module_id)
             .cloned()
             .unwrap_or_default();
@@ -428,19 +448,19 @@ impl DynamicLibraryLoader {
 
         // Send dependency invalidation event
         if let Some(sender) = &self.reload_sender {
-            let affected_modules: Vec<ModuleId> = failed_reloads.iter()
-                .map(|(id, _)| id.clone())
-                .collect();
-            
+            let affected_modules: Vec<ModuleId> =
+                failed_reloads.iter().map(|(id, _)| id.clone()).collect();
+
             if !affected_modules.is_empty() {
                 let _ = sender.send(ReloadEvent::DependenciesInvalidated { affected_modules });
             }
         }
 
         if !failed_reloads.is_empty() {
-            return Err(Box::new(Error::from(ModuleError::HotReloadError(
-                format!("Failed to reload {} dependent libraries", failed_reloads.len())
-            ))));
+            return Err(Box::new(Error::from(ModuleError::HotReloadError(format!(
+                "Failed to reload {} dependent libraries",
+                failed_reloads.len()
+            )))));
         }
 
         Ok(())
@@ -448,16 +468,20 @@ impl DynamicLibraryLoader {
 
     /// Gets statistics about the dynamic loading system.
     pub fn get_statistics(&self) -> DynamicLoadingStatistics {
-        let active_libs = self.active_libraries.read().unwrap();
-        let hot_reload_enabled = active_libs.values()
+        let active_libs = self.active_libraries.try_read().unwrap();
+        let hot_reload_enabled = active_libs
+            .values()
             .filter(|lib| lib.hot_reload_enabled)
             .count();
 
         DynamicLoadingStatistics {
             total_active_libraries: active_libs.len(),
             hot_reload_enabled_libraries: hot_reload_enabled,
-            current_reload_generation: self.reload_generation.load(std::sync::atomic::Ordering::Relaxed),
-            monitored_files: active_libs.values()
+            current_reload_generation: self
+                .reload_generation
+                .load(std::sync::atomic::Ordering::Relaxed),
+            monitored_files: active_libs
+                .values()
                 .filter_map(|lib| lib.source_path.as_ref())
                 .count(),
         }
@@ -536,7 +560,8 @@ impl HotReloadManager {
 
         let receiver = self.loader.enable_event_monitoring();
         self.event_receiver = Some(receiver);
-        self.running.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.running
+            .store(true, std::sync::atomic::Ordering::Relaxed);
 
         // In a full implementation, we would start a background thread
         // to handle file monitoring and automatic reloading
@@ -546,14 +571,15 @@ impl HotReloadManager {
 
     /// Stops the hot-reload manager.
     pub fn stop(&mut self) {
-        self.running.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.running
+            .store(false, std::sync::atomic::Ordering::Relaxed);
         self.event_receiver = None;
     }
 
     /// Checks for and processes any pending reload events.
     pub fn process_events(&mut self) -> Vec<ReloadEvent> {
         let mut events = Vec::new();
-        
+
         if let Some(receiver) = &self.event_receiver {
             while let Ok(event) = receiver.try_recv() {
                 events.push(event);
@@ -572,7 +598,7 @@ impl HotReloadManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::module_system::{ModuleNamespace, ModuleSource, ModuleMetadata};
+    use crate::module_system::{ModuleMetadata, ModuleNamespace, ModuleSource};
     use crate::runtime::GlobalEnvironmentManager;
     use tempfile::TempDir;
 
@@ -599,12 +625,12 @@ mod tests {
     #[test]
     fn test_library_loading() {
         let mut loader = DynamicLibraryLoader::new();
-        let global_env = Arc::new(GlobalEnvironmentManager::new().unwrap());
+        let global_env = Arc::new(GlobalEnvironmentManager::new());
         let mut instantiator = runtime_integration::LibraryInstantiator::new(global_env);
-        
+
         let module = create_test_module("test");
         let result = loader.load_library_dynamic(module, &mut instantiator, false);
-        
+
         assert!(result.is_ok());
         let stats = loader.get_statistics();
         assert_eq!(stats.total_active_libraries, 1);
@@ -614,10 +640,10 @@ mod tests {
     fn test_hot_reload_manager() {
         let loader = DynamicLibraryLoader::new();
         let mut manager = HotReloadManager::new(loader);
-        
+
         let result = manager.start();
         assert!(result.is_ok());
-        
+
         manager.stop();
     }
 
@@ -647,7 +673,7 @@ mod tests {
 
         // Remove module A
         tracker.remove_module(&module_a);
-        
+
         assert!(!tracker.forward_deps.contains_key(&module_a));
         assert!(!tracker.reverse_deps.contains_key(&module_b));
     }
@@ -664,6 +690,9 @@ mod tests {
 
         let loader = DynamicLibraryLoader::with_config(config);
         assert!(loader.monitor_config.enable_monitoring);
-        assert_eq!(loader.monitor_config.poll_interval, Duration::from_millis(100));
+        assert_eq!(
+            loader.monitor_config.poll_interval,
+            Duration::from_millis(100)
+        );
     }
 }

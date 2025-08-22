@@ -5,10 +5,10 @@
 //! complexity to make intelligent compilation decisions.
 
 use crate::ast::Expr;
-use crate::eval::Environment;
-use crate::types::{Type, TypeVar, Constraint, JitDependentType, ProofObligation};
-use crate::jit::hotspot_detector::{ExecutionProfile, HotspotConfig, CompilationCandidate};
 use crate::diagnostics::{Error, Result};
+use crate::eval::Environment;
+use crate::jit::hotspot_detector::{CompilationCandidate, ExecutionProfile, HotspotConfig};
+use crate::types::{Constraint, JitDependentType, ProofObligation, Type, TypeVar};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -17,19 +17,19 @@ use std::time::{Duration, Instant};
 pub struct DependentHotspotDetector {
     /// Base hotspot detector
     base_detector: crate::jit::hotspot_detector::HotspotDetector,
-    
+
     /// Dependent type analysis engine
     dependent_analyzer: DependentTypeAnalyzer,
-    
+
     /// Type stability tracker
     type_stability: TypeStabilityTracker,
-    
+
     /// Proof complexity analyzer
     proof_analyzer: ProofComplexityAnalyzer,
-    
+
     /// Memory pattern analyzer
     memory_analyzer: MemoryPatternAnalyzer,
-    
+
     /// Enhanced execution profiles with dependent type information
     enhanced_profiles: HashMap<String, DependentExecutionProfile>,
 }
@@ -65,7 +65,8 @@ impl DependentHotspotDetector {
         )?;
 
         // Enhanced profiling with dependent types
-        let enhanced_profile = self.enhanced_profiles
+        let enhanced_profile = self
+            .enhanced_profiles
             .entry(identifier.clone())
             .or_insert_with(|| DependentExecutionProfile::new(identifier.clone(), ast.clone()));
 
@@ -75,7 +76,8 @@ impl DependentHotspotDetector {
 
         // Update type stability analysis
         if let Some(type_ctx) = &type_context {
-            self.type_stability.update(&identifier, &type_ctx.observed_types)?;
+            self.type_stability
+                .update(&identifier, &type_ctx.observed_types)?;
         }
 
         // Analyze proof obligations
@@ -84,7 +86,8 @@ impl DependentHotspotDetector {
 
         // Analyze memory access patterns
         if let Some(type_ctx) = &type_context {
-            self.memory_analyzer.update(&identifier, &type_ctx.memory_accesses)?;
+            self.memory_analyzer
+                .update(&identifier, &type_ctx.memory_accesses)?;
         }
 
         Ok(())
@@ -101,7 +104,7 @@ impl DependentHotspotDetector {
         // Enhanced analysis for dependent types
         if let Some(profile) = self.enhanced_profiles.get(identifier) {
             let dependent_benefit = self.calculate_dependent_compilation_benefit(profile)?;
-            
+
             // Compile if dependent type analysis shows significant benefit
             Ok(dependent_benefit > 2.0) // Higher threshold for dependent compilation
         } else {
@@ -110,27 +113,32 @@ impl DependentHotspotDetector {
     }
 
     /// Gets compilation candidates with dependent type prioritization
-    pub fn get_dependent_compilation_candidates(&self) -> Result<Vec<DependentCompilationCandidate>> {
+    pub fn get_dependent_compilation_candidates(
+        &self,
+    ) -> Result<Vec<DependentCompilationCandidate>> {
         let base_candidates = self.base_detector.get_compilation_candidates();
         let mut dependent_candidates = Vec::new();
 
         for base_candidate in base_candidates {
             if let Some(enhanced_profile) = self.enhanced_profiles.get(&base_candidate.identifier) {
                 let dependent_metrics = self.calculate_dependent_metrics(enhanced_profile)?;
-                let specialization_opportunities = self.analyze_specialization_opportunities(enhanced_profile)?;
-                
+                let specialization_opportunities =
+                    self.analyze_specialization_opportunities(enhanced_profile)?;
+
                 dependent_candidates.push(DependentCompilationCandidate {
                     base_candidate,
                     dependent_metrics,
                     specialization_opportunities,
-                    recommended_specialization_tier: self.recommend_specialization_tier(enhanced_profile)?,
+                    recommended_specialization_tier: self
+                        .recommend_specialization_tier(enhanced_profile)?,
                 });
             }
         }
 
         // Sort by dependent compilation benefit
         dependent_candidates.sort_by(|a, b| {
-            b.dependent_metrics.dependent_benefit_potential
+            b.dependent_metrics
+                .dependent_benefit_potential
                 .partial_cmp(&a.dependent_metrics.dependent_benefit_potential)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
@@ -139,37 +147,61 @@ impl DependentHotspotDetector {
     }
 
     /// Calculates dependent type compilation benefit
-    fn calculate_dependent_compilation_benefit(&self, profile: &DependentExecutionProfile) -> Result<f64> {
-        let type_stability = self.type_stability.get_stability_score(&profile.base_profile.identifier)?;
-        let proof_complexity = self.proof_analyzer.get_complexity_score(&profile.base_profile.identifier)?;
-        let memory_locality = self.memory_analyzer.get_locality_score(&profile.base_profile.identifier)?;
-        
+    fn calculate_dependent_compilation_benefit(
+        &self,
+        profile: &DependentExecutionProfile,
+    ) -> Result<f64> {
+        let type_stability = self
+            .type_stability
+            .get_stability_score(&profile.base_profile.identifier)?;
+        let proof_complexity = self
+            .proof_analyzer
+            .get_complexity_score(&profile.base_profile.identifier)?;
+        let memory_locality = self
+            .memory_analyzer
+            .get_locality_score(&profile.base_profile.identifier)?;
+
         let base_benefit = profile.base_profile.compilation_benefit_score();
-        
+
         // Enhanced benefit calculation with dependent type factors
         let type_factor = type_stability * 2.0; // High stability enables better optimization
         let proof_factor = (proof_complexity / 10.0).min(3.0); // Complex proofs benefit more
         let memory_factor = memory_locality * 1.5; // Good locality improves performance
-        
+
         Ok(base_benefit * (1.0 + type_factor + proof_factor + memory_factor))
     }
 
     /// Calculates comprehensive dependent type metrics
-    fn calculate_dependent_metrics(&self, profile: &DependentExecutionProfile) -> Result<DependentHotspotMetrics> {
+    fn calculate_dependent_metrics(
+        &self,
+        profile: &DependentExecutionProfile,
+    ) -> Result<DependentHotspotMetrics> {
         Ok(DependentHotspotMetrics {
-            type_stability_score: self.type_stability.get_stability_score(&profile.base_profile.identifier)?,
-            proof_complexity: self.proof_analyzer.get_complexity_score(&profile.base_profile.identifier)?,
+            type_stability_score: self
+                .type_stability
+                .get_stability_score(&profile.base_profile.identifier)?,
+            proof_complexity: self
+                .proof_analyzer
+                .get_complexity_score(&profile.base_profile.identifier)?,
             type_computation_frequency: profile.type_computation_stats.frequency,
-            memory_locality_score: self.memory_analyzer.get_locality_score(&profile.base_profile.identifier)?,
+            memory_locality_score: self
+                .memory_analyzer
+                .get_locality_score(&profile.base_profile.identifier)?,
             dependent_benefit_potential: self.calculate_dependent_compilation_benefit(profile)?,
             constraint_satisfaction_rate: profile.constraint_stats.satisfaction_rate,
             proof_verification_overhead: profile.proof_stats.verification_overhead,
-            type_inference_cost: profile.type_computation_stats.average_inference_time.as_millis() as f64,
+            type_inference_cost: profile
+                .type_computation_stats
+                .average_inference_time
+                .as_millis() as f64,
         })
     }
 
     /// Analyzes specialization opportunities
-    fn analyze_specialization_opportunities(&self, profile: &DependentExecutionProfile) -> Result<Vec<SpecializationOpportunity>> {
+    fn analyze_specialization_opportunities(
+        &self,
+        profile: &DependentExecutionProfile,
+    ) -> Result<Vec<SpecializationOpportunity>> {
         let mut opportunities = Vec::new();
 
         // Type monomorphization opportunities
@@ -203,7 +235,10 @@ impl DependentHotspotDetector {
         }
 
         // Memory layout optimization opportunities
-        if self.memory_analyzer.has_optimization_potential(&profile.base_profile.identifier)? {
+        if self
+            .memory_analyzer
+            .has_optimization_potential(&profile.base_profile.identifier)?
+        {
             opportunities.push(SpecializationOpportunity {
                 kind: SpecializationKind::MemoryLayoutOptimization,
                 benefit_estimate: 2.5,
@@ -216,9 +251,12 @@ impl DependentHotspotDetector {
     }
 
     /// Recommends appropriate specialization tier
-    fn recommend_specialization_tier(&self, profile: &DependentExecutionProfile) -> Result<SpecializationTier> {
+    fn recommend_specialization_tier(
+        &self,
+        profile: &DependentExecutionProfile,
+    ) -> Result<SpecializationTier> {
         let metrics = self.calculate_dependent_metrics(profile)?;
-        
+
         // Decision logic based on metrics
         if metrics.dependent_benefit_potential > 20.0 && metrics.type_stability_score > 0.9 {
             Ok(SpecializationTier::FullSpecialization)
@@ -237,16 +275,16 @@ impl DependentHotspotDetector {
 pub struct DependentExecutionProfile {
     /// Base execution profile
     pub base_profile: ExecutionProfile,
-    
+
     /// Type computation statistics
     pub type_computation_stats: TypeComputationStats,
-    
+
     /// Proof obligation statistics
     pub proof_stats: ProofStats,
-    
+
     /// Constraint satisfaction statistics
     pub constraint_stats: ConstraintStats,
-    
+
     /// Memory access patterns
     pub memory_access_patterns: MemoryAccessPatterns,
 }
@@ -268,14 +306,14 @@ impl DependentExecutionProfile {
         type_context: Option<TypeExecutionContext>,
     ) -> Result<()> {
         self.base_profile.record_execution(execution_time);
-        
+
         if let Some(ctx) = type_context {
             self.type_computation_stats.update(&ctx)?;
             self.proof_stats.update(&ctx)?;
             self.constraint_stats.update(&ctx)?;
             self.memory_access_patterns.update(&ctx)?;
         }
-        
+
         Ok(())
     }
 }
@@ -295,25 +333,25 @@ pub struct TypeExecutionContext {
 pub struct DependentHotspotMetrics {
     /// Type stability score (0.0-1.0, higher = more stable)
     pub type_stability_score: f64,
-    
+
     /// Average proof complexity score
     pub proof_complexity: f64,
-    
+
     /// Frequency of type-level computations
     pub type_computation_frequency: f64,
-    
+
     /// Memory access locality score
     pub memory_locality_score: f64,
-    
+
     /// Estimated benefit from dependent type specialization
     pub dependent_benefit_potential: f64,
-    
+
     /// Rate of constraint satisfaction (0.0-1.0)
     pub constraint_satisfaction_rate: f64,
-    
+
     /// Overhead from proof verification
     pub proof_verification_overhead: f64,
-    
+
     /// Cost of type inference operations
     pub type_inference_cost: f64,
 }
@@ -323,13 +361,13 @@ pub struct DependentHotspotMetrics {
 pub struct DependentCompilationCandidate {
     /// Base compilation candidate
     pub base_candidate: CompilationCandidate,
-    
+
     /// Dependent type specific metrics
     pub dependent_metrics: DependentHotspotMetrics,
-    
+
     /// Available specialization opportunities
     pub specialization_opportunities: Vec<SpecializationOpportunity>,
-    
+
     /// Recommended specialization tier
     pub recommended_specialization_tier: SpecializationTier,
 }
@@ -339,13 +377,13 @@ pub struct DependentCompilationCandidate {
 pub struct SpecializationOpportunity {
     /// Type of specialization
     pub kind: SpecializationKind,
-    
+
     /// Estimated performance benefit (multiplier)
     pub benefit_estimate: f64,
-    
+
     /// Estimated compilation cost
     pub cost_estimate: Duration,
-    
+
     /// Confidence in the estimate (0.0-1.0)
     pub confidence: f64,
 }
@@ -355,19 +393,19 @@ pub struct SpecializationOpportunity {
 pub enum SpecializationKind {
     /// Monomorphization of polymorphic types
     TypeMonomorphization,
-    
+
     /// Elimination of runtime proof checks
     ProofElimination,
-    
+
     /// Specialization based on stable constraints
     ConstraintSpecialization,
-    
+
     /// Memory layout optimization
     MemoryLayoutOptimization,
-    
+
     /// SIMD vectorization of numeric operations
     VectorizationOptimization,
-    
+
     /// Inlining of small dependent functions
     DependentInlining,
 }
@@ -377,13 +415,13 @@ pub enum SpecializationKind {
 pub enum SpecializationTier {
     /// Basic optimization without specialization
     BasicOptimization,
-    
+
     /// Type-only specialization
     TypeSpecialization,
-    
+
     /// Proof elimination specialization
     ProofSpecialization,
-    
+
     /// Full dependent type specialization
     FullSpecialization,
 }
@@ -530,13 +568,15 @@ impl MemoryAccessPatterns {
                 MemoryAccessPattern::CacheFriendly => self.cache_friendly_accesses += 1,
             }
         }
-        
+
         // Update locality score based on access patterns
-        let total_accesses = self.sequential_accesses + self.random_accesses + self.cache_friendly_accesses;
+        let total_accesses =
+            self.sequential_accesses + self.random_accesses + self.cache_friendly_accesses;
         if total_accesses > 0 {
-            self.locality_score = (self.sequential_accesses + self.cache_friendly_accesses) as f64 / total_accesses as f64;
+            self.locality_score = (self.sequential_accesses + self.cache_friendly_accesses) as f64
+                / total_accesses as f64;
         }
-        
+
         Ok(())
     }
 }
@@ -583,7 +623,11 @@ impl TypeStabilityTracker {
     }
 
     pub fn get_stability_score(&self, identifier: &str) -> Result<f64> {
-        Ok(self.stability_scores.get(identifier).copied().unwrap_or(0.5))
+        Ok(self
+            .stability_scores
+            .get(identifier)
+            .copied()
+            .unwrap_or(0.5))
     }
 }
 
@@ -611,7 +655,11 @@ impl ProofComplexityAnalyzer {
     }
 
     pub fn get_complexity_score(&self, identifier: &str) -> Result<f64> {
-        Ok(self.complexity_scores.get(identifier).copied().unwrap_or(2.0))
+        Ok(self
+            .complexity_scores
+            .get(identifier)
+            .copied()
+            .unwrap_or(2.0))
     }
 }
 
@@ -697,7 +745,7 @@ mod tests {
     fn test_dependent_execution_profile() {
         let ast = Expr::Literal(Literal::ExactInteger(42));
         let mut profile = DependentExecutionProfile::new("test".to_string(), ast);
-        
+
         let result = profile.record_execution_with_types(Duration::from_millis(10), None);
         assert!(result.is_ok());
         assert_eq!(profile.base_profile.execution_count, 1);
@@ -711,7 +759,7 @@ mod tests {
             cost_estimate: Duration::from_millis(50),
             confidence: 0.8,
         };
-        
+
         assert_eq!(opportunity.kind, SpecializationKind::TypeMonomorphization);
         assert!(opportunity.benefit_estimate > 3.0);
     }
@@ -719,7 +767,7 @@ mod tests {
     #[test]
     fn test_specialization_tier_ordering() {
         use SpecializationTier::*;
-        
+
         assert!(BasicOptimization < TypeSpecialization);
         assert!(TypeSpecialization < ProofSpecialization);
         assert!(ProofSpecialization < FullSpecialization);

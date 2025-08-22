@@ -5,12 +5,12 @@
 //! macro features while maintaining compatibility with existing systems.
 
 use super::{
-    macro_time_computation::{MacroTimeEnvironment, MacroTimeValue, Phase},
+    advanced_hygiene::HygieneResolver,
     advanced_quasisyntax::{AdvancedQuasisyntaxProcessor, AdvancedQuasisyntaxTemplate},
+    macro_time_computation::{MacroTimeEnvironment, MacroTimeValue, Phase},
     macro_time_transformers::{MacroTimeTransformer, transformer_factory},
-    syntax_objects::{SyntaxObject, LexicalContext},
-    unified_expander::{UnifiedMacroExpander, UnifiedMacroTransformer, MacroTransformerType},
-    advanced_hygiene::{HygieneResolver},
+    syntax_objects::{LexicalContext, SyntaxObject},
+    unified_expander::{MacroTransformerType, UnifiedMacroExpander, UnifiedMacroTransformer},
 };
 use crate::ast::Expr;
 use crate::diagnostics::{Error, Result, Span, Spanned};
@@ -93,7 +93,9 @@ impl MacroTimeAwareExpander {
         };
 
         // Configure the macro environment
-        expander.macro_env.set_debug_enabled(config.enable_debugging);
+        expander
+            .macro_env
+            .set_debug_enabled(config.enable_debugging);
 
         // Register built-in macro-time transformers
         expander.register_builtin_transformers();
@@ -134,13 +136,13 @@ impl MacroTimeAwareExpander {
         // Check if we have a macro-time transformer for this macro
         if let Some(transformer) = self.macro_time_transformers.get_mut(macro_name) {
             self.stats.macro_time_transformations += 1;
-            
+
             let result = transformer.transform(input);
-            
+
             // Update statistics
             let elapsed = start_time.elapsed();
             self.stats.integration_overhead += elapsed;
-            
+
             match result {
                 Ok(output) => {
                     self.update_success_rate(true);
@@ -148,7 +150,9 @@ impl MacroTimeAwareExpander {
                 }
                 Err(e) => {
                     // Log error and fall back to basic expansion
-                    eprintln!("Macro-time transformation failed: {e}, falling back to basic expansion");
+                    eprintln!(
+                        "Macro-time transformation failed: {e}, falling back to basic expansion"
+                    );
                     self.stats.basic_expansion_fallbacks += 1;
                     self.update_success_rate(false);
                 }
@@ -177,21 +181,25 @@ impl MacroTimeAwareExpander {
                 vec![input.to_spanned()]
             }
         };
-        
+
         // Use the base expander with proper parameters
-        let result = self.base_expander.expand_macro(macro_name, &args, input.span, env)?;
-        
+        let result = self
+            .base_expander
+            .expand_macro(macro_name, &args, input.span, env)?;
+
         // Convert the result back to a SyntaxObject
-        Ok(SyntaxObject::new(result.inner, result.span, input.context.clone()))
+        Ok(SyntaxObject::new(
+            result.inner,
+            result.span,
+            input.context.clone(),
+        ))
     }
 
     /// Evaluates an expression at macro-time
-    pub fn macro_time_eval(
-        &mut self,
-        expr: &SyntaxObject,
-    ) -> Result<MacroTimeValue> {
+    pub fn macro_time_eval(&mut self, expr: &SyntaxObject) -> Result<MacroTimeValue> {
         self.stats.compile_time_evaluations += 1;
-        self.macro_env.compile_time_eval(expr, &mut self.hygiene_env)
+        self.macro_env
+            .compile_time_eval(expr, &mut self.hygiene_env)
     }
 
     /// Processes an advanced quasisyntax template
@@ -205,15 +213,15 @@ impl MacroTimeAwareExpander {
         // Since SyntaxBindings doesn't provide direct access to iterate over bindings,
         // we'll create a minimal HashMap for the common case
         let converted_bindings = HashMap::new();
-        
-        // Create an AdvancedGenerationContext 
+
+        // Create an AdvancedGenerationContext
         let mut generation_context = super::advanced_quasisyntax::AdvancedGenerationContext::new();
-        
+
         self.quasisyntax_processor.process_template(
-            template, 
-            &converted_bindings, 
-            &mut generation_context, 
-            span
+            template,
+            &converted_bindings,
+            &mut generation_context,
+            span,
         )
     }
 
@@ -236,7 +244,10 @@ impl MacroTimeAwareExpander {
     pub fn add_compile_time_binding(&mut self, name: String, value: MacroTimeValue) {
         // This would add to the macro environment
         // For now, we'll store it in the transformer registry if it's a procedure
-        if let MacroTimeValue::Procedure { name: proc_name, .. } = &value {
+        if let MacroTimeValue::Procedure {
+            name: proc_name, ..
+        } = &value
+        {
             // Could register as a transformer
         }
     }
@@ -259,8 +270,13 @@ impl MacroTimeAwareExpander {
         if total_operations == 0 {
             self.stats.success_rate = if success { 1.0 } else { 0.0 };
         } else {
-            let current_successes = (self.stats.success_rate * (total_operations - 1) as f64) as u64;
-            let new_successes = if success { current_successes + 1 } else { current_successes };
+            let current_successes =
+                (self.stats.success_rate * (total_operations - 1) as f64) as u64;
+            let new_successes = if success {
+                current_successes + 1
+            } else {
+                current_successes
+            };
             self.stats.success_rate = new_successes as f64 / total_operations as f64;
         }
     }
@@ -281,7 +297,9 @@ impl MacroTimeAwareExpander {
         // Check for unsupported features
         if self.has_unsupported_features(&macro_def.expr) {
             report.compatible = false;
-            report.issues.push("Contains unsupported features for macro-time computation".to_string());
+            report
+                .issues
+                .push("Contains unsupported features for macro-time computation".to_string());
         }
 
         Ok(report)
@@ -295,11 +313,18 @@ impl MacroTimeAwareExpander {
                 if let Some(first) = elements.first() {
                     if let Expr::Identifier(name) = &first.inner {
                         match name.as_str() {
-                            "make-list" | "generate-temporaries" | "syntax->datum" | "datum->syntax" => true,
-                            _ => elements.iter().any(|e| self.uses_macro_time_features(&e.inner))
+                            "make-list"
+                            | "generate-temporaries"
+                            | "syntax->datum"
+                            | "datum->syntax" => true,
+                            _ => elements
+                                .iter()
+                                .any(|e| self.uses_macro_time_features(&e.inner)),
                         }
                     } else {
-                        elements.iter().any(|e| self.uses_macro_time_features(&e.inner))
+                        elements
+                            .iter()
+                            .any(|e| self.uses_macro_time_features(&e.inner))
                     }
                 } else {
                     false
@@ -424,9 +449,7 @@ pub mod integration_interface {
     }
 
     /// Creates and registers the repeat transformer
-    pub fn setup_repeat_transformer(
-        expander: &mut MacroTimeAwareExpander,
-    ) {
+    pub fn setup_repeat_transformer(expander: &mut MacroTimeAwareExpander) {
         let repeat_transformer = transformer_factory::create_repeat_transformer();
         expander.register_macro_time_transformer(repeat_transformer);
     }
@@ -434,8 +457,8 @@ pub mod integration_interface {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::integration_interface::*;
+    use super::*;
     use crate::diagnostics::Span;
 
     #[test]
@@ -448,7 +471,7 @@ mod tests {
     fn test_macro_time_transformer_registration() {
         let mut expander = create_macro_time_expander();
         let transformer = transformer_factory::create_repeat_transformer();
-        
+
         expander.register_macro_time_transformer(transformer);
         assert!(expander.macro_time_transformers.contains_key("repeat"));
     }
@@ -456,13 +479,13 @@ mod tests {
     #[test]
     fn test_phase_management() {
         let mut expander = create_macro_time_expander();
-        
+
         assert_eq!(expander.current_phase(), Phase::RUNTIME);
-        
+
         let previous = expander.enter_macro_phase();
         assert_eq!(expander.current_phase(), Phase::MACRO_TIME);
         assert_eq!(previous, Phase::RUNTIME);
-        
+
         expander.exit_macro_phase(previous);
         assert_eq!(expander.current_phase(), Phase::RUNTIME);
     }
@@ -471,21 +494,24 @@ mod tests {
     fn test_compatibility_report() {
         let report = MacroTimeCompatibilityReport::new();
         assert!(report.is_compatible());
-        assert_eq!(report.summary(), "Compatible but does not use macro-time features");
+        assert_eq!(
+            report.summary(),
+            "Compatible but does not use macro-time features"
+        );
     }
 
     #[test]
     fn test_integration_stats() {
         let mut stats = MacroTimeIntegrationStats::default();
-        
+
         assert_eq!(stats.performance_ratio(), 1.0);
         assert_eq!(stats.average_overhead(), std::time::Duration::ZERO);
         assert!(!stats.is_performing_well()); // No operations yet
-        
+
         stats.macro_time_transformations = 8;
         stats.basic_expansion_fallbacks = 2;
         stats.success_rate = 0.9;
-        
+
         assert_eq!(stats.performance_ratio(), 0.8);
         assert!(stats.is_performing_well());
     }
@@ -493,16 +519,16 @@ mod tests {
     #[test]
     fn test_macro_time_features_detection() {
         let expander = create_macro_time_expander();
-        
+
         // Test expression that uses macro-time features
         let make_list_expr = Expr::List(vec![
             Spanned::new(Expr::Identifier("make-list".to_string()), Span::new(0, 9)),
             Spanned::new(Expr::Identifier("n".to_string()), Span::new(10, 11)),
             Spanned::new(Expr::Identifier("expr".to_string()), Span::new(12, 16)),
         ]);
-        
+
         assert!(expander.uses_macro_time_features(&make_list_expr));
-        
+
         // Test expression that doesn't use macro-time features
         let simple_expr = Expr::Identifier("x".to_string());
         assert!(!expander.uses_macro_time_features(&simple_expr));
@@ -512,7 +538,7 @@ mod tests {
     fn test_setup_repeat_transformer() {
         let mut expander = create_macro_time_expander();
         setup_repeat_transformer(&mut expander);
-        
+
         assert!(expander.macro_time_transformers.contains_key("repeat"));
     }
 
@@ -526,7 +552,7 @@ mod tests {
             computation_timeout: std::time::Duration::from_secs(10),
             enable_caching: false,
         };
-        
+
         let expander = create_configured_macro_time_expander(config);
         // Test that the configuration was applied (in a real implementation,
         // we'd have getters to verify the configuration)

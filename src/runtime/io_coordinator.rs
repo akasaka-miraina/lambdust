@@ -3,12 +3,12 @@
 //! This module provides distributed IO coordination to prevent race conditions
 //! across threads while maintaining IO operation ordering and consistency.
 
-use std::sync::{Arc, RwLock, Mutex, Condvar};
-use std::thread::ThreadId;
-use std::collections::{HashMap, VecDeque, BTreeMap};
-use std::time::{SystemTime, Duration};
+use crossbeam::channel::{Receiver, Sender, unbounded};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
-use crossbeam::channel::{Sender, Receiver, unbounded};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::thread::ThreadId;
+use std::time::{Duration, SystemTime};
 
 /// Coordinates IO operations across multiple threads to prevent race conditions
 /// and maintain operation ordering.
@@ -233,9 +233,7 @@ pub enum IOCoordinationMessage {
     },
     /// Release a lock on a resource
     #[allow(dead_code)] // Part of Stage 3 IO coordination infrastructure
-    ReleaseLock {
-        resource: String,
-    },
+    ReleaseLock { resource: String },
 }
 
 /// Policies for IO coordination.
@@ -318,7 +316,8 @@ impl IOCoordinator {
         self.release_all_locks_for_thread(thread_id);
 
         // Cancel pending operations for this thread
-        self.ordering_manager.cancel_operations_for_thread(thread_id);
+        self.ordering_manager
+            .cancel_operations_for_thread(thread_id);
     }
 
     /// Coordinates an IO operation across threads.
@@ -331,10 +330,12 @@ impl IOCoordinator {
     ) -> Result<u64, String> {
         // Check if thread has too many concurrent operations
         {
-            let operations = self.active_operations.read().unwrap();
+            let operations = self.active_operations.try_read().unwrap();
             if let Some(thread_ops) = operations.get(&thread_id) {
                 if thread_ops.len() >= self.policies.max_concurrent_operations_per_thread {
-                    return Err("Thread has reached maximum concurrent IO operations limit".to_string());
+                    return Err(
+                        "Thread has reached maximum concurrent IO operations limit".to_string()
+                    );
                 }
             }
         }
@@ -356,8 +357,10 @@ impl IOCoordinator {
         // Request resource lock if needed
         let lock_type = match operation_type {
             IOOperationType::FileRead | IOOperationType::ConsoleInput => LockType::Read,
-            IOOperationType::FileWrite | IOOperationType::FileOpen | 
-            IOOperationType::FileClose | IOOperationType::ConsoleOutput => LockType::Write,
+            IOOperationType::FileWrite
+            | IOOperationType::FileOpen
+            | IOOperationType::FileClose
+            | IOOperationType::ConsoleOutput => LockType::Write,
             _ => LockType::Read,
         };
 
@@ -374,7 +377,8 @@ impl IOCoordinator {
             submitted_at: SystemTime::now(),
         };
 
-        self.ordering_manager.add_pending_operation(pending_operation)?;
+        self.ordering_manager
+            .add_pending_operation(pending_operation)?;
 
         // Add to active operations
         {
@@ -386,11 +390,16 @@ impl IOCoordinator {
 
         // Record the operation event
         if self.policies.track_history {
-            self.record_operation_event(thread_id, operation, Ok(IOResult {
-                data: None,
-                bytes_processed: 0,
-                metadata: HashMap::new(),
-            }), operation_id);
+            self.record_operation_event(
+                thread_id,
+                operation,
+                Ok(IOResult {
+                    data: None,
+                    bytes_processed: 0,
+                    metadata: HashMap::new(),
+                }),
+                operation_id,
+            );
         }
 
         Ok(operation_id)
@@ -417,7 +426,8 @@ impl IOCoordinator {
         }
 
         // Notify ordering manager of completion
-        self.ordering_manager.notify_operation_completion(operation_id);
+        self.ordering_manager
+            .notify_operation_completion(operation_id);
 
         // Record completion event
         if self.policies.track_history {
@@ -458,8 +468,12 @@ impl IOCoordinator {
                 }
                 _ => {
                     // Add to wait queue
-                    existing_lock.wait_queue.push_back((thread_id, lock_type, SystemTime::now()));
-                    return Err(format!("Resource {resource} is locked, added to wait queue"));
+                    existing_lock
+                        .wait_queue
+                        .push_back((thread_id, lock_type, SystemTime::now()));
+                    return Err(format!(
+                        "Resource {resource} is locked, added to wait queue"
+                    ));
                 }
             }
         } else {
@@ -547,8 +561,8 @@ impl IOCoordinator {
 
     /// Gets IO operation statistics.
     pub fn get_io_statistics(&self) -> IOStatistics {
-        let operations = self.active_operations.read().unwrap();
-        let locks = self.resource_locks.read().unwrap();
+        let operations = self.active_operations.try_read().unwrap();
+        let locks = self.resource_locks.try_read().unwrap();
         let history = self.operation_history.lock().unwrap();
 
         let mut stats = IOStatistics {
@@ -564,7 +578,10 @@ impl IOCoordinator {
         for thread_ops in operations.values() {
             stats.total_active_operations += thread_ops.len();
             for op in thread_ops {
-                *stats.operations_by_type.entry(op.operation_type.clone()).or_insert(0) += 1;
+                *stats
+                    .operations_by_type
+                    .entry(op.operation_type.clone())
+                    .or_insert(0) += 1;
             }
         }
 
@@ -626,7 +643,7 @@ impl IOOrderingManager {
 
     /// Computes dependencies for an operation.
     pub fn compute_dependencies(&self, operation: &IOOperation) -> Result<Vec<u64>, String> {
-        let pending = self.pending_operations.read().unwrap();
+        let pending = self.pending_operations.try_read().unwrap();
         let mut dependencies = Vec::new();
 
         // Find operations on the same resource that must complete first
@@ -635,12 +652,12 @@ impl IOOrderingManager {
                 // For write operations, must wait for all previous operations
                 // For read operations, only wait for write operations
                 match (&pending_op.operation_type, &operation.operation_type) {
-                    (_, IOOperationType::FileWrite) |
-                    (_, IOOperationType::FileOpen) |
-                    (_, IOOperationType::FileClose) |
-                    (IOOperationType::FileWrite, _) |
-                    (IOOperationType::FileOpen, _) |
-                    (IOOperationType::FileClose, _) => {
+                    (_, IOOperationType::FileWrite)
+                    | (_, IOOperationType::FileOpen)
+                    | (_, IOOperationType::FileClose)
+                    | (IOOperationType::FileWrite, _)
+                    | (IOOperationType::FileOpen, _)
+                    | (IOOperationType::FileClose, _) => {
                         dependencies.push(*seq);
                     }
                     _ => {
@@ -663,9 +680,9 @@ impl IOOrderingManager {
     /// Completes an operation.
     pub fn complete_operation(&self, sequence: u64) -> Result<PendingIOOperation, String> {
         let mut pending = self.pending_operations.write().unwrap();
-        pending.remove(&sequence).ok_or_else(|| {
-            format!("Operation {sequence} not found in pending operations")
-        })
+        pending
+            .remove(&sequence)
+            .ok_or_else(|| format!("Operation {sequence} not found in pending operations"))
     }
 
     /// Notifies of operation completion.
@@ -724,7 +741,6 @@ impl IOCoordinationPolicies {
         }
     }
 }
-
 
 impl Clone for IOChannel {
     fn clone(&self) -> Self {

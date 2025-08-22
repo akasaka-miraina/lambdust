@@ -13,13 +13,15 @@
 #![allow(missing_docs)]
 
 use crate::ast::Literal;
-use crate::eval::value::Value;
 use crate::eval::optimized_value::OptimizedValue;
-use crate::eval::value_bridge::{LegacyValueBridge, SemanticEquivalenceChecker, BridgeConfig};
-use crate::eval::value_optimization_core::{ValueOptimizer, OptimizationConfig};
+use crate::eval::value::Value;
+use crate::eval::value_bridge::{BridgeConfig, LegacyValueBridge, SemanticEquivalenceChecker};
+use crate::eval::value_optimization_core::{OptimizationConfig, ValueOptimizer};
 use crate::utils::SymbolId;
-use std::sync::{Arc, RwLock};
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 /// Comprehensive test suite for semantic equivalence
 pub struct SemanticTestSuite {
@@ -61,7 +63,7 @@ impl Default for SemanticTestSuite {
         let bridge = LegacyValueBridge::new_default();
         let optimizer = ValueOptimizer::default();
         let test_cases = Self::generate_test_cases();
-        
+
         Self {
             bridge,
             optimizer,
@@ -76,26 +78,26 @@ impl SemanticTestSuite {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Generates comprehensive test cases covering all value types
     fn generate_test_cases() -> Vec<TestCase> {
         let mut cases = Vec::new();
-        
+
         // Test immediate values
         cases.extend(Self::immediate_value_tests());
-        
+
         // Test compound values
         cases.extend(Self::compound_value_tests());
-        
+
         // Test edge cases
         cases.extend(Self::edge_case_tests());
-        
+
         // Test R7RS specific behaviors
         cases.extend(Self::r7rs_compliance_tests());
-        
+
         cases
     }
-    
+
     /// Tests for immediate values (nil, booleans, numbers, characters)
     fn immediate_value_tests() -> Vec<TestCase> {
         vec![
@@ -261,7 +263,7 @@ impl SemanticTestSuite {
             },
         ]
     }
-    
+
     /// Tests for compound values (strings, symbols, pairs, vectors)
     fn compound_value_tests() -> Vec<TestCase> {
         vec![
@@ -329,8 +331,8 @@ impl SemanticTestSuite {
                 name: "simple_pair".to_string(),
                 description: "A simple pair (not a proper list)".to_string(),
                 original_value: Value::Pair(
-                    Arc::new(Value::Literal(Literal::ExactInteger(1))),
-                    Arc::new(Value::Literal(Literal::ExactInteger(2)))
+                    Box::new(Value::Literal(Literal::ExactInteger(1))),
+                    Box::new(Value::Literal(Literal::ExactInteger(2))),
                 ),
                 expected_properties: ValueProperties {
                     is_truthy: true,
@@ -352,11 +354,11 @@ impl SemanticTestSuite {
                 name: "proper_list".to_string(),
                 description: "A proper list".to_string(),
                 original_value: Value::Pair(
-                    Arc::new(Value::Literal(Literal::ExactInteger(1))),
-                    Arc::new(Value::Pair(
-                        Arc::new(Value::Literal(Literal::ExactInteger(2))),
-                        Arc::new(Value::Nil)
-                    ))
+                    Box::new(Value::Literal(Literal::ExactInteger(1))),
+                    Box::new(Value::Pair(
+                        Box::new(Value::Literal(Literal::ExactInteger(2))),
+                        Box::new(Value::Nil),
+                    )),
                 ),
                 expected_properties: ValueProperties {
                     is_truthy: true,
@@ -376,7 +378,7 @@ impl SemanticTestSuite {
             },
         ]
     }
-    
+
     /// Tests for edge cases and boundary conditions
     fn edge_case_tests() -> Vec<TestCase> {
         vec![
@@ -423,7 +425,9 @@ impl SemanticTestSuite {
             TestCase {
                 name: "string_with_escapes".to_string(),
                 description: "String containing escape sequences".to_string(),
-                original_value: Value::Literal(Literal::String(Box::new("hello\nworld\t!".to_string()))),
+                original_value: Value::Literal(Literal::String(Box::new(
+                    "hello\nworld\t!".to_string(),
+                ))),
                 expected_properties: ValueProperties {
                     is_truthy: true,
                     is_falsy: false,
@@ -442,7 +446,7 @@ impl SemanticTestSuite {
             },
         ]
     }
-    
+
     /// Tests specifically for R7RS compliance
     fn r7rs_compliance_tests() -> Vec<TestCase> {
         vec![
@@ -508,7 +512,7 @@ impl SemanticTestSuite {
             },
         ]
     }
-    
+
     /// Extracts properties from a Value for comparison
     fn extract_properties(value: &Value) -> ValueProperties {
         ValueProperties {
@@ -527,33 +531,33 @@ impl SemanticTestSuite {
             symbol_id: value.as_symbol(),
         }
     }
-    
+
     /// Runs all semantic equivalence tests
     pub fn run_all_tests(&self) -> SemanticTestResults {
         let mut results = SemanticTestResults::default();
-        
+
         for test_case in &self.test_cases {
             let test_result = self.run_single_test(test_case);
-            
+
             if test_result.passed {
                 results.passed_tests += 1;
             } else {
                 results.failed_tests += 1;
                 results.failures.push(test_result);
             }
-            
+
             results.total_tests += 1;
         }
-        
+
         results.success_rate = if results.total_tests > 0 {
             (results.passed_tests as f64 / results.total_tests as f64) * 100.0
         } else {
             0.0
         };
-        
+
         results
     }
-    
+
     /// Runs a single semantic test case
     fn run_single_test(&self, test_case: &TestCase) -> SingleTestResult {
         let mut result = SingleTestResult {
@@ -561,86 +565,150 @@ impl SemanticTestSuite {
             passed: true,
             errors: Vec::new(),
         };
-        
+
         // Convert to optimized value
         let optimized = self.bridge.optimize_value(&test_case.original_value);
-        
+
         // Convert back to legacy value
         let restored = self.bridge.deoptimize_value(&optimized);
-        
+
         // Extract properties from original and restored values
         let original_props = Self::extract_properties(&test_case.original_value);
         let restored_props = Self::extract_properties(&restored);
-        
+
         // Verify all properties are preserved
-        self.verify_property(&mut result, "is_truthy", 
-                           original_props.is_truthy, restored_props.is_truthy);
-        self.verify_property(&mut result, "is_falsy", 
-                           original_props.is_falsy, restored_props.is_falsy);
-        self.verify_property(&mut result, "is_number", 
-                           original_props.is_number, restored_props.is_number);
-        self.verify_property(&mut result, "is_string", 
-                           original_props.is_string, restored_props.is_string);
-        self.verify_property(&mut result, "is_symbol", 
-                           original_props.is_symbol, restored_props.is_symbol);
-        self.verify_property(&mut result, "is_pair", 
-                           original_props.is_pair, restored_props.is_pair);
-        self.verify_property(&mut result, "is_nil", 
-                           original_props.is_nil, restored_props.is_nil);
-        self.verify_property(&mut result, "is_list", 
-                           original_props.is_list, restored_props.is_list);
-        self.verify_property(&mut result, "is_procedure", 
-                           original_props.is_procedure, restored_props.is_procedure);
-        
+        self.verify_property(
+            &mut result,
+            "is_truthy",
+            original_props.is_truthy,
+            restored_props.is_truthy,
+        );
+        self.verify_property(
+            &mut result,
+            "is_falsy",
+            original_props.is_falsy,
+            restored_props.is_falsy,
+        );
+        self.verify_property(
+            &mut result,
+            "is_number",
+            original_props.is_number,
+            restored_props.is_number,
+        );
+        self.verify_property(
+            &mut result,
+            "is_string",
+            original_props.is_string,
+            restored_props.is_string,
+        );
+        self.verify_property(
+            &mut result,
+            "is_symbol",
+            original_props.is_symbol,
+            restored_props.is_symbol,
+        );
+        self.verify_property(
+            &mut result,
+            "is_pair",
+            original_props.is_pair,
+            restored_props.is_pair,
+        );
+        self.verify_property(
+            &mut result,
+            "is_nil",
+            original_props.is_nil,
+            restored_props.is_nil,
+        );
+        self.verify_property(
+            &mut result,
+            "is_list",
+            original_props.is_list,
+            restored_props.is_list,
+        );
+        self.verify_property(
+            &mut result,
+            "is_procedure",
+            original_props.is_procedure,
+            restored_props.is_procedure,
+        );
+
         // Verify numeric values with floating point tolerance
-        if let (Some(orig), Some(rest)) = (original_props.numeric_value, restored_props.numeric_value) {
+        if let (Some(orig), Some(rest)) =
+            (original_props.numeric_value, restored_props.numeric_value)
+        {
             if (orig - rest).abs() > f64::EPSILON {
                 result.passed = false;
-                result.errors.push(format!("numeric_value mismatch: {orig} != {rest}"));
+                result
+                    .errors
+                    .push(format!("numeric_value mismatch: {orig} != {rest}"));
             }
         } else if original_props.numeric_value != restored_props.numeric_value {
             result.passed = false;
-            result.errors.push(format!("numeric_value availability mismatch: {:?} != {:?}", 
-                                     original_props.numeric_value, restored_props.numeric_value));
+            result.errors.push(format!(
+                "numeric_value availability mismatch: {:?} != {:?}",
+                original_props.numeric_value, restored_props.numeric_value
+            ));
         }
-        
+
         // Verify integer values
-        self.verify_property(&mut result, "integer_value", 
-                           original_props.integer_value, restored_props.integer_value);
-        
+        self.verify_property(
+            &mut result,
+            "integer_value",
+            original_props.integer_value,
+            restored_props.integer_value,
+        );
+
         // Verify symbol IDs
-        self.verify_property(&mut result, "symbol_id", 
-                           original_props.symbol_id, restored_props.symbol_id);
-        
+        self.verify_property(
+            &mut result,
+            "symbol_id",
+            original_props.symbol_id,
+            restored_props.symbol_id,
+        );
+
         // Check that the expected properties match the original
         if original_props != test_case.expected_properties {
             result.passed = false;
-            result.errors.push("Original value properties don't match expected properties".to_string());
+            result
+                .errors
+                .push("Original value properties don't match expected properties".to_string());
         }
-        
+
         // Verify semantic equivalence using the checker
-        if !SemanticEquivalenceChecker::verify_equivalence(&test_case.original_value, &optimized, &self.bridge) {
+        if !SemanticEquivalenceChecker::verify_equivalence(
+            &test_case.original_value,
+            &optimized,
+            &self.bridge,
+        ) {
             result.passed = false;
-            result.errors.push("Semantic equivalence check failed".to_string());
+            result
+                .errors
+                .push("Semantic equivalence check failed".to_string());
         }
-        
+
         result
     }
-    
+
     /// Helper to verify a single property
-    fn verify_property<T: PartialEq + std::fmt::Debug>(&self, result: &mut SingleTestResult, 
-                                                       property_name: &str, 
-                                                       original: T, restored: T) {
+    fn verify_property<T: PartialEq + std::fmt::Debug>(
+        &self,
+        result: &mut SingleTestResult,
+        property_name: &str,
+        original: T,
+        restored: T,
+    ) {
         if original != restored {
             result.passed = false;
-            result.errors.push(format!("{property_name} mismatch: {original:?} != {restored:?}"));
+            result.errors.push(format!(
+                "{property_name} mismatch: {original:?} != {restored:?}"
+            ));
         }
     }
-    
+
     /// Runs property-based tests with random value generation
     pub fn run_property_tests(&self, iterations: usize) -> PropertyTestResults {
         let mut results = PropertyTestResults::default();
-        
+
         for i in 0..iterations {
             let random_value = self.generate_random_value(i);
             let test_case = TestCase {
@@ -649,28 +717,28 @@ impl SemanticTestSuite {
                 original_value: random_value.clone(),
                 expected_properties: Self::extract_properties(&random_value),
             };
-            
+
             let test_result = self.run_single_test(&test_case);
-            
+
             if test_result.passed {
                 results.passed += 1;
             } else {
                 results.failed += 1;
                 results.failures.push(test_result);
             }
-            
+
             results.total += 1;
         }
-        
+
         results.success_rate = if results.total > 0 {
             (results.passed as f64 / results.total as f64) * 100.0
         } else {
             0.0
         };
-        
+
         results
     }
-    
+
     /// Generates a pseudo-random value for property testing
     fn generate_random_value(&self, seed: usize) -> Value {
         // Simple deterministic pseudo-random generation based on seed
@@ -686,13 +754,13 @@ impl SemanticTestSuite {
             8 => {
                 // Simple pair
                 Value::Pair(
-                    Arc::new(Value::Literal(Literal::ExactInteger(seed as i64))),
-                    Arc::new(Value::Nil)
+                    Box::new(Value::Literal(Literal::ExactInteger(seed as i64))),
+                    Box::new(Value::Nil),
                 )
             }
             9 => {
                 // Vector with a few elements
-                Value::Vector(Arc::new(RwLock::new(vec![
+                Value::Vector(Rc::new(RefCell::new(vec![
                     Value::Literal(Literal::ExactInteger(seed as i64)),
                     Value::Literal(Literal::Boolean(seed % 2 == 0)),
                 ])))
@@ -734,20 +802,24 @@ impl SemanticTestResults {
     /// Generates a summary report of the test results
     pub fn summary(&self) -> String {
         let mut summary = String::new();
-        
+
         summary.push_str("=== Semantic Equivalence Test Results ===\n\n");
         summary.push_str(&format!("Total Tests: {}\n", self.total_tests));
         summary.push_str(&format!("Passed: {}\n", self.passed_tests));
         summary.push_str(&format!("Failed: {}\n", self.failed_tests));
         summary.push_str(&format!("Success Rate: {:.2}%\n\n", self.success_rate));
-        
+
         if !self.failures.is_empty() {
             summary.push_str("Failed Tests:\n");
             for failure in &self.failures {
-                summary.push_str(&format!("  - {}: {}\n", failure.test_name, failure.errors.join(", ")));
+                summary.push_str(&format!(
+                    "  - {}: {}\n",
+                    failure.test_name,
+                    failure.errors.join(", ")
+                ));
             }
         }
-        
+
         summary
     }
 }
@@ -755,40 +827,50 @@ impl SemanticTestResults {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_semantic_test_suite_creation() {
         let suite = SemanticTestSuite::new();
         assert!(!suite.test_cases.is_empty());
-        
+
         // Should have different categories of tests
-        let immediate_tests = suite.test_cases.iter()
-            .filter(|t| t.name.contains("boolean") || t.name.contains("integer") || t.name.contains("character"))
+        let immediate_tests = suite
+            .test_cases
+            .iter()
+            .filter(|t| {
+                t.name.contains("boolean")
+                    || t.name.contains("integer")
+                    || t.name.contains("character")
+            })
             .count();
         assert!(immediate_tests > 0);
-        
-        let compound_tests = suite.test_cases.iter()
-            .filter(|t| t.name.contains("string") || t.name.contains("pair") || t.name.contains("symbol"))
+
+        let compound_tests = suite
+            .test_cases
+            .iter()
+            .filter(|t| {
+                t.name.contains("string") || t.name.contains("pair") || t.name.contains("symbol")
+            })
             .count();
         assert!(compound_tests > 0);
     }
-    
+
     #[test]
     fn test_property_extraction() {
         let true_val = Value::Literal(Literal::Boolean(true));
         let props = SemanticTestSuite::extract_properties(&true_val);
-        
+
         assert!(props.is_truthy);
         assert!(!props.is_falsy);
         assert!(!props.is_number);
         assert_eq!(props.string_representation, "#t");
     }
-    
+
     #[test]
     fn test_nil_properties() {
         let nil = Value::Nil;
         let props = SemanticTestSuite::extract_properties(&nil);
-        
+
         assert!(props.is_truthy); // R7RS: only #f is falsy
         assert!(!props.is_falsy);
         assert!(props.is_nil);
@@ -796,23 +878,23 @@ mod tests {
         assert!(!props.is_pair);
         assert_eq!(props.string_representation, "()");
     }
-    
+
     #[test]
     fn test_false_properties() {
         let false_val = Value::Literal(Literal::Boolean(false));
         let props = SemanticTestSuite::extract_properties(&false_val);
-        
+
         assert!(!props.is_truthy);
         assert!(props.is_falsy); // Only #f is falsy in R7RS
         assert!(!props.is_number);
         assert_eq!(props.string_representation, "#f");
     }
-    
+
     #[test]
     fn test_number_properties() {
         let int_val = Value::Literal(Literal::ExactInteger(42));
         let props = SemanticTestSuite::extract_properties(&int_val);
-        
+
         assert!(props.is_truthy); // Numbers are truthy
         assert!(!props.is_falsy);
         assert!(props.is_number);
@@ -820,27 +902,27 @@ mod tests {
         assert_eq!(props.integer_value, Some(42));
         assert_eq!(props.string_representation, "42");
     }
-    
+
     #[test]
     fn test_string_properties() {
         let str_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
         let props = SemanticTestSuite::extract_properties(&str_val);
-        
+
         assert!(props.is_truthy);
         assert!(!props.is_falsy);
         assert!(props.is_string);
         assert!(!props.is_number);
         assert_eq!(props.string_representation, "\"hello\"");
     }
-    
+
     #[test]
     fn test_pair_properties() {
         let pair = Value::Pair(
-            Arc::new(Value::Literal(Literal::ExactInteger(1))),
-            Arc::new(Value::Literal(Literal::ExactInteger(2)))
+            Box::new(Value::Literal(Literal::ExactInteger(1))),
+            Box::new(Value::Literal(Literal::ExactInteger(2))),
         );
         let props = SemanticTestSuite::extract_properties(&pair);
-        
+
         assert!(props.is_truthy);
         assert!(!props.is_falsy);
         assert!(props.is_pair);
@@ -848,58 +930,64 @@ mod tests {
         assert!(!props.is_number);
         assert_eq!(props.string_representation, "(1 . 2)");
     }
-    
+
     #[test]
     fn test_run_all_tests() {
         let suite = SemanticTestSuite::new();
         let results = suite.run_all_tests();
-        
+
         assert!(results.total_tests > 0);
         // Most tests should pass (allowing for some expected failures during development)
         assert!(results.success_rate >= 80.0);
-        
+
         println!("{}", results.summary());
     }
-    
+
     #[test]
     fn test_property_tests() {
         let suite = SemanticTestSuite::new();
         let results = suite.run_property_tests(100);
-        
+
         assert_eq!(results.total, 100);
         // Property tests should have high success rate
         assert!(results.success_rate >= 80.0);
     }
-    
+
     #[test]
     fn test_random_value_generation() {
         let suite = SemanticTestSuite::new();
-        
+
         // Generate several random values and ensure they're different
         let val1 = suite.generate_random_value(0);
         let val2 = suite.generate_random_value(1);
         let val3 = suite.generate_random_value(2);
-        
+
         // Values should be diverse (this is probabilistic but likely to pass)
         assert!(format!("{val1}") != format!("{val2}") || format!("{val2}") != format!("{val3}"));
     }
-    
+
     #[test]
     fn test_r7rs_compliance() {
         let suite = SemanticTestSuite::new();
-        
+
         // Find R7RS specific tests
-        let r7rs_tests: Vec<_> = suite.test_cases.iter()
+        let r7rs_tests: Vec<_> = suite
+            .test_cases
+            .iter()
             .filter(|t| t.name.contains("r7rs"))
             .collect();
-        
+
         assert!(!r7rs_tests.is_empty());
-        
+
         // Run just the R7RS tests
         for test_case in r7rs_tests {
             let result = suite.run_single_test(test_case);
-            assert!(result.passed, "R7RS compliance test failed: {} - {}", 
-                   test_case.name, result.errors.join(", "));
+            assert!(
+                result.passed,
+                "R7RS compliance test failed: {} - {}",
+                test_case.name,
+                result.errors.join(", ")
+            );
         }
     }
 }

@@ -10,8 +10,8 @@
 //! - Integration with module system for cross-module hygiene
 //! - Efficient scope lookup and binding resolution
 
-use super::syntax_objects::{SyntaxObject, LexicalContext, BindingInfo, SyntaxProperty};
 use super::advanced_hygiene::{HygieneResolver, Mark, MarkSet};
+use super::syntax_objects::{BindingInfo, LexicalContext, SyntaxObject, SyntaxProperty};
 use crate::ast::Expr;
 use crate::diagnostics::{Error, Result, Span};
 use crate::eval::Environment;
@@ -121,12 +121,7 @@ pub struct ScopeBinding {
 
 impl ScopeBinding {
     /// Creates a new scope binding
-    pub fn new(
-        name: String,
-        scope_id: ScopeId,
-        phase: i32,
-        is_macro: bool,
-    ) -> Self {
+    pub fn new(name: String, scope_id: ScopeId, phase: i32, is_macro: bool) -> Self {
         Self {
             name,
             scope_id,
@@ -147,7 +142,12 @@ impl ScopeBinding {
     }
 
     /// Checks if this binding is accessible from the given scope and phase
-    pub fn is_accessible_from(&self, scope_id: ScopeId, phase: i32, scope_manager: &ScopeManager) -> bool {
+    pub fn is_accessible_from(
+        &self,
+        scope_id: ScopeId,
+        phase: i32,
+        scope_manager: &ScopeManager,
+    ) -> bool {
         // Phase must match for access
         if self.phase != phase {
             return false;
@@ -340,11 +340,7 @@ impl ScopeManager {
     }
 
     /// Creates a new scope
-    pub fn create_scope(
-        &mut self,
-        scope_type: ScopeType,
-        module_path: Vec<String>,
-    ) -> ScopeId {
+    pub fn create_scope(&mut self, scope_type: ScopeType, module_path: Vec<String>) -> ScopeId {
         let parent = self.current_scope;
         let mut scope = LexicalScope::new(scope_type, parent, self.current_phase, module_path);
         let scope_id = scope.id;
@@ -405,7 +401,11 @@ impl ScopeManager {
     }
 
     /// Creates and enters a new scope
-    pub fn push_scope(&mut self, scope_type: ScopeType, module_path: Vec<String>) -> Result<ScopeId> {
+    pub fn push_scope(
+        &mut self,
+        scope_type: ScopeType,
+        module_path: Vec<String>,
+    ) -> Result<ScopeId> {
         let scope_id = self.create_scope(scope_type, module_path);
         self.enter_scope(scope_id)?;
         Ok(scope_id)
@@ -458,8 +458,9 @@ impl ScopeManager {
             if let Some(scope) = self.scopes.get(&scope_id) {
                 if let Some(binding) = scope.get_binding(name) {
                     // Check if binding is accessible with the given marks
-                    if binding.has_compatible_marks(marks) && 
-                       binding.is_accessible_from(start_scope, self.current_phase, self) {
+                    if binding.has_compatible_marks(marks)
+                        && binding.is_accessible_from(start_scope, self.current_phase, self)
+                    {
                         self.stats.cache_hits += 1;
                         return Some(binding);
                     }
@@ -510,7 +511,7 @@ impl ScopeManager {
             if scope_id == container {
                 return true;
             }
-            
+
             if let Some(scope) = self.scopes.get(&scope_id) {
                 current = scope.parent;
             } else {
@@ -557,8 +558,9 @@ impl ScopeManager {
     /// Converts a lexical scope to a lexical context
     pub fn scope_to_context(&self, scope_id: ScopeId) -> Option<LexicalContext> {
         let scope = self.scopes.get(&scope_id)?;
-        
-        let parent_context = scope.parent
+
+        let parent_context = scope
+            .parent
             .and_then(|pid| self.scope_to_context(pid))
             .map(Box::new);
 
@@ -602,7 +604,7 @@ impl ScopeManager {
     /// Gets all unused bindings for warnings
     pub fn get_unused_bindings(&self) -> Vec<(ScopeId, String)> {
         let mut unused = Vec::new();
-        
+
         for (scope_id, scope) in &self.scopes {
             for (name, binding) in &scope.bindings {
                 if !binding.is_used && !name.starts_with("_") {
@@ -610,7 +612,7 @@ impl ScopeManager {
                 }
             }
         }
-        
+
         unused
     }
 
@@ -623,9 +625,7 @@ impl ScopeManager {
     pub fn reset_stats(&mut self) {
         self.stats = ScopeManagerStats::default();
         self.stats.total_scopes = self.scopes.len();
-        self.stats.total_bindings = self.scopes.values()
-            .map(|s| s.bindings.len())
-            .sum();
+        self.stats.total_bindings = self.scopes.values().map(|s| s.bindings.len()).sum();
     }
 
     /// Clears all scopes (for testing)
@@ -659,10 +659,10 @@ pub mod scope_utils {
     ) -> Option<ScopeBinding> {
         let name = syntax.identifier_name()?.to_string();
         let mut binding = ScopeBinding::new(name, scope_id, syntax.context.phase, is_macro);
-        
+
         // Add marks from syntax object
         binding.marks = MarkSet::from(syntax.marks.clone());
-        
+
         // Add metadata
         if let Some(SyntaxProperty::String(module_name)) = syntax.get_property("module") {
             binding.defining_module = Some(vec![module_name.clone()]);
@@ -744,7 +744,9 @@ pub mod scope_utils {
         name: &str,
         marks: &MarkSet,
     ) -> Option<ScopeId> {
-        manager.lookup_binding(name, marks).map(|binding| binding.scope_id)
+        manager
+            .lookup_binding(name, marks)
+            .map(|binding| binding.scope_id)
     }
 }
 
@@ -756,7 +758,7 @@ mod tests {
     fn test_scope_creation() {
         let mut manager = ScopeManager::new();
         let scope_id = manager.create_scope(ScopeType::Module, vec!["test".to_string()]);
-        
+
         assert!(manager.scopes.contains_key(&scope_id));
         assert!(manager.root_scopes.contains(&scope_id));
     }
@@ -764,9 +766,13 @@ mod tests {
     #[test]
     fn test_scope_hierarchy() {
         let mut manager = ScopeManager::new();
-        let parent_id = manager.push_scope(ScopeType::Module, vec!["test".to_string()]).unwrap();
-        let child_id = manager.push_scope(ScopeType::Function, vec!["test".to_string()]).unwrap();
-        
+        let parent_id = manager
+            .push_scope(ScopeType::Module, vec!["test".to_string()])
+            .unwrap();
+        let child_id = manager
+            .push_scope(ScopeType::Function, vec!["test".to_string()])
+            .unwrap();
+
         assert!(manager.scope_contains_or_inherits(parent_id, child_id));
         assert!(!manager.scope_contains_or_inherits(child_id, parent_id));
     }
@@ -774,11 +780,13 @@ mod tests {
     #[test]
     fn test_binding_operations() {
         let mut manager = ScopeManager::new();
-        let scope_id = manager.push_scope(ScopeType::Module, vec!["test".to_string()]).unwrap();
-        
+        let scope_id = manager
+            .push_scope(ScopeType::Module, vec!["test".to_string()])
+            .unwrap();
+
         let binding = ScopeBinding::new("x".to_string(), scope_id, 0, false);
         manager.add_binding(binding).unwrap();
-        
+
         let marks = MarkSet::empty();
         let found = manager.lookup_binding("x", &marks);
         assert!(found.is_some());
@@ -788,13 +796,17 @@ mod tests {
     #[test]
     fn test_binding_lookup_hierarchy() {
         let mut manager = ScopeManager::new();
-        let parent_id = manager.push_scope(ScopeType::Module, vec!["test".to_string()]).unwrap();
-        
+        let parent_id = manager
+            .push_scope(ScopeType::Module, vec!["test".to_string()])
+            .unwrap();
+
         let parent_binding = ScopeBinding::new("x".to_string(), parent_id, 0, false);
         manager.add_binding(parent_binding).unwrap();
-        
-        let child_id = manager.push_scope(ScopeType::Function, vec!["test".to_string()]).unwrap();
-        
+
+        let child_id = manager
+            .push_scope(ScopeType::Function, vec!["test".to_string()])
+            .unwrap();
+
         let marks = MarkSet::empty();
         let found = manager.lookup_binding("x", &marks);
         assert!(found.is_some());
@@ -805,10 +817,10 @@ mod tests {
     fn test_phase_management() {
         let mut manager = ScopeManager::new();
         assert_eq!(manager.current_phase(), 0);
-        
+
         manager.enter_phase(1);
         assert_eq!(manager.current_phase(), 1);
-        
+
         manager.exit_phase();
         assert_eq!(manager.current_phase(), 0);
     }
@@ -816,20 +828,22 @@ mod tests {
     #[test]
     fn test_scope_stats() {
         let mut manager = ScopeManager::new();
-        let scope_id = manager.push_scope(ScopeType::Module, vec!["test".to_string()]).unwrap();
-        
+        let scope_id = manager
+            .push_scope(ScopeType::Module, vec!["test".to_string()])
+            .unwrap();
+
         let binding = ScopeBinding::new("x".to_string(), scope_id, 0, false);
         manager.add_binding(binding).unwrap();
-        
+
         if let Some(scope) = manager.get_scope(scope_id) {
             let stats = scope.stats();
             assert_eq!(stats.total_bindings, 1);
             assert_eq!(stats.unused_bindings, 1);
         }
-        
+
         let marks = MarkSet::empty();
         manager.mark_binding_used("x", &marks);
-        
+
         if let Some(scope) = manager.get_scope(scope_id) {
             let stats = scope.stats();
             assert_eq!(stats.used_bindings, 1);
@@ -840,15 +854,15 @@ mod tests {
     #[test]
     fn test_lambda_scope_creation() {
         let mut manager = ScopeManager::new();
-        let _parent_id = manager.push_scope(ScopeType::Module, vec!["test".to_string()]).unwrap();
-        
+        let _parent_id = manager
+            .push_scope(ScopeType::Module, vec!["test".to_string()])
+            .unwrap();
+
         let formals = crate::ast::Formals::Fixed(vec!["x".to_string(), "y".to_string()]);
-        let lambda_scope = scope_utils::create_lambda_scope(
-            &mut manager,
-            &formals,
-            vec!["test".to_string()],
-        ).unwrap();
-        
+        let lambda_scope =
+            scope_utils::create_lambda_scope(&mut manager, &formals, vec!["test".to_string()])
+                .unwrap();
+
         let marks = MarkSet::empty();
         assert!(manager.lookup_binding("x", &marks).is_some());
         assert!(manager.lookup_binding("y", &marks).is_some());

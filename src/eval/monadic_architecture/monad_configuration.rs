@@ -1,20 +1,20 @@
 //! Configuration for monadic operations
 
-use std::collections::HashMap;
 use super::custom_monad_definition::CustomMonadDefinition;
+use std::collections::HashMap;
 
 /// Configuration for monadic operations
 #[derive(Debug, Clone)]
 pub struct MonadConfiguration {
     /// Maximum composition depth to prevent infinite recursion
     pub max_composition_depth: usize,
-    
+
     /// Whether to optimize monadic compositions
     pub optimize_compositions: bool,
-    
+
     /// Whether to enable automatic lifting
     pub enable_auto_lifting: bool,
-    
+
     /// Custom monad definitions
     pub custom_monads: HashMap<String, CustomMonadDefinition>,
 }

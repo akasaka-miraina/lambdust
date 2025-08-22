@@ -7,7 +7,7 @@
 //!
 //! The dependent type system is built on:
 //! - Π-types (dependent function types): (x : A) → B(x)
-//! - Σ-types (dependent pair types): (x : A) × B(x)  
+//! - Σ-types (dependent pair types): (x : A) × B(x)
 //! - Universe hierarchy: Type₀ : Type₁ : Type₂ : ...
 //! - Inductive types with pattern matching
 //! - Type-level computation and normalization
@@ -24,12 +24,12 @@ pub type UniverseLevel = u32;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DependentType {
     // ============= UNIVERSE HIERARCHY =============
-    
+
     /// Universe type (Type₀, Type₁, etc.)
     Universe(UniverseLevel),
-    
+
     // ============= DEPENDENT TYPES =============
-    
+
     /// Π-type (dependent function): (x : A) → B(x)
     Pi {
         /// Binding variable name
@@ -39,8 +39,8 @@ pub enum DependentType {
         /// Codomain type B(x), potentially depending on var
         codomain: Box<Type>,
     },
-    
-    /// Σ-type (dependent pair): (x : A) × B(x) 
+
+    /// Σ-type (dependent pair): (x : A) × B(x)
     Sigma {
         /// Binding variable name
         var: String,
@@ -49,9 +49,9 @@ pub enum DependentType {
         /// Second component type B(x), potentially depending on var
         second: Box<Type>,
     },
-    
+
     // ============= TYPE-LEVEL COMPUTATION =============
-    
+
     /// Type-level application: f(args...)
     TypeApp {
         /// Type-level function
@@ -59,7 +59,7 @@ pub enum DependentType {
         /// Type-level arguments
         arguments: Vec<Type>,
     },
-    
+
     /// Type-level lambda: λx.T
     TypeLambda {
         /// Parameter variable
@@ -69,9 +69,9 @@ pub enum DependentType {
         /// Body type expression
         body: Box<Type>,
     },
-    
+
     // ============= INDEXED TYPES =============
-    
+
     /// Indexed type family: F(indices...)
     Indexed {
         /// Family name
@@ -81,9 +81,9 @@ pub enum DependentType {
         /// Kind of the family
         kind: Kind,
     },
-    
+
     // ============= INDUCTIVE TYPES =============
-    
+
     /// Inductive type definition
     Inductive {
         /// Type name
@@ -95,9 +95,9 @@ pub enum DependentType {
         /// Constructor types
         constructors: HashMap<String, Type>,
     },
-    
+
     // ============= REFINEMENT TYPES =============
-    
+
     /// Refinement type: {x : T | P(x)}
     Refinement {
         /// Binding variable
@@ -116,47 +116,47 @@ pub enum DependentType {
 pub enum Term {
     /// Variable reference
     Var(String),
-    
+
     /// Lambda abstraction: λx.e
     Lambda {
         param: String,
         param_type: Box<Type>,
         body: Box<Term>,
     },
-    
+
     /// Application: f(args...)
     App {
         function: Box<Term>,
         arguments: Vec<Term>,
     },
-    
+
     /// Pair construction: (a, b)
     Pair(Box<Term>, Box<Term>),
-    
+
     /// First projection: π₁(e)
     Fst(Box<Term>),
-    
+
     /// Second projection: π₂(e)
     Snd(Box<Term>),
-    
+
     /// Integer literal
     Int(i64),
-    
+
     /// Boolean literal
     Bool(bool),
-    
+
     /// String literal
     String(String),
-    
+
     /// List construction
     List(Vec<Term>),
-    
+
     /// Case analysis / pattern matching
     Case {
         scrutinee: Box<Term>,
         branches: Vec<(Pattern, Term)>,
     },
-    
+
     /// Type annotation: (e : T)
     Annotated {
         term: Box<Term>,
@@ -169,22 +169,22 @@ pub enum Term {
 pub enum Pattern {
     /// Variable pattern (always matches, binds variable)
     Var(String),
-    
+
     /// Constructor pattern: Constructor(subpatterns...)
     Constructor {
         name: String,
         args: Vec<Pattern>,
     },
-    
+
     /// Integer literal pattern
     Int(i64),
-    
+
     /// Boolean literal pattern
     Bool(bool),
-    
+
     /// Pair pattern: (p₁, p₂)
     Pair(Box<Pattern>, Box<Pattern>),
-    
+
     /// Wildcard pattern: _ (matches anything, no binding)
     Wildcard,
 }
@@ -212,22 +212,22 @@ impl DependentContext {
             universes: HashMap::new(),
         }
     }
-    
+
     /// Add a variable binding.
     pub fn bind_var(&mut self, name: String, type_: Type) {
         self.vars.insert(name, type_);
     }
-    
+
     /// Look up a variable type.
     pub fn lookup_var(&self, name: &str) -> Option<&Type> {
         self.vars.get(name)
     }
-    
+
     /// Add a type definition.
     pub fn define_type(&mut self, name: String, def: DependentType) {
         self.types.insert(name, def);
     }
-    
+
     /// Look up a type definition.
     pub fn lookup_type(&self, name: &str) -> Option<&DependentType> {
         self.types.get(name)
@@ -250,13 +250,13 @@ impl DependentTypeChecker {
             fresh_counter: 0,
         }
     }
-    
+
     /// Generate a fresh type variable.
     pub fn fresh_var(&mut self) -> String {
         self.fresh_counter += 1;
         format!("_dep{}", self.fresh_counter)
     }
-    
+
     /// Type check a term and return its type.
     pub fn check_term(&mut self, term: &Term, expected: Option<&Type>) -> Result<Type> {
         match term {
@@ -264,37 +264,37 @@ impl DependentTypeChecker {
                 self.context.lookup_var(name)
                     .cloned()
                     .ok_or_else(|| Box::new(Error::type_error(
-                        format!("Unbound variable: {name}"), 
+                        format!("Unbound variable: {name}"),
                         Span::new(0, 0)
                     )))
             }
-            
+
             Term::Lambda { param, param_type, body } => {
                 let mut body_checker = self.clone();
                 body_checker.context.bind_var(param.clone(), (**param_type).clone());
                 let body_type = body_checker.check_term(body, None)?;
-                
+
                 Ok(Type::Function {
                     params: vec![(**param_type).clone()],
                     return_type: Box::new(body_type),
                 })
             }
-            
+
             Term::App { function, arguments } => {
                 let func_type = self.check_term(function, None)?;
                 self.check_application(&func_type, arguments)
             }
-            
+
             Term::Int(_) => Ok(Type::Number),
             Term::Bool(_) => Ok(Type::Boolean),
             Term::String(_) => Ok(Type::String),
-            
+
             Term::Pair(a, b) => {
                 let a_type = self.check_term(a, None)?;
                 let b_type = self.check_term(b, None)?;
                 Ok(Type::pair(a_type, b_type))
             }
-            
+
             Term::Fst(pair) => {
                 let pair_type = self.check_term(pair, None)?;
                 match pair_type {
@@ -302,7 +302,7 @@ impl DependentTypeChecker {
                     _ => Err(Box::new(Error::type_error("Expected pair type for fst".to_string(), Span::new(0, 0))))
                 }
             }
-            
+
             Term::Snd(pair) => {
                 let pair_type = self.check_term(pair, None)?;
                 match pair_type {
@@ -310,7 +310,7 @@ impl DependentTypeChecker {
                     _ => Err(Box::new(Error::type_error("Expected pair type for snd".to_string(), Span::new(0, 0))))
                 }
             }
-            
+
             Term::List(elements) => {
                 if elements.is_empty() {
                     Ok(Type::list(Type::Dynamic))
@@ -329,7 +329,7 @@ impl DependentTypeChecker {
                     Ok(Type::list(first_type))
                 }
             }
-            
+
             Term::Annotated { term, type_ } => {
                 let inferred = self.check_term(term, Some(type_))?;
                 if self.types_equal(&inferred, type_)? {
@@ -341,26 +341,26 @@ impl DependentTypeChecker {
                     )))
                 }
             }
-            
+
             Term::Case { .. } => {
                 // Pattern matching type checking - complex implementation
                 todo!("Pattern matching type checking")
             }
         }
     }
-    
+
     /// Check function application.
     fn check_application(&mut self, func_type: &Type, args: &[Term]) -> Result<Type> {
         match func_type {
             Type::Function { params, return_type } => {
                 if args.len() != params.len() {
                     return Err(Box::new(Error::type_error(
-                        format!("Arity mismatch: expected {} args, got {}", 
+                        format!("Arity mismatch: expected {} args, got {}",
                                params.len(), args.len()),
                         Span::new(0, 0)
                     )));
                 }
-                
+
                 for (arg, expected_param) in args.iter().zip(params.iter()) {
                     let arg_type = self.check_term(arg, Some(expected_param))?;
                     if !self.types_equal(&arg_type, expected_param)? {
@@ -370,7 +370,7 @@ impl DependentTypeChecker {
                         )));
                     }
                 }
-                
+
                 Ok((**return_type).clone())
             }
             _ => Err(Box::new(Error::type_error(
@@ -379,21 +379,21 @@ impl DependentTypeChecker {
             )))
         }
     }
-    
+
     /// Check if two types are equal (with normalization).
     fn types_equal(&self, t1: &Type, t2: &Type) -> Result<bool> {
         // For now, structural equality
         // In full implementation, would normalize types first
         Ok(t1 == t2)
     }
-    
+
     /// Normalize a type (reduce type-level computations).
     pub fn normalize_type(&self, type_: &Type) -> Result<Type> {
         // Placeholder implementation
         // Full normalization would evaluate type-level applications
         Ok(type_.clone())
     }
-    
+
     /// Convert between regular Type and DependentType representations.
     pub fn lift_to_dependent(&self, type_: &Type) -> DependentType {
         match type_ {
@@ -470,13 +470,13 @@ pub fn is_dependent_type(type_: &Type) -> bool {
 /// Gradual integration: check consistency with dependent types.
 pub fn dependent_consistent(dep_type: &DependentType, regular_type: &Type) -> bool {
     match (dep_type, regular_type) {
-        (DependentType::Pi { domain, codomain, .. }, 
+        (DependentType::Pi { domain, codomain, .. },
          Type::Function { params, return_type }) => {
-            params.len() == 1 && 
-            **domain == params[0] && 
+            params.len() == 1 &&
+            **domain == params[0] &&
             **codomain == **return_type
         }
-        (DependentType::Sigma { first, second, .. }, 
+        (DependentType::Sigma { first, second, .. },
          Type::Pair(a, b)) => {
             **first == **a && **second == **b
         }
@@ -491,29 +491,29 @@ mod tests {
     #[test]
     fn test_basic_term_checking() {
         let mut checker = DependentTypeChecker::new();
-        
+
         // Check integer literal
         let term = Term::Int(42);
         let type_ = checker.check_term(&term, None).unwrap();
         assert_eq!(type_, Type::Number);
-        
-        // Check boolean literal  
+
+        // Check boolean literal
         let term = Term::Bool(true);
         let type_ = checker.check_term(&term, None).unwrap();
         assert_eq!(type_, Type::Boolean);
     }
-    
+
     #[test]
     fn test_lambda_typing() {
         let mut checker = DependentTypeChecker::new();
-        
+
         // λx:Number. x + 1 (simplified)
         let term = Term::Lambda {
             param: "x".to_string(),
             param_type: Box::new(Type::Number),
             body: Box::new(Term::Var("x".to_string())),
         };
-        
+
         let type_ = checker.check_term(&term, None).unwrap();
         match type_ {
             Type::Function { params, return_type: _ } => {
@@ -522,14 +522,14 @@ mod tests {
             _ => panic!("Expected function type"),
         }
     }
-    
-    #[test]  
+
+    #[test]
     fn test_dependent_type_lifting() {
         let checker = DependentTypeChecker::new();
-        
+
         let func_type = Type::function(vec![Type::Number], Type::String);
         let dep_type = checker.lift_to_dependent(&func_type);
-        
+
         match dep_type {
             DependentType::Pi { domain, codomain, .. } => {
                 assert_eq!(**domain, Type::Number);
@@ -538,12 +538,12 @@ mod tests {
             _ => panic!("Expected Pi type"),
         }
     }
-    
+
     #[test]
     fn test_is_dependent_type() {
         assert!(!is_dependent_type(&Type::Number));
         assert!(is_dependent_type(&Type::Variable(TypeVar::with_id(1))));
-        
+
         let func_type = Type::function(vec![Type::Number], Type::String);
         assert!(!is_dependent_type(&func_type));
     }

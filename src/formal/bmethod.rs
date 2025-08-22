@@ -159,7 +159,7 @@ pub type BState = HashMap<String, BValue>;
 pub enum BValue {
     /// Integer value.
     Integer(i64),
-    /// Boolean value.  
+    /// Boolean value.
     Boolean(bool),
     /// String value.
     String(String),
@@ -236,11 +236,11 @@ impl BMethodToLambdustTranslator {
     /// Translate a B-Method machine to a Lambdust program.
     pub fn translate_machine(&self, machine: &BMachine) -> Result<String> {
         let mut result = String::new();
-        
+
         // Generate Lambdust module for the B-Method machine
         result.push_str(&format!(";;; Translated from B-Method machine: {}\n", machine.name}))
         result.push_str(";;; This module provides a functional implementation of the B specification\n\n");
-        
+
         // Generate constants and sets
         if !machine.sets.is_empty() || !machine.constants.is_empty() {
             result.push_str(";; Constants and Sets\n");
@@ -252,7 +252,7 @@ impl BMethodToLambdustTranslator {
             }
             result.push_str("\n");
         }
-        
+
         // Generate state record
         if !machine.variables.is_empty() {
             result.push_str(";; Machine State\n");
@@ -264,12 +264,12 @@ impl BMethodToLambdustTranslator {
             result.push_str(")\n");
             result.push_str(&format!("  {}-state?\n", machine.name}))
             for var in &machine.variables {
-                result.push_str(&format!("  ({}-state-{} {}-state-{}-set!)\n", 
+                result.push_str(&format!("  ({}-state-{} {}-state-{}-set!)\n",
                     machine.name, var, machine.name, var}))
             }
             result.push_str(")\n\n");
         }
-        
+
         // Generate initialization
         result.push_str(";; Machine Initialization\n");
         result.push_str(&format!("(define (initialize-{})\n", machine.name}))
@@ -284,7 +284,7 @@ impl BMethodToLambdustTranslator {
             result.push_str("  '()\n");
         }
         result.push_str(")\n\n");
-        
+
         // Generate operations
         if !machine.operations.is_empty() {
             result.push_str(";; Machine Operations\n");
@@ -293,7 +293,7 @@ impl BMethodToLambdustTranslator {
                 result.push_str("\n");
             }
         }
-        
+
         // Generate invariant checker
         if !machine.invariant.is_empty() {
             result.push_str(";; Invariant Checker\n");
@@ -306,14 +306,14 @@ impl BMethodToLambdustTranslator {
             result.push_str("  )\n");
             result.push_str(")\n\n");
         }
-        
+
         Ok(result)
     }
-    
+
     /// Translate a B-Method set to Lambdust definition.
     fn translate_set(&self, set: &BSet) -> Result<String> {
         let mut result = String::new();
-        
+
         if let Some(ref enumeration) = set.enumeration {
             result.push_str(&format!("(define {} '(", set.name}))
             for (i, element) in enumeration.iter().enumerate() {
@@ -324,101 +324,101 @@ impl BMethodToLambdustTranslator {
         } else {
             result.push_str(&format!("(define {} '()) ;; Abstract set\n", set.name}))
         }
-        
+
         Ok(result)
     }
-    
+
     /// Translate a B-Method operation to Lambdust function.
     fn translate_operation(&self, operation: &BOperation, machine_name: &str) -> Result<String> {
         let mut result = String::new();
-        
+
         result.push_str(&format!("(define ({}-{} state", machine_name, operation.name}))
-        
+
         // Add input parameters
         for input in &operation.inputs {
             result.push_str(&format!(" {}", input}))
         }
         result.push_str(")\n");
-        
+
         // Add precondition check
         if let Some(ref precond) = operation.precondition {
             result.push_str("  ;; Precondition check\n");
             result.push_str(&format!("  (unless {}\n", self.translate_predicate(precond)?}))
             result.push_str("    (error \"Precondition violation\"))\n");
         }
-        
+
         // Add operation body
         result.push_str("  ;; Operation body\n");
         let (new_state, outputs) = self.translate_substitution(&operation.body, "state")?;
-        
+
         // Return result
         if operation.outputs.is_empty() {
             result.push_str(&format!("  {}\n", new_state}))
         } else {
             result.push_str(&format!("  (values {} {})\n", new_state, outputs}))
         }
-        
+
         result.push_str(")\n");
         Ok(result)
     }
-    
+
     /// Translate a B-Method predicate to Lambdust expression.
     fn translate_predicate(&self, predicate: &BPredicate) -> Result<String> {
         match predicate {
             BPredicate::BoolConstant(b) => Ok(if *b { "#t" } else { "#f" }.to_string()),
             BPredicate::Identifier(name) => Ok(name.clone()),
             BPredicate::Equals(left, right) => {
-                Ok(format!("(= {} {})", 
-                    self.translate_expression(left)?, 
+                Ok(format!("(= {} {})",
+                    self.translate_expression(left)?,
                     self.translate_expression(right)?))
             }
             BPredicate::NotEquals(left, right) => {
-                Ok(format!("(not (= {} {}))", 
-                    self.translate_expression(left)?, 
+                Ok(format!("(not (= {} {}))",
+                    self.translate_expression(left)?,
                     self.translate_expression(right)?))
             }
             BPredicate::MemberOf(elem, set) => {
-                Ok(format!("(member {} {})", 
-                    self.translate_expression(elem)?, 
+                Ok(format!("(member {} {})",
+                    self.translate_expression(elem)?,
                     self.translate_expression(set)?))
             }
             BPredicate::And(left, right) => {
-                Ok(format!("(and {} {})", 
-                    self.translate_predicate(left)?, 
+                Ok(format!("(and {} {})",
+                    self.translate_predicate(left)?,
                     self.translate_predicate(right)?))
             }
             BPredicate::Or(left, right) => {
-                Ok(format!("(or {} {})", 
-                    self.translate_predicate(left)?, 
+                Ok(format!("(or {} {})",
+                    self.translate_predicate(left)?,
                     self.translate_predicate(right)?))
             }
             BPredicate::Not(pred) => {
                 Ok(format!("(not {})", self.translate_predicate(pred)?))
             }
             BPredicate::Less(left, right) => {
-                Ok(format!("(< {} {})", 
-                    self.translate_expression(left)?, 
+                Ok(format!("(< {} {})",
+                    self.translate_expression(left)?,
                     self.translate_expression(right)?))
             }
             BPredicate::LessEqual(left, right) => {
-                Ok(format!("(<= {} {})", 
-                    self.translate_expression(left)?, 
+                Ok(format!("(<= {} {})",
+                    self.translate_expression(left)?,
                     self.translate_expression(right)?))
             }
             BPredicate::Greater(left, right) => {
-                Ok(format!("(> {} {})", 
-                    self.translate_expression(left)?, 
+                Ok(format!("(> {} {})",
+                    self.translate_expression(left)?,
                     self.translate_expression(right)?))
             }
             BPredicate::GreaterEqual(left, right) => {
-                Ok(format!("(>= {} {})", 
-                    self.translate_expression(left)?, 
+                Ok(format!("(>= {} {})",
+                    self.translate_expression(left)?,
                     self.translate_expression(right)?))
             }
             _ => Ok("(error \"Complex predicate not yet supported\")".to_string()),
         }
     }
-    
+
     /// Translate a B-Method expression to Lambdust expression.
     fn translate_expression(&self, expression: &BExpression) -> Result<String> {
         match expression {
@@ -427,23 +427,23 @@ impl BMethodToLambdustTranslator {
             BExpression::String(s) => Ok(format!("\"{}\"", s)),
             BExpression::Identifier(name) => Ok(name.clone()),
             BExpression::Add(left, right) => {
-                Ok(format!("(+ {} {})", 
-                    self.translate_expression(left)?, 
+                Ok(format!("(+ {} {})",
+                    self.translate_expression(left)?,
                     self.translate_expression(right)?))
             }
             BExpression::Sub(left, right) => {
-                Ok(format!("(- {} {})", 
-                    self.translate_expression(left)?, 
+                Ok(format!("(- {} {})",
+                    self.translate_expression(left)?,
                     self.translate_expression(right)?))
             }
             BExpression::Mul(left, right) => {
-                Ok(format!("(* {} {})", 
-                    self.translate_expression(left)?, 
+                Ok(format!("(* {} {})",
+                    self.translate_expression(left)?,
                     self.translate_expression(right)?))
             }
             BExpression::Div(left, right) => {
-                Ok(format!("(/ {} {})", 
-                    self.translate_expression(left)?, 
+                Ok(format!("(/ {} {})",
+                    self.translate_expression(left)?,
                     self.translate_expression(right)?))
             }
             BExpression::SetExtension(elements) => {
@@ -455,7 +455,7 @@ impl BMethodToLambdustTranslator {
             _ => Ok("(error \"Complex expression not yet supported\")".to_string()),
         }
     }
-    
+
     /// Translate a B-Method substitution to Lambdust expression.
     fn translate_substitution(&self, substitution: &BSubstitution, state_var: &str) -> Result<(String, String)> {
         match substitution {
@@ -463,7 +463,7 @@ impl BMethodToLambdustTranslator {
                 Ok((state_var.to_string(), "".to_string()))
             }
             BSubstitution::Assignment(var, expr) => {
-                let new_state = format!("(state-update {} '({} {}))", 
+                let new_state = format!("(state-update {} '({} {}))",
                     state_var, var, self.translate_expression(expr)?);
                 Ok((new_state, "".to_string()))
             }
@@ -478,11 +478,11 @@ impl BMethodToLambdustTranslator {
             }
         }
     }
-    
+
     /// Generate proof obligations for B-Method to Lambdust translation.
     pub fn generate_proof_obligations(&self, machine: &BMachine) -> Result<Vec<ProofObligation>> {
         let mut pos = Vec::new();
-        
+
         // Initialization proof obligation
         let po = ProofObligation::new(
             format!("init_{}", machine.name),
@@ -490,7 +490,7 @@ impl BMethodToLambdustTranslator {
             format!("⟦INITIALIZATION⟧ ⇒ INV")
         ).with_context("machine", machine.name.clone(}))
         pos.push(po);
-        
+
         // Operation proof obligations
         for operation in &machine.operations {
             // Precondition feasibility
@@ -502,7 +502,7 @@ impl BMethodToLambdustTranslator {
                 ).with_context("operation", operation.name.clone(}))
                 pos.push(po);
             }
-            
+
             // Invariant preservation
             let po = ProofObligation::new(
                 format!("inv_pres_{}_{}", machine.name, operation.name),
@@ -511,7 +511,7 @@ impl BMethodToLambdustTranslator {
             ).with_context("operation", operation.name.clone(}))
             pos.push(po);
         }
-        
+
         Ok(pos)
     }
 }
@@ -519,66 +519,66 @@ impl BMethodToLambdustTranslator {
 impl fmt::Display for BMachine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "MACHINE {}", self.name)?;
-        
+
         if !self.parameters.is_empty() {
             writeln!(f, "PARAMETERS")?;
             for param in &self.parameters {
                 writeln!(f, "  {}", param)?;
             }
         }
-        
+
         if !self.constraints.is_empty() {
             writeln!(f, "CONSTRAINTS")?;
             for constraint in &self.constraints {
                 writeln!(f, "  {}", constraint)?;
             }
         }
-        
+
         if !self.sets.is_empty() {
             writeln!(f, "SETS")?;
             for set in &self.sets {
                 writeln!(f, "  {}", set)?;
             }
         }
-        
+
         if !self.constants.is_empty() {
             writeln!(f, "CONSTANTS")?;
             for constant in &self.constants {
                 writeln!(f, "  {}", constant)?;
             }
         }
-        
+
         if !self.properties.is_empty() {
             writeln!(f, "PROPERTIES")?;
             for property in &self.properties {
                 writeln!(f, "  {}", property)?;
             }
         }
-        
+
         if !self.variables.is_empty() {
             writeln!(f, "VARIABLES")?;
             for var in &self.variables {
                 writeln!(f, "  {}", var)?;
             }
         }
-        
+
         if !self.invariant.is_empty() {
             writeln!(f, "INVARIANT")?;
             for inv in &self.invariant {
                 writeln!(f, "  {}", inv)?;
             }
         }
-        
+
         writeln!(f, "INITIALISATION")?;
         writeln!(f, "  {}", self.initialization)?;
-        
+
         if !self.operations.is_empty() {
             writeln!(f, "OPERATIONS")?;
             for operation in &self.operations {
                 writeln!(f, "{}", operation)?;
             }
         }
-        
+
         writeln!(f, "END")
     }
 }
@@ -596,17 +596,17 @@ impl fmt::Display for BSet {
 impl fmt::Display for BOperation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "  {}", self.name)?;
-        
+
         if !self.outputs.is_empty() {
             write!(f, "({}) <-- ", self.outputs.join(", "))?;
         }
-        
+
         if !self.inputs.is_empty() {
             write!(f, "({})", self.inputs.join(", "))?;
         }
-        
+
         writeln!(f, " =")?;
-        
+
         if let Some(ref precond) = self.precondition {
             writeln!(f, "    PRE {} THEN", precond)?;
             writeln!(f, "      {}", self.body)?;
@@ -614,7 +614,7 @@ impl fmt::Display for BOperation {
         } else {
             writeln!(f, "    {}", self.body)?;
         }
-        
+
         Ok(())
     }
 }
@@ -682,16 +682,16 @@ impl fmt::Display for BSubstitution {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_b_value_conversion() {
         let b_value = BValue::Integer(42);
         let lambdust_value = BMethodSpec::to_lambdust_value(&b_value).unwrap();
         let converted_back = BMethodSpec::from_lambdust_value(&lambdust_value).unwrap();
-        
+
         assert_eq!(b_value, converted_back);
     }
-    
+
     #[test]
     fn test_b_machine_display() {
         let machine = BMachine {
@@ -731,14 +731,14 @@ mod tests {
                 }
             ],
         };
-        
+
         let display_string = machine.to_string();
         assert!(display_string.contains("MACHINE SimpleCounter"}))
         assert!(display_string.contains("VARIABLES"}))
         assert!(display_string.contains("count"}))
         assert!(display_string.contains("increment"}))
     }
-    
+
     #[test]
     fn test_b_to_lambdust_translation() {
         let machine = BMachine {
@@ -767,16 +767,16 @@ mod tests {
                 }
             ],
         };
-        
+
         let translator = BMethodToLambdustTranslator;
         let translated = translator.translate_machine(&machine).unwrap();
-        
+
         assert!(translated.contains("TestMachine"}))
         assert!(translated.contains("define-record-type"}))
         assert!(translated.contains("TestMachine-set_x"}))
         assert!(translated.contains("initialize-TestMachine"}))
     }
-    
+
     #[test]
     fn test_proof_obligation_generation() {
         let machine = BMachine {
@@ -816,16 +816,16 @@ mod tests {
                 }
             ],
         };
-        
+
         let translator = BMethodToLambdustTranslator;
         let pos = translator.generate_proof_obligations(&machine).unwrap();
-        
+
         // Should generate initialization PO
         assert!(pos.iter().any(|po| po.id.contains("init")}))
-        
+
         // Should generate precondition feasibility PO
         assert!(pos.iter().any(|po| po.id.contains("pre_feasible")}))
-        
+
         // Should generate invariant preservation PO
         assert!(pos.iter().any(|po| po.id.contains("inv_pres")}))
     }

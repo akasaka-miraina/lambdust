@@ -1,12 +1,12 @@
 //! Hotspot detection and execution profiling system
-//! 
+//!
 //! This module implements sophisticated hotspot detection for JIT compilation,
 //! tracking execution frequency, timing, and complexity to make intelligent
 //! compilation decisions.
 
 use crate::ast::Expr;
-use crate::eval::Environment;
 use crate::diagnostics::{Error, Result};
+use crate::eval::Environment;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -31,12 +31,12 @@ pub struct HotspotConfig {
 impl Default for HotspotConfig {
     fn default() -> Self {
         HotspotConfig {
-            min_frequency: 10.0,              // 10 calls per second
-            min_total_time: Duration::from_millis(50),  // 50ms total
-            min_execution_count: 100,         // 100 executions
-            complexity_threshold: 5.0,        // Complex functions compile sooner
-            stability_window: Duration::from_secs(2),   // 2 second observation
-            max_tracked_functions: 1000,      // Track up to 1000 functions
+            min_frequency: 10.0,                       // 10 calls per second
+            min_total_time: Duration::from_millis(50), // 50ms total
+            min_execution_count: 100,                  // 100 executions
+            complexity_threshold: 5.0,                 // Complex functions compile sooner
+            stability_window: Duration::from_secs(2),  // 2 second observation
+            max_tracked_functions: 1000,               // Track up to 1000 functions
         }
     }
 }
@@ -77,7 +77,7 @@ impl ExecutionProfile {
     pub fn new(identifier: String, ast: Expr) -> Self {
         let now = Instant::now();
         let complexity_score = Self::calculate_complexity(&ast);
-        
+
         ExecutionProfile {
             identifier,
             ast,
@@ -100,7 +100,7 @@ impl ExecutionProfile {
         self.execution_count += 1;
         self.total_time += execution_time;
         self.last_execution = Instant::now();
-        
+
         // Update min/max times
         if execution_time < self.min_time {
             self.min_time = execution_time;
@@ -108,10 +108,10 @@ impl ExecutionProfile {
         if execution_time > self.max_time {
             self.max_time = execution_time;
         }
-        
+
         // Calculate new average
         self.average_time = self.total_time / self.execution_count as u32;
-        
+
         // Update variance (simplified calculation)
         self.update_variance(execution_time);
     }
@@ -141,7 +141,7 @@ impl ExecutionProfile {
         let time_factor = (self.total_time.as_millis() as f64 / 100.0).min(3.0);
         let complexity_factor = (self.complexity_score / 5.0).min(2.0);
         let stability_factor = self.time_stability();
-        
+
         frequency_factor * time_factor * complexity_factor * stability_factor
     }
 
@@ -151,11 +151,11 @@ impl ExecutionProfile {
             self.variance = 0.0;
             return;
         }
-        
+
         let avg_ms = self.average_time.as_millis() as f64;
         let new_ms = new_time.as_millis() as f64;
         let diff = new_ms - avg_ms;
-        
+
         // Exponential moving variance
         let alpha = 0.1; // Smoothing factor
         self.variance = (1.0 - alpha) * self.variance + alpha * (diff * diff);
@@ -176,29 +176,57 @@ impl ExecutionProfile {
                     crate::ast::Formals::TypedVariable(_) => 1,
                     crate::ast::Formals::TypedMixed { fixed, .. } => fixed.len() + 1,
                 };
-                2.0 + param_count as f64 * 0.5 + body.iter().map(|e| Self::calculate_complexity(&e.inner)).sum::<f64>()
+                2.0 + param_count as f64 * 0.5
+                    + body
+                        .iter()
+                        .map(|e| Self::calculate_complexity(&e.inner))
+                        .sum::<f64>()
             }
             Expr::Application { operator, operands } => {
-                1.0 + Self::calculate_complexity(&operator.inner) +
-                operands.iter().map(|e| Self::calculate_complexity(&e.inner)).sum::<f64>()
+                1.0 + Self::calculate_complexity(&operator.inner)
+                    + operands
+                        .iter()
+                        .map(|e| Self::calculate_complexity(&e.inner))
+                        .sum::<f64>()
             }
-            Expr::If { test, consequent, alternative } => {
-                1.5 + Self::calculate_complexity(&test.inner) +
-                Self::calculate_complexity(&consequent.inner) +
-                alternative.as_ref().map_or(0.0, |e| Self::calculate_complexity(&e.inner))
+            Expr::If {
+                test,
+                consequent,
+                alternative,
+            } => {
+                1.5 + Self::calculate_complexity(&test.inner)
+                    + Self::calculate_complexity(&consequent.inner)
+                    + alternative
+                        .as_ref()
+                        .map_or(0.0, |e| Self::calculate_complexity(&e.inner))
             }
             Expr::Let { bindings, body } => {
-                1.0 + bindings.len() as f64 * 0.3 +
-                bindings.iter().map(|binding| Self::calculate_complexity(&binding.value.inner)).sum::<f64>() +
-                body.iter().map(|e| Self::calculate_complexity(&e.inner)).sum::<f64>()
+                1.0 + bindings.len() as f64 * 0.3
+                    + bindings
+                        .iter()
+                        .map(|binding| Self::calculate_complexity(&binding.value.inner))
+                        .sum::<f64>()
+                    + body
+                        .iter()
+                        .map(|e| Self::calculate_complexity(&e.inner))
+                        .sum::<f64>()
             }
             Expr::LetRec { bindings, body } => {
-                1.5 + bindings.len() as f64 * 0.4 +
-                bindings.iter().map(|binding| Self::calculate_complexity(&binding.value.inner)).sum::<f64>() +
-                body.iter().map(|e| Self::calculate_complexity(&e.inner)).sum::<f64>()
+                1.5 + bindings.len() as f64 * 0.4
+                    + bindings
+                        .iter()
+                        .map(|binding| Self::calculate_complexity(&binding.value.inner))
+                        .sum::<f64>()
+                    + body
+                        .iter()
+                        .map(|e| Self::calculate_complexity(&e.inner))
+                        .sum::<f64>()
             }
             Expr::Begin(body) => {
-                0.5 + body.iter().map(|e| Self::calculate_complexity(&e.inner)).sum::<f64>()
+                0.5 + body
+                    .iter()
+                    .map(|e| Self::calculate_complexity(&e.inner))
+                    .sum::<f64>()
             }
             Expr::Quote { .. } => 0.1,
             Expr::Set { .. } => 0.5,
@@ -266,7 +294,8 @@ impl HotspotDetector {
         _environment: Arc<Environment>,
     ) -> Result<()> {
         // Get or create profile
-        let profile = self.profiles
+        let profile = self
+            .profiles
             .entry(identifier.clone())
             .or_insert_with(|| ExecutionProfile::new(identifier.clone(), ast));
 
@@ -297,9 +326,11 @@ impl HotspotDetector {
         let meets_total_time = profile.total_time >= self.config.min_total_time;
         let meets_count = profile.execution_count >= self.config.min_execution_count;
         let meets_complexity = profile.complexity_score >= self.config.complexity_threshold;
-        
+
         // Check stability window
-        let elapsed_since_first = profile.last_execution.duration_since(profile.first_execution);
+        let elapsed_since_first = profile
+            .last_execution
+            .duration_since(profile.first_execution);
         let stable = elapsed_since_first >= self.config.stability_window;
 
         // Complex functions can be compiled with relaxed requirements
@@ -314,7 +345,10 @@ impl HotspotDetector {
         }
 
         // High execution count can override stability window for testing
-        if meets_count && meets_total_time && (stable || profile.execution_count >= self.config.min_execution_count * 2) {
+        if meets_count
+            && meets_total_time
+            && (stable || profile.execution_count >= self.config.min_execution_count * 2)
+        {
             return Ok(true);
         }
 
@@ -329,7 +363,8 @@ impl HotspotDetector {
         for profile in self.profiles.values() {
             if !profile.is_compiled && !self.compiling.contains_key(&profile.identifier) {
                 let score = profile.compilation_benefit_score();
-                if score > 1.0 {  // Minimum benefit threshold
+                if score > 1.0 {
+                    // Minimum benefit threshold
                     let tier = self.recommend_tier(profile);
                     candidates.push(CompilationCandidate {
                         identifier: profile.identifier.clone(),
@@ -342,14 +377,19 @@ impl HotspotDetector {
         }
 
         // Sort by benefit score (highest first)
-        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        candidates.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         candidates
     }
 
     /// Marks a function as being compiled
     pub fn mark_compiling(&mut self, identifier: &str) {
-        self.compiling.insert(identifier.to_string(), Instant::now());
-        
+        self.compiling
+            .insert(identifier.to_string(), Instant::now());
+
         if let Some(profile) = self.profiles.get_mut(identifier) {
             profile.compilation_attempts += 1;
         }
@@ -358,8 +398,9 @@ impl HotspotDetector {
     /// Marks a function compilation as completed
     pub fn mark_compiled(&mut self, identifier: &str, success: bool) {
         self.compiling.remove(identifier);
-        self.compilation_history.push((identifier.to_string(), Instant::now(), success));
-        
+        self.compilation_history
+            .push((identifier.to_string(), Instant::now(), success));
+
         if success {
             if let Some(profile) = self.profiles.get_mut(identifier) {
                 profile.is_compiled = true;
@@ -394,31 +435,41 @@ impl HotspotDetector {
     /// Cleans up stale profiles to maintain memory usage
     fn cleanup_stale_profiles(&mut self) {
         let cutoff_time = Instant::now() - Duration::from_secs(300); // 5 minutes
-        
+
         // Remove profiles that haven't been executed recently and aren't compiled
-        self.profiles.retain(|_, profile| {
-            profile.last_execution > cutoff_time || profile.is_compiled
-        });
+        self.profiles
+            .retain(|_, profile| profile.last_execution > cutoff_time || profile.is_compiled);
     }
 
     /// Gets performance statistics
     pub fn get_statistics(&self) -> HashMap<String, f64> {
         let mut stats = HashMap::new();
-        
+
         stats.insert("tracked_functions".to_string(), self.profiles.len() as f64);
-        stats.insert("compiled_functions".to_string(), 
-                    self.profiles.values().filter(|p| p.is_compiled).count() as f64);
-        stats.insert("compiling_functions".to_string(), self.compiling.len() as f64);
-        
+        stats.insert(
+            "compiled_functions".to_string(),
+            self.profiles.values().filter(|p| p.is_compiled).count() as f64,
+        );
+        stats.insert(
+            "compiling_functions".to_string(),
+            self.compiling.len() as f64,
+        );
+
         if !self.profiles.is_empty() {
             let total_executions: u64 = self.profiles.values().map(|p| p.execution_count).sum();
-            let avg_frequency: f64 = self.profiles.values()
+            let avg_frequency: f64 = self
+                .profiles
+                .values()
                 .map(|p| p.execution_frequency())
-                .sum::<f64>() / self.profiles.len() as f64;
-            let avg_complexity: f64 = self.profiles.values()
+                .sum::<f64>()
+                / self.profiles.len() as f64;
+            let avg_complexity: f64 = self
+                .profiles
+                .values()
                 .map(|p| p.complexity_score)
-                .sum::<f64>() / self.profiles.len() as f64;
-            
+                .sum::<f64>()
+                / self.profiles.len() as f64;
+
             stats.insert("total_executions".to_string(), total_executions as f64);
             stats.insert("average_frequency".to_string(), avg_frequency);
             stats.insert("average_complexity".to_string(), avg_complexity);
@@ -429,14 +480,15 @@ impl HotspotDetector {
 
     /// Gets the top hotspots by benefit score
     pub fn get_top_hotspots(&self, limit: usize) -> Vec<&ExecutionProfile> {
-        let mut profiles: Vec<&ExecutionProfile> = self.profiles.values()
-            .filter(|p| !p.is_compiled)
-            .collect();
-        
-        profiles.sort_by(|a, b| b.compilation_benefit_score()
-                               .partial_cmp(&a.compilation_benefit_score())
-                               .unwrap_or(std::cmp::Ordering::Equal));
-        
+        let mut profiles: Vec<&ExecutionProfile> =
+            self.profiles.values().filter(|p| !p.is_compiled).collect();
+
+        profiles.sort_by(|a, b| {
+            b.compilation_benefit_score()
+                .partial_cmp(&a.compilation_benefit_score())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         profiles.into_iter().take(limit).collect()
     }
 
@@ -458,7 +510,7 @@ mod tests {
     fn test_execution_profile_creation() {
         let ast = Expr::Literal(Literal::ExactInteger(42));
         let profile = ExecutionProfile::new("test".to_string(), ast);
-        
+
         assert_eq!(profile.identifier, "test");
         assert_eq!(profile.execution_count, 0);
         assert!(profile.complexity_score > 0.0);
@@ -474,6 +526,7 @@ mod tests {
         // Lambda should have higher complexity
         let lambda = Expr::Lambda {
             formals: crate::ast::Formals::Fixed(vec!["x".to_string()]),
+            return_type: None,
             metadata: std::collections::HashMap::new(),
             body: vec![crate::diagnostics::Spanned::new(
                 Expr::Identifier("x".to_string()),
@@ -488,9 +541,10 @@ mod tests {
     fn test_hotspot_detection() {
         let config = HotspotConfig::default();
         let mut detector = HotspotDetector::new(config);
-        
+
         let ast = Expr::Lambda {
             formals: crate::ast::Formals::Fixed(vec!["x".to_string()]),
+            return_type: None,
             metadata: std::collections::HashMap::new(),
             body: vec![crate::diagnostics::Spanned::new(
                 Expr::Identifier("x".to_string()),
@@ -498,17 +552,19 @@ mod tests {
             )],
         };
         let env = Arc::new(Environment::new(None, 0));
-        
+
         // Record multiple executions with enough total time
         for _ in 0..150 {
-            detector.record_execution(
-                "test_function".to_string(),
-                ast.clone(),
-                Duration::from_micros(400), // Increased to 400µs per execution
-                env.clone(),
-            ).unwrap();
+            detector
+                .record_execution(
+                    "test_function".to_string(),
+                    ast.clone(),
+                    Duration::from_micros(400), // Increased to 400µs per execution
+                    env.clone(),
+                )
+                .unwrap();
         }
-        
+
         // Should now be considered for compilation
         let should_compile = detector.should_compile("test_function").unwrap();
         assert!(should_compile);
@@ -518,9 +574,10 @@ mod tests {
     fn test_compilation_candidates() {
         let config = HotspotConfig::default();
         let mut detector = HotspotDetector::new(config);
-        
+
         let ast = Expr::Lambda {
             formals: crate::ast::Formals::Fixed(vec!["x".to_string()]),
+            return_type: None,
             metadata: std::collections::HashMap::new(),
             body: vec![crate::diagnostics::Spanned::new(
                 Expr::Identifier("x".to_string()),
@@ -528,22 +585,24 @@ mod tests {
             )],
         };
         let env = Arc::new(Environment::new(None, 0));
-        
+
         // Record executions for multiple functions
         for i in 0..3 {
             for _ in 0..100 {
-                detector.record_execution(
-                    format!("function_{i}"),
-                    ast.clone(),
-                    Duration::from_micros(600 * (i + 1)), // Increased to ensure total_time > 50ms
-                    env.clone(),
-                ).unwrap();
+                detector
+                    .record_execution(
+                        format!("function_{i}"),
+                        ast.clone(),
+                        Duration::from_micros(600 * (i + 1)), // Increased to ensure total_time > 50ms
+                        env.clone(),
+                    )
+                    .unwrap();
             }
         }
-        
+
         let candidates = detector.get_compilation_candidates();
         assert!(!candidates.is_empty());
-        
+
         // Should be sorted by benefit score
         if candidates.len() > 1 {
             assert!(candidates[0].score >= candidates[1].score);
@@ -554,12 +613,13 @@ mod tests {
     fn test_tier_recommendation() {
         let config = HotspotConfig::default();
         let detector = HotspotDetector::new(config);
-        
+
         // Create a high-benefit profile
         let mut profile = ExecutionProfile::new(
             "hot_function".to_string(),
             Expr::Lambda {
                 formals: crate::ast::Formals::Fixed(vec!["x".to_string()]),
+                return_type: None,
                 metadata: std::collections::HashMap::new(),
                 body: vec![crate::diagnostics::Spanned::new(
                     Expr::Identifier("x".to_string()),
@@ -567,15 +627,18 @@ mod tests {
                 )],
             },
         );
-        
+
         // Simulate many fast executions
         for _ in 0..1000 {
             profile.record_execution(Duration::from_nanos(100));
         }
-        
+
         let tier = detector.recommend_tier(&profile);
-        
+
         // Should recommend optimized JIT for very hot functions
-        assert!(matches!(tier, CompilationTier::JitOptimized | CompilationTier::JitBasic));
+        assert!(matches!(
+            tier,
+            CompilationTier::JitOptimized | CompilationTier::JitBasic
+        ));
     }
 }

@@ -10,7 +10,7 @@
 //! - Support for both macro-introduced and user-written identifiers
 //! - Integration with the syntax object system
 
-use super::syntax_objects::{SyntaxObject, LexicalContext, BindingInfo, HygieneEnvironment};
+use super::syntax_objects::{BindingInfo, HygieneEnvironment, LexicalContext, SyntaxObject};
 use crate::ast::Expr;
 use crate::diagnostics::{Error, Result, Span};
 use crate::eval::Environment;
@@ -71,7 +71,7 @@ impl MarkSet {
         Self { marks }
     }
 
-    /// Creates a mark set from an iterator of marks  
+    /// Creates a mark set from an iterator of marks
     pub fn from_marks<I: IntoIterator<Item = Mark>>(iter: I) -> Self {
         Self {
             marks: iter.into_iter().collect(),
@@ -200,7 +200,7 @@ impl BindingOccurrence {
         // Two identifiers can refer to the same binding if:
         // 1. They have the same set of marks, OR
         // 2. The binding was introduced in a context that's compatible with the reference
-        
+
         if self.marks == *ref_marks {
             return true;
         }
@@ -226,12 +226,7 @@ pub struct ReferenceOccurrence {
 
 impl ReferenceOccurrence {
     /// Creates a new reference occurrence
-    pub fn new(
-        name: String,
-        marks: MarkSet,
-        context: LexicalContext,
-        scope_depth: usize,
-    ) -> Self {
+    pub fn new(name: String, marks: MarkSet, context: LexicalContext, scope_depth: usize) -> Self {
         Self {
             name,
             marks,
@@ -372,7 +367,8 @@ impl HygieneResolver {
 
         self.rename_counter += 1;
         let fresh_name = format!("{}#{}#{}", original, marks.len(), self.rename_counter);
-        self.rename_map.insert((original.to_string(), marks.clone()), fresh_name.clone());
+        self.rename_map
+            .insert((original.to_string(), marks.clone()), fresh_name.clone());
         fresh_name
     }
 
@@ -388,10 +384,10 @@ impl HygieneResolver {
             Expr::Identifier(name) | Expr::Symbol(name) => {
                 let marks = self.current_marks();
                 let ref_idx = self.add_reference(name.clone(), marks.clone(), context.clone());
-                
+
                 // Resolve the binding
                 self.resolve_bindings()?;
-                
+
                 // Check if we need to rename
                 if let Some(binding) = self.get_resolved_binding(ref_idx) {
                     // If the binding has different marks, we might need to rename
@@ -412,10 +408,15 @@ impl HygieneResolver {
                 }
             }
 
-            Expr::Lambda { formals, metadata, body, .. } => {
+            Expr::Lambda {
+                formals,
+                metadata,
+                body,
+                ..
+            } => {
                 // Enter new scope for lambda parameters
                 let mark = self.enter_scope();
-                
+
                 // Add bindings for parameters
                 let param_names = match formals {
                     crate::ast::Formals::Fixed(params) => params.clone(),
@@ -439,7 +440,8 @@ impl HygieneResolver {
                         vec![typed_param.name.clone()]
                     }
                     crate::ast::Formals::TypedMixed { fixed, rest } => {
-                        let mut all_params: Vec<String> = fixed.iter().map(|tp| tp.name.clone()).collect();
+                        let mut all_params: Vec<String> =
+                            fixed.iter().map(|tp| tp.name.clone()).collect();
                         all_params.push(rest.name.clone());
                         all_params
                     }
@@ -459,7 +461,10 @@ impl HygieneResolver {
                 let mut transformed_body = Vec::new();
                 for body_expr in body {
                     let transformed = self.transform_expression(&body_expr.inner, context)?;
-                    transformed_body.push(crate::diagnostics::Spanned::new(transformed, body_expr.span));
+                    transformed_body.push(crate::diagnostics::Spanned::new(
+                        transformed,
+                        body_expr.span,
+                    ));
                 }
 
                 self.exit_scope();
@@ -472,7 +477,12 @@ impl HygieneResolver {
                 })
             }
 
-            Expr::Define { name, value, metadata, .. } => {
+            Expr::Define {
+                name,
+                value,
+                metadata,
+                ..
+            } => {
                 // Add binding for the defined name
                 let current_marks = self.current_marks();
                 self.add_binding(name.clone(), current_marks, context.clone(), false);
@@ -482,7 +492,10 @@ impl HygieneResolver {
 
                 Ok(Expr::Define {
                     name: name.clone(),
-                    value: Box::new(crate::diagnostics::Spanned::new(transformed_value, value.span)),
+                    value: Box::new(crate::diagnostics::Spanned::new(
+                        transformed_value,
+                        value.span,
+                    )),
                     metadata: metadata.clone(),
                     return_type: None,
                 })
@@ -494,7 +507,8 @@ impl HygieneResolver {
                 self.add_binding(name.clone(), current_marks, context.clone(), true);
 
                 // Transform the transformer expression
-                let transformed_transformer = self.transform_expression(&transformer.inner, context)?;
+                let transformed_transformer =
+                    self.transform_expression(&transformer.inner, context)?;
 
                 Ok(Expr::DefineSyntax {
                     name: name.clone(),
@@ -511,7 +525,8 @@ impl HygieneResolver {
 
                 for operand in operands {
                     let transformed = self.transform_expression(&operand.inner, context)?;
-                    transformed_operands.push(crate::diagnostics::Spanned::new(transformed, operand.span));
+                    transformed_operands
+                        .push(crate::diagnostics::Spanned::new(transformed, operand.span));
                 }
 
                 Ok(Expr::Application {
@@ -607,20 +622,14 @@ pub mod hygiene_utils {
     }
 
     /// Applies macro introduction transformation
-    pub fn introduce_macro_marks(
-        original_marks: &MarkSet,
-        introduction_mark: Mark,
-    ) -> MarkSet {
+    pub fn introduce_macro_marks(original_marks: &MarkSet, introduction_mark: Mark) -> MarkSet {
         let mut new_marks = original_marks.clone();
         new_marks.add(introduction_mark);
         new_marks
     }
 
-    /// Applies macro use transformation  
-    pub fn apply_use_marks(
-        original_marks: &MarkSet,
-        use_mark: Mark,
-    ) -> MarkSet {
+    /// Applies macro use transformation
+    pub fn apply_use_marks(original_marks: &MarkSet, use_mark: Mark) -> MarkSet {
         // In the mark-and-sweep algorithm, use-site marks are typically added
         let mut new_marks = original_marks.clone();
         new_marks.add(use_mark);
@@ -645,13 +654,13 @@ mod tests {
     fn test_mark_set_operations() {
         let mark1 = Mark::fresh();
         let mark2 = Mark::fresh();
-        
+
         let mut set1 = MarkSet::singleton(mark1);
         let set2 = MarkSet::singleton(mark2);
-        
+
         assert!(set1.contains(mark1));
         assert!(!set1.contains(mark2));
-        
+
         let union = set1.union(&set2);
         assert!(union.contains(mark1));
         assert!(union.contains(mark2));
@@ -662,17 +671,18 @@ mod tests {
     fn test_hygiene_resolver_basic() {
         let mut resolver = HygieneResolver::new();
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        
+
         // Add a binding
         let marks = MarkSet::empty();
-        let binding_idx = resolver.add_binding("x".to_string(), marks.clone(), context.clone(), false);
-        
+        let binding_idx =
+            resolver.add_binding("x".to_string(), marks.clone(), context.clone(), false);
+
         // Add a reference
         let ref_idx = resolver.add_reference("x".to_string(), marks, context);
-        
+
         // Resolve bindings
         resolver.resolve_bindings().unwrap();
-        
+
         // Check resolution
         let resolved = resolver.get_resolved_binding(ref_idx);
         assert!(resolved.is_some());
@@ -683,23 +693,23 @@ mod tests {
     fn test_hygiene_scoping() {
         let mut resolver = HygieneResolver::new();
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        
+
         // Outer scope binding
         let outer_marks = MarkSet::empty();
         resolver.add_binding("x".to_string(), outer_marks.clone(), context.clone(), false);
-        
+
         // Enter inner scope
         let inner_mark = resolver.enter_scope();
         let inner_marks = MarkSet::singleton(inner_mark);
-        
+
         // Inner scope binding (should shadow outer)
         resolver.add_binding("x".to_string(), inner_marks.clone(), context.clone(), false);
-        
+
         // Reference in inner scope
         let ref_idx = resolver.add_reference("x".to_string(), inner_marks, context);
-        
+
         resolver.resolve_bindings().unwrap();
-        
+
         // Should resolve to inner binding
         let resolved = resolver.get_resolved_binding(ref_idx);
         assert!(resolved.is_some());
@@ -710,13 +720,13 @@ mod tests {
     fn test_fresh_name_generation() {
         let mut resolver = HygieneResolver::new();
         let marks = MarkSet::singleton(Mark::fresh());
-        
+
         let name1 = resolver.generate_fresh_name("x", &marks);
         let name2 = resolver.generate_fresh_name("x", &marks);
-        
+
         // Same marks should give same name
         assert_eq!(name1, name2);
-        
+
         // Different marks should give different name
         let different_marks = MarkSet::singleton(Mark::fresh());
         let name3 = resolver.generate_fresh_name("x", &different_marks);

@@ -1,6 +1,6 @@
-use super::{FfiError, FfiFunction, RegisteredFunction, FfiStats, FfiSignature};
 use super::builtin_ffi_module::BuiltinFfiModule;
 use super::registry::FfiModule;
+use super::{FfiError, FfiFunction, FfiSignature, FfiStats, RegisteredFunction};
 use crate::eval::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -19,14 +19,14 @@ impl FfiRegistry {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Creates a new FFI registry with built-in functions.
     pub fn with_builtins() -> Self {
         let registry = Self::new();
         registry.register_builtins();
         registry
     }
-    
+
     /// Registers a new FFI function.
     pub fn register<F>(&self, function: F) -> std::result::Result<(), FfiError>
     where
@@ -37,41 +37,41 @@ impl FfiRegistry {
             function: Arc::new(function),
             registered_at: std::time::SystemTime::now(),
         };
-        
+
         {
             let mut functions = self.functions.write().unwrap();
             functions.insert(name, registered_fn);
         }
-        
+
         {
             let mut stats = self.stats.write().unwrap();
-            stats.registered_functions = self.functions.read().unwrap().len();
+            stats.registered_functions = self.functions.try_read().unwrap().len();
         }
-        
+
         Ok(())
     }
-    
+
     /// Calls a registered FFI function.
     pub fn call(&self, name: &str, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let function = {
-            let functions = self.functions.read().unwrap();
+            let functions = self.functions.try_read().unwrap();
             functions.get(name).cloned()
         };
-        
+
         let function = function.ok_or_else(|| FfiError::FunctionNotFound(name.to_string()))?;
-        
+
         // Update call statistics
         {
             let mut stats = self.stats.write().unwrap();
             stats.total_calls += 1;
         }
-        
+
         // Validate arguments
         function.function.validate_args(args)?;
-        
+
         // Call the function
         let result = function.function.call(args);
-        
+
         // Update statistics based on result
         {
             let mut stats = self.stats.write().unwrap();
@@ -80,27 +80,27 @@ impl FfiRegistry {
                 Err(_) => stats.failed_calls += 1,
             }
         }
-        
+
         result
     }
-    
+
     /// Gets information about a registered function.
     pub fn get_function_info(&self, name: &str) -> Option<FfiSignature> {
-        let functions = self.functions.read().unwrap();
+        let functions = self.functions.try_read().unwrap();
         functions.get(name).map(|f| f.function.signature().clone())
     }
-    
+
     /// Lists all registered function names.
     pub fn list_functions(&self) -> Vec<String> {
-        let functions = self.functions.read().unwrap();
+        let functions = self.functions.try_read().unwrap();
         functions.keys().cloned().collect()
     }
-    
+
     /// Gets FFI usage statistics.
     pub fn stats(&self) -> FfiStats {
-        self.stats.read().unwrap().clone()
+        self.stats.try_read().unwrap().clone()
     }
-    
+
     /// Clears all registered functions.
     pub fn clear(&self) {
         {
@@ -112,7 +112,7 @@ impl FfiRegistry {
             stats.registered_functions = 0;
         }
     }
-    
+
     /// Registers built-in FFI functions.
     fn register_builtins(&self) {
         // Use the centralized builtin module registration

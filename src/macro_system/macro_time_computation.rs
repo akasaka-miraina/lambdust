@@ -20,14 +20,14 @@
 //! ```
 
 use super::{
-    syntax_objects::{SyntaxObject, LexicalContext, syntax_utils},
-    quasisyntax::{QuasisyntaxTemplate, QuasisyntaxContext, QuasisyntaxExpansionResult},
     advanced_hygiene::{HygieneResolver, Mark, MarkSet},
-    unified_expander::{UnifiedMacroTransformer, MacroTransformerType},
+    quasisyntax::{QuasisyntaxContext, QuasisyntaxExpansionResult, QuasisyntaxTemplate},
+    syntax_objects::{LexicalContext, SyntaxObject, syntax_utils},
+    unified_expander::{MacroTransformerType, UnifiedMacroTransformer},
 };
 use crate::ast::{Expr, Literal};
 use crate::diagnostics::{Error, Result, Span, Spanned};
-use crate::eval::{Environment, Value, Parameter};
+use crate::eval::{Environment, Parameter, Value};
 use crate::utils::symbol_id::SymbolId;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -261,8 +261,9 @@ impl MacroTimeEnvironment {
         };
 
         // Initialize runtime environment
-        env.phase_environments.insert(Phase::RUNTIME, Environment::new(None, 0));
-        
+        env.phase_environments
+            .insert(Phase::RUNTIME, Environment::new(None, 0));
+
         // Initialize macro-time environment with built-in utilities
         let mut macro_env = Environment::new(None, 0);
         env.setup_builtin_utilities(&mut macro_env);
@@ -294,14 +295,15 @@ impl MacroTimeEnvironment {
             arity,
             implementation: MacroTimeProcedure::Builtin(name.to_string()),
         };
-        self.compile_time_bindings.insert(name.to_string(), procedure);
+        self.compile_time_bindings
+            .insert(name.to_string(), procedure);
     }
 
     /// Enters a new phase level
     pub fn enter_phase(&mut self, phase: Phase) -> Phase {
         let previous_phase = self.current_phase;
         self.current_phase = phase;
-        
+
         // Ensure environment exists for this phase
         if !self.phase_environments.contains_key(&phase) {
             let new_env = if phase.level() > 0 {
@@ -350,7 +352,7 @@ impl MacroTimeEnvironment {
 
         // Enter macro-time phase for evaluation
         let previous_phase = self.enter_phase(Phase::MACRO_TIME);
-        
+
         let result = match &expr.expr {
             Expr::Identifier(name) => {
                 // Look up compile-time binding
@@ -371,19 +373,20 @@ impl MacroTimeEnvironment {
 
             Expr::Literal(lit) => {
                 // Literals evaluate to themselves
-                Ok(MacroTimeValue::Constant(format!("{:?}", Value::from_literal(lit.clone()))))
+                Ok(MacroTimeValue::Constant(format!(
+                    "{:?}",
+                    Value::from_literal(lit.clone())
+                )))
             }
 
-            _ => {
-                Err(Box::new(Error::MacroError {
-                    message: "Unsupported expression in compile-time context".to_string(),
-                    span: expr.span,
-                }))
-            }
+            _ => Err(Box::new(Error::MacroError {
+                message: "Unsupported expression in compile-time context".to_string(),
+                span: expr.span,
+            })),
         };
 
         self.exit_phase(previous_phase);
-        
+
         // Update statistics
         let elapsed = start_time.elapsed();
         self.stats.total_expansion_time += elapsed;
@@ -401,18 +404,26 @@ impl MacroTimeEnvironment {
         let args = &elements[1..];
 
         if let Expr::Identifier(proc_name) = &proc_expr.inner {
-            if let Some(MacroTimeValue::Procedure { implementation, .. }) = 
-                self.compile_time_bindings.get(proc_name) {
-                
+            if let Some(MacroTimeValue::Procedure { implementation, .. }) =
+                self.compile_time_bindings.get(proc_name)
+            {
                 // Clone the implementation to avoid borrowing conflicts
                 let implementation = implementation.clone();
                 match implementation {
                     MacroTimeProcedure::Builtin(builtin_name) => {
                         self.call_builtin_procedure(&builtin_name, args, hygiene_env)
                     }
-                    MacroTimeProcedure::UserDefined { parameters, body, closure_env } => {
-                        self.call_user_defined_procedure(&parameters, &body, &closure_env, args, hygiene_env)
-                    }
+                    MacroTimeProcedure::UserDefined {
+                        parameters,
+                        body,
+                        closure_env,
+                    } => self.call_user_defined_procedure(
+                        &parameters,
+                        &body,
+                        &closure_env,
+                        args,
+                        hygiene_env,
+                    ),
                     MacroTimeProcedure::TemplateGenerator { pattern, template } => {
                         self.call_template_generator(&pattern, &template, args, hygiene_env)
                     }
@@ -479,10 +490,11 @@ impl MacroTimeEnvironment {
 
         // Set up local environment with parameters bound to arguments
         let previous_bindings = self.compile_time_bindings.clone();
-        
+
         // Add closure environment
         for (name, value) in closure_env {
-            self.compile_time_bindings.insert(name.clone(), value.clone());
+            self.compile_time_bindings
+                .insert(name.clone(), value.clone());
         }
 
         // Bind parameters to arguments
@@ -491,10 +503,8 @@ impl MacroTimeEnvironment {
                 arg.clone(),
                 LexicalContext::new(0, vec!["macro-time".to_string()]),
             );
-            self.compile_time_bindings.insert(
-                param.clone(),
-                MacroTimeValue::Syntax(Box::new(arg_syntax)),
-            );
+            self.compile_time_bindings
+                .insert(param.clone(), MacroTimeValue::Syntax(Box::new(arg_syntax)));
         }
 
         // Evaluate the body
@@ -517,7 +527,7 @@ impl MacroTimeEnvironment {
         // This is a simplified implementation
         // A real implementation would parse the pattern and template strings
         // and perform proper pattern matching and template expansion
-        
+
         if args.is_empty() {
             return Err(Box::new(Error::MacroError {
                 message: "Template generator requires at least one argument".to_string(),
@@ -527,11 +537,8 @@ impl MacroTimeEnvironment {
 
         // For now, create a simple syntax object from the template
         let context = LexicalContext::new(0, vec!["template-generated".to_string()]);
-        let syntax = syntax_utils::make_identifier_syntax(
-            template.to_string(),
-            args[0].span,
-            context,
-        );
+        let syntax =
+            syntax_utils::make_identifier_syntax(template.to_string(), args[0].span, context);
 
         Ok(MacroTimeValue::Syntax(Box::new(syntax)))
     }
@@ -543,11 +550,9 @@ impl MacroTimeEnvironment {
         hygiene_env: &mut HygieneResolver,
     ) -> Result<QuasisyntaxTemplate> {
         let start_time = std::time::Instant::now();
-        
+
         let template = match result {
-            MacroTimeValue::Syntax(syntax) => {
-                QuasisyntaxTemplate::from_expr(&syntax.expr)
-            }
+            MacroTimeValue::Syntax(syntax) => QuasisyntaxTemplate::from_expr(&syntax.expr),
             MacroTimeValue::SyntaxList(syntaxes) => {
                 let templates: Vec<_> = syntaxes
                     .iter()
@@ -591,17 +596,19 @@ impl MacroTimeEnvironment {
         span: Span,
     ) -> Result<Vec<SyntaxObject>> {
         let mut result = Vec::new();
-        
+
         for template in templates {
             match template {
                 QuasisyntaxTemplate::UnquoteSplicing(inner) => {
                     // Handle splicing - this should expand to multiple syntax objects
-                    let expanded = self.expand_splicing_template(&inner, bindings, context, span)?;
+                    let expanded =
+                        self.expand_splicing_template(&inner, bindings, context, span)?;
                     result.extend(expanded);
                 }
                 _ => {
                     // Regular template - expand to single syntax object
-                    let expanded = self.expand_single_template(&template, bindings, context, span)?;
+                    let expanded =
+                        self.expand_single_template(&template, bindings, context, span)?;
                     result.push(expanded);
                 }
             }
@@ -650,12 +657,16 @@ impl MacroTimeEnvironment {
         span: Span,
     ) -> Result<SyntaxObject> {
         match template {
-            QuasisyntaxTemplate::Literal(lit) => {
-                Ok(SyntaxObject::new(Expr::Literal(lit.clone()), span, context.clone()))
-            }
-            QuasisyntaxTemplate::Identifier(name) => {
-                Ok(SyntaxObject::new(Expr::Identifier(name.clone()), span, context.clone()))
-            }
+            QuasisyntaxTemplate::Literal(lit) => Ok(SyntaxObject::new(
+                Expr::Literal(lit.clone()),
+                span,
+                context.clone(),
+            )),
+            QuasisyntaxTemplate::Identifier(name) => Ok(SyntaxObject::new(
+                Expr::Identifier(name.clone()),
+                span,
+                context.clone(),
+            )),
             QuasisyntaxTemplate::PatternVariable(name) => {
                 if let Some(MacroTimeValue::Syntax(syntax)) = bindings.get(name) {
                     Ok((**syntax).clone())
@@ -674,15 +685,17 @@ impl MacroTimeEnvironment {
                         Ok(expanded.to_spanned())
                     })
                     .collect();
-                
-                Ok(SyntaxObject::new(Expr::List(elements?), span, context.clone()))
-            }
-            _ => {
-                Err(Box::new(Error::MacroError {
-                    message: "Unsupported template form".to_string(),
+
+                Ok(SyntaxObject::new(
+                    Expr::List(elements?),
                     span,
-                }))
+                    context.clone(),
+                ))
             }
+            _ => Err(Box::new(Error::MacroError {
+                message: "Unsupported template form".to_string(),
+                span,
+            })),
         }
     }
 
@@ -798,11 +811,11 @@ impl MacroTimeEnvironment {
             LexicalContext::new(0, vec!["make-list".to_string()]),
         );
         let count_value = self.compile_time_eval(&count_syntax, hygiene_env)?;
-        
+
         let count = match count_value {
             MacroTimeValue::Constant(s) if s.parse::<f64>().is_ok() => {
                 s.parse::<f64>().unwrap_or(0.0) as usize
-            },
+            }
             _ => {
                 return Err(Box::new(Error::MacroError {
                     message: "make-list: first argument must be a number".to_string(),
@@ -818,9 +831,7 @@ impl MacroTimeEnvironment {
         );
 
         // Create list of syntax objects
-        let list: Vec<SyntaxObject> = (0..count)
-            .map(|_| item_syntax.clone())
-            .collect();
+        let list: Vec<SyntaxObject> = (0..count).map(|_| item_syntax.clone()).collect();
 
         Ok(MacroTimeValue::SyntaxList(list))
     }
@@ -851,16 +862,10 @@ impl MacroTimeEnvironment {
 
         let temporaries = self.template_utilities.generate_temporaries(count, "tmp");
         let context = LexicalContext::new(0, vec!["generated".to_string()]);
-        
+
         let syntax_list: Vec<SyntaxObject> = temporaries
             .into_iter()
-            .map(|name| {
-                syntax_utils::make_identifier_syntax(
-                    name,
-                    args[0].span,
-                    context.clone(),
-                )
-            })
+            .map(|name| syntax_utils::make_identifier_syntax(name, args[0].span, context.clone()))
             .collect();
 
         Ok(MacroTimeValue::SyntaxList(syntax_list))
@@ -887,7 +892,7 @@ impl MacroTimeEnvironment {
         // Convert syntax object to its datum (the underlying expression)
         let datum = syntax_utils::syntax_to_datum(&syntax_obj);
         let value = Value::from_expr(&datum)?;
-        
+
         Ok(MacroTimeValue::Constant(format!("{value:?}")))
     }
 
@@ -910,11 +915,8 @@ impl MacroTimeEnvironment {
         );
 
         let datum_expr = &args[1].inner;
-        let syntax_obj = syntax_utils::datum_to_syntax(
-            datum_expr.clone(),
-            Some(&template_syntax),
-            args[1].span,
-        );
+        let syntax_obj =
+            syntax_utils::datum_to_syntax(datum_expr.clone(), Some(&template_syntax), args[1].span);
 
         Ok(MacroTimeValue::Syntax(Box::new(syntax_obj)))
     }
@@ -1074,7 +1076,9 @@ impl MacroTimeEnvironment {
             LexicalContext::new(0, vec!["identifier?".to_string()]),
         );
 
-        Ok(MacroTimeValue::Constant(syntax_obj.is_identifier().to_string()))
+        Ok(MacroTimeValue::Constant(
+            syntax_obj.is_identifier().to_string(),
+        ))
     }
 
     /// Built-in: (syntax? obj)
@@ -1120,7 +1124,7 @@ impl ValueConversion for Value {
                 let mut hasher = std::collections::hash_map::DefaultHasher::new();
                 name.hash(&mut hasher);
                 Ok(Value::Symbol(SymbolId::new(hasher.finish() as usize)))
-            },
+            }
             _ => Err(Box::new(Error::MacroError {
                 message: "Cannot convert expression to value".to_string(),
                 span: Span::new(0, 0),
@@ -1157,13 +1161,13 @@ mod tests {
     #[test]
     fn test_macro_time_environment() {
         let mut env = MacroTimeEnvironment::new();
-        
+
         assert_eq!(env.current_phase(), Phase::RUNTIME);
-        
+
         let previous = env.enter_phase(Phase::MACRO_TIME);
         assert_eq!(env.current_phase(), Phase::MACRO_TIME);
         assert_eq!(previous, Phase::RUNTIME);
-        
+
         env.exit_phase(previous);
         assert_eq!(env.current_phase(), Phase::RUNTIME);
     }
@@ -1172,18 +1176,18 @@ mod tests {
     fn test_builtin_make_list() {
         let mut env = MacroTimeEnvironment::new();
         let mut hygiene_env = HygieneResolver::new();
-        
+
         let args = vec![
             Spanned::new(Expr::Literal(Literal::Number(3.0)), Span::new(0, 1)),
             Spanned::new(Expr::Identifier("x".to_string()), Span::new(2, 3)),
         ];
 
         let result = env.builtin_make_list(&args, &mut hygiene_env).unwrap();
-        
+
         if let MacroTimeValue::SyntaxList(list) = result {
             assert_eq!(list.len(), 3);
             for syntax in list {
-                assert_eq!(syntax.identifier_name(), Some("x".to_string()))
+                assert_eq!(syntax.identifier_name(), Some("x"))
             }
         } else {
             panic!("Expected SyntaxList");
@@ -1193,14 +1197,14 @@ mod tests {
     #[test]
     fn test_template_utilities() {
         let utils = TemplateUtilities::new();
-        
+
         let temp1 = utils.generate_temporary("test");
         let temp2 = utils.generate_temporary("test");
-        
+
         assert!(temp1.starts_with("test#"));
         assert!(temp2.starts_with("test#"));
         assert_ne!(temp1, temp2);
-        
+
         let temps = utils.generate_temporaries(3, "var");
         assert_eq!(temps.len(), 3);
         for temp in temps {
@@ -1211,9 +1215,9 @@ mod tests {
     #[test]
     fn test_macro_time_stats() {
         let mut stats = MacroTimeStats::default();
-        
+
         assert_eq!(stats.cache_hit_ratio(), 0.0);
-        
+
         stats.cache_hits = 7;
         stats.cache_misses = 3;
         assert_eq!(stats.cache_hit_ratio(), 0.7);

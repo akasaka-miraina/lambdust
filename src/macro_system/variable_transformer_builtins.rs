@@ -5,12 +5,12 @@
 //! utilities as specified in R6RS Scheme.
 
 use super::{
-    identifier_transformers::{
-        VariableTransformer, TransformerProcedure, TransformationLogic,
-        IdentifierContext, VariableTransformerRegistry
-    },
-    syntax_objects::{SyntaxObject, LexicalContext, syntax_utils},
     advanced_hygiene::HygieneResolver,
+    identifier_transformers::{
+        IdentifierContext, TransformationLogic, TransformerProcedure, VariableTransformer,
+        VariableTransformerRegistry,
+    },
+    syntax_objects::{LexicalContext, SyntaxObject, syntax_utils},
 };
 use crate::ast::Expr;
 use crate::diagnostics::{Error, Result, Span};
@@ -32,9 +32,9 @@ pub fn make_variable_transformer(
 ) -> Result<VariableTransformer> {
     // In a real implementation, we would handle Scheme procedure values
     // For now, we'll create a simplified transformer based on the procedure type
-    
+
     let transformer_name = name.unwrap_or_else(|| "anonymous-variable-transformer".to_string());
-    
+
     // Create a procedure-based transformer
     // In practice, this would wrap the actual Scheme procedure
     let transformation_logic = TransformationLogic::Complex {
@@ -85,7 +85,7 @@ pub fn make_simple_variable_transformer(
     definition_context: LexicalContext,
 ) -> Result<VariableTransformer> {
     let transformer_name = name.unwrap_or_else(|| "simple-variable-transformer".to_string());
-    
+
     Ok(VariableTransformer::simple(
         transformer_name,
         reference_template,
@@ -119,7 +119,7 @@ pub fn create_accessor_transformer(
 ) -> VariableTransformer {
     let reference_template = format!("({getter_name})");
     let assignment_template = format!("({setter_name} {{val}})");
-    
+
     VariableTransformer::simple(
         format!("{getter_name}-accessor"),
         reference_template,
@@ -136,7 +136,7 @@ pub fn create_vector_accessor_transformer(
 ) -> VariableTransformer {
     let reference_template = format!("(vector-ref {vector_name} {index})");
     let assignment_template = format!("(vector-set! {vector_name} {index} {{val}})");
-    
+
     VariableTransformer::simple(
         format!("{vector_name}-[{index}]"),
         reference_template,
@@ -153,7 +153,7 @@ pub fn create_hash_accessor_transformer(
 ) -> VariableTransformer {
     let reference_template = format!("(hash-ref {table_name} {key})");
     let assignment_template = format!("(hash-set! {table_name} {key} {{val}})");
-    
+
     VariableTransformer::simple(
         format!("{table_name}.{key}"),
         reference_template,
@@ -178,7 +178,7 @@ impl VariableTransformerBuiltins {
     /// Registers all built-in variable transformer procedures
     pub fn register_builtins(&mut self, env: &mut Environment) -> Result<()> {
         // In a real implementation, these would be registered as Scheme procedures
-        
+
         // Register make-variable-transformer
         self.register_procedure(
             env,
@@ -265,11 +265,8 @@ impl VariableTransformerBuiltins {
         self.registry.register(counter_transformer);
 
         // Array element transformer
-        let array_element_transformer = create_vector_accessor_transformer(
-            "my-array".to_string(),
-            0,
-            context.clone(),
-        );
+        let array_element_transformer =
+            create_vector_accessor_transformer("my-array".to_string(), 0, context.clone());
         self.registry.register(array_element_transformer);
 
         // Property transformer
@@ -302,14 +299,34 @@ pub mod variable_transformer_utils {
     ) -> VariableTransformer {
         let patterns = if let Some(call) = call_expr {
             vec![
-                (IdentifierContext::Reference, "id".to_string(), reference_expr),
-                (IdentifierContext::Assignment, "(set! id val)".to_string(), assignment_expr),
-                (IdentifierContext::ProcedureCall, "(proc . args)".to_string(), call),
+                (
+                    IdentifierContext::Reference,
+                    "id".to_string(),
+                    reference_expr,
+                ),
+                (
+                    IdentifierContext::Assignment,
+                    "(set! id val)".to_string(),
+                    assignment_expr,
+                ),
+                (
+                    IdentifierContext::ProcedureCall,
+                    "(proc . args)".to_string(),
+                    call,
+                ),
             ]
         } else {
             vec![
-                (IdentifierContext::Reference, "id".to_string(), reference_expr),
-                (IdentifierContext::Assignment, "(set! id val)".to_string(), assignment_expr),
+                (
+                    IdentifierContext::Reference,
+                    "id".to_string(),
+                    reference_expr,
+                ),
+                (
+                    IdentifierContext::Assignment,
+                    "(set! id val)".to_string(),
+                    assignment_expr,
+                ),
             ]
         };
 
@@ -367,10 +384,16 @@ pub mod variable_transformer_utils {
     /// Pretty-prints a variable transformer for debugging
     pub fn format_transformer(transformer: &VariableTransformer) -> String {
         let mut result = format!("Variable Transformer: {}\n", transformer.name);
-        result.push_str(&format!("  Context Sensitive: {}\n", transformer.context_sensitive));
-        
+        result.push_str(&format!(
+            "  Context Sensitive: {}\n",
+            transformer.context_sensitive
+        ));
+
         match &transformer.transformer_proc {
-            TransformerProcedure::Procedure { name, transformation_logic } => {
+            TransformerProcedure::Procedure {
+                name,
+                transformation_logic,
+            } => {
                 result.push_str(&format!("  Type: Procedure ({name})\n"));
                 match transformation_logic {
                     TransformationLogic::Complex { patterns } => {
@@ -403,13 +426,11 @@ mod tests {
     #[test]
     fn test_make_variable_transformer() {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        let dummy_value = Value::Null; // Placeholder
-        
-        let transformer = make_variable_transformer(
-            dummy_value,
-            Some("test-transformer".to_string()),
-            context,
-        ).unwrap();
+        let dummy_value = Value::Nil; // Placeholder
+
+        let transformer =
+            make_variable_transformer(dummy_value, Some("test-transformer".to_string()), context)
+                .unwrap();
 
         assert_eq!(transformer.name, "test-transformer");
         assert!(transformer.context_sensitive);
@@ -418,13 +439,14 @@ mod tests {
     #[test]
     fn test_make_simple_variable_transformer() {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        
+
         let transformer = make_simple_variable_transformer(
             "(get-value)".to_string(),
             "(set-value! {val})".to_string(),
             Some("simple-test".to_string()),
             context,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(transformer.name, "simple-test");
         assert!(transformer.supports_context(&IdentifierContext::Reference));
@@ -434,12 +456,9 @@ mod tests {
     #[test]
     fn test_create_accessor_transformer() {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        
-        let transformer = create_accessor_transformer(
-            "get-x".to_string(),
-            "set-x!".to_string(),
-            context,
-        );
+
+        let transformer =
+            create_accessor_transformer("get-x".to_string(), "set-x!".to_string(), context);
 
         assert_eq!(transformer.name, "get-x-accessor");
         assert!(transformer.supports_context(&IdentifierContext::Reference));
@@ -449,12 +468,8 @@ mod tests {
     #[test]
     fn test_create_vector_accessor_transformer() {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        
-        let transformer = create_vector_accessor_transformer(
-            "my-vec".to_string(),
-            5,
-            context,
-        );
+
+        let transformer = create_vector_accessor_transformer("my-vec".to_string(), 5, context);
 
         assert_eq!(transformer.name, "my-vec-[5]");
     }
@@ -462,25 +477,25 @@ mod tests {
     #[test]
     fn test_variable_transformer_utils() {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        
+
         // Test validation
-        assert!(variable_transformer_utils::validate_transformer_spec(
-            "(get)",
-            "(set {val})",
-            None
-        ).is_ok());
+        assert!(
+            variable_transformer_utils::validate_transformer_spec("(get)", "(set {val})", None)
+                .is_ok()
+        );
 
-        assert!(variable_transformer_utils::validate_transformer_spec(
-            "",
-            "(set {val})",
-            None
-        ).is_err());
+        assert!(
+            variable_transformer_utils::validate_transformer_spec("", "(set {val})", None).is_err()
+        );
 
-        assert!(variable_transformer_utils::validate_transformer_spec(
-            "(get)",
-            "(set value)",  // Missing {val}
-            None
-        ).is_err());
+        assert!(
+            variable_transformer_utils::validate_transformer_spec(
+                "(get)",
+                "(set value)", // Missing {val}
+                None
+            )
+            .is_err()
+        );
 
         // Test creation from spec
         let transformer = variable_transformer_utils::create_from_spec(
@@ -501,9 +516,9 @@ mod tests {
     fn test_builtins_registry() {
         let mut builtins = VariableTransformerBuiltins::new();
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        
+
         builtins.create_example_transformers(context);
-        
+
         let registry = builtins.registry();
         assert!(registry.is_variable_transformer("storage-cell"));
         assert!(registry.is_variable_transformer("counter"));

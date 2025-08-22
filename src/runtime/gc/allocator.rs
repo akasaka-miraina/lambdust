@@ -5,9 +5,12 @@
 //! allocation sampling, and generation-aware allocation strategies.
 
 use crate::eval::value::Value;
-use crate::runtime::gc::generation::{GenerationManager, ObjectHeader, GenerationId};
+use crate::runtime::gc::generation::{GenerationId, GenerationManager, ObjectHeader};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, Mutex, atomic::{AtomicUsize, AtomicU64, AtomicBool, Ordering}};
+use std::sync::{
+    Arc, Mutex, RwLock,
+    atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+};
 use std::thread::{self, ThreadId};
 use std::time::{Duration, Instant};
 
@@ -43,7 +46,7 @@ impl Tlab {
     pub fn new(size: usize, owner_thread: ThreadId) -> Result<Self, String> {
         let layout = std::alloc::Layout::from_size_align(size, 8)
             .map_err(|e| format!("Failed to create TLAB layout: {e}"))?;
-        
+
         let start = unsafe { std::alloc::alloc(layout) };
         if start.is_null() {
             return Err("Failed to allocate TLAB memory".to_string());
@@ -71,7 +74,7 @@ impl Tlab {
 
         loop {
             let current = self.current.load(Ordering::Relaxed);
-            
+
             // Align the allocation
             let aligned_current = (current + alignment - 1) & !(alignment - 1);
             let new_current = aligned_current + size;
@@ -86,7 +89,7 @@ impl Tlab {
                 current,
                 new_current,
                 Ordering::Relaxed,
-                Ordering::Relaxed
+                Ordering::Relaxed,
             ) {
                 Ok(_) => {
                     self.objects_allocated.fetch_add(1, Ordering::Relaxed);
@@ -179,17 +182,23 @@ impl TlabStatistics {
     /// Record TLAB creation
     pub fn record_tlab_creation(&self, size: usize) {
         self.tlabs_created.fetch_add(1, Ordering::Relaxed);
-        self.tlab_allocated_bytes.fetch_add(size as u64, Ordering::Relaxed);
+        self.tlab_allocated_bytes
+            .fetch_add(size as u64, Ordering::Relaxed);
     }
 
     /// Record TLAB retirement
     pub fn record_tlab_retirement(&self, used: usize, total: usize) {
         self.tlabs_retired.fetch_add(1, Ordering::Relaxed);
         let waste = total.saturating_sub(used);
-        self.tlab_waste_bytes.fetch_add(waste as u64, Ordering::Relaxed);
-        
+        self.tlab_waste_bytes
+            .fetch_add(waste as u64, Ordering::Relaxed);
+
         // Update running average utilization
-        let utilization = if total > 0 { (used as f64 / total as f64 * 10000.0) as u64 } else { 0 };
+        let utilization = if total > 0 {
+            (used as f64 / total as f64 * 10000.0) as u64
+        } else {
+            0
+        };
         let retired_count = self.tlabs_retired.load(Ordering::Relaxed);
         let current_avg = self.avg_utilization.load(Ordering::Relaxed);
         let new_avg = (current_avg * (retired_count - 1) + utilization) / retired_count;
@@ -228,10 +237,10 @@ impl TlabManager {
     /// Get or create a TLAB for the current thread
     pub fn get_tlab(&self) -> Result<Arc<Tlab>, String> {
         let thread_id = thread::current().id();
-        
+
         // First try to get existing TLAB
         {
-            let tlabs = self.tlabs.read().map_err(|_| "Failed to read TLABs")?;
+            let tlabs = self.tlabs.try_read().map_err(|_| "Failed to read TLABs")?;
             if let Some(tlab) = tlabs.get(&thread_id) {
                 if tlab.active.load(Ordering::Relaxed) && tlab.remaining_space() > 0 {
                     return Ok(Arc::clone(tlab));
@@ -259,7 +268,8 @@ impl TlabManager {
             let mut tlabs = self.tlabs.write().map_err(|_| "Failed to write TLABs")?;
             if let Some(old_tlab) = tlabs.insert(thread_id, Arc::clone(&tlab)) {
                 old_tlab.retire();
-                self.statistics.record_tlab_retirement(old_tlab.used_space(), old_tlab.size);
+                self.statistics
+                    .record_tlab_retirement(old_tlab.used_space(), old_tlab.size);
             }
         }
 
@@ -270,7 +280,7 @@ impl TlabManager {
     fn calculate_adaptive_tlab_size(&self, _thread_id: ThreadId) -> usize {
         // For now, use a simple heuristic based on average utilization
         let avg_utilization = self.statistics.average_utilization();
-        
+
         if avg_utilization > 80.0 {
             // High utilization, increase TLAB size
             (self.default_tlab_size * 2).min(self.max_tlab_size)
@@ -288,7 +298,8 @@ impl TlabManager {
         let mut tlabs = self.tlabs.write().map_err(|_| "Failed to write TLABs")?;
         if let Some(tlab) = tlabs.remove(&thread_id) {
             tlab.retire();
-            self.statistics.record_tlab_retirement(tlab.used_space(), tlab.size);
+            self.statistics
+                .record_tlab_retirement(tlab.used_space(), tlab.size);
         }
         Ok(())
     }
@@ -314,7 +325,8 @@ impl TlabManager {
         // Remove inactive TLABs
         for thread_id in to_remove {
             if let Some(tlab) = tlabs.remove(&thread_id) {
-                self.statistics.record_tlab_retirement(tlab.used_space(), tlab.size);
+                self.statistics
+                    .record_tlab_retirement(tlab.used_space(), tlab.size);
             }
         }
 
@@ -364,7 +376,7 @@ impl AllocationSampler {
     /// Maybe sample this allocation
     pub fn maybe_sample(&self, size: usize, generation: GenerationId, allocation_site: String) {
         let count = self.allocation_count.fetch_add(1, Ordering::Relaxed);
-        
+
         if count % self.sample_rate == 0 {
             let sample = AllocationSample {
                 size,
@@ -376,7 +388,7 @@ impl AllocationSampler {
 
             if let Ok(mut samples) = self.samples.lock() {
                 samples.push(sample);
-                
+
                 // Keep only the most recent samples
                 let samples_len = samples.len();
                 if samples_len > self.max_samples {
@@ -471,12 +483,19 @@ impl AllocationStatistics {
     /// Record an allocation
     pub fn record_allocation(&self, size: usize, generation: GenerationId) {
         self.total_allocations.fetch_add(1, Ordering::Relaxed);
-        self.total_allocated_bytes.fetch_add(size as u64, Ordering::Relaxed);
+        self.total_allocated_bytes
+            .fetch_add(size as u64, Ordering::Relaxed);
 
         match generation {
-            GenerationId::Young => { self.young_allocations.fetch_add(1, Ordering::Relaxed); },
-            GenerationId::Old => { self.old_allocations.fetch_add(1, Ordering::Relaxed); },
-            GenerationId::LargeObject => { self.large_allocations.fetch_add(1, Ordering::Relaxed); },
+            GenerationId::Young => {
+                self.young_allocations.fetch_add(1, Ordering::Relaxed);
+            }
+            GenerationId::Old => {
+                self.old_allocations.fetch_add(1, Ordering::Relaxed);
+            }
+            GenerationId::LargeObject => {
+                self.large_allocations.fetch_add(1, Ordering::Relaxed);
+            }
             _ => {}
         }
 
@@ -484,7 +503,8 @@ impl AllocationStatistics {
         let total = self.total_allocations.load(Ordering::Relaxed);
         let total_bytes = self.total_allocated_bytes.load(Ordering::Relaxed);
         if total > 0 {
-            self.avg_allocation_size.store(total_bytes / total, Ordering::Relaxed);
+            self.avg_allocation_size
+                .store(total_bytes / total, Ordering::Relaxed);
         }
     }
 
@@ -528,10 +548,11 @@ impl AllocationCoordinator {
     /// Allocate a new object
     pub fn allocate(&self, value: Value, size: usize) -> Result<Arc<ObjectHeader>, String> {
         let allocation_site = format!("{}:{}", file!(), line!()); // Simplified
-        
+
         // Sample this allocation
         let generation = self.choose_generation(size);
-        self.allocation_sampler.maybe_sample(size, generation, allocation_site);
+        self.allocation_sampler
+            .maybe_sample(size, generation, allocation_site);
 
         // Try different allocation strategies based on size
         let result = if size >= self.large_object_threshold {
@@ -564,18 +585,22 @@ impl AllocationCoordinator {
     }
 
     /// Allocate a small object (using TLAB if possible)
-    fn allocate_small_object(&self, value: Value, size: usize) -> Result<Arc<ObjectHeader>, String> {
+    fn allocate_small_object(
+        &self,
+        value: Value,
+        size: usize,
+    ) -> Result<Arc<ObjectHeader>, String> {
         // Try TLAB allocation first
         if let Ok(tlab) = self.tlab_manager.get_tlab() {
             if let Some(ptr) = tlab.try_allocate(size, 8) {
                 // Successfully allocated in TLAB
                 let header = ObjectHeader::new(value, size, GenerationId::Young);
-                
+
                 // Store header at allocated location
                 unsafe {
                     std::ptr::write(ptr as *mut ObjectHeader, header.clone());
                 }
-                
+
                 return Ok(Arc::new(header));
             }
         }
@@ -585,7 +610,11 @@ impl AllocationCoordinator {
     }
 
     /// Allocate a large object
-    fn allocate_large_object(&self, value: Value, size: usize) -> Result<Arc<ObjectHeader>, String> {
+    fn allocate_large_object(
+        &self,
+        value: Value,
+        size: usize,
+    ) -> Result<Arc<ObjectHeader>, String> {
         // Large objects go directly to old generation for now
         // In a full implementation, they would go to a dedicated large object space
         self.generation_manager.allocate(value, size)

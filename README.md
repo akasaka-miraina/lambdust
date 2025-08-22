@@ -37,7 +37,12 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # Lambdustのビルド
 git clone https://github.com/lambdust/lambdust.git
 cd lambdust
+
+# 基本ビルド (JIT機能なし)
 cargo build --release
+
+# JIT機能付きビルド (LLVM 15.0が必要)
+cargo build --release --features jit
 
 # REPLの起動
 ./target/release/lambdust
@@ -46,11 +51,15 @@ cargo build --release
 ### 基本使用例
 
 ```scheme
-;; 漸進的型付け
-(define (fibonacci n :: Integer) :: Integer
-  (if (<= n 1) n
-      (+ (fibonacci (- n 1))
-         (fibonacci (- n 2)))))
+;; 漸進的型付け - 簡潔な型注釈構文
+(define factorial 
+  (lambda (n : Integer) : Integer
+    (if (<= n 1) 1 (* n (factorial (- n 1))))))
+
+;; 複数パラメータの型付き関数
+(define add-multiply
+  (lambda ((x : Integer) (y : Integer) (z : Integer))
+    (+ (* x y) z)))
 
 ;; 副作用システム
 (define-effect (State s)
@@ -133,7 +142,7 @@ rustc 1.70+
 cargo 1.70+
 
 # オプション (最適化機能)
-llvm-dev          # JIT統合
+llvm-15-dev       # JIT統合 (inkwell/llvm-sys v150.2.1 requires LLVM 15.0)
 valgrind          # メモリ分析
 criterion         # ベンチマーク
 ```
@@ -141,20 +150,26 @@ criterion         # ベンチマーク
 ### 開発ワークフロー
 
 ```bash
-# 開発ビルド
+# 開発ビルド (JIT機能除外 - LLVM不要)
+cargo check --all-targets --features="default,enhanced-repl,network-io,platform-extensions"
+
+# JIT機能含む開発ビルド (LLVM 15.0が必要)
 cargo check --all-targets --all-features
 
-# テスト実行
+# テスト実行 (基本機能)
+cargo test --lib --features="default,enhanced-repl"
+
+# テスト実行 (全機能 - LLVM必要)
 cargo test --all-features
 
-# 静的解析
-cargo clippy --all-targets --all-features -- -D warnings
+# 静的解析 (JIT機能除外)
+cargo clippy --all-targets --features="default,enhanced-repl,network-io" -- -D warnings
 
 # フォーマット
 cargo fmt --check
 
-# ベンチマーク
-cargo bench
+# ベンチマーク (基本)
+cargo bench --features="benchmarks"
 
 # ドキュメント生成
 cargo doc --no-deps --open

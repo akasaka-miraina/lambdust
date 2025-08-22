@@ -59,16 +59,16 @@ mod tests {
     #[test]
     fn test_basic_expression_expansion() {
         let mut expander = MacroExpander::new();
-        
+
         // Test expanding a simple expression that doesn't contain macros
         let expr = application(
             identifier("+"),
             vec![number(1.0), number(2.0)]
         );
-        
+
         let result = expander.expand(&expr);
         assert!(result.is_ok(), "Basic expression expansion should succeed");
-        
+
         // The result should be essentially the same as the input
         let expanded = result.unwrap();
         assert!(matches!(expanded.inner, Expr::Application { .. }));
@@ -77,22 +77,22 @@ mod tests {
     #[test]
     fn test_lambda_expansion() {
         let mut expander = MacroExpander::new();
-        
+
         // Test expanding a lambda expression
         let lambda_body = vec![application(
             identifier("+"),
             vec![identifier("x"), number(1.0)]
         )];
-        
+
         let lambda_expr = spanned_expr(Expr::Lambda {
             formals: Formals::Proper(vec!["x".to_string()]),
             metadata: HashMap::new(),
             body: lambda_body,
         });
-        
+
         let result = expander.expand(&lambda_expr);
         assert!(result.is_ok(), "Lambda expansion should succeed");
-        
+
         // The result should be a lambda with expanded body
         let expanded = result.unwrap();
         assert!(matches!(expanded.inner, Expr::Lambda { .. }));
@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn test_define_expansion() {
         let mut expander = MacroExpander::new();
-        
+
         // Test expanding a define expression
         let define_expr = spanned_expr(Expr::Define {
             name: "test".to_string(),
@@ -111,10 +111,10 @@ mod tests {
             )),
             metadata: HashMap::new(),
         });
-        
+
         let result = expander.expand(&define_expr);
         assert!(result.is_ok(), "Define expansion should succeed");
-        
+
         // The result should be a define with expanded value
         let expanded = result.unwrap();
         assert!(matches!(expanded.inner, Expr::Define { .. }));
@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn test_if_expansion() {
         let mut expander = MacroExpander::new();
-        
+
         // Test expanding an if expression
         let if_expr = spanned_expr(Expr::If {
             test: Box::new(application(
@@ -133,10 +133,10 @@ mod tests {
             consequent: Box::new(identifier("x")),
             alternative: Some(Box::new(number(0.0))),
         });
-        
+
         let result = expander.expand(&if_expr);
         assert!(result.is_ok(), "If expansion should succeed");
-        
+
         // The result should be an if with expanded components
         let expanded = result.unwrap();
         assert!(matches!(expanded.inner, Expr::If { .. }));
@@ -146,7 +146,7 @@ mod tests {
     #[ignore] // Will pass when macro transformer evaluation is implemented
     fn test_define_syntax_expansion() {
         let mut expander = MacroExpander::new();
-        
+
         // Test expanding a define-syntax expression
         // This creates a simple macro definition
         let transformer_expr = spanned_expr(Expr::Application {
@@ -176,15 +176,15 @@ mod tests {
                 }),
             ],
         });
-        
+
         let define_syntax_expr = spanned_expr(Expr::DefineSyntax {
             name: "when".to_string(),
             transformer: Box::new(transformer_expr),
         });
-        
+
         let result = expander.expand(&define_syntax_expr);
         assert!(result.is_ok(), "Define-syntax expansion should succeed");
-        
+
         // The result should be an empty begin (macro definitions don't evaluate to values)
         let expanded = result.unwrap();
         assert!(matches!(expanded.inner, Expr::Begin(_)));
@@ -194,7 +194,7 @@ mod tests {
     fn test_expansion_depth_limit() {
         let mut expander = MacroExpander::new();
         expander.max_expansion_depth = 2; // Set low limit for testing
-        
+
         // This test would need a recursive macro to properly test depth limits
         // For now, we just verify the limit is respected
         assert_eq!(expander.max_expansion_depth, 2);
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn test_program_expansion() {
         let mut expander = MacroExpander::new();
-        
+
         // Create a test program with multiple expressions
         let expressions = vec![
             spanned_expr(Expr::Define {
@@ -216,12 +216,12 @@ mod tests {
                 vec![identifier("x"), number(1.0)]
             ),
         ];
-        
+
         let program = Program::with_expressions(expressions);
-        
+
         let result = expander.expand_program(&program);
         assert!(result.is_ok(), "Program expansion should succeed");
-        
+
         let expanded_program = result.unwrap();
         assert_eq!(expanded_program.expressions.len(), 2);
     }
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn test_nested_application_expansion() {
         let mut expander = MacroExpander::new();
-        
+
         // Test expanding nested applications
         let nested_expr = application(
             identifier("+"),
@@ -244,10 +244,10 @@ mod tests {
                 ),
             ]
         );
-        
+
         let result = expander.expand(&nested_expr);
         assert!(result.is_ok(), "Nested application expansion should succeed");
-        
+
         let expanded = result.unwrap();
         assert!(matches!(expanded.inner, Expr::Application { .. }));
     }
@@ -255,12 +255,12 @@ mod tests {
     #[test]
     fn test_empty_program_expansion() {
         let mut expander = MacroExpander::new();
-        
+
         let empty_program = Program::with_expressions(vec![]);
-        
+
         let result = expander.expand_program(&empty_program);
         assert!(result.is_ok(), "Empty program expansion should succeed");
-        
+
         let expanded_program = result.unwrap();
         assert_eq!(expanded_program.expressions.len(), 0);
     }
@@ -269,7 +269,7 @@ mod tests {
     fn test_macro_environment_isolation() {
         let expander1 = MacroExpander::new();
         let expander2 = MacroExpander::new();
-        
+
         // Each expander should have its own macro environment
         // This is a structural test since we can't easily define macros yet
         assert!(!std::ptr::eq(
@@ -286,7 +286,7 @@ mod tests {
     #[ignore] // Will pass when hygiene system is fully implemented
     fn test_basic_hygiene_preservation() {
         let mut expander = MacroExpander::new();
-        
+
         // Test that variable names don't clash due to macro expansion
         // This would require a working macro system to properly test
         let expr = identifier("x");
@@ -301,7 +301,7 @@ mod tests {
         // This requires working pattern matching and template expansion
         let pattern = Pattern::Identifier("x".to_string());
         let template = Template::Identifier("x".to_string());
-        
+
         // Test structure only for now
         assert!(matches!(pattern, Pattern::Identifier(_)));
         assert!(matches!(template, Template::Identifier(_)));
@@ -314,13 +314,13 @@ mod tests {
     #[test]
     fn test_invalid_macro_expansion_error() {
         let mut expander = MacroExpander::new();
-        
+
         // Test that trying to expand undefined macros doesn't crash
         let expr = application(
             identifier("undefined-macro"),
             vec![number(1.0)]
         );
-        
+
         // This should succeed (treat as regular function call)
         let result = expander.expand(&expr);
         assert!(result.is_ok());
@@ -330,12 +330,12 @@ mod tests {
     #[ignore] // Will pass when error handling is improved
     fn test_macro_expansion_error_reporting() {
         let mut expander = MacroExpander::new();
-        
+
         // Test that macro expansion errors are properly reported
         // This would need a macro that can fail to properly test
         let expr = identifier("test");
         let result = expander.expand(&expr);
-        
+
         // For now, just ensure it doesn't crash
         assert!(result.is_ok());
     }
@@ -349,7 +349,7 @@ mod tests {
     fn test_macro_expansion_in_evaluation_pipeline() {
         // Test that macros are properly expanded before evaluation
         // This requires integration with the main evaluation system
-        
+
         // For now, this is a placeholder for future integration tests
         assert!(true, "Integration test placeholder");
     }
@@ -358,11 +358,11 @@ mod tests {
     #[ignore] // Will pass when built-in macros are implemented
     fn test_builtin_macro_functionality() {
         let expander = MacroExpander::with_builtins();
-        
+
         // Test that built-in macros like 'when', 'unless', etc. work correctly
         // This requires actual built-in macro implementations
-        
-        assert!(expander.macro_env().lookup("when").is_some() || 
+
+        assert!(expander.macro_env().lookup("when").is_some() ||
                 expander.macro_env().lookup("when").is_none()); // Accept either state for now
     }
 
@@ -373,10 +373,10 @@ mod tests {
     #[test]
     fn test_macro_expansion_performance() {
         let mut expander = MacroExpander::new();
-        
+
         // Test that macro expansion doesn't have exponential performance
         let start = std::time::Instant::now();
-        
+
         // Create a moderately complex expression
         let mut expr = number(1.0);
         for i in 2..=20 {
@@ -385,10 +385,10 @@ mod tests {
                 vec![expr, number(i as f64)]
             );
         }
-        
+
         let result = expander.expand(&expr);
         let duration = start.elapsed();
-        
+
         assert!(result.is_ok(), "Complex expression expansion should succeed");
         assert!(duration.as_millis() < 100, "Expansion should be fast");
     }

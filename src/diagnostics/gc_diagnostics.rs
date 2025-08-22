@@ -4,14 +4,17 @@
 //! with the parallel garbage collector while maintaining complete diagnostic information,
 //! stack traces, and source location data across GC cycles.
 
+use crate::diagnostics::{Error, Result, Span};
+use crate::eval::{FrameType, StackFrame, StackTrace};
+use crate::utils::gc::{GcObject, GenerationId, ObjectId, gc_alloc};
 use crate::utils::{GcIntegration, GcIntegrationConfig};
-use crate::utils::gc::{ObjectId, gc_alloc, GcObject, GenerationId};
-use crate::diagnostics::{Error, Span, Result};
-use crate::eval::{StackTrace, StackFrame, FrameType};
-use std::sync::{Arc, RwLock, Mutex, atomic::{AtomicBool, AtomicU64, AtomicU32, Ordering}};
 use std::collections::HashMap;
-use std::time::Instant;
 use std::fmt;
+use std::sync::{
+    Arc, Mutex, RwLock,
+    atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
+};
+use std::time::Instant;
 
 /// GC-aware diagnostic manager that preserves error information across garbage collection.
 #[derive(Debug)]
@@ -175,13 +178,8 @@ pub struct GcAwareError {
 
 impl GcDiagnosticManager {
     /// Creates a new GC-aware diagnostic manager.
-    pub fn new(
-        gc_integration: Arc<GcIntegration>,
-        config: GcDiagnosticConfig,
-    ) -> Self {
-        let context_manager = Arc::new(ErrorContextManager::new(
-            ContextConfig::default()
-        ));
+    pub fn new(gc_integration: Arc<GcIntegration>, config: GcDiagnosticConfig) -> Self {
+        let context_manager = Arc::new(ErrorContextManager::new(ContextConfig::default()));
 
         Self {
             gc_integration,
@@ -212,26 +210,21 @@ impl GcDiagnosticManager {
             };
         }
 
-        let diagnostic_id = DiagnosticId(
-            self.next_diagnostic_id.fetch_add(1, Ordering::SeqCst)
-        );
+        let diagnostic_id = DiagnosticId(self.next_diagnostic_id.fetch_add(1, Ordering::SeqCst));
 
         // Create preserved error information
-        let preserved_error = self.create_preserved_error(
-            &error,
-            stack_trace,
-            context.unwrap_or_default(),
-        );
+        let preserved_error =
+            self.create_preserved_error(&error, stack_trace, context.unwrap_or_default());
 
         // Create GC wrapper if tracking is enabled
         let gc_object_id = if self.config.track_diagnostics {
             let wrapper = DiagnosticGcWrapper::new(preserved_error.clone());
             let gc_ptr = gc_alloc(wrapper);
             let object_id = gc_ptr.id();
-            
+
             // Register with GC integration (as a macro root for now)
             self.gc_integration.register_macro_root(object_id);
-            
+
             Some(object_id)
         } else {
             None
@@ -249,7 +242,7 @@ impl GcDiagnosticManager {
         // Register the diagnostic
         if let Ok(mut registry) = self.diagnostic_registry.write() {
             registry.insert(diagnostic_id, entry);
-            
+
             // Clean up old entries if we exceed the limit
             if registry.len() > self.config.max_preserved_diagnostics {
                 self.cleanup_old_diagnostics(&mut registry);
@@ -272,7 +265,7 @@ impl GcDiagnosticManager {
     ) -> PreservedError {
         let kind = self.classify_error(error);
         let (message, span) = self.extract_error_details(error);
-        
+
         PreservedError {
             message,
             kind,
@@ -296,6 +289,7 @@ impl GcDiagnosticManager {
             Error::IoError { message } => (message.clone(), None),
             Error::InternalError { message } => (message.clone(), None),
             Error::Exception { exception, span } => (exception.to_string(), *span),
+            Error::Threading { message } => (message.clone(), None),
         }
     }
 
@@ -311,13 +305,16 @@ impl GcDiagnosticManager {
             Error::IoError { .. } => ErrorKind::IoError,
             Error::InternalError { .. } => ErrorKind::RuntimeError,
             Error::Exception { .. } => ErrorKind::RuntimeError,
+            Error::Threading { .. } => ErrorKind::RuntimeError,
         }
     }
 
     /// Retrieves preserved diagnostic information.
     pub fn get_preserved_diagnostic(&self, diagnostic_id: DiagnosticId) -> Option<PreservedError> {
-        if let Ok(registry) = self.diagnostic_registry.read() {
-            registry.get(&diagnostic_id).map(|entry| entry.error_info.clone())
+        if let Ok(registry) = self.diagnostic_registry.try_read() {
+            registry
+                .get(&diagnostic_id)
+                .map(|entry| entry.error_info.clone())
         } else {
             None
         }
@@ -330,22 +327,21 @@ impl GcDiagnosticManager {
         }
 
         // Sort by creation time and remove oldest entries
-        let mut entries: Vec<_> = registry.iter()
+        let mut entries: Vec<_> = registry
+            .iter()
             .map(|(id, entry)| (*id, entry.created_at))
             .collect();
         entries.sort_by_key(|(_, time)| *time);
-        
+
         let to_remove = registry.len() - self.config.max_preserved_diagnostics;
-        let ids_to_remove: Vec<_> = entries.iter()
-            .take(to_remove)
-            .map(|(id, _)| *id)
-            .collect();
-        
+        let ids_to_remove: Vec<_> = entries.iter().take(to_remove).map(|(id, _)| *id).collect();
+
         for id in ids_to_remove {
             if let Some(entry) = registry.remove(&id) {
                 // Unregister from GC if it was tracked
                 if let Some(gc_object_id) = entry.gc_object_id {
-                    self.gc_integration.unregister_continuation_root(gc_object_id);
+                    self.gc_integration
+                        .unregister_continuation_root(gc_object_id);
                 }
             }
         }
@@ -353,15 +349,16 @@ impl GcDiagnosticManager {
 
     /// Gets statistics about diagnostic preservation.
     pub fn get_diagnostic_statistics(&self) -> DiagnosticStatistics {
-        let active_count = if let Ok(registry) = self.diagnostic_registry.read() {
-            registry.values()
+        let active_count = if let Ok(registry) = self.diagnostic_registry.try_read() {
+            registry
+                .values()
                 .filter(|entry| entry.active.load(Ordering::SeqCst))
                 .count()
         } else {
             0
         };
 
-        let total_count = if let Ok(registry) = self.diagnostic_registry.read() {
+        let total_count = if let Ok(registry) = self.diagnostic_registry.try_read() {
             registry.len()
         } else {
             0
@@ -379,8 +376,9 @@ impl GcDiagnosticManager {
 
     /// Counts the number of GC-tracked diagnostics.
     fn count_gc_tracked_diagnostics(&self) -> usize {
-        if let Ok(registry) = self.diagnostic_registry.read() {
-            registry.values()
+        if let Ok(registry) = self.diagnostic_registry.try_read() {
+            registry
+                .values()
                 .filter(|entry| entry.gc_object_id.is_some())
                 .count()
         } else {
@@ -404,11 +402,16 @@ impl ErrorContextManager {
     }
 
     /// Preserves an error context.
-    pub fn preserve_context(&self, diagnostic_id: DiagnosticId, context: ErrorContext) -> Result<()> {
+    pub fn preserve_context(
+        &self,
+        diagnostic_id: DiagnosticId,
+        context: ErrorContext,
+    ) -> Result<()> {
         let context_size = self.estimate_context_size(&context);
-        
+
         let preserved_context = PreservedErrorContext {
-            context: if context_size > self.config.max_context_size && self.config.compress_contexts {
+            context: if context_size > self.config.max_context_size && self.config.compress_contexts
+            {
                 self.compress_context(context)
             } else {
                 context
@@ -420,7 +423,7 @@ impl ErrorContextManager {
 
         if let Ok(mut contexts) = self.preserved_contexts.write() {
             contexts.insert(diagnostic_id, preserved_context);
-            
+
             // Clean up old contexts if we exceed the limit
             if contexts.len() > self.config.max_preserved_contexts {
                 self.cleanup_old_contexts(&mut contexts);
@@ -431,8 +434,11 @@ impl ErrorContextManager {
     }
 
     /// Gets a preserved error context.
-    pub fn get_preserved_context(&self, diagnostic_id: DiagnosticId) -> Option<PreservedErrorContext> {
-        if let Ok(contexts) = self.preserved_contexts.read() {
+    pub fn get_preserved_context(
+        &self,
+        diagnostic_id: DiagnosticId,
+    ) -> Option<PreservedErrorContext> {
+        if let Ok(contexts) = self.preserved_contexts.try_read() {
             contexts.get(&diagnostic_id).cloned()
         } else {
             None
@@ -441,7 +447,7 @@ impl ErrorContextManager {
 
     /// Gets the count of preserved contexts.
     pub fn preserved_context_count(&self) -> usize {
-        if let Ok(contexts) = self.preserved_contexts.read() {
+        if let Ok(contexts) = self.preserved_contexts.try_read() {
             contexts.len()
         } else {
             0
@@ -451,27 +457,25 @@ impl ErrorContextManager {
     /// Estimates the memory size of an error context.
     fn estimate_context_size(&self, context: &ErrorContext) -> usize {
         let mut size = 0;
-        
+
         if let Some(ref expr) = context.current_expr {
             size += expr.len();
         }
-        
-        size += context.bindings.iter()
+
+        size += context
+            .bindings
+            .iter()
             .map(|(k, v)| k.len() + v.len())
             .sum::<usize>();
-            
-        size += context.call_chain.iter()
-            .map(|s| s.len())
-            .sum::<usize>();
-            
+
+        size += context.call_chain.iter().map(|s| s.len()).sum::<usize>();
+
         if let Some(ref module) = context.module_context {
             size += module.len();
         }
-        
-        size += context.notes.iter()
-            .map(|s| s.len())
-            .sum::<usize>();
-            
+
+        size += context.notes.iter().map(|s| s.len()).sum::<usize>();
+
         size
     }
 
@@ -510,17 +514,15 @@ impl ErrorContextManager {
             return;
         }
 
-        let mut entries: Vec<_> = contexts.iter()
+        let mut entries: Vec<_> = contexts
+            .iter()
             .map(|(id, context)| (*id, context.preserved_at))
             .collect();
         entries.sort_by_key(|(_, time)| *time);
-        
+
         let to_remove = contexts.len() - self.config.max_preserved_contexts;
-        let ids_to_remove: Vec<_> = entries.iter()
-            .take(to_remove)
-            .map(|(id, _)| *id)
-            .collect();
-        
+        let ids_to_remove: Vec<_> = entries.iter().take(to_remove).map(|(id, _)| *id).collect();
+
         for id in ids_to_remove {
             contexts.remove(&id);
         }
@@ -582,27 +584,25 @@ impl DiagnosticGcWrapper {
     /// Estimates the size of an error context.
     fn estimate_context_size(&self, context: &ErrorContext) -> usize {
         let mut size = 0;
-        
+
         if let Some(ref expr) = context.current_expr {
             size += expr.len();
         }
-        
-        size += context.bindings.iter()
+
+        size += context
+            .bindings
+            .iter()
             .map(|(k, v)| k.len() + v.len())
             .sum::<usize>();
-            
-        size += context.call_chain.iter()
-            .map(|s| s.len())
-            .sum::<usize>();
-            
+
+        size += context.call_chain.iter().map(|s| s.len()).sum::<usize>();
+
         if let Some(ref module) = context.module_context {
             size += module.len();
         }
-        
-        size += context.notes.iter()
-            .map(|s| s.len())
-            .sum::<usize>();
-            
+
+        size += context.notes.iter().map(|s| s.len()).sum::<usize>();
+
         size
     }
 }
@@ -629,7 +629,6 @@ impl fmt::Display for GcAwareError {
         write!(f, "{}", self.inner_error)
     }
 }
-
 
 impl Default for GcDiagnosticConfig {
     fn default() -> Self {
@@ -669,14 +668,14 @@ pub struct DiagnosticStatistics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::GcIntegration;
     use crate::diagnostics::Error;
+    use crate::utils::GcIntegration;
 
     #[test]
     fn test_diagnostic_manager_creation() {
         let gc_integration = Arc::new(GcIntegration::with_default_config());
         let manager = GcDiagnosticManager::with_default_config(gc_integration);
-        
+
         let stats = manager.get_diagnostic_statistics();
         assert_eq!(stats.active_diagnostics, 0);
         assert_eq!(stats.total_diagnostics, 0);
@@ -686,15 +685,15 @@ mod tests {
     fn test_gc_aware_error_creation() {
         let gc_integration = Arc::new(GcIntegration::with_default_config());
         let manager = GcDiagnosticManager::with_default_config(gc_integration);
-        
+
         let error = Error::runtime_error("test error".to_string(), None);
         let context = ErrorContext::default();
-        
+
         let gc_error = manager.create_gc_aware_error(error, None, Some(context));
-        
+
         assert!(gc_error.diagnostic_id().is_some());
         assert!(gc_error.preserved_info().is_some());
-        
+
         let stats = manager.get_diagnostic_statistics();
         assert_eq!(stats.active_diagnostics, 1);
         assert_eq!(stats.total_diagnostics, 1);
@@ -704,17 +703,17 @@ mod tests {
     fn test_error_context_preservation() {
         let context_manager = ErrorContextManager::new(ContextConfig::default());
         let diagnostic_id = DiagnosticId(1);
-        
+
         let mut context = ErrorContext::default();
         context.current_expr = Some("(+ 1 2)".to_string());
         context.notes.push("Test note".to_string());
-        
+
         let result = context_manager.preserve_context(diagnostic_id, context);
         assert!(result.is_ok());
-        
+
         let preserved = context_manager.get_preserved_context(diagnostic_id);
         assert!(preserved.is_some());
-        
+
         let preserved = preserved.unwrap();
         assert_eq!(preserved.context.current_expr, Some("(+ 1 2)".to_string()));
         assert_eq!(preserved.context.notes.len(), 1);

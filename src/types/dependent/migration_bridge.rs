@@ -27,19 +27,22 @@
 //! - **Fallback safety**: Automatic fallback to old implementation if needed
 
 use super::{
-    core::{DependentType, DependentTerm, TypingContext, Normalizer, MatchBranch, Pattern, UniverseLevel},
-    optimized_core::{
-        OptimizedDependentType, OptimizedDependentTerm, OptimizedTypingContext, 
-        OptimizedNormalizer, OptimizedMatchBranch, OptimizedPattern
+    arena::{ArenaStats, TypeArena},
+    core::{
+        DependentTerm, DependentType, MatchBranch, Normalizer, Pattern, TypingContext,
+        UniverseLevel,
     },
-    arena::{TypeArena, ArenaStats},
     memory_pool::{MemoryPoolManager, MemoryPoolStatistics},
-    performance_benchmark::{DependentTypeBenchmarkSuite, BenchmarkSummary},
+    optimized_core::{
+        OptimizedDependentTerm, OptimizedDependentType, OptimizedMatchBranch, OptimizedNormalizer,
+        OptimizedPattern, OptimizedTypingContext,
+    },
+    performance_benchmark::{BenchmarkSummary, DependentTypeBenchmarkSuite},
 };
 use crate::diagnostics::{Error, Result, Span};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 /// Migration bridge that provides seamless compatibility between old and new implementations.
 ///
@@ -115,11 +118,11 @@ impl MigrationBridge {
     pub fn new() -> Self {
         Self::with_config(MigrationConfig::default())
     }
-    
+
     /// Create a migration bridge with custom configuration
     pub fn with_config(config: MigrationConfig) -> Self {
         let arena = Rc::new(RefCell::new(TypeArena::new()));
-        
+
         Self {
             optimized_context: OptimizedTypingContext::with_arena(arena.clone()),
             optimized_normalizer: OptimizedNormalizer::with_arena(arena),
@@ -128,36 +131,41 @@ impl MigrationBridge {
             config,
         }
     }
-    
+
     /// Create a compatible typing context that provides the old API
     pub fn create_compatible_context(&self) -> CompatibleTypingContext {
         self.stats.borrow_mut().new_api_calls += 1;
-        
+
         CompatibleTypingContext {
             bridge: Rc::new(RefCell::new(self.clone())),
             context_id: self.generate_context_id(),
         }
     }
-    
+
     /// Create a compatible normalizer that provides the old API
     pub fn create_compatible_normalizer(&self) -> CompatibleNormalizer {
         self.stats.borrow_mut().new_api_calls += 1;
-        
+
         CompatibleNormalizer {
             bridge: Rc::new(RefCell::new(self.clone())),
             normalizer_id: self.generate_normalizer_id(),
         }
     }
-    
+
     /// Convert old DependentType to optimized version
-    pub fn convert_type_to_optimized(&self, old_type: &DependentType) -> Result<OptimizedDependentType> {
+    pub fn convert_type_to_optimized(
+        &self,
+        old_type: &DependentType,
+    ) -> Result<OptimizedDependentType> {
         let start_time = std::time::Instant::now();
-        
+
         let result = match old_type {
-            DependentType::Universe(level) => {
-                Ok(OptimizedDependentType::Universe(*level))
-            }
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Universe(level) => Ok(OptimizedDependentType::Universe(*level)),
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 let opt_domain = self.convert_type_to_optimized(domain)?;
                 let opt_codomain = self.convert_type_to_optimized(codomain)?;
                 Ok(OptimizedDependentType::Pi {
@@ -185,23 +193,35 @@ impl MigrationBridge {
                     right: Rc::new(opt_right),
                 })
             }
-            DependentType::Inductive { name, parameters, universe_level, constructors, induction_principle } => {
+            DependentType::Inductive {
+                name,
+                parameters,
+                universe_level,
+                constructors,
+                induction_principle,
+            } => {
                 let mut opt_parameters = Vec::new();
                 for (param_name, param_type) in parameters {
-                    opt_parameters.push((param_name.clone(), self.convert_type_to_optimized(param_type)?));
+                    opt_parameters.push((
+                        param_name.clone(),
+                        self.convert_type_to_optimized(param_type)?,
+                    ));
                 }
-                
+
                 let mut opt_constructors = Vec::new();
                 for (ctor_name, ctor_type) in constructors {
-                    opt_constructors.push((ctor_name.clone(), self.convert_type_to_optimized(ctor_type)?));
+                    opt_constructors.push((
+                        ctor_name.clone(),
+                        self.convert_type_to_optimized(ctor_type)?,
+                    ));
                 }
-                
+
                 let opt_induction_principle = if let Some(ind_prin) = induction_principle {
                     Some(Rc::new(self.convert_type_to_optimized(ind_prin)?))
                 } else {
                     None
                 };
-                
+
                 Ok(OptimizedDependentType::Inductive {
                     name: name.clone(),
                     parameters: opt_parameters,
@@ -211,25 +231,30 @@ impl MigrationBridge {
                 })
             }
         };
-        
+
         // Update conversion statistics
         let conversion_time = start_time.elapsed();
         let mut stats = self.stats.borrow_mut();
         stats.type_conversions += 1;
         stats.conversion_overhead += conversion_time;
-        
+
         result
     }
-    
+
     /// Convert optimized DependentType to old version
-    pub fn convert_type_from_optimized(&self, opt_type: &OptimizedDependentType) -> Result<DependentType> {
+    pub fn convert_type_from_optimized(
+        &self,
+        opt_type: &OptimizedDependentType,
+    ) -> Result<DependentType> {
         let start_time = std::time::Instant::now();
-        
+
         let result = match opt_type {
-            OptimizedDependentType::Universe(level) => {
-                Ok(DependentType::Universe(*level))
-            }
-            OptimizedDependentType::Pi { var, domain, codomain } => {
+            OptimizedDependentType::Universe(level) => Ok(DependentType::Universe(*level)),
+            OptimizedDependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 let old_domain = self.convert_type_from_optimized(domain)?;
                 let old_codomain = self.convert_type_from_optimized(codomain)?;
                 Ok(DependentType::Pi {
@@ -257,23 +282,35 @@ impl MigrationBridge {
                     right: Box::new(old_right),
                 })
             }
-            OptimizedDependentType::Inductive { name, parameters, universe_level, constructors, induction_principle } => {
+            OptimizedDependentType::Inductive {
+                name,
+                parameters,
+                universe_level,
+                constructors,
+                induction_principle,
+            } => {
                 let mut old_parameters = Vec::new();
                 for (param_name, param_type) in parameters {
-                    old_parameters.push((param_name.clone(), self.convert_type_from_optimized(param_type)?));
+                    old_parameters.push((
+                        param_name.clone(),
+                        self.convert_type_from_optimized(param_type)?,
+                    ));
                 }
-                
+
                 let mut old_constructors = Vec::new();
                 for (ctor_name, ctor_type) in constructors {
-                    old_constructors.push((ctor_name.clone(), self.convert_type_from_optimized(ctor_type)?));
+                    old_constructors.push((
+                        ctor_name.clone(),
+                        self.convert_type_from_optimized(ctor_type)?,
+                    ));
                 }
-                
+
                 let old_induction_principle = if let Some(ind_prin) = induction_principle {
                     Some(Box::new(self.convert_type_from_optimized(ind_prin)?))
                 } else {
                     None
                 };
-                
+
                 Ok(DependentType::Inductive {
                     name: name.clone(),
                     parameters: old_parameters,
@@ -286,27 +323,32 @@ impl MigrationBridge {
                 // This shouldn't happen in normal conversion, but provide a fallback
                 Err(Box::new(Error::type_error(
                     "Cannot convert arena reference to Box-based type".to_string(),
-                    Span::new(0, 0)
+                    Span::new(0, 0),
                 )))
             }
         };
-        
+
         // Update conversion statistics
         let conversion_time = start_time.elapsed();
         let mut stats = self.stats.borrow_mut();
         stats.type_conversions += 1;
         stats.conversion_overhead += conversion_time;
-        
+
         result
     }
-    
+
     /// Convert old DependentTerm to optimized version
-    pub fn convert_term_to_optimized(&self, old_term: &DependentTerm) -> Result<OptimizedDependentTerm> {
+    pub fn convert_term_to_optimized(
+        &self,
+        old_term: &DependentTerm,
+    ) -> Result<OptimizedDependentTerm> {
         match old_term {
-            DependentTerm::Variable(name) => {
-                Ok(OptimizedDependentTerm::Variable(name.clone()))
-            }
-            DependentTerm::Lambda { param, param_type, body } => {
+            DependentTerm::Variable(name) => Ok(OptimizedDependentTerm::Variable(name.clone())),
+            DependentTerm::Lambda {
+                param,
+                param_type,
+                body,
+            } => {
                 let opt_param_type = self.convert_type_to_optimized(param_type)?;
                 let opt_body = self.convert_term_to_optimized(body)?;
                 Ok(OptimizedDependentTerm::Lambda {
@@ -344,7 +386,11 @@ impl MigrationBridge {
                     ty: Rc::new(opt_ty),
                 })
             }
-            DependentTerm::Constructor { name, args, result_type } => {
+            DependentTerm::Constructor {
+                name,
+                args,
+                result_type,
+            } => {
                 let mut opt_args = Vec::new();
                 for arg in args {
                     opt_args.push(self.convert_term_to_optimized(arg)?);
@@ -356,7 +402,11 @@ impl MigrationBridge {
                     result_type: Rc::new(opt_result_type),
                 })
             }
-            DependentTerm::Match { scrutinee, branches, return_type } => {
+            DependentTerm::Match {
+                scrutinee,
+                branches,
+                return_type,
+            } => {
                 let opt_scrutinee = self.convert_term_to_optimized(scrutinee)?;
                 let mut opt_branches = Vec::new();
                 for branch in branches {
@@ -374,14 +424,19 @@ impl MigrationBridge {
             }
         }
     }
-    
+
     /// Convert optimized DependentTerm to old version
-    pub fn convert_term_from_optimized(&self, opt_term: &OptimizedDependentTerm) -> Result<DependentTerm> {
+    pub fn convert_term_from_optimized(
+        &self,
+        opt_term: &OptimizedDependentTerm,
+    ) -> Result<DependentTerm> {
         match opt_term {
-            OptimizedDependentTerm::Variable(name) => {
-                Ok(DependentTerm::Variable(name.clone()))
-            }
-            OptimizedDependentTerm::Lambda { param, param_type, body } => {
+            OptimizedDependentTerm::Variable(name) => Ok(DependentTerm::Variable(name.clone())),
+            OptimizedDependentTerm::Lambda {
+                param,
+                param_type,
+                body,
+            } => {
                 let old_param_type = self.convert_type_from_optimized(param_type)?;
                 let old_body = self.convert_term_from_optimized(body)?;
                 Ok(DependentTerm::Lambda {
@@ -419,7 +474,11 @@ impl MigrationBridge {
                     ty: Box::new(old_ty),
                 })
             }
-            OptimizedDependentTerm::Constructor { name, args, result_type } => {
+            OptimizedDependentTerm::Constructor {
+                name,
+                args,
+                result_type,
+            } => {
                 let mut old_args = Vec::new();
                 for arg in args {
                     old_args.push(self.convert_term_from_optimized(arg)?);
@@ -431,7 +490,11 @@ impl MigrationBridge {
                     result_type: Box::new(old_result_type),
                 })
             }
-            OptimizedDependentTerm::Match { scrutinee, branches, return_type } => {
+            OptimizedDependentTerm::Match {
+                scrutinee,
+                branches,
+                return_type,
+            } => {
                 let old_scrutinee = self.convert_term_from_optimized(scrutinee)?;
                 let mut old_branches = Vec::new();
                 for branch in branches {
@@ -451,12 +514,12 @@ impl MigrationBridge {
                 // This shouldn't happen in normal conversion, but provide a fallback
                 Err(Box::new(Error::type_error(
                     "Cannot convert arena reference to Box-based term".to_string(),
-                    Span::new(0, 0)
+                    Span::new(0, 0),
                 )))
             }
         }
     }
-    
+
     /// Convert patterns between representations
     fn convert_pattern_to_optimized(&self, old_pattern: &Pattern) -> Result<OptimizedPattern> {
         match old_pattern {
@@ -473,7 +536,7 @@ impl MigrationBridge {
             }
         }
     }
-    
+
     fn convert_pattern_from_optimized(&self, opt_pattern: &OptimizedPattern) -> Result<Pattern> {
         match opt_pattern {
             OptimizedPattern::Variable(name) => Ok(Pattern::Variable(name.clone())),
@@ -489,17 +552,24 @@ impl MigrationBridge {
             }
         }
     }
-    
+
     /// Get migration statistics
     pub fn get_migration_stats(&self) -> MigrationStats {
-        self.stats.borrow().clone()
+        self.stats.try_borrow().unwrap().clone()
     }
-    
+
     /// Get memory statistics from the optimized backend
     pub fn get_memory_stats(&self) -> ArenaStats {
-        self.optimized_context.memory_stats()
+        self.optimized_context.memory_stats().unwrap_or(ArenaStats {
+            types_count: 0,
+            terms_count: 0,
+            types_memory: 0,
+            terms_memory: 0,
+            cache_hits_types: 0,
+            cache_hits_terms: 0,
+        })
     }
-    
+
     /// Get memory pool statistics if enabled
     pub fn get_memory_pool_stats(&self) -> Option<MemoryPoolStatistics> {
         if self.config.enable_memory_pooling {
@@ -508,29 +578,29 @@ impl MigrationBridge {
             None
         }
     }
-    
+
     /// Run performance benchmarks comparing old and new implementations
     pub fn run_performance_comparison(&self) -> Result<BenchmarkSummary> {
         if !self.config.enable_auto_benchmarking {
             return Err(Box::new(Error::type_error(
                 "Auto-benchmarking is disabled in configuration".to_string(),
-                Span::new(0, 0)
+                Span::new(0, 0),
             )));
         }
-        
+
         let mut suite = DependentTypeBenchmarkSuite::new();
         suite.run_all_benchmarks()
     }
-    
+
     /// Reset all statistics and caches
     pub fn reset_statistics(&self) {
         *self.stats.borrow_mut() = MigrationStats::new();
         // Note: We don't reset the optimized backend's internal state
         // as that might be shared with other components
     }
-    
+
     // Private helper methods
-    
+
     fn generate_context_id(&self) -> u32 {
         // Simple counter for unique IDs
         static mut CONTEXT_COUNTER: u32 = 0;
@@ -539,7 +609,7 @@ impl MigrationBridge {
             CONTEXT_COUNTER
         }
     }
-    
+
     fn generate_normalizer_id(&self) -> u32 {
         // Simple counter for unique IDs
         static mut NORMALIZER_COUNTER: u32 = 0;
@@ -556,7 +626,7 @@ impl Clone for MigrationBridge {
             optimized_context: self.optimized_context.clone(),
             optimized_normalizer: self.optimized_normalizer.clone(),
             memory_pool: MemoryPoolManager::new(), // Create new pool for clone
-            stats: RefCell::new(self.stats.borrow().clone()),
+            stats: RefCell::new(self.stats.try_borrow().unwrap().clone()),
             config: self.config.clone(),
         }
     }
@@ -568,12 +638,12 @@ impl CompatibleTypingContext {
         let bridge = MigrationBridge::new();
         bridge.create_compatible_context()
     }
-    
+
     /// Bind a variable to a type (old API)
     pub fn bind_variable(&mut self, name: String, ty: DependentType) -> Result<()> {
         let mut bridge = self.bridge.borrow_mut();
         bridge.stats.borrow_mut().old_api_calls += 1;
-        
+
         if bridge.config.use_optimized_backend {
             // Convert to optimized type and use optimized backend
             let opt_type = bridge.convert_type_to_optimized(&ty)?;
@@ -585,72 +655,68 @@ impl CompatibleTypingContext {
             bridge.optimized_context.bind_variable(name, opt_type)
         }
     }
-    
+
     /// Remove a variable binding (old API)
     pub fn unbind_variable(&mut self, name: &str) {
         let mut bridge = self.bridge.borrow_mut();
         bridge.stats.borrow_mut().old_api_calls += 1;
         bridge.optimized_context.unbind_variable(name);
     }
-    
+
     /// Look up the type of a variable (old API)
     pub fn lookup_variable(&self, name: &str) -> Option<DependentType> {
-        let bridge = self.bridge.borrow();
+        let bridge = self.bridge.try_borrow().unwrap();
         bridge.stats.borrow_mut().old_api_calls += 1;
-        
+
         match bridge.optimized_context.lookup_variable(name) {
-            Ok(Some(opt_type)) => {
-                bridge.convert_type_from_optimized(&opt_type).ok()
-            }
+            Ok(Some(opt_type)) => bridge.convert_type_from_optimized(&opt_type).ok(),
             _ => None,
         }
     }
-    
+
     /// Define a new type (old API)
     pub fn define_type(&mut self, name: String, definition: DependentType) -> Result<()> {
         let mut bridge = self.bridge.borrow_mut();
         bridge.stats.borrow_mut().old_api_calls += 1;
-        
+
         let opt_definition = bridge.convert_type_to_optimized(&definition)?;
         bridge.optimized_context.define_type(name, opt_definition)
     }
-    
+
     /// Look up a type definition (old API)
     pub fn lookup_type(&self, name: &str) -> Option<DependentType> {
-        let bridge = self.bridge.borrow();
+        let bridge = self.bridge.try_borrow().unwrap();
         bridge.stats.borrow_mut().old_api_calls += 1;
-        
+
         match bridge.optimized_context.lookup_type(name) {
-            Ok(Some(opt_type)) => {
-                bridge.convert_type_from_optimized(&opt_type).ok()
-            }
+            Ok(Some(opt_type)) => bridge.convert_type_from_optimized(&opt_type).ok(),
             _ => None,
         }
     }
-    
+
     /// Push a new scope (old API)
     pub fn push_scope(&mut self) {
         let mut bridge = self.bridge.borrow_mut();
         bridge.stats.borrow_mut().old_api_calls += 1;
         bridge.optimized_context.push_scope();
     }
-    
+
     /// Pop a scope (old API)
     pub fn pop_scope(&mut self) {
         let mut bridge = self.bridge.borrow_mut();
         bridge.stats.borrow_mut().old_api_calls += 1;
         bridge.optimized_context.pop_scope();
     }
-    
+
     /// Get the size of the context (old API)
     pub fn size(&self) -> usize {
-        let bridge = self.bridge.borrow();
+        let bridge = self.bridge.try_borrow().unwrap();
         bridge.optimized_context.size()
     }
-    
+
     /// Check if the context is empty (old API)
     pub fn is_empty(&self) -> bool {
-        let bridge = self.bridge.borrow();
+        let bridge = self.bridge.try_borrow().unwrap();
         bridge.optimized_context.is_empty()
     }
 }
@@ -661,22 +727,22 @@ impl CompatibleNormalizer {
         let bridge = MigrationBridge::new();
         bridge.create_compatible_normalizer()
     }
-    
+
     /// Normalize a dependent type (old API)
     pub fn normalize_type(&self, ty: &DependentType) -> Result<DependentType> {
-        let bridge = self.bridge.borrow();
+        let bridge = self.bridge.try_borrow().unwrap();
         bridge.stats.borrow_mut().old_api_calls += 1;
-        
+
         let opt_type = bridge.convert_type_to_optimized(ty)?;
         let normalized_opt = bridge.optimized_normalizer.normalize_type(&opt_type)?;
         bridge.convert_type_from_optimized(&normalized_opt)
     }
-    
+
     /// Normalize a dependent term (old API)
     pub fn normalize_term(&self, term: &DependentTerm) -> Result<DependentTerm> {
-        let bridge = self.bridge.borrow();
+        let bridge = self.bridge.try_borrow().unwrap();
         bridge.stats.borrow_mut().old_api_calls += 1;
-        
+
         let opt_term = bridge.convert_term_to_optimized(term)?;
         let normalized_opt = bridge.optimized_normalizer.normalize_term(&opt_term)?;
         bridge.convert_term_from_optimized(&normalized_opt)
@@ -694,7 +760,7 @@ impl MigrationStats {
             performance_improvement: 0.0,
         }
     }
-    
+
     /// Calculate API usage ratios
     pub fn api_usage_ratio(&self) -> (f64, f64) {
         let total = self.old_api_calls + self.new_api_calls;
@@ -707,7 +773,7 @@ impl MigrationStats {
             )
         }
     }
-    
+
     /// Get average conversion time
     pub fn average_conversion_time(&self) -> std::time::Duration {
         if self.type_conversions == 0 {
@@ -729,7 +795,7 @@ impl MigrationConfig {
             enable_fallback: false,
         }
     }
-    
+
     /// Configuration optimized for debugging and analysis
     pub fn debug_optimized() -> Self {
         Self {
@@ -740,7 +806,7 @@ impl MigrationConfig {
             enable_fallback: true,
         }
     }
-    
+
     /// Conservative configuration with fallbacks
     pub fn safe_migration() -> Self {
         Self {
@@ -796,32 +862,32 @@ pub fn configure_global_bridge(config: MigrationConfig) -> MigrationBridge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_migration_bridge_creation() {
         let bridge = MigrationBridge::new();
         let stats = bridge.get_migration_stats();
-        
+
         assert_eq!(stats.old_api_calls, 0);
         assert_eq!(stats.new_api_calls, 0);
         assert_eq!(stats.type_conversions, 0);
     }
-    
+
     #[test]
     fn test_type_conversion_roundtrip() {
         let bridge = MigrationBridge::new();
         let original_type = DependentType::Universe(42);
-        
+
         let optimized = bridge.convert_type_to_optimized(&original_type).unwrap();
         let converted_back = bridge.convert_type_from_optimized(&optimized).unwrap();
-        
+
         assert_eq!(original_type, converted_back);
     }
-    
+
     #[test]
     fn test_complex_type_conversion() {
         let bridge = MigrationBridge::new();
-        
+
         let complex_type = DependentType::Pi {
             var: "x".to_string(),
             domain: Box::new(DependentType::Universe(0)),
@@ -831,32 +897,36 @@ mod tests {
                 codomain: Box::new(DependentType::Universe(1)),
             }),
         };
-        
+
         let optimized = bridge.convert_type_to_optimized(&complex_type).unwrap();
         let converted_back = bridge.convert_type_from_optimized(&optimized).unwrap();
-        
+
         assert_eq!(complex_type, converted_back);
     }
-    
+
     #[test]
     fn test_compatible_typing_context() {
         let mut context = CompatibleTypingContext::new();
         let universe_type = DependentType::Universe(0);
-        
+
         // Test old API methods
-        assert!(context.bind_variable("x".to_string(), universe_type.clone()).is_ok());
+        assert!(
+            context
+                .bind_variable("x".to_string(), universe_type.clone())
+                .is_ok()
+        );
         assert_eq!(context.size(), 1);
         assert!(!context.is_empty());
-        
+
         let looked_up = context.lookup_variable("x");
         assert!(looked_up.is_some());
         assert_eq!(looked_up.unwrap(), universe_type);
-        
+
         context.unbind_variable("x");
         assert_eq!(context.size(), 0);
         assert!(context.is_empty());
     }
-    
+
     #[test]
     fn test_compatible_normalizer() {
         let normalizer = CompatibleNormalizer::new();
@@ -865,47 +935,47 @@ mod tests {
             domain: Box::new(DependentType::Universe(0)),
             codomain: Box::new(DependentType::Universe(1)),
         };
-        
+
         let normalized = normalizer.normalize_type(&pi_type).unwrap();
         // In this simple case, normalization should return the same type
         assert_eq!(normalized, pi_type);
     }
-    
+
     #[test]
     fn test_migration_statistics() {
         let bridge = MigrationBridge::new();
         let mut context = bridge.create_compatible_context();
-        
+
         // Perform some operations
         let _ = context.bind_variable("x".to_string(), DependentType::Universe(0));
         let _ = context.lookup_variable("x");
-        
+
         let stats = bridge.get_migration_stats();
         assert!(stats.old_api_calls > 0);
         assert!(stats.new_api_calls > 0);
     }
-    
+
     #[test]
     fn test_migration_config() {
         let performance_config = MigrationConfig::performance_optimized();
         assert!(performance_config.use_optimized_backend);
         assert!(performance_config.enable_memory_pooling);
         assert!(!performance_config.collect_stats);
-        
+
         let debug_config = MigrationConfig::debug_optimized();
         assert!(debug_config.collect_stats);
         assert!(debug_config.enable_auto_benchmarking);
-        
+
         let safe_config = MigrationConfig::safe_migration();
         assert!(safe_config.enable_fallback);
         assert!(!safe_config.enable_memory_pooling);
     }
-    
+
     #[test]
     fn test_global_bridge() {
         let _bridge1 = global_migration_bridge();
         let _bridge2 = global_migration_bridge();
-        
+
         // Both should succeed (testing that global bridge works)
         assert!(true);
     }

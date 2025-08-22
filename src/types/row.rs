@@ -18,15 +18,12 @@ impl Row {
             rest: None,
         }
     }
-    
+
     /// Creates a closed row with the given fields.
     pub fn closed(fields: HashMap<String, Type>) -> Self {
-        Self {
-            fields,
-            rest: None,
-        }
+        Self { fields, rest: None }
     }
-    
+
     /// Creates an open row with the given fields and rest variable.
     pub fn open(fields: HashMap<String, Type>, rest: TypeVar) -> Self {
         Self {
@@ -34,12 +31,12 @@ impl Row {
             rest: Some(rest),
         }
     }
-    
+
     /// Extends this row with a new field.
     pub fn extend(&mut self, name: String, type_: Type) {
         self.fields.insert(name, type_);
     }
-    
+
     /// Returns true if this row is closed (no rest variable).
     pub fn is_closed(&self) -> bool {
         self.rest.is_none()

@@ -75,10 +75,11 @@ where
 
     /// Gets cache statistics.
     pub fn stats(&self) -> CacheStats {
-        if let Ok(cache) = self.cache.read() {
+        if let Ok(cache) = self.cache.try_read() {
             let total_entries = cache.len();
             let total_accesses: u64 = cache.values().map(|entry| entry.access_count).sum();
-            let oldest_entry = cache.values()
+            let oldest_entry = cache
+                .values()
                 .min_by_key(|entry| entry.created_at)
                 .map(|entry| entry.created_at);
 
@@ -162,7 +163,7 @@ where
         F: FnOnce() -> V,
     {
         // Fast path: check if already cached
-        if let Ok(cache) = self.cache.read() {
+        if let Ok(cache) = self.cache.try_read() {
             if let Some(value) = cache.get(&key) {
                 if let Ok(mut hits) = self.hits.write() {
                     *hits += 1;
@@ -173,7 +174,7 @@ where
 
         // Slow path: compute and cache
         let value = compute();
-        
+
         if let Ok(mut misses) = self.misses.write() {
             *misses += 1;
         }
@@ -192,10 +193,18 @@ where
 
     /// Gets cache hit rate as a percentage.
     pub fn hit_rate(&self) -> f64 {
-        let hits = if let Ok(hits) = self.hits.read() { *hits } else { 0 };
-        let misses = if let Ok(misses) = self.misses.read() { *misses } else { 0 };
+        let hits = if let Ok(hits) = self.hits.try_read() {
+            *hits
+        } else {
+            0
+        };
+        let misses = if let Ok(misses) = self.misses.try_read() {
+            *misses
+        } else {
+            0
+        };
         let total = hits + misses;
-        
+
         if total > 0 {
             (hits as f64 / total as f64) * 100.0
         } else {
@@ -230,23 +239,19 @@ pub struct CacheStats {
     pub oldest_entry_age: Option<Duration>,
 }
 
-
 /// Global cache instances for commonly used expensive computations.
 pub mod global {
     use super::*;
     use once_cell::sync::Lazy;
-    
+
     /// Cache for string to symbol conversion.
-    pub static SYMBOL_CACHE: Lazy<MemoCache<String, u64>> = 
-        Lazy::new(|| MemoCache::new(1000));
-    
+    pub static SYMBOL_CACHE: Lazy<MemoCache<String, u64>> = Lazy::new(|| MemoCache::new(1000));
+
     /// Cache for numeric calculations.
-    pub static NUMERIC_CACHE: Lazy<MemoCache<String, f64>> = 
-        Lazy::new(|| MemoCache::new(500));
-    
+    pub static NUMERIC_CACHE: Lazy<MemoCache<String, f64>> = Lazy::new(|| MemoCache::new(500));
+
     /// Cache for type checking results.
-    pub static TYPE_CACHE: Lazy<LruCache<String, String>> = 
-        Lazy::new(|| LruCache::new(200));
+    pub static TYPE_CACHE: Lazy<LruCache<String, String>> = Lazy::new(|| LruCache::new(200));
 }
 
 #[cfg(test)]
@@ -256,10 +261,10 @@ mod tests {
     #[test]
     fn test_lru_cache_basic() {
         let cache = LruCache::new(2);
-        
+
         cache.insert(1, "one");
         cache.insert(2, "two");
-        
+
         assert_eq!(cache.get(&1), Some("one"));
         assert_eq!(cache.get(&2), Some("two"));
         assert_eq!(cache.get(&3), None);
@@ -268,11 +273,11 @@ mod tests {
     #[test]
     fn test_lru_cache_eviction() {
         let cache = LruCache::new(2);
-        
+
         cache.insert(1, "one");
         cache.insert(2, "two");
         cache.insert(3, "three"); // Should evict 1
-        
+
         assert_eq!(cache.get(&1), None);
         assert_eq!(cache.get(&2), Some("two"));
         assert_eq!(cache.get(&3), Some("three"));
@@ -282,30 +287,30 @@ mod tests {
     fn test_memo_cache() {
         use std::cell::RefCell;
         use std::rc::Rc;
-        
+
         let cache = MemoCache::new(10);
-        
+
         let call_count = Rc::new(RefCell::new(0));
-        
+
         {
             let call_count_clone = call_count.clone();
             let compute = || {
                 *call_count_clone.borrow_mut() += 1;
-                format!("computed_{}", *call_count_clone.borrow())
+                format!("computed_{}", *call_count_clone.try_borrow().unwrap())
             };
             let _result1 = cache.get_or_compute(1, compute);
         }
-        
+
         {
             let call_count_clone = call_count.clone();
             let compute = || {
                 *call_count_clone.borrow_mut() += 1;
-                format!("computed_{}", *call_count_clone.borrow())
+                format!("computed_{}", *call_count_clone.try_borrow().unwrap())
             };
             let _result2 = cache.get_or_compute(1, compute);
         }
-        
-        assert_eq!(*call_count.borrow(), 1); // Should only compute once
+
+        assert_eq!(*call_count.try_borrow().unwrap(), 1); // Should only compute once
         assert!(cache.hit_rate() > 0.0);
     }
 
@@ -315,7 +320,7 @@ mod tests {
         cache.insert(1, "test");
         cache.get(&1);
         cache.get(&1);
-        
+
         let stats = cache.stats();
         assert_eq!(stats.total_entries, 1);
         assert_eq!(stats.capacity, 5);

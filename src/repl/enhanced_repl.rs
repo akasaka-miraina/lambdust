@@ -1,6 +1,6 @@
 use super::{
-    ReplConfig, EnhancedEditor, HistoryManager, Debugger, 
-    CompletionProvider, SyntaxHighlighter, CodeInspector, SessionManager
+    CodeInspector, CompletionProvider, Debugger, EnhancedEditor, HistoryManager, ReplConfig,
+    SessionManager, SyntaxHighlighter,
 };
 use crate::{Lambdust, Result};
 
@@ -45,92 +45,92 @@ impl EnhancedRepl {
             line_number: 1,
         })
     }
-    
+
     /// Creates a new enhanced REPL with default configuration
     pub fn with_defaults(lambdust: Lambdust) -> Result<Self> {
         Self::new(lambdust, ReplConfig::default())
     }
-    
+
     /// Gets the current configuration.
     pub fn config(&self) -> &ReplConfig {
         &self.config
     }
-    
+
     /// Gets a reference to the Lambdust instance.
     pub fn lambdust(&self) -> &Lambdust {
         &self.lambdust
     }
-    
+
     /// Gets a mutable reference to the Lambdust instance.
     pub fn lambdust_mut(&mut self) -> &mut Lambdust {
         &mut self.lambdust
     }
-    
+
     /// Gets the editor.
     pub fn editor(&self) -> &EnhancedEditor {
         &self.editor
     }
-    
+
     /// Gets a mutable reference to the editor.
     pub fn editor_mut(&mut self) -> &mut EnhancedEditor {
         &mut self.editor
     }
-    
+
     /// Gets the history manager.
     pub fn history(&self) -> &HistoryManager {
         &self.history
     }
-    
+
     /// Gets a mutable reference to the history manager.
     pub fn history_mut(&mut self) -> &mut HistoryManager {
         &mut self.history
     }
-    
+
     /// Gets the debugger.
     pub fn debugger(&self) -> &Debugger {
         &self.debugger
     }
-    
+
     /// Gets a mutable reference to the debugger.
     pub fn debugger_mut(&mut self) -> &mut Debugger {
         &mut self.debugger
     }
-    
+
     /// Gets the completion provider.
     pub fn completion(&self) -> &CompletionProvider {
         &self.completion
     }
-    
+
     /// Gets the syntax highlighter.
     pub fn highlighter(&self) -> &SyntaxHighlighter {
         &self.highlighter
     }
-    
+
     /// Gets the code inspector.
     pub fn inspector(&self) -> &CodeInspector {
         &self.inspector
     }
-    
+
     /// Gets the session manager.
     pub fn session(&self) -> &SessionManager {
         &self.session
     }
-    
+
     /// Gets a mutable reference to the session manager.
     pub fn session_mut(&mut self) -> &mut SessionManager {
         &mut self.session
     }
-    
+
     /// Gets the current line number.
     pub fn line_number(&self) -> usize {
         self.line_number
     }
-    
+
     /// Increments the line number.
     pub fn increment_line_number(&mut self) {
         self.line_number += 1;
     }
-    
+
     /// Sets the line number.
     pub fn set_line_number(&mut self, line_number: usize) {
         self.line_number = line_number;
@@ -140,8 +140,16 @@ impl EnhancedRepl {
     pub fn run(&mut self) -> Result<()> {
         #[cfg(feature = "repl")]
         {
-            println!("{}", format!("Lambdust {} Enhanced REPL", crate::VERSION).bright_blue().bold());
-            println!("{}", "Type :help for available commands or (exit) to quit".dimmed());
+            println!(
+                "{}",
+                format!("Lambdust {} Enhanced REPL", crate::VERSION)
+                    .bright_blue()
+                    .bold()
+            );
+            println!(
+                "{}",
+                "Type :help for available commands or (exit) to quit".dimmed()
+            );
         }
         #[cfg(not(feature = "repl"))]
         {
@@ -152,11 +160,14 @@ impl EnhancedRepl {
 
         loop {
             let prompt = format!("λust:{line}> ", line = self.line_number);
-            
-            match self.editor.read_line(&prompt, &mut self.completion, &self.highlighter) {
+
+            match self
+                .editor
+                .read_line(&prompt, &mut self.completion, &self.highlighter)
+            {
                 Ok(Some(line)) => {
                     let line = line.trim();
-                    
+
                     if line.is_empty() {
                         continue;
                     }
@@ -174,7 +185,7 @@ impl EnhancedRepl {
 
                     // Add to history
                     self.history.add_entry(line.to_string());
-                    
+
                     // Add to session
                     match self.evaluate_expression(line) {
                         Ok(result) => {
@@ -184,7 +195,11 @@ impl EnhancedRepl {
                                 println!("{}", format!("{result}").bright_green());
                                 #[cfg(not(feature = "repl"))]
                                 println!("{result}");
-                                self.session.add_command(line.to_string(), Some(result.to_string()), None)?;
+                                self.session.add_command(
+                                    line.to_string(),
+                                    Some(result.to_string()),
+                                    None,
+                                )?;
                             } else {
                                 self.session.add_command(line.to_string(), None, None)?;
                             }
@@ -194,7 +209,11 @@ impl EnhancedRepl {
                             eprintln!("{}", format!("Error: {e}").bright_red());
                             #[cfg(not(feature = "repl"))]
                             eprintln!("Error: {e}");
-                            self.session.add_command(line.to_string(), None, Some(e.to_string()))?;
+                            self.session.add_command(
+                                line.to_string(),
+                                None,
+                                Some(e.to_string()),
+                            )?;
                         }
                     }
 
@@ -253,7 +272,7 @@ impl EnhancedRepl {
                 self.session.save_session(session_name)?;
                 Ok(Some(true))
             }
-            _ => Ok(None)
+            _ => Ok(None),
         }
     }
 
@@ -266,20 +285,47 @@ impl EnhancedRepl {
     fn print_help(&self) {
         #[cfg(feature = "repl")]
         {
-            println!("{}", "Lambdust Enhanced REPL Commands:".bright_blue().bold());
+            println!(
+                "{}",
+                "Lambdust Enhanced REPL Commands:".bright_blue().bold()
+            );
             println!("  {}  - Show this help", ":help, :h".bright_yellow());
-            println!("  {}  - Show version information", ":version, :v".bright_yellow());
-            println!("  {}  - Show current session info", ":session".bright_yellow());
+            println!(
+                "  {}  - Show version information",
+                ":version, :v".bright_yellow()
+            );
+            println!(
+                "  {}  - Show current session info",
+                ":session".bright_yellow()
+            );
             println!("  {}  - List all sessions", ":sessions".bright_yellow());
-            println!("  {}  - Load a session by ID", ":load <session-id>".bright_yellow());
-            println!("  {}  - Save current session with name", ":save <name>".bright_yellow());
-            println!("  {}  - Exit the REPL", "(exit), (quit), :quit, :q".bright_yellow());
+            println!(
+                "  {}  - Load a session by ID",
+                ":load <session-id>".bright_yellow()
+            );
+            println!(
+                "  {}  - Save current session with name",
+                ":save <name>".bright_yellow()
+            );
+            println!(
+                "  {}  - Exit the REPL",
+                "(exit), (quit), :quit, :q".bright_yellow()
+            );
             println!();
             println!("{}", "Example expressions:".bright_blue().bold());
             println!("  {}  - Basic arithmetic", "(+ 1 2 3)".bright_cyan());
-            println!("  {}  - Function definition", "(define (square x) (* x x))".bright_cyan());
-            println!("  {}  - Type annotation", "(:: (+ 1 2) Number)".bright_cyan());
-            println!("  {}  - Import a library", "(import (scheme base))".bright_cyan());
+            println!(
+                "  {}  - Function definition",
+                "(define (square x) (* x x))".bright_cyan()
+            );
+            println!(
+                "  {}  - Type annotation",
+                "(:: (+ 1 2) Number)".bright_cyan()
+            );
+            println!(
+                "  {}  - Import a library",
+                "(import (scheme base))".bright_cyan()
+            );
         }
         #[cfg(not(feature = "repl"))]
         {

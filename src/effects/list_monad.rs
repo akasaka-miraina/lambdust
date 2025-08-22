@@ -11,13 +11,13 @@
 
 #![allow(missing_docs)]
 
-use crate::eval::value::Value;
 use crate::diagnostics::{Error, Result};
-use std::sync::Arc;
+use crate::eval::value::Value;
 use std::fmt;
+use std::sync::Arc;
 
 /// A high-performance List monad that integrates with Lambdust's Value system.
-/// 
+///
 /// The List monad represents computations that can produce multiple results.
 /// It uses Arc for efficient cloning and is thread-safe by design.
 #[derive(Clone)]
@@ -43,16 +43,16 @@ impl<T: PartialEq + Clone + Send + Sync + 'static> PartialEq for List<T> {
 enum ListImpl<T> {
     /// Empty list (MonadZero/MonadPlus zero element)
     Empty,
-    
+
     /// Single element
     Single(T),
-    
+
     /// Multiple elements stored efficiently
     Multiple(Arc<Vec<T>>),
-    
+
     /// Lazy computation (for performance optimization)
     Lazy(Arc<dyn Fn() -> ListImpl<T> + Send + Sync + 'static>),
-    
+
     /// Concatenation of two lists (lazy evaluation)
     Concat(Arc<List<T>>, Arc<List<T>>),
 }
@@ -81,10 +81,16 @@ where
             (ListImpl::Concat(a1, a2), ListImpl::Concat(b1, b2)) => a1 == b1 && a2 == b2,
             // For lazy computations, we need to force evaluation to compare
             _ => {
-                let self_vec = List { inner: self.clone() }.to_vec();
-                let other_vec = List { inner: other.clone() }.to_vec();
+                let self_vec = List {
+                    inner: self.clone(),
+                }
+                .to_vec();
+                let other_vec = List {
+                    inner: other.clone(),
+                }
+                .to_vec();
                 self_vec == other_vec
-            },
+            }
         }
     }
 }
@@ -110,7 +116,7 @@ impl<A, B> ListFunc<A, B> {
             func: Arc::new(func),
         }
     }
-    
+
     /// Call the wrapped function
     pub fn call(&self, arg: A) -> B {
         (self.func)(arg)
@@ -133,14 +139,14 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             inner: ListImpl::Empty,
         }
     }
-    
+
     /// Create a list with a single element (Monad return/pure)
     pub fn single(value: T) -> Self {
         List {
             inner: ListImpl::Single(value),
         }
     }
-    
+
     /// Create a list from a vector
     pub fn from_vec(vec: Vec<T>) -> Self {
         match vec.len() {
@@ -151,7 +157,7 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             },
         }
     }
-    
+
     /// Create a list from an iterator (eager evaluation)
     pub fn from_iterator<I>(iter: I) -> Self
     where
@@ -159,7 +165,7 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
     {
         List::from_vec(iter.into_iter().collect())
     }
-    
+
     /// Create a lazy list from a computation
     pub fn lazy<F>(computation: F) -> Self
     where
@@ -169,7 +175,7 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             inner: ListImpl::Lazy(Arc::new(move || computation().inner)),
         }
     }
-    
+
     /// Check if the list is empty
     pub fn is_empty(&self) -> bool {
         match &self.inner {
@@ -180,7 +186,7 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             ListImpl::Concat(left, right) => left.is_empty() && right.is_empty(),
         }
     }
-    
+
     /// Get the length of the list (forces evaluation)
     pub fn len(&self) -> usize {
         match &self.inner {
@@ -191,9 +197,9 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             ListImpl::Concat(left, right) => left.len() + right.len(),
         }
     }
-    
+
     /// Monadic bind operation
-    /// 
+    ///
     /// This is the core operation of the List monad. It applies a function that
     /// returns a List to each element of this list, then flattens the results.
     pub fn bind<U, F>(self, f: F) -> List<U>
@@ -208,23 +214,27 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             ListImpl::Multiple(vec) => {
                 let results: Vec<List<U>> = vec.iter().map(|x| f(x.clone())).collect();
                 List::concat_many(results)
-            },
+            }
             ListImpl::Lazy(computation) => {
                 let comp_clone = computation.clone();
-                List { 
+                List {
                     inner: ListImpl::Lazy(Arc::new(move || {
-                        List { inner: comp_clone() }.bind(f.clone()).inner
-                    }))
+                        List {
+                            inner: comp_clone(),
+                        }
+                        .bind(f.clone())
+                        .inner
+                    })),
                 }
-            },
+            }
             ListImpl::Concat(left, right) => {
                 let left_result = left.as_ref().clone().bind(f.clone());
                 let right_result = right.as_ref().clone().bind(f);
                 left_result.plus(right_result)
-            },
+            }
         }
     }
-    
+
     /// Functor map operation
     pub fn map<U, F>(self, f: F) -> List<U>
     where
@@ -234,7 +244,7 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
     {
         self.bind(move |x| List::single(f(x)))
     }
-    
+
     /// MonadPlus plus operation (concatenation/choice)
     pub fn plus(self, other: List<T>) -> List<T> {
         match (self.inner, other.inner) {
@@ -248,23 +258,21 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             },
         }
     }
-    
+
     /// Concatenate multiple lists efficiently
     pub fn concat_many(lists: Vec<List<T>>) -> List<T> {
-        lists.into_iter().fold(List::empty(), |acc, list| acc.plus(list))
+        lists
+            .into_iter()
+            .fold(List::empty(), |acc, list| acc.plus(list))
     }
-    
+
     /// Guard operation for filtering (MonadPlus)
-    /// 
+    ///
     /// Returns the list if the condition is true, empty list otherwise.
     pub fn guard(self, condition: bool) -> List<T> {
-        if condition {
-            self
-        } else {
-            List::empty()
-        }
+        if condition { self } else { List::empty() }
     }
-    
+
     /// Filter elements based on a predicate
     pub fn filter<P>(self, predicate: P) -> List<T>
     where
@@ -279,7 +287,7 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             }
         })
     }
-    
+
     /// Take the first n elements
     pub fn take(self, n: usize) -> List<T>
     where
@@ -288,26 +296,34 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
         if n == 0 {
             return List::empty();
         }
-        
+
         match self.inner {
             ListImpl::Empty => List::empty(),
-            ListImpl::Single(value) => if n > 0 { List::single(value) } else { List::empty() },
+            ListImpl::Single(value) => {
+                if n > 0 {
+                    List::single(value)
+                } else {
+                    List::empty()
+                }
+            }
             ListImpl::Multiple(vec) => {
                 let taken: Vec<T> = vec.iter().take(n).cloned().collect();
                 List::from_vec(taken)
-            },
+            }
             ListImpl::Lazy(f) => List { inner: f() }.take(n),
             ListImpl::Concat(left, right) => {
                 let left_len = left.len();
                 if n <= left_len {
                     left.as_ref().clone().take(n)
                 } else {
-                    left.as_ref().clone().plus(right.as_ref().clone().take(n - left_len))
+                    left.as_ref()
+                        .clone()
+                        .plus(right.as_ref().clone().take(n - left_len))
                 }
-            },
+            }
         }
     }
-    
+
     /// Drop the first n elements
     pub fn drop(self, n: usize) -> List<T>
     where
@@ -316,14 +332,20 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
         if n == 0 {
             return self;
         }
-        
+
         match self.inner {
             ListImpl::Empty => List::empty(),
-            ListImpl::Single(_) => if n > 0 { List::empty() } else { self },
+            ListImpl::Single(_) => {
+                if n > 0 {
+                    List::empty()
+                } else {
+                    self
+                }
+            }
             ListImpl::Multiple(vec) => {
                 let dropped: Vec<T> = vec.iter().skip(n).cloned().collect();
                 List::from_vec(dropped)
-            },
+            }
             ListImpl::Lazy(f) => List { inner: f() }.drop(n),
             ListImpl::Concat(left, right) => {
                 let left_len = left.len();
@@ -332,10 +354,10 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
                 } else {
                     left.as_ref().clone().drop(n).plus(right.as_ref().clone())
                 }
-            },
+            }
         }
     }
-    
+
     /// Convert to a regular Vec (forces evaluation)
     pub fn to_vec(self) -> Vec<T>
     where
@@ -350,16 +372,16 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
                     Ok(owned_vec) => owned_vec,
                     Err(arc_vec) => (*arc_vec).clone(),
                 }
-            },
+            }
             ListImpl::Lazy(f) => List { inner: f() }.to_vec(),
             ListImpl::Concat(left, right) => {
                 let mut result = left.as_ref().clone().to_vec();
                 result.extend(right.as_ref().clone().to_vec());
                 result
-            },
+            }
         }
     }
-    
+
     /// Get an iterator over the elements (forces evaluation)
     pub fn iter(&self) -> impl Iterator<Item = T> + '_
     where
@@ -383,7 +405,7 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             list_clone.map(f)
         })
     }
-    
+
     /// Sequence a list of monadic computations
     pub fn sequence<M>(self) -> M
     where
@@ -403,7 +425,7 @@ impl ValueList {
     pub fn from_cons_list(value: Value) -> Result<ValueList> {
         let mut elements = Vec::new();
         let mut current = value;
-        
+
         loop {
             match current {
                 Value::Nil => break,
@@ -411,24 +433,26 @@ impl ValueList {
                     elements.push((*head).clone());
                     current = (*tail).clone();
                 }
-                _ => return Err(Box::new(Error::type_error(
-                    format!("Expected list, got: {current}"),
-                    crate::diagnostics::Span::new(0, 0)
-                ))),
+                _ => {
+                    return Err(Box::new(Error::type_error(
+                        format!("Expected list, got: {current}"),
+                        crate::diagnostics::Span::new(0, 0),
+                    )));
+                }
             }
         }
-        
+
         Ok(ValueList::from_vec(elements))
     }
-    
+
     /// Convert to a Lambdust cons list Value
     pub fn to_cons_list(self) -> Value {
         let vec = self.to_vec();
         vec.into_iter().rev().fold(Value::Nil, |acc, val| {
-            Value::Pair(Arc::new(val), Arc::new(acc))
+            Value::Pair(Box::new(val), Box::new(acc))
         })
     }
-    
+
     /// Bind operation specialized for Value transformations
     pub fn bind_value<F>(self, f: F) -> ValueList
     where
@@ -436,8 +460,8 @@ impl ValueList {
     {
         self.bind(f)
     }
-    
-    /// Map operation specialized for Value transformations  
+
+    /// Map operation specialized for Value transformations
     pub fn map_value<F>(self, f: F) -> ValueList
     where
         F: Fn(Value) -> Value + Send + Sync + 'static + Clone,
@@ -528,9 +552,13 @@ mod tests {
 
         // Associativity: (m >>= f) >>= g ≡ m >>= (\x -> f x >>= g)
         let m = List::from_vec(vec![1, 2]);
-        
-        let left = m.clone().bind(|x| List::from_vec(vec![x * 2])).bind(|x| List::from_vec(vec![x + 1, x + 2]));
-        let right = m.bind(|x| List::from_vec(vec![x * 2]).bind(|y| List::from_vec(vec![y + 1, y + 2])));
+
+        let left = m
+            .clone()
+            .bind(|x| List::from_vec(vec![x * 2]))
+            .bind(|x| List::from_vec(vec![x + 1, x + 2]));
+        let right =
+            m.bind(|x| List::from_vec(vec![x * 2]).bind(|y| List::from_vec(vec![y + 1, y + 2])));
         assert_eq!(left.to_vec(), right.to_vec());
     }
 
@@ -561,23 +589,23 @@ mod tests {
     fn test_list_operations() {
         let list1 = List::from_vec(vec![1, 2, 3]);
         let list2 = List::from_vec(vec![4, 5, 6]);
-        
+
         // Test concatenation
         let concat = list1.clone().plus(list2.clone());
         assert_eq!(concat.to_vec(), vec![1, 2, 3, 4, 5, 6]);
-        
+
         // Test map
         let mapped = list1.clone().map(|x| x * 2);
         assert_eq!(mapped.to_vec(), vec![2, 4, 6]);
-        
+
         // Test filter
         let filtered = list1.clone().filter(|&x| x % 2 == 0);
         assert_eq!(filtered.to_vec(), vec![2]);
-        
+
         // Test take
         let taken = list1.clone().take(2);
         assert_eq!(taken.to_vec(), vec![1, 2]);
-        
+
         // Test drop
         let dropped = list1.clone().drop(1);
         assert_eq!(dropped.to_vec(), vec![2, 3]);
@@ -586,12 +614,12 @@ mod tests {
     #[test]
     fn test_guard_operation() {
         let list = List::from_vec(vec![1, 2, 3, 4, 5]);
-        
+
         // Test guard with condition
-        let result = list.clone().bind(|x| {
-            List::single(x).guard(x % 2 == 0).map(|y| y * 2)
-        });
-        
+        let result = list
+            .clone()
+            .bind(|x| List::single(x).guard(x % 2 == 0).map(|y| y * 2));
+
         assert_eq!(result.to_vec(), vec![4, 8]);
     }
 
@@ -599,22 +627,22 @@ mod tests {
     fn test_value_list_conversion() {
         use crate::eval::value::Value;
         use std::sync::Arc;
-        
+
         // Test from cons list
         let cons_list = Value::Pair(
-            Arc::new(Value::Literal(crate::ast::Literal::Number(1.0))),
-            Arc::new(Value::Pair(
-                Arc::new(Value::Literal(crate::ast::Literal::Number(2.0))),
-                Arc::new(Value::Pair(
-                    Arc::new(Value::Literal(crate::ast::Literal::Number(3.0))),
-                    Arc::new(Value::Nil)
-                ))
-            ))
+            Box::new(Value::Literal(crate::ast::Literal::Number(1.0))),
+            Box::new(Value::Pair(
+                Box::new(Value::Literal(crate::ast::Literal::Number(2.0))),
+                Box::new(Value::Pair(
+                    Box::new(Value::Literal(crate::ast::Literal::Number(3.0))),
+                    Box::new(Value::Nil),
+                )),
+            )),
         );
-        
+
         let value_list = ValueList::from_cons_list(cons_list).unwrap();
         assert_eq!(value_list.len(), 3);
-        
+
         // Test to cons list
         let back_to_cons = value_list.to_cons_list();
         // We can't easily test equality due to the recursive structure,
@@ -626,15 +654,15 @@ mod tests {
     fn test_lazy_evaluation() {
         let counter = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let counter_clone = counter.clone();
-        
+
         let lazy_list = List::lazy(move || {
             counter_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             List::from_vec(vec![1, 2, 3])
         });
-        
+
         // Computation should not have run yet
         assert_eq!(counter.load(std::sync::atomic::Ordering::SeqCst), 0);
-        
+
         // Force evaluation
         let result = lazy_list.to_vec();
         assert_eq!(result, vec![1, 2, 3]);

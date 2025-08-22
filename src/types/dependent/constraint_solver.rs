@@ -11,48 +11,65 @@
 //! - Integrates seamlessly with the dependent type checker
 
 use crate::diagnostics::{Error, Result, Span};
-use crate::types::dependent::{DependentType, DependentTerm, UniverseLevel};
+use crate::types::dependent::{DependentTerm, DependentType, UniverseLevel};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::{Arc, RwLock};
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, RwLock};
 
 /// Type constraint representation with efficient zero-cost abstractions
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeConstraint {
     /// Type equality constraint: A ≡ B
     Equal {
+        /// Left-hand side type of the equality
         left: DependentType,
+        /// Right-hand side type of the equality
         right: DependentType,
+        /// Source location for error reporting
         span: Span,
     },
     /// Subtyping constraint: A <: B
     Subtype {
+        /// The subtype in the relationship
         subtype: DependentType,
+        /// The supertype in the relationship
         supertype: DependentType,
+        /// Source location for error reporting
         span: Span,
     },
     /// Universe level constraint: A : Universe(n)
     UniverseLevel {
+        /// The type whose universe level is constrained
         ty: DependentType,
+        /// Expected universe level
         level: UniverseLevel,
+        /// Source location for error reporting
         span: Span,
     },
     /// Type inhabitation constraint: t : A
     Inhabitation {
+        /// The term that should inhabit the type
         term: DependentTerm,
+        /// The type that should be inhabited by the term
         ty: DependentType,
+        /// Source location for error reporting
         span: Span,
     },
     /// Well-formedness constraint: A type
     WellFormed {
+        /// The type that must be well-formed
         ty: DependentType,
+        /// Source location for error reporting
         span: Span,
     },
     /// Constraint variable unification: α = A
     Unification {
+        /// The type variable to be unified
         var: TypeVariable,
+        /// The type to unify with the variable
         ty: DependentType,
+        /// Source location for error reporting
         span: Span,
     },
 }
@@ -60,17 +77,24 @@ pub enum TypeConstraint {
 /// Type variable for constraint solving
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeVariable {
+    /// Unique identifier for the variable
     pub id: u64,
+    /// Human-readable name for debugging
     pub name: String,
+    /// Kind of variable for specialized solving
     pub kind: VariableKind,
 }
 
 /// Kind of type variable for specialized solving
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VariableKind {
+    /// Type-level variable
     Type,
+    /// Term-level variable  
     Term,
+    /// Universe level variable
     Universe,
+    /// Effect variable for effect systems
     Effect,
 }
 
@@ -94,7 +118,9 @@ pub struct ConstraintSolver {
 /// Cache key for constraint solving results
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct ConstraintKey {
+    /// The constraint being cached
     constraint: TypeConstraint,
+    /// Hash of the solving context for cache validity
     context_hash: u64,
 }
 
@@ -114,10 +140,15 @@ pub enum SolverResult {
 /// Statistics for performance monitoring
 #[derive(Debug, Default)]
 pub struct SolverStatistics {
+    /// Number of constraints successfully solved
     pub constraints_solved: usize,
+    /// Number of cache hits during solving
     pub cache_hits: usize,
+    /// Number of cache misses during solving
     pub cache_misses: usize,
+    /// Number of parallel batches processed
     pub parallel_batches: usize,
+    /// Number of unifications performed
     pub unifications_performed: usize,
 }
 
@@ -310,18 +341,16 @@ impl ConstraintSolver {
             TypeConstraint::Equal { left, right, .. } => {
                 self.solve_equality_constraint(left, right)
             }
-            TypeConstraint::Subtype { subtype, supertype, .. } => {
-                self.solve_subtyping_constraint(subtype, supertype)
-            }
+            TypeConstraint::Subtype {
+                subtype, supertype, ..
+            } => self.solve_subtyping_constraint(subtype, supertype),
             TypeConstraint::UniverseLevel { ty, level, .. } => {
                 self.solve_universe_constraint(ty, *level)
             }
             TypeConstraint::Inhabitation { term, ty, .. } => {
                 self.solve_inhabitation_constraint(term, ty)
             }
-            TypeConstraint::WellFormed { ty, .. } => {
-                self.solve_wellformed_constraint(ty)
-            }
+            TypeConstraint::WellFormed { ty, .. } => self.solve_wellformed_constraint(ty),
             TypeConstraint::Unification { var, ty, .. } => {
                 self.solve_unification_constraint(var, ty)
             }
@@ -418,7 +447,10 @@ impl ConstraintSolver {
             )));
         }
 
-        Ok(SolverResult::RequiresUnification(vec![(var.clone(), ty.clone())]))
+        Ok(SolverResult::RequiresUnification(vec![(
+            var.clone(),
+            ty.clone(),
+        )]))
     }
 
     /// Apply unifications to the global unification table
@@ -432,7 +464,7 @@ impl ConstraintSolver {
 
     /// Apply current unifications to a type
     fn apply_unifications_to_type(&self, ty: &DependentType) -> Result<DependentType> {
-        let unification_table = self.unifications.read().unwrap();
+        let unification_table = self.unifications.try_read().unwrap();
         self.substitute_unifications(ty, &unification_table)
     }
 
@@ -443,7 +475,11 @@ impl ConstraintSolver {
         unifs: &HashMap<TypeVariable, DependentType>,
     ) -> Result<DependentType> {
         match ty {
-            DependentType::Pi { var, domain, codomain } => Ok(DependentType::Pi {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => Ok(DependentType::Pi {
                 var: var.clone(),
                 domain: Box::new(self.substitute_unifications(domain, unifs)?),
                 codomain: Box::new(self.substitute_unifications(codomain, unifs)?),
@@ -476,9 +512,9 @@ impl ConstraintSolver {
     /// Occurs check to prevent infinite types
     fn occurs_check(&self, var: &TypeVariable, ty: &DependentType) -> bool {
         match ty {
-            DependentType::Pi { domain, codomain, .. } => {
-                self.occurs_check(var, domain) || self.occurs_check(var, codomain)
-            }
+            DependentType::Pi {
+                domain, codomain, ..
+            } => self.occurs_check(var, domain) || self.occurs_check(var, codomain),
             DependentType::Sigma { first, second, .. } => {
                 self.occurs_check(var, first) || self.occurs_check(var, second)
             }
@@ -503,14 +539,14 @@ impl ConstraintSolver {
     /// Compute hash of current solving context
     fn compute_context_hash(&self) -> u64 {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        let unifs = self.unifications.read().unwrap();
+        let unifs = self.unifications.try_read().unwrap();
         unifs.len().hash(&mut hasher);
         hasher.finish()
     }
 
     /// Check cache for constraint result
     fn check_cache(&self, key: &ConstraintKey) -> Option<SolverResult> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.try_read().unwrap();
         cache.get(key).cloned()
     }
 
@@ -551,7 +587,7 @@ impl ConstraintSolver {
 
     /// Get current unification count
     pub fn unification_count(&self) -> usize {
-        let unifs = self.unifications.read().unwrap();
+        let unifs = self.unifications.try_read().unwrap();
         unifs.len()
     }
 }
@@ -604,7 +640,7 @@ mod tests {
             span: Span::new(0, 0),
         };
         solver.add_constraint(constraint);
-        
+
         let stats = solver.solve_constraints().unwrap();
         assert_eq!(stats.constraints_solved, 1);
     }

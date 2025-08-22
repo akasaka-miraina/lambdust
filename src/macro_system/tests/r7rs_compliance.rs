@@ -47,10 +47,10 @@ fn test_basic_syntax_rules_parsing() {
             ])),
         ],
     });
-    
+
     let env = Rc::new(Environment::new(None, 0));
     let result = parse_syntax_rules(&syntax_rules_expr, env);
-    
+
     assert!(result.is_ok());
     let transformer = result.unwrap();
     assert!(transformer.literals.is_empty());
@@ -60,7 +60,7 @@ fn test_basic_syntax_rules_parsing() {
 #[test]
 fn test_syntax_rules_with_literals() {
     // Test parsing syntax-rules with literals:
-    // (syntax-rules (else) 
+    // (syntax-rules (else)
     //   ((test-macro else x) x)
     //   ((test-macro y x) y))
     let syntax_rules_expr = make_spanned(Expr::Application {
@@ -90,10 +90,10 @@ fn test_syntax_rules_with_literals() {
             ])),
         ],
     });
-    
+
     let env = Rc::new(Environment::new(None, 0));
     let result = parse_syntax_rules(&syntax_rules_expr, env);
-    
+
     assert!(result.is_ok());
     let transformer = result.unwrap();
     assert_eq!(transformer.literals, vec!["else"]);
@@ -127,14 +127,14 @@ fn test_ellipsis_pattern_parsing() {
             ])),
         ],
     });
-    
+
     let env = Rc::new(Environment::new(None, 0));
     let result = parse_syntax_rules(&syntax_rules_expr, env);
-    
+
     assert!(result.is_ok());
     let transformer = result.unwrap();
     assert_eq!(transformer.rules.len(), 1);
-    
+
     // Check that the pattern contains ellipsis
     match &transformer.rules[0].pattern {
         Pattern::List(_) => {}, // Pattern parsing handles ellipsis internally
@@ -154,7 +154,7 @@ fn test_multiple_rule_expansion() {
         Template::identifier("special-case"),
         Template::variable("x"),
     ]);
-    
+
     let pattern2 = Pattern::list(vec![
         Pattern::identifier("test-macro"),
         Pattern::variable("x"),
@@ -163,12 +163,12 @@ fn test_multiple_rule_expansion() {
         Template::identifier("general-case"),
         Template::variable("x"),
     ]);
-    
+
     let transformer = create_test_syntax_rules(
         vec![],
         vec![(pattern1, template1), (pattern2, template2)],
     );
-    
+
     // Test first rule (special case)
     let input1 = make_spanned(Expr::Application {
         operator: Box::new(make_spanned(Expr::Identifier("test-macro".to_string()))),
@@ -177,10 +177,10 @@ fn test_multiple_rule_expansion() {
             make_spanned(Expr::Identifier("value".to_string())),
         ],
     });
-    
+
     let result1 = expand_syntax_rules(&transformer, &input1);
     assert!(result1.is_ok());
-    
+
     // Test second rule (general case)
     let input2 = make_spanned(Expr::Application {
         operator: Box::new(make_spanned(Expr::Identifier("test-macro".to_string()))),
@@ -188,7 +188,7 @@ fn test_multiple_rule_expansion() {
             make_spanned(Expr::Identifier("value".to_string())),
         ],
     });
-    
+
     let result2 = expand_syntax_rules(&transformer, &input2);
     assert!(result2.is_ok());
 }
@@ -197,14 +197,14 @@ fn test_multiple_rule_expansion() {
 fn test_hygiene_preservation() {
     // Test that macro expansion preserves hygiene
     let mut expander = MacroExpander::new();
-    
+
     // Define a simple macro that introduces a binding
     let pattern = Pattern::list(vec![
         Pattern::identifier("let-macro"),
         Pattern::variable("x"),
         Pattern::variable("body"),
     ]);
-    
+
     let template = Template::list(vec![
         Template::identifier("let"),
         Template::list(vec![
@@ -215,7 +215,7 @@ fn test_hygiene_preservation() {
         ]),
         Template::variable("body"),
     ]);
-    
+
     let transformer = MacroTransformer {
         pattern,
         template,
@@ -223,9 +223,9 @@ fn test_hygiene_preservation() {
         name: Some("let-macro".to_string()),
         source: None,
     };
-    
+
     expander.define_macro("let-macro".to_string(), transformer);
-    
+
     // Test expansion
     let input_expr = make_spanned(Expr::Application {
         operator: Box::new(make_spanned(Expr::Identifier("let-macro".to_string()))),
@@ -234,10 +234,10 @@ fn test_hygiene_preservation() {
             make_spanned(Expr::Identifier("temp".to_string())),
         ],
     });
-    
+
     let result = expander.expand(&input_expr);
     assert!(result.is_ok());
-    
+
     // The result should have hygienically renamed identifiers
     // (exact testing would require checking the hygiene context)
 }
@@ -246,7 +246,7 @@ fn test_hygiene_preservation() {
 fn test_builtin_macro_presence() {
     // Test that all required R7RS macros are present
     let expander = MacroExpander::with_builtins();
-    
+
     // Core derived forms
     assert!(expander.macro_env().lookup("let").is_some());
     assert!(expander.macro_env().lookup("let*").is_some());
@@ -257,7 +257,7 @@ fn test_builtin_macro_presence() {
     assert!(expander.macro_env().lookup("or").is_some());
     assert!(expander.macro_env().lookup("when").is_some());
     assert!(expander.macro_env().lookup("unless").is_some());
-    
+
     // R7RS convenience macros
     assert!(expander.macro_env().lookup("case-lambda").is_some());
     assert!(expander.macro_env().lookup("cond-expand").is_some());
@@ -267,26 +267,26 @@ fn test_builtin_macro_presence() {
 #[test]
 fn test_pattern_validation() {
     let literals = vec!["else".to_string()];
-    
+
     // Valid pattern
     let valid_pattern = Pattern::list(vec![
         Pattern::identifier("macro"),
         Pattern::variable("x"),
         Pattern::identifier("else"),
     ]);
-    
+
     assert!(validate_pattern(&valid_pattern, &literals).is_ok());
-    
+
     // Invalid pattern - variable conflicts with literal
     let invalid_pattern = Pattern::variable("else");
     assert!(validate_pattern(&invalid_pattern, &literals).is_err());
-    
+
     // Invalid pattern - duplicate variable binding
     let duplicate_pattern = Pattern::list(vec![
         Pattern::variable("x"),
         Pattern::variable("x"),
     ]);
-    
+
     // This should be caught by validation
     assert!(validate_pattern(&duplicate_pattern, &literals).is_err());
 }
@@ -294,46 +294,46 @@ fn test_pattern_validation() {
 #[test]
 fn test_template_variable_validation() {
     use std::collections::HashSet;
-    
+
     let mut pattern_vars = HashSet::new();
     pattern_vars.insert("x".to_string());
     pattern_vars.insert("y".to_string());
-    
+
     let ellipsis_vars = HashSet::new();
-    
+
     // Valid template - uses bound variables
     let valid_template = Template::list(vec![
         Template::identifier("result"),
         Template::variable("x"),
         Template::variable("y"),
     ]);
-    
+
     assert!(validate_template(&valid_template, &pattern_vars, &ellipsis_vars).is_ok());
-    
+
     // Invalid template - uses unbound variable
     let invalid_template = Template::list(vec![
         Template::identifier("result"),
         Template::variable("unbound"),
     ]);
-    
+
     assert!(validate_template(&invalid_template, &pattern_vars, &ellipsis_vars).is_err());
 }
 
 #[test]
 fn test_macro_expansion_recursion_prevention() {
     let mut expander = MacroExpander::new();
-    
+
     // Define a recursive macro
     let pattern = Pattern::list(vec![
         Pattern::identifier("recursive-macro"),
         Pattern::variable("x"),
     ]);
-    
+
     let template = Template::list(vec![
         Template::identifier("recursive-macro"),
         Template::variable("x"),
     ]);
-    
+
     let transformer = MacroTransformer {
         pattern,
         template,
@@ -341,9 +341,9 @@ fn test_macro_expansion_recursion_prevention() {
         name: Some("recursive-macro".to_string()),
         source: None,
     };
-    
+
     expander.define_macro("recursive-macro".to_string(), transformer);
-    
+
     // Try to expand - should detect infinite recursion
     let input_expr = make_spanned(Expr::Application {
         operator: Box::new(make_spanned(Expr::Identifier("recursive-macro".to_string()))),
@@ -351,10 +351,10 @@ fn test_macro_expansion_recursion_prevention() {
             make_spanned(Expr::Literal(Literal::Number(42.0))),
         ],
     });
-    
+
     let result = expander.expand(&input_expr);
     assert!(result.is_err());
-    
+
     // Error should mention recursive expansion
     let error_msg = format!("{:?}", result.unwrap_err());
     assert!(error_msg.contains("recursive") || error_msg.contains("Recursive"));
@@ -363,7 +363,7 @@ fn test_macro_expansion_recursion_prevention() {
 #[test]
 fn test_nested_macro_expansion() {
     let mut expander = MacroExpander::with_builtins();
-    
+
     // Test that macros can expand to other macros
     let input_expr = make_spanned(Expr::Application {
         operator: Box::new(make_spanned(Expr::Identifier("when".to_string()))),
@@ -383,10 +383,10 @@ fn test_nested_macro_expansion() {
             }),
         ],
     });
-    
+
     let result = expander.expand(&input_expr);
     assert!(result.is_ok());
-    
+
     // Result should be fully expanded (no more macro calls)
     let expanded = result.unwrap();
     // The exact structure depends on how when and let expand,
@@ -405,7 +405,7 @@ fn is_fully_expanded(expr: &Expr) -> bool {
                     return false;
                 }
             }
-            
+
             // Recursively check operands
             is_fully_expanded(&operator.inner) && operands.iter().all(|op| is_fully_expanded(&op.inner))
         }
@@ -413,7 +413,7 @@ fn is_fully_expanded(expr: &Expr) -> bool {
             body.iter().all(|expr| is_fully_expanded(&expr.inner))
         }
         Expr::If { test, consequent, alternative } => {
-            is_fully_expanded(&test.inner) 
+            is_fully_expanded(&test.inner)
                 && is_fully_expanded(&consequent.inner)
                 && alternative.as_ref().map_or(true, |alt| is_fully_expanded(&alt.inner))
         }

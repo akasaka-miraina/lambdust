@@ -4,15 +4,15 @@
 //! main expression evaluator, handling define/contract forms and contract
 //! checking during evaluation.
 
+use crate::ast::{Expr, Formals};
 use crate::contracts::{
-    ContractSystem, ContractConfig, ContractError, ContractResult,
+    ContractConfig, ContractError, ContractResult, ContractSystem,
     ast::ContractExpr,
-    blame::{BlameInfo, BlameTarget, BlameBoundary, BoundaryType},
+    blame::{BlameBoundary, BlameInfo, BlameTarget, BoundaryType},
     compiler::CompilationContext,
 };
-use crate::eval::{Value, Environment};
-use crate::ast::{Expr, Formals};
 use crate::diagnostics::{Span, Spanned};
+use crate::eval::{Environment, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -52,15 +52,12 @@ impl ContractEvaluator {
         );
 
         // Compile the contract
-        let compilation_context = CompilationContext::new(
-            self.contract_system.predicates.clone(),
-            blame.clone(),
-        );
-        
-        let compiled_contract = self.contract_system.compile_contract(
-            &contract.inner,
-            &compilation_context,
-        )?;
+        let compilation_context =
+            CompilationContext::new(self.contract_system.predicates.clone(), blame.clone());
+
+        let compiled_contract = self
+            .contract_system
+            .compile_contract(&contract.inner, &compilation_context)?;
 
         // Create the function value
         // TODO: This would need integration with the main evaluator
@@ -68,11 +65,9 @@ impl ContractEvaluator {
         let function_value = Value::Unspecified; // Placeholder
 
         // Wrap the function with contract checking
-        let wrapped_function = self.contract_system.wrap_with_contract(
-            function_value,
-            compiled_contract,
-            blame,
-        )?;
+        let wrapped_function =
+            self.contract_system
+                .wrap_with_contract(function_value, compiled_contract, blame)?;
 
         Ok(wrapped_function)
     }
@@ -84,17 +79,15 @@ impl ContractEvaluator {
         contract: &ContractExpr,
         blame: &BlameInfo,
     ) -> ContractResult<()> {
-        let compilation_context = CompilationContext::new(
-            self.contract_system.predicates.clone(),
-            blame.clone(),
-        );
-        
-        let compiled_contract = self.contract_system.compile_contract(
-            contract,
-            &compilation_context,
-        )?;
+        let compilation_context =
+            CompilationContext::new(self.contract_system.predicates.clone(), blame.clone());
 
-        self.contract_system.check_contract(value, &compiled_contract, blame)
+        let compiled_contract = self
+            .contract_system
+            .compile_contract(contract, &compilation_context)?;
+
+        self.contract_system
+            .check_contract(value, &compiled_contract, blame)
     }
 
     /// Enters a contract context.
@@ -170,7 +163,7 @@ mod tests {
     fn test_contract_evaluator_creation() {
         let config = ContractConfig::default();
         let evaluator = ContractEvaluator::new(config);
-        
+
         assert!(evaluator.active_contexts.is_empty());
     }
 
@@ -178,19 +171,19 @@ mod tests {
     fn test_contract_context_management() {
         let config = ContractConfig::default();
         let mut evaluator = ContractEvaluator::new(config);
-        
+
         assert!(evaluator.current_context().is_none());
-        
+
         let blame = BlameInfo::function_definition(
             "test".to_string(),
             None,
             Span::new(0, 10),
             "number?".to_string(),
         );
-        
+
         evaluator.enter_contract_context(blame.clone());
         assert!(evaluator.current_context().is_some());
-        
+
         let popped = evaluator.exit_contract_context();
         assert!(popped.is_some());
         assert!(evaluator.current_context().is_none());
@@ -200,24 +193,25 @@ mod tests {
     fn test_value_contract_checking() {
         let config = ContractConfig::default();
         let mut evaluator = ContractEvaluator::new(config);
-        
+
         let contract = ContractExpr::Predicate {
             name: "number?".to_string(),
             location: Span::new(0, 10),
         };
-        
+
         let blame = BlameInfo::function_definition(
             "test".to_string(),
             None,
             Span::new(0, 10),
             "number?".to_string(),
         );
-        
+
         let number_value = Value::Literal(crate::ast::Literal::Number(42.0));
         let result = evaluator.check_value_contract(&number_value, &contract, &blame);
         assert!(result.is_ok());
-        
-        let string_value = Value::Literal(crate::ast::Literal::String("hello".to_string()));
+
+        let string_value =
+            Value::Literal(crate::ast::Literal::String(Box::new("hello".to_string())));
         let result = evaluator.check_value_contract(&string_value, &contract, &blame);
         assert!(result.is_err());
     }

@@ -4,7 +4,7 @@
 //! locale-aware operations, collation, and comprehensive text processing.
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 
 #[cfg(feature = "text-processing")]
 use icu_collator::{Collator, CollatorOptions};
@@ -21,7 +21,9 @@ struct CollatorOptions;
 
 #[cfg(not(feature = "text-processing"))]
 impl CollatorOptions {
-    fn new() -> Self { Self }
+    fn new() -> Self {
+        Self
+    }
 }
 
 #[cfg(not(feature = "text-processing"))]
@@ -29,16 +31,16 @@ impl Collator {
     fn new(_options: &CollatorOptions) -> std::result::Result<Self, &'static str> {
         Ok(Self)
     }
-    
+
     fn compare(&self, a: &str, b: &str) -> Ordering {
         a.cmp(b)
     }
 }
 use crate::effects::Effect;
 use crate::stdlib::text::{Text, TextBuilder};
-use std::sync::Arc;
-use std::collections::HashMap;
 use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 
 // ============= INTERNATIONALIZATION SUPPORT =============
@@ -72,7 +74,7 @@ impl Clone for TextLocale {
 pub struct CaseMappingRules {
     /// Special uppercase mappings
     uppercase_mappings: HashMap<char, String>,
-    /// Special lowercase mappings  
+    /// Special lowercase mappings
     lowercase_mappings: HashMap<char, String>,
     /// Special titlecase mappings
     titlecase_mappings: HashMap<char, String>,
@@ -114,7 +116,7 @@ impl TextLocale {
             // This is a stub implementation for compilation
             let _strength = "primary"; // ICU uses different strength setting API
         }
-        
+
         #[cfg(feature = "text-processing")]
         let collator = {
             use icu_locid::locale;
@@ -122,12 +124,10 @@ impl TextLocale {
             let options = CollatorOptions::new();
             Collator::try_new(&locale_data.into(), options).ok()
         };
-        
+
         #[cfg(not(feature = "text-processing"))]
-        let collator = Collator::new(&collator_options)
-            .map(Some)
-            .unwrap_or(None);
-        
+        let collator = Collator::new(&collator_options).map(Some).unwrap_or(None);
+
         Ok(Self {
             language: language.to_string(),
             country: country.map(|s| s.to_string()),
@@ -135,7 +135,7 @@ impl TextLocale {
             case_mapping: CaseMappingRules::default(),
         })
     }
-    
+
     /// Gets the default system locale.
     pub fn system_default() -> Self {
         Self {
@@ -145,7 +145,7 @@ impl TextLocale {
             case_mapping: CaseMappingRules::default(),
         }
     }
-    
+
     /// Compares two texts according to locale collation rules.
     pub fn compare(&self, text1: &Text, text2: &Text) -> Ordering {
         match &self.collator {
@@ -157,11 +157,11 @@ impl TextLocale {
             None => text1.compare(text2),
         }
     }
-    
+
     /// Converts text to uppercase using locale-specific rules.
     pub fn to_uppercase(&self, text: &Text) -> Text {
         let s = text.to_string();
-        
+
         // Apply locale-specific uppercase mappings
         let mut result = String::new();
         for ch in s.chars() {
@@ -171,14 +171,14 @@ impl TextLocale {
                 result.extend(ch.to_uppercase());
             }
         }
-        
+
         Text::from_string(result)
     }
-    
+
     /// Converts text to lowercase using locale-specific rules.
     pub fn to_lowercase(&self, text: &Text) -> Text {
         let s = text.to_string();
-        
+
         // Apply locale-specific lowercase mappings
         let mut result = String::new();
         for ch in s.chars() {
@@ -188,16 +188,16 @@ impl TextLocale {
                 result.extend(ch.to_lowercase());
             }
         }
-        
+
         Text::from_string(result)
     }
-    
+
     /// Converts text to titlecase using locale-specific rules.
     pub fn to_titlecase(&self, text: &Text) -> Text {
         let s = text.to_string();
         let mut result = String::new();
         let mut word_start = true;
-        
+
         for ch in s.chars() {
             if ch.is_whitespace() {
                 result.push(ch);
@@ -213,7 +213,7 @@ impl TextLocale {
                 result.extend(ch.to_lowercase());
             }
         }
-        
+
         Text::from_string(result)
     }
 }
@@ -223,17 +223,17 @@ impl Default for CaseMappingRules {
         let mut uppercase_mappings = HashMap::new();
         let mut lowercase_mappings = HashMap::new();
         let titlecase_mappings = HashMap::new();
-        
+
         // Add some common special case mappings
         // German eszett
         uppercase_mappings.insert('ß', "SS".to_string());
-        
+
         // Turkish i/I
         if std::env::var("LANG").unwrap_or_default().starts_with("tr") {
             uppercase_mappings.insert('i', "İ".to_string());
             lowercase_mappings.insert('I', "ı".to_string());
         }
-        
+
         Self {
             uppercase_mappings,
             lowercase_mappings,
@@ -251,17 +251,17 @@ impl TextCursor {
             boundary_type,
         }
     }
-    
+
     /// Gets the current position.
     pub fn position(&self) -> usize {
         self.position
     }
-    
+
     /// Gets the text being iterated.
     pub fn text(&self) -> &Text {
         &self.text
     }
-    
+
     /// Moves to the next boundary.
     pub fn advance(&mut self) -> bool {
         match self.boundary_type {
@@ -276,7 +276,7 @@ impl TextCursor {
             BoundaryType::Grapheme => {
                 let s = self.text.to_string();
                 let indices = s.grapheme_indices(true);
-                
+
                 // Find current position and move to next
                 let mut found_current = false;
                 for (i, _) in indices {
@@ -288,7 +288,7 @@ impl TextCursor {
                         found_current = true;
                     }
                 }
-                
+
                 if found_current && self.position < self.text.char_length() {
                     self.position = self.text.char_length();
                     true
@@ -298,7 +298,8 @@ impl TextCursor {
             }
             BoundaryType::Word => {
                 let s = self.text.to_string();
-                let word_indices: Vec<usize> = s.split_word_bounds()
+                let word_indices: Vec<usize> = s
+                    .split_word_bounds()
                     .collect::<Vec<&str>>()
                     .iter()
                     .scan(0, |acc, word| {
@@ -307,7 +308,7 @@ impl TextCursor {
                         Some(start)
                     })
                     .collect();
-                
+
                 for &idx in &word_indices {
                     if idx > self.position {
                         self.position = idx;
@@ -319,7 +320,7 @@ impl TextCursor {
             _ => false, // Sentence and line boundaries need more complex logic
         }
     }
-    
+
     /// Moves to the previous boundary.
     pub fn previous(&mut self) -> bool {
         match self.boundary_type {
@@ -333,10 +334,11 @@ impl TextCursor {
             }
             BoundaryType::Grapheme => {
                 let s = self.text.to_string();
-                let indices: Vec<usize> = s.grapheme_indices(true)
+                let indices: Vec<usize> = s
+                    .grapheme_indices(true)
                     .map(|(i, _)| s[..i].chars().count())
                     .collect();
-                
+
                 for &idx in indices.iter().rev() {
                     if idx < self.position {
                         self.position = idx;
@@ -347,7 +349,8 @@ impl TextCursor {
             }
             BoundaryType::Word => {
                 let s = self.text.to_string();
-                let word_indices: Vec<usize> = s.split_word_bounds()
+                let word_indices: Vec<usize> = s
+                    .split_word_bounds()
                     .collect::<Vec<&str>>()
                     .iter()
                     .scan(0, |acc, word| {
@@ -356,7 +359,7 @@ impl TextCursor {
                         Some(start)
                     })
                     .collect();
-                
+
                 for &idx in word_indices.iter().rev() {
                     if idx < self.position {
                         self.position = idx;
@@ -368,17 +371,17 @@ impl TextCursor {
             _ => false,
         }
     }
-    
+
     /// Gets the character at the current position.
     pub fn current_char(&self) -> Option<char> {
         self.text.char_at(self.position)
     }
-    
+
     /// Gets text from current position to next boundary.
     pub fn current_segment(&self) -> Option<Text> {
         let mut temp_cursor = self.clone();
         let start = self.position;
-        
+
         if temp_cursor.advance() {
             self.text.substring(start, temp_cursor.position)
         } else if start < self.text.char_length() {
@@ -398,27 +401,27 @@ impl TextRange {
             boundary_type,
         }
     }
-    
+
     /// Gets the start position.
     pub fn start(&self) -> usize {
         self.start
     }
-    
+
     /// Gets the end position.
     pub fn end(&self) -> usize {
         self.end
     }
-    
+
     /// Gets the length of the range.
     pub fn length(&self) -> usize {
         self.end - self.start
     }
-    
+
     /// Checks if the range is empty.
     pub fn is_empty(&self) -> bool {
         self.start == self.end
     }
-    
+
     /// Extracts the text covered by this range.
     pub fn extract_text(&self, text: &Text) -> Option<Text> {
         text.substring(self.start, self.end)
@@ -431,34 +434,34 @@ impl TextRange {
 pub fn create_complete_srfi135_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // Constructor procedures
     bind_srfi135_constructors(env);
-    
-    // Predicate procedures  
+
+    // Predicate procedures
     bind_srfi135_predicates(env);
-    
+
     // Selection procedures
     bind_srfi135_selection(env);
-    
+
     // Comparison procedures
     bind_srfi135_comparison(env);
-    
+
     // Prefix and suffix procedures
     bind_srfi135_prefix_suffix(env);
-    
+
     // Searching procedures
     bind_srfi135_searching(env);
-    
+
     // Case conversion procedures
     bind_srfi135_case_conversion(env);
-    
+
     // Reverse and replace procedures
     bind_srfi135_reverse_replace(env);
-    
+
     // Splitting and concatenation
     bind_srfi135_split_concat(env);
-    
+
     // Locale-aware procedures
     bind_srfi135_locale_aware(env);
-    
+
     // Cursor and range procedures
     bind_srfi135_cursor_range(env);
 }
@@ -466,376 +469,490 @@ pub fn create_complete_srfi135_bindings(env: &Arc<ThreadSafeEnvironment>) {
 /// Binds SRFI-135 constructor procedures.
 fn bind_srfi135_constructors(env: &Arc<ThreadSafeEnvironment>) {
     // textual-empty?
-    env.define("textual-empty?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-empty?".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_empty_p),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-empty?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-empty?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_empty_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-length
-    env.define("textual-length".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-length".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_length),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-length".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-length".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_length),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-ref
-    env.define("textual-ref".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-ref".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_ref),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-ref".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-ref".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_ref),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds SRFI-135 predicate procedures.
 fn bind_srfi135_predicates(env: &Arc<ThreadSafeEnvironment>) {
     // textual?
-    env.define("textual?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual?".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_p),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-every
-    env.define("textual-every".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-every".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_textual_every),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-every".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-every".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_textual_every),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-any
-    env.define("textual-any".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-any".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_textual_any),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-any".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-any".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_textual_any),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds SRFI-135 selection procedures.
 fn bind_srfi135_selection(env: &Arc<ThreadSafeEnvironment>) {
     // textual-take
-    env.define("textual-take".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-take".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_take),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-take".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-take".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_take),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-drop
-    env.define("textual-drop".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-drop".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_drop),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-drop".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-drop".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_drop),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-take-right
-    env.define("textual-take-right".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-take-right".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_take_right),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-take-right".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-take-right".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_take_right),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-drop-right
-    env.define("textual-drop-right".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-drop-right".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_drop_right),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-drop-right".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-drop-right".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_drop_right),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds SRFI-135 comparison procedures.
 fn bind_srfi135_comparison(env: &Arc<ThreadSafeEnvironment>) {
     // textual-compare
-    env.define("textual-compare".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-compare".to_string(),
-        arity_min: 5,
-        arity_max: Some(7),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_compare),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-compare".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-compare".to_string(),
+            arity_min: 5,
+            arity_max: Some(7),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_compare),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-compare-ci
-    env.define("textual-compare-ci".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-compare-ci".to_string(),
-        arity_min: 5,
-        arity_max: Some(7),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_compare_ci),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-compare-ci".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-compare-ci".to_string(),
+            arity_min: 5,
+            arity_max: Some(7),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_compare_ci),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds SRFI-135 prefix and suffix procedures.
 fn bind_srfi135_prefix_suffix(env: &Arc<ThreadSafeEnvironment>) {
     // textual-prefix-length
-    env.define("textual-prefix-length".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-prefix-length".to_string(),
-        arity_min: 2,
-        arity_max: Some(6),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_prefix_length),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-prefix-length".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-prefix-length".to_string(),
+            arity_min: 2,
+            arity_max: Some(6),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_prefix_length),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-suffix-length
-    env.define("textual-suffix-length".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-suffix-length".to_string(),
-        arity_min: 2,
-        arity_max: Some(6),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_suffix_length),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-suffix-length".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-suffix-length".to_string(),
+            arity_min: 2,
+            arity_max: Some(6),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_suffix_length),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-prefix?
-    env.define("textual-prefix?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-prefix?".to_string(),
-        arity_min: 2,
-        arity_max: Some(6),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_prefix_p),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-prefix?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-prefix?".to_string(),
+            arity_min: 2,
+            arity_max: Some(6),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_prefix_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-suffix?
-    env.define("textual-suffix?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-suffix?".to_string(),
-        arity_min: 2,
-        arity_max: Some(6),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_suffix_p),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-suffix?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-suffix?".to_string(),
+            arity_min: 2,
+            arity_max: Some(6),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_suffix_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds SRFI-135 searching procedures.
 fn bind_srfi135_searching(env: &Arc<ThreadSafeEnvironment>) {
     // textual-index
-    env.define("textual-index".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-index".to_string(),
-        arity_min: 2,
-        arity_max: Some(4),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_index),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-index".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-index".to_string(),
+            arity_min: 2,
+            arity_max: Some(4),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_index),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-index-right
-    env.define("textual-index-right".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-index-right".to_string(),
-        arity_min: 2,
-        arity_max: Some(4),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_index_right),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-index-right".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-index-right".to_string(),
+            arity_min: 2,
+            arity_max: Some(4),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_index_right),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-skip
-    env.define("textual-skip".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-skip".to_string(),
-        arity_min: 2,
-        arity_max: Some(4),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_skip),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-skip".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-skip".to_string(),
+            arity_min: 2,
+            arity_max: Some(4),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_skip),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-skip-right
-    env.define("textual-skip-right".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-skip-right".to_string(),
-        arity_min: 2,
-        arity_max: Some(4),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_skip_right),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-skip-right".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-skip-right".to_string(),
+            arity_min: 2,
+            arity_max: Some(4),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_skip_right),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-contains
-    env.define("textual-contains".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-contains".to_string(),
-        arity_min: 2,
-        arity_max: Some(6),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_contains),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-contains".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-contains".to_string(),
+            arity_min: 2,
+            arity_max: Some(6),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_contains),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds SRFI-135 case conversion procedures.
 fn bind_srfi135_case_conversion(env: &Arc<ThreadSafeEnvironment>) {
     // textual-upcase
-    env.define("textual-upcase".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-upcase".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_upcase),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-upcase".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-upcase".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_upcase),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-downcase
-    env.define("textual-downcase".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-downcase".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_downcase),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-downcase".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-downcase".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_downcase),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-foldcase
-    env.define("textual-foldcase".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-foldcase".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_foldcase),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-foldcase".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-foldcase".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_foldcase),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-titlecase
-    env.define("textual-titlecase".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-titlecase".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_titlecase),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-titlecase".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-titlecase".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_titlecase),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds SRFI-135 reverse and replace procedures.
 fn bind_srfi135_reverse_replace(env: &Arc<ThreadSafeEnvironment>) {
     // textual-reverse
-    env.define("textual-reverse".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-reverse".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_reverse),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-reverse".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-reverse".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_reverse),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-replace
-    env.define("textual-replace".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-replace".to_string(),
-        arity_min: 4,
-        arity_max: Some(6),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_replace),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-replace".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-replace".to_string(),
+            arity_min: 4,
+            arity_max: Some(6),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_replace),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds SRFI-135 splitting and concatenation procedures.
 fn bind_srfi135_split_concat(env: &Arc<ThreadSafeEnvironment>) {
     // textual-split
-    env.define("textual-split".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-split".to_string(),
-        arity_min: 2,
-        arity_max: Some(6),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_split),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-split".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-split".to_string(),
+            arity_min: 2,
+            arity_max: Some(6),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_split),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-concatenate
-    env.define("textual-concatenate".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-concatenate".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_concatenate),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-concatenate".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-concatenate".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_concatenate),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-concatenate-reverse
-    env.define("textual-concatenate-reverse".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-concatenate-reverse".to_string(),
-        arity_min: 1,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_concatenate_reverse),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-concatenate-reverse".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-concatenate-reverse".to_string(),
+            arity_min: 1,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_concatenate_reverse),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds SRFI-135 locale-aware procedures.
 fn bind_srfi135_locale_aware(env: &Arc<ThreadSafeEnvironment>) {
     // textual-locale-compare
-    env.define("textual-locale-compare".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-locale-compare".to_string(),
-        arity_min: 3,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_locale_compare),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-locale-compare".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-locale-compare".to_string(),
+            arity_min: 3,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_locale_compare),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-locale-upcase
-    env.define("textual-locale-upcase".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-locale-upcase".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_locale_upcase),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-locale-upcase".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-locale-upcase".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_locale_upcase),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-locale-downcase
-    env.define("textual-locale-downcase".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-locale-downcase".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_locale_downcase),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-locale-downcase".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-locale-downcase".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_locale_downcase),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-locale-titlecase
-    env.define("textual-locale-titlecase".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-locale-titlecase".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_locale_titlecase),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-locale-titlecase".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-locale-titlecase".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_locale_titlecase),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Binds SRFI-135 cursor and range procedures.
 fn bind_srfi135_cursor_range(env: &Arc<ThreadSafeEnvironment>) {
     // textual-cursor-start
-    env.define("textual-cursor-start".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-cursor-start".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_cursor_start),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-cursor-start".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-cursor-start".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_cursor_start),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-cursor-end
-    env.define("textual-cursor-end".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-cursor-end".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_cursor_end),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-cursor-end".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-cursor-end".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_cursor_end),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-cursor-next
-    env.define("textual-cursor-next".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-cursor-next".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_cursor_next),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "textual-cursor-next".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-cursor-next".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_cursor_next),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // textual-cursor-prev
-    env.define("textual-cursor-prev".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "textual-cursor-prev".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_textual_cursor_prev),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "textual-cursor-prev".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "textual-cursor-prev".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_textual_cursor_prev),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 // ============= PRIMITIVE IMPLEMENTATIONS =============
@@ -848,7 +965,7 @@ fn primitive_textual_empty_p(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(Value::boolean(text.is_empty()))
 }
@@ -861,7 +978,7 @@ fn primitive_textual_length(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(Value::integer(text.char_length() as i64))
 }
@@ -874,7 +991,7 @@ fn primitive_textual_ref(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     let index = args[1].as_integer().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
@@ -882,7 +999,7 @@ fn primitive_textual_ref(args: &[Value]) -> Result<Value> {
             None,
         ))
     })? as usize;
-    
+
     match text.char_at(index) {
         Some(ch) => Ok(Value::Literal(crate::ast::Literal::Character(ch))),
         None => Err(Box::new(DiagnosticError::runtime_error(
@@ -900,7 +1017,7 @@ fn primitive_textual_p(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let is_textual = matches!(args[0], Value::Literal(crate::ast::Literal::String(_)));
     Ok(Value::boolean(is_textual))
 }
@@ -914,7 +1031,7 @@ fn primitive_textual_every(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Simplified implementation
     Ok(Value::boolean(true))
 }
@@ -926,7 +1043,7 @@ fn primitive_textual_any(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Simplified implementation
     Ok(Value::boolean(false))
 }
@@ -938,7 +1055,7 @@ fn primitive_textual_take(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     let n = args[1].as_integer().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
@@ -946,7 +1063,7 @@ fn primitive_textual_take(args: &[Value]) -> Result<Value> {
             None,
         ))
     })? as usize;
-    
+
     match text.substring(0, n.min(text.char_length())) {
         Some(result) => Ok(result.into()),
         None => Ok(Text::new().into()),
@@ -960,7 +1077,7 @@ fn primitive_textual_drop(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     let n = args[1].as_integer().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
@@ -968,7 +1085,7 @@ fn primitive_textual_drop(args: &[Value]) -> Result<Value> {
             None,
         ))
     })? as usize;
-    
+
     let start = n.min(text.char_length());
     match text.substring(start, text.char_length()) {
         Some(result) => Ok(result.into()),
@@ -983,7 +1100,7 @@ fn primitive_textual_take_right(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     let n = args[1].as_integer().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
@@ -991,10 +1108,10 @@ fn primitive_textual_take_right(args: &[Value]) -> Result<Value> {
             None,
         ))
     })? as usize;
-    
+
     let len = text.char_length();
     let start = len.saturating_sub(n);
-    
+
     match text.substring(start, len) {
         Some(result) => Ok(result.into()),
         None => Ok(Text::new().into()),
@@ -1008,7 +1125,7 @@ fn primitive_textual_drop_right(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     let n = args[1].as_integer().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
@@ -1016,10 +1133,10 @@ fn primitive_textual_drop_right(args: &[Value]) -> Result<Value> {
             None,
         ))
     })? as usize;
-    
+
     let len = text.char_length();
     let end = len.saturating_sub(n);
-    
+
     match text.substring(0, end) {
         Some(result) => Ok(result.into()),
         None => Ok(Text::new().into()),
@@ -1082,7 +1199,7 @@ fn primitive_textual_upcase(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(text.to_uppercase().into())
 }
@@ -1094,7 +1211,7 @@ fn primitive_textual_downcase(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(text.to_lowercase().into())
 }
@@ -1106,7 +1223,7 @@ fn primitive_textual_foldcase(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(text.fold_case().into())
 }
@@ -1118,7 +1235,7 @@ fn primitive_textual_titlecase(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(text.to_titlecase().into())
 }
@@ -1130,7 +1247,7 @@ fn primitive_textual_reverse(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text = Text::try_from(&args[0])?;
     Ok(text.reverse().into())
 }
@@ -1152,21 +1269,21 @@ fn primitive_textual_concatenate(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let text_list = args[0].as_list().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             "textual-concatenate argument must be a list".to_string(),
             None,
         ))
     })?;
-    
+
     let mut builder = TextBuilder::new();
-    
+
     for item in text_list {
         let text = Text::try_from(&item)?;
         builder.push_text(&text);
     }
-    
+
     Ok(builder.build().into())
 }
 
@@ -1230,7 +1347,7 @@ mod tests {
     fn test_text_cursor() {
         let text = Text::from_string_slice("hello world");
         let mut cursor = TextCursor::new(text, BoundaryType::Character);
-        
+
         assert_eq!(cursor.position(), 0);
         assert!(cursor.advance());
         assert_eq!(cursor.position(), 1);
@@ -1250,13 +1367,13 @@ mod tests {
     #[test]
     fn test_textual_take_drop() {
         let hello = Text::from_string_slice("hello");
-        
+
         // Simulate the primitive calls
         let take_args = vec![hello.clone().into(), Value::integer(3)];
         let result = primitive_textual_take(&take_args).unwrap();
         let result_text = Text::try_from(&result).unwrap();
         assert_eq!(result_text.to_string(), "hel");
-        
+
         let drop_args = vec![hello.into(), Value::integer(2)];
         let result = primitive_textual_drop(&drop_args).unwrap();
         let result_text = Text::try_from(&result).unwrap();

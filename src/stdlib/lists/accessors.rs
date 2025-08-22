@@ -1,8 +1,8 @@
 //! List accessor functions (list-ref, length, list-tail, etc.)
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
 use crate::effects::Effect;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use std::sync::Arc;
 
 /// Binds list accessors.
@@ -15,43 +15,55 @@ pub fn bind_list_accessors(env: &Arc<ThreadSafeEnvironment>) {
         ("cddr", make_car_cdr_combination("cddr")),
         // Add more as needed
     ];
-    
+
     for (name, func) in combinations {
-        env.define(name.to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-            name: name.to_string(),
+        env.define(
+            name.to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: name.to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(func),
+                effects: vec![Effect::Pure],
+            })),
+        );
+    }
+
+    // list-ref
+    env.define(
+        "list-ref".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "list-ref".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_list_ref),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
+    // list-tail
+    env.define(
+        "list-tail".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "list-tail".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_list_tail),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
+    // length
+    env.define(
+        "length".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "length".to_string(),
             arity_min: 1,
             arity_max: Some(1),
-            implementation: PrimitiveImpl::RustFn(func),
+            implementation: PrimitiveImpl::RustFn(primitive_length),
             effects: vec![Effect::Pure],
-        })));
-    }
-    
-    // list-ref
-    env.define("list-ref".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "list-ref".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_list_ref),
-        effects: vec![Effect::Pure],
-    })));
-    
-    // list-tail
-    env.define("list-tail".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "list-tail".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_list_tail),
-        effects: vec![Effect::Pure],
-    })));
-    
-    // length
-    env.define("length".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "length".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_length),
-        effects: vec![Effect::Pure],
-    })));
+        })),
+    );
 }
 
 /// Creates a car/cdr combination function
@@ -81,7 +93,7 @@ fn make_car_cdr_combination(name: &str) -> fn(&[Value]) -> Result<Value> {
                 )))
             }
             unknown_combination
-        },
+        }
     }
 }
 
@@ -93,11 +105,11 @@ fn primitive_car(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     match &args[0] {
         Value::Pair(car, _) => Ok((**car).clone()),
         Value::MutablePair(car_ref, _) => {
-            if let Ok(car) = car_ref.read() {
+            if let Ok(car) = car_ref.try_borrow() {
                 Ok(car.clone())
             } else {
                 Err(Box::new(DiagnosticError::runtime_error(
@@ -120,11 +132,11 @@ fn primitive_cdr(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     match &args[0] {
         Value::Pair(_, cdr) => Ok((**cdr).clone()),
         Value::MutablePair(_, cdr_ref) => {
-            if let Ok(cdr) = cdr_ref.read() {
+            if let Ok(cdr) = cdr_ref.try_borrow() {
                 Ok(cdr.clone())
             } else {
                 Err(Box::new(DiagnosticError::runtime_error(
@@ -148,24 +160,24 @@ fn primitive_list_ref(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let index = args[1].as_integer().ok_or_else(|| {
         DiagnosticError::runtime_error(
             "list-ref index must be a non-negative integer".to_string(),
             None,
         )
     })?;
-    
+
     if index < 0 {
         return Err(Box::new(DiagnosticError::runtime_error(
             "list-ref index must be non-negative".to_string(),
             None,
         )));
     }
-    
+
     let mut current = &args[0];
     let mut i = 0;
-    
+
     while i < index {
         match current {
             Value::Pair(_, cdr) => {
@@ -197,11 +209,11 @@ fn primitive_list_ref(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     match current {
         Value::Pair(car, _) => Ok((**car).clone()),
         Value::MutablePair(car_ref, _) => {
-            if let Ok(car) = car_ref.read() {
+            if let Ok(car) = car_ref.try_borrow() {
                 Ok(car.clone())
             } else {
                 Err(Box::new(DiagnosticError::runtime_error(
@@ -225,24 +237,24 @@ fn primitive_list_tail(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let k = args[1].as_integer().ok_or_else(|| {
         DiagnosticError::runtime_error(
             "list-tail k must be a non-negative integer".to_string(),
             None,
         )
     })?;
-    
+
     if k < 0 {
         return Err(Box::new(DiagnosticError::runtime_error(
             "list-tail k must be non-negative".to_string(),
             None,
         )));
     }
-    
+
     let mut current = args[0].clone();
     let mut i = 0;
-    
+
     while i < k {
         match current {
             Value::Pair(_, cdr) => {
@@ -257,7 +269,7 @@ fn primitive_list_tail(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     Ok(current)
 }
 
@@ -269,10 +281,10 @@ fn primitive_length(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let mut current = &args[0];
     let mut length = 0;
-    
+
     loop {
         match current {
             Value::Nil => break,
@@ -299,6 +311,6 @@ fn primitive_length(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     Ok(Value::integer(length))
 }

@@ -11,19 +11,19 @@
 //! ├── ゼロコピー文字列操作
 //! ├── エラーハンドリング
 //! └── Span情報管理
-//! 
+//!
 //! Combinator Layer (combinator.rs)
 //! ├── 基本コンビネータ
 //! ├── シーケンス操作
 //! ├── 選択・分岐
 //! └── 繰り返し処理
-//! 
+//!
 //! Scheme-Specific Layer (scheme.rs)
 //! ├── S式パーサー
 //! ├── リスト処理
 //! ├── アトム解析
 //! └── 特殊構文
-//! 
+//!
 //! Integration Layer (nom_compat.rs)
 //! ├── nom API互換
 //! ├── 移行支援
@@ -43,13 +43,13 @@
 //!
 //! ```rust
 //! use lambdust::parser::combinators::*;
-//! 
+//!
 //! // 基本的なパーサーコンビネータ
 //! let parser = tag("define")
 //!     .and(whitespace1())
 //!     .and(identifier())
 //!     .and(expression());
-//! 
+//!
 //! // Scheme特化パーサー
 //! let scheme_parser = s_expression()
 //!     .or(atom())
@@ -82,8 +82,8 @@ pub mod builder;
 // mod tests;
 
 // モジュールのre-export
-pub use primitive::*;
 pub use combinator::*;
+pub use primitive::*;
 pub use scheme::*;
 // pub use nom_compat::*;  // 廃止済み
 pub use builder::*;
@@ -92,16 +92,16 @@ pub use builder::*;
 /// パーサーコンビネータで使用する基本型定義
 pub mod types {
     use crate::diagnostics::{Error, Span};
-    
+
     /// パーサー入力 - ゼロコピー文字列スライス
     pub type Input<'a> = &'a str;
-    
+
     /// パーサー結果 - 成功時は残り入力と解析値、失敗時はエラー
     pub type ParseResult<'a, T> = Result<(Input<'a>, T), Box<ParseError>>;
-    
+
     /// パーサー関数型 - 入力を受け取って結果を返す
     pub type Parser<'a, T> = Box<dyn Fn(Input<'a>) -> ParseResult<'a, T>>;
-    
+
     /// パーサーエラー - span情報付き詳細エラー
     #[derive(Debug, Clone)]
     pub struct ParseError {
@@ -116,7 +116,7 @@ pub mod types {
         /// Context stack showing the parsing context
         pub context: Vec<String>,
     }
-    
+
     impl ParseError {
         /// 新しいパーサーエラーを作成
         pub fn new(message: String, span: Span) -> Self {
@@ -128,19 +128,19 @@ pub mod types {
                 context: Vec::new(),
             }
         }
-        
+
         /// 期待される入力を追加
         pub fn with_expected(mut self, expected: String) -> Self {
             self.expected.push(expected);
             self
         }
-        
+
         /// 実際の入力を設定
         pub fn with_actual(mut self, actual: String) -> Self {
             self.actual = actual;
             self
         }
-        
+
         /// コンテキストを追加
         pub fn with_context(mut self, context: String) -> Self {
             self.context.push(context);

@@ -4,12 +4,11 @@
 //! ensuring R7RS compliance by guaranteeing constant stack space usage for tail recursion.
 
 use crate::ast::{Expr, Formals};
+use crate::diagnostics::{Error, Result};
 use crate::jit::{
-    code_generator::NativeCode,
-    compilation_tiers::CompilationTier,
+    code_generator::NativeCode, compilation_tiers::CompilationTier,
     specialized_compilation_tiers::SpecializedNativeCode,
 };
-use crate::diagnostics::{Result, Error};
 use std::collections::{HashMap, HashSet};
 
 /// Tail call optimization analyzer and transformer
@@ -221,7 +220,7 @@ pub struct FrameEliminationOpportunity {
 pub struct PerformanceBenefit {
     /// Runtime speedup factor
     pub speedup_factor: f64,
-    /// Memory usage reduction factor  
+    /// Memory usage reduction factor
     pub memory_reduction_factor: f64,
     /// Stack overflow prevention benefit
     pub prevents_stack_overflow: bool,
@@ -309,7 +308,7 @@ pub enum TailCallComplianceLevel {
 
 /// Statistics about tail call optimization
 #[derive(Debug, Default)]
-struct TailCallStats {
+pub struct TailCallStats {
     /// Total functions analyzed
     functions_analyzed: u64,
     /// Tail calls identified
@@ -344,7 +343,11 @@ impl TailCallOptimizer {
     }
 
     /// Analyze an expression for tail call optimization opportunities
-    pub fn analyze_expression(&mut self, expr: &Expr, function_name: &str) -> Result<TailCallAnalysis> {
+    pub fn analyze_expression(
+        &mut self,
+        expr: &Expr,
+        function_name: &str,
+    ) -> Result<TailCallAnalysis> {
         // Check cache first
         if let Some(cached) = self.analysis_cache.get(function_name) {
             return Ok(cached.clone());
@@ -371,20 +374,21 @@ impl TailCallOptimizer {
 
         // Perform tail position analysis
         self.analyze_tail_positions(expr, function_name, &mut analysis, true)?;
-        
+
         // Analyze self-recursion patterns
         let tail_calls = analysis.tail_call_sites.clone();
         self.analyze_self_recursion(&tail_calls, function_name, &mut analysis)?;
-        
+
         // Estimate performance benefits
         analysis.estimated_benefit = self.estimate_performance_benefit(&analysis)?;
-        
+
         // Check R7RS compliance
         analysis.r7rs_compliance = self.check_r7rs_compliance(&analysis)?;
-        
+
         // Cache the result
-        self.analysis_cache.insert(function_name.to_string(), analysis.clone());
-        
+        self.analysis_cache
+            .insert(function_name.to_string(), analysis.clone());
+
         // Update statistics
         self.stats.functions_analyzed += 1;
         self.stats.tail_calls_identified += analysis.tail_call_sites.len() as u64;
@@ -394,19 +398,20 @@ impl TailCallOptimizer {
 
     /// Analyze tail positions in an expression
     fn analyze_tail_positions(
-        &self, 
-        expr: &Expr, 
-        function_name: &str, 
-        analysis: &mut TailCallAnalysis, 
-        is_tail_position: bool
+        &self,
+        expr: &Expr,
+        function_name: &str,
+        analysis: &mut TailCallAnalysis,
+        is_tail_position: bool,
     ) -> Result<()> {
         match expr {
             Expr::Application { operator, operands } => {
                 if is_tail_position {
                     // This is a tail call
                     let call_type = self.determine_call_type(operator, function_name)?;
-                    let optimization_strategy = self.determine_optimization_strategy(&call_type, operator)?;
-                    
+                    let optimization_strategy =
+                        self.determine_optimization_strategy(&call_type, operator)?;
+
                     let tail_call = TailCallSite {
                         location: TailCallLocation {
                             containing_function: function_name.to_string(),
@@ -418,48 +423,77 @@ impl TailCallOptimizer {
                         optimization_strategy,
                         performance_improvement: 2.0, // Default estimate
                     };
-                    
+
                     analysis.tail_call_sites.push(tail_call);
                 }
-                
+
                 // Analyze operands (not in tail position)
                 for operand in operands {
                     self.analyze_tail_positions(&operand.inner, function_name, analysis, false)?;
                 }
             }
-            
-            Expr::If { test, consequent, alternative } => {
+
+            Expr::If {
+                test,
+                consequent,
+                alternative,
+            } => {
                 // Test is not in tail position
                 self.analyze_tail_positions(&test.inner, function_name, analysis, false)?;
-                
+
                 // Both branches preserve tail position
-                self.analyze_tail_positions(&consequent.inner, function_name, analysis, is_tail_position)?;
+                self.analyze_tail_positions(
+                    &consequent.inner,
+                    function_name,
+                    analysis,
+                    is_tail_position,
+                )?;
                 if let Some(alt) = alternative {
-                    self.analyze_tail_positions(&alt.inner, function_name, analysis, is_tail_position)?;
+                    self.analyze_tail_positions(
+                        &alt.inner,
+                        function_name,
+                        analysis,
+                        is_tail_position,
+                    )?;
                 }
             }
-            
+
             Expr::Begin(exprs) => {
                 // Only the last expression is in tail position
                 for (i, expr) in exprs.iter().enumerate() {
                     let is_last = i == exprs.len() - 1;
-                    self.analyze_tail_positions(&expr.inner, function_name, analysis, is_tail_position && is_last)?;
+                    self.analyze_tail_positions(
+                        &expr.inner,
+                        function_name,
+                        analysis,
+                        is_tail_position && is_last,
+                    )?;
                 }
             }
-            
+
             Expr::Let { bindings, body } => {
                 // Binding values are not in tail position
                 for binding in bindings {
-                    self.analyze_tail_positions(&binding.value.inner, function_name, analysis, false)?;
+                    self.analyze_tail_positions(
+                        &binding.value.inner,
+                        function_name,
+                        analysis,
+                        false,
+                    )?;
                 }
-                
+
                 // Body expressions preserve tail position
                 for (i, expr) in body.iter().enumerate() {
                     let is_last = i == body.len() - 1;
-                    self.analyze_tail_positions(&expr.inner, function_name, analysis, is_tail_position && is_last)?;
+                    self.analyze_tail_positions(
+                        &expr.inner,
+                        function_name,
+                        analysis,
+                        is_tail_position && is_last,
+                    )?;
                 }
             }
-            
+
             Expr::Lambda { body, .. } => {
                 // Lambda bodies are separate tail contexts
                 for (i, expr) in body.iter().enumerate() {
@@ -467,12 +501,12 @@ impl TailCallOptimizer {
                     self.analyze_tail_positions(&expr.inner, "lambda", analysis, is_last)?;
                 }
             }
-            
+
             _ => {
                 // Other expressions don't contain tail calls
             }
         }
-        
+
         Ok(())
     }
 
@@ -491,25 +525,27 @@ impl TailCallOptimizer {
     }
 
     /// Determine optimization strategy for a call type
-    fn determine_optimization_strategy(&self, call_type: &TailCallType, operator: &Expr) -> Result<TailCallOptimizationStrategy> {
+    fn determine_optimization_strategy(
+        &self,
+        call_type: &TailCallType,
+        operator: &Expr,
+    ) -> Result<TailCallOptimizationStrategy> {
         match call_type {
-            TailCallType::SelfRecursive => {
-                Ok(TailCallOptimizationStrategy::JumpReplacement {
-                    target_label: "function_start".to_string(),
-                    stack_adjustments: vec![
-                        StackAdjustment {
-                            adjustment_type: StackAdjustmentType::DeallocateLocals,
-                            offset: -8,
-                            size: 64,
-                        },
-                        StackAdjustment {
-                            adjustment_type: StackAdjustmentType::AdjustArguments,
-                            offset: 0,
-                            size: 32,
-                        },
-                    ],
-                })
-            }
+            TailCallType::SelfRecursive => Ok(TailCallOptimizationStrategy::JumpReplacement {
+                target_label: "function_start".to_string(),
+                stack_adjustments: vec![
+                    StackAdjustment {
+                        adjustment_type: StackAdjustmentType::DeallocateLocals,
+                        offset: -8,
+                        size: 64,
+                    },
+                    StackAdjustment {
+                        adjustment_type: StackAdjustmentType::AdjustArguments,
+                        offset: 0,
+                        size: 32,
+                    },
+                ],
+            }),
             TailCallType::MutuallyRecursive => {
                 Ok(TailCallOptimizationStrategy::Trampoline {
                     trampoline_name: "mutual_recursion_trampoline".to_string(),
@@ -550,24 +586,32 @@ impl TailCallOptimizer {
                     estimated_depth: None,
                     memory_pattern: MemoryUsagePattern::Constant, // Optimistic assumption
                 };
-                
+
                 analysis.self_recursive_calls.push(self_recursive);
-                
+
                 // Add frame elimination opportunity
-                analysis.frame_elimination_opportunities.push(FrameEliminationOpportunity {
-                    function_name: function_name.to_string(),
-                    eliminable_slots: vec!["return_address".to_string(), "frame_pointer".to_string()],
-                    memory_savings: 16, // 2 * 8 bytes on 64-bit
-                    performance_factor: 1.2,
-                });
+                analysis
+                    .frame_elimination_opportunities
+                    .push(FrameEliminationOpportunity {
+                        function_name: function_name.to_string(),
+                        eliminable_slots: vec![
+                            "return_address".to_string(),
+                            "frame_pointer".to_string(),
+                        ],
+                        memory_savings: 16, // 2 * 8 bytes on 64-bit
+                        performance_factor: 1.2,
+                    });
             }
         }
-        
+
         Ok(())
     }
 
     /// Estimate performance benefits of tail call optimization
-    fn estimate_performance_benefit(&self, analysis: &TailCallAnalysis) -> Result<PerformanceBenefit> {
+    fn estimate_performance_benefit(
+        &self,
+        analysis: &TailCallAnalysis,
+    ) -> Result<PerformanceBenefit> {
         let mut speedup_factor = 1.0;
         let mut memory_reduction_factor = 1.0;
         let mut prevents_overflow = false;
@@ -630,10 +674,14 @@ impl TailCallOptimizer {
     }
 
     /// Apply tail call optimizations to generated code
-    pub fn optimize_native_code(&mut self, code: &mut NativeCode, analysis: &TailCallAnalysis) -> Result<()> {
+    pub fn optimize_native_code(
+        &mut self,
+        code: &mut NativeCode,
+        analysis: &TailCallAnalysis,
+    ) -> Result<()> {
         // This would apply the actual optimizations to the native code
         // For now, just update statistics
-        
+
         for tail_call in &analysis.tail_call_sites {
             match &tail_call.optimization_strategy {
                 TailCallOptimizationStrategy::JumpReplacement { .. } => {
@@ -650,14 +698,18 @@ impl TailCallOptimizer {
                 }
             }
         }
-        
+
         self.stats.stack_frames_eliminated += analysis.frame_elimination_opportunities.len() as u64;
-        
+
         Ok(())
     }
 
     /// Apply optimizations to specialized native code
-    pub fn optimize_specialized_code(&mut self, code: &mut SpecializedNativeCode, analysis: &TailCallAnalysis) -> Result<()> {
+    pub fn optimize_specialized_code(
+        &mut self,
+        code: &mut SpecializedNativeCode,
+        analysis: &TailCallAnalysis,
+    ) -> Result<()> {
         // Similar to optimize_native_code but for specialized code
         // For now, just apply the same optimizations as native code
         // In a real implementation, would have specific optimizations for specialized code
@@ -688,7 +740,7 @@ impl TailCallOptimizer {
 pub trait TailCallOptimizable {
     /// Check if tail call optimization is applied
     fn has_tail_call_optimization(&self) -> bool;
-    
+
     /// Get tail call optimization metadata
     fn get_tail_call_metadata(&self) -> Option<HashMap<String, String>>;
 }
@@ -698,7 +750,7 @@ impl TailCallOptimizable for NativeCode {
         // Would check native code metadata
         false // Placeholder
     }
-    
+
     fn get_tail_call_metadata(&self) -> Option<HashMap<String, String>> {
         // Would extract metadata from native code
         None // Placeholder
@@ -710,7 +762,7 @@ impl TailCallOptimizable for SpecializedNativeCode {
         // Would check specialized code metadata
         false // Placeholder
     }
-    
+
     fn get_tail_call_metadata(&self) -> Option<HashMap<String, String>> {
         // Would extract metadata from specialized code
         None // Placeholder
@@ -720,7 +772,7 @@ impl TailCallOptimizable for SpecializedNativeCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Literal};
+    use crate::ast::Literal;
 
     #[test]
     fn test_tail_call_optimizer_creation() {
@@ -732,60 +784,73 @@ mod tests {
     #[test]
     fn test_tail_position_analysis() {
         let mut optimizer = TailCallOptimizer::default();
-        
+
         // Simple self-recursive function: (define (fact n) (if (= n 0) 1 (fact (- n 1))))
         let expr = Expr::If {
             test: Box::new(crate::diagnostics::Spanned::new(
                 Expr::Application {
                     operator: Box::new(crate::diagnostics::Spanned::new(
-                        Expr::Identifier("=".to_string()), 
-                        crate::diagnostics::Span::new(0, 1)
+                        Expr::Identifier("=".to_string()),
+                        crate::diagnostics::Span::new(0, 1),
                     )),
                     operands: vec![
-                        crate::diagnostics::Spanned::new(Expr::Identifier("n".to_string()), crate::diagnostics::Span::new(0, 1)),
-                        crate::diagnostics::Spanned::new(Expr::Literal(Literal::ExactInteger(0)), crate::diagnostics::Span::new(0, 1)),
+                        crate::diagnostics::Spanned::new(
+                            Expr::Identifier("n".to_string()),
+                            crate::diagnostics::Span::new(0, 1),
+                        ),
+                        crate::diagnostics::Spanned::new(
+                            Expr::Literal(Literal::ExactInteger(0)),
+                            crate::diagnostics::Span::new(0, 1),
+                        ),
                     ],
                 },
-                crate::diagnostics::Span::new(0, 10)
+                crate::diagnostics::Span::new(0, 10),
             )),
             consequent: Box::new(crate::diagnostics::Spanned::new(
-                Expr::Literal(Literal::ExactInteger(1)), 
-                crate::diagnostics::Span::new(0, 1)
+                Expr::Literal(Literal::ExactInteger(1)),
+                crate::diagnostics::Span::new(0, 1),
             )),
             alternative: Some(Box::new(crate::diagnostics::Spanned::new(
                 Expr::Application {
                     operator: Box::new(crate::diagnostics::Spanned::new(
-                        Expr::Identifier("fact".to_string()), 
-                        crate::diagnostics::Span::new(0, 4)
+                        Expr::Identifier("fact".to_string()),
+                        crate::diagnostics::Span::new(0, 4),
                     )),
-                    operands: vec![
-                        crate::diagnostics::Spanned::new(
-                            Expr::Application {
-                                operator: Box::new(crate::diagnostics::Spanned::new(
-                                    Expr::Identifier("-".to_string()), 
-                                    crate::diagnostics::Span::new(0, 1)
-                                )),
-                                operands: vec![
-                                    crate::diagnostics::Spanned::new(Expr::Identifier("n".to_string()), crate::diagnostics::Span::new(0, 1)),
-                                    crate::diagnostics::Spanned::new(Expr::Literal(Literal::ExactInteger(1)), crate::diagnostics::Span::new(0, 1)),
-                                ],
-                            },
-                            crate::diagnostics::Span::new(0, 6)
-                        ),
-                    ],
+                    operands: vec![crate::diagnostics::Spanned::new(
+                        Expr::Application {
+                            operator: Box::new(crate::diagnostics::Spanned::new(
+                                Expr::Identifier("-".to_string()),
+                                crate::diagnostics::Span::new(0, 1),
+                            )),
+                            operands: vec![
+                                crate::diagnostics::Spanned::new(
+                                    Expr::Identifier("n".to_string()),
+                                    crate::diagnostics::Span::new(0, 1),
+                                ),
+                                crate::diagnostics::Spanned::new(
+                                    Expr::Literal(Literal::ExactInteger(1)),
+                                    crate::diagnostics::Span::new(0, 1),
+                                ),
+                            ],
+                        },
+                        crate::diagnostics::Span::new(0, 6),
+                    )],
                 },
-                crate::diagnostics::Span::new(0, 12)
+                crate::diagnostics::Span::new(0, 12),
             ))),
         };
 
         let analysis = optimizer.analyze_expression(&expr, "fact");
         assert!(analysis.is_ok());
-        
+
         let analysis = analysis.unwrap();
         assert_eq!(analysis.tail_call_sites.len(), 1);
-        assert_eq!(analysis.tail_call_sites[0].call_type, TailCallType::SelfRecursive);
+        assert_eq!(
+            analysis.tail_call_sites[0].call_type,
+            TailCallType::SelfRecursive
+        );
         assert!(matches!(
-            analysis.tail_call_sites[0].optimization_strategy, 
+            analysis.tail_call_sites[0].optimization_strategy,
             TailCallOptimizationStrategy::JumpReplacement { .. }
         ));
     }
@@ -793,31 +858,27 @@ mod tests {
     #[test]
     fn test_performance_benefit_estimation() {
         let optimizer = TailCallOptimizer::default();
-        
+
         let analysis = TailCallAnalysis {
             tail_call_sites: vec![],
-            self_recursive_calls: vec![
-                SelfRecursiveCall {
-                    call_site: TailCallLocation {
-                        containing_function: "test".to_string(),
-                        ast_path: vec![],
-                        source_location: None,
-                    },
-                    changing_arguments: vec![],
-                    invariants: vec![],
-                    estimated_depth: None,
-                    memory_pattern: MemoryUsagePattern::Constant,
-                }
-            ],
+            self_recursive_calls: vec![SelfRecursiveCall {
+                call_site: TailCallLocation {
+                    containing_function: "test".to_string(),
+                    ast_path: vec![],
+                    source_location: None,
+                },
+                changing_arguments: vec![],
+                invariants: vec![],
+                estimated_depth: None,
+                memory_pattern: MemoryUsagePattern::Constant,
+            }],
             mutual_recursion_groups: vec![],
-            frame_elimination_opportunities: vec![
-                FrameEliminationOpportunity {
-                    function_name: "test".to_string(),
-                    eliminable_slots: vec!["frame_pointer".to_string()],
-                    memory_savings: 8,
-                    performance_factor: 1.2,
-                }
-            ],
+            frame_elimination_opportunities: vec![FrameEliminationOpportunity {
+                function_name: "test".to_string(),
+                eliminable_slots: vec!["frame_pointer".to_string()],
+                memory_savings: 8,
+                performance_factor: 1.2,
+            }],
             estimated_benefit: PerformanceBenefit {
                 speedup_factor: 1.0,
                 memory_reduction_factor: 1.0,
@@ -831,10 +892,10 @@ mod tests {
                 compliance_level: TailCallComplianceLevel::FullCompliance,
             },
         };
-        
+
         let benefit = optimizer.estimate_performance_benefit(&analysis);
         assert!(benefit.is_ok());
-        
+
         let benefit = benefit.unwrap();
         assert!(benefit.speedup_factor > 1.0);
         assert!(benefit.prevents_stack_overflow);
@@ -844,24 +905,22 @@ mod tests {
     #[test]
     fn test_r7rs_compliance_checking() {
         let optimizer = TailCallOptimizer::default();
-        
+
         let analysis = TailCallAnalysis {
-            tail_call_sites: vec![
-                TailCallSite {
-                    location: TailCallLocation {
-                        containing_function: "test".to_string(),
-                        ast_path: vec![],
-                        source_location: None,
-                    },
-                    call_type: TailCallType::SelfRecursive,
-                    target_function: Some("test".to_string()),
-                    optimization_strategy: TailCallOptimizationStrategy::JumpReplacement {
-                        target_label: "start".to_string(),
-                        stack_adjustments: vec![],
-                    },
-                    performance_improvement: 2.0,
-                }
-            ],
+            tail_call_sites: vec![TailCallSite {
+                location: TailCallLocation {
+                    containing_function: "test".to_string(),
+                    ast_path: vec![],
+                    source_location: None,
+                },
+                call_type: TailCallType::SelfRecursive,
+                target_function: Some("test".to_string()),
+                optimization_strategy: TailCallOptimizationStrategy::JumpReplacement {
+                    target_label: "start".to_string(),
+                    stack_adjustments: vec![],
+                },
+                performance_improvement: 2.0,
+            }],
             self_recursive_calls: vec![],
             mutual_recursion_groups: vec![],
             frame_elimination_opportunities: vec![],
@@ -878,12 +937,15 @@ mod tests {
                 compliance_level: TailCallComplianceLevel::FullCompliance,
             },
         };
-        
+
         let compliance = optimizer.check_r7rs_compliance(&analysis);
         assert!(compliance.is_ok());
-        
+
         let compliance = compliance.unwrap();
-        assert_eq!(compliance.compliance_level, TailCallComplianceLevel::FullCompliance);
+        assert_eq!(
+            compliance.compliance_level,
+            TailCallComplianceLevel::FullCompliance
+        );
         assert!(compliance.stack_space_guaranteed);
         assert!(compliance.violations.is_empty());
     }

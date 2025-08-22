@@ -3,13 +3,12 @@
 //! This module eliminates redundant error handling patterns in evaluation,
 //! fast path operations, and runtime checks while providing rich context.
 
-use crate::diagnostics::{UnifiedError, UnifiedResult, RuntimeError, ErrorSeverity, Span};
-use crate::eval::Value;
 use crate::ast::{Expr, Literal};
+use crate::diagnostics::{ErrorSeverity, RuntimeError, Span, UnifiedError, UnifiedResult};
+use crate::eval::Value;
 
 // Re-export unified error system for eval modules
-pub use crate::{error_convert, propagate_error, validate_type, validate_arity, handle_result};
-
+pub use crate::{error_convert, handle_result, propagate_error, validate_arity, validate_type};
 
 /// Evaluation-specific error categories for granular error handling.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,10 +115,7 @@ pub struct EvalContext {
 
 impl EvalUnifiedError {
     /// Creates a new eval-specific unified error.
-    pub fn new(
-        eval_kind: EvalErrorKind,
-        message: impl Into<String>,
-    ) -> Self {
+    pub fn new(eval_kind: EvalErrorKind, message: impl Into<String>) -> Self {
         let severity = eval_kind.default_severity();
         let base = UnifiedError::new(RuntimeError, message)
             .with_severity(severity)
@@ -139,7 +135,8 @@ impl EvalUnifiedError {
         let expected_str = expected.into();
         self.expected_type = Some(expected_str.clone());
         self.actual_value = Some(actual.clone());
-        self.base = self.base
+        self.base = self
+            .base
             .with_context("expected_type", expected_str)
             .with_context("actual_value", format!("{actual:?}"));
         self
@@ -171,7 +168,8 @@ impl EvalUnifiedError {
     pub fn with_stack_context(mut self, depth: usize, in_tail: bool) -> Self {
         self.eval_context.stack_depth = depth;
         self.eval_context.in_tail_position = in_tail;
-        self.base = self.base
+        self.base = self
+            .base
             .with_context("stack_depth", depth.to_string())
             .with_context("tail_position", in_tail.to_string());
         self
@@ -205,9 +203,11 @@ impl EvalUnifiedError {
     pub fn explanation(&self) -> String {
         match (&self.eval_kind, &self.expected_type, &self.actual_value) {
             (EvalErrorKind::TypeMismatch, Some(expected), Some(actual)) => {
-                format!("Expected {}, but got {}", 
-                    expected, 
-                    self.format_value_type(actual))
+                format!(
+                    "Expected {}, but got {}",
+                    expected,
+                    self.format_value_type(actual)
+                )
             }
             (EvalErrorKind::ArityMismatch, _, _) => {
                 if let Some(func) = &self.eval_context.current_function {
@@ -219,12 +219,12 @@ impl EvalUnifiedError {
             (EvalErrorKind::UndefinedVariable, _, _) => {
                 "Variable is not defined in current scope".to_string()
             }
-            (EvalErrorKind::DivisionByZero, _, _) => {
-                "Division by zero is undefined".to_string()
-            }
+            (EvalErrorKind::DivisionByZero, _, _) => "Division by zero is undefined".to_string(),
             (EvalErrorKind::StackOverflow, _, _) => {
-                format!("Stack overflow at depth {} - possible infinite recursion", 
-                    self.eval_context.stack_depth)
+                format!(
+                    "Stack overflow at depth {} - possible infinite recursion",
+                    self.eval_context.stack_depth
+                )
             }
             _ => self.base.message.clone(),
         }
@@ -257,7 +257,7 @@ impl EvalUnifiedError {
     /// Returns suggested fixes for this error.
     pub fn suggested_fixes(&self) -> Vec<String> {
         let mut fixes = Vec::new();
-        
+
         match self.eval_kind {
             EvalErrorKind::TypeMismatch => {
                 if let Some(expected) = &self.expected_type {
@@ -281,7 +281,7 @@ impl EvalUnifiedError {
             }
             _ => {}
         }
-        
+
         fixes
     }
 
@@ -298,27 +298,26 @@ macro_rules! eval_error {
     ($kind:expr, $message:expr) => {
         $crate::eval::unified_eval_errors::EvalUnifiedError::new($kind, $message)
     };
-    
+
     // Eval error with type mismatch
     ($kind:expr, $message:expr, expected: $expected:expr, actual: $actual:expr) => {
         $crate::eval::unified_eval_errors::EvalUnifiedError::new($kind, $message)
             .with_type_mismatch($expected, $actual)
     };
-    
+
     // Eval error with span
     ($kind:expr, $message:expr, span: $span:expr) => {
-        $crate::eval::unified_eval_errors::EvalUnifiedError::new($kind, $message)
-            .with_span($span)
+        $crate::eval::unified_eval_errors::EvalUnifiedError::new($kind, $message).with_span($span)
     };
-    
+
     // Eval error with function context
     ($kind:expr, $message:expr, function: $func:expr) => {
         $crate::eval::unified_eval_errors::EvalUnifiedError::new($kind, $message)
             .with_function_context($func)
     };
-    
+
     // Full eval error with all context
-    ($kind:expr, $message:expr, 
+    ($kind:expr, $message:expr,
      expected: $expected:expr, actual: $actual:expr,
      span: $span:expr, function: $func:expr) => {
         $crate::eval::unified_eval_errors::EvalUnifiedError::new($kind, $message)
@@ -344,7 +343,7 @@ macro_rules! fast_eval_try {
             }
         }
     };
-    
+
     // Fast path operation with custom fallback logic
     ($operation:expr, fallback: |$err:ident| $fallback_logic:expr) => {
         match $operation {
@@ -367,23 +366,27 @@ impl EvalUnifiedError {
         let expected_str = expected.into();
         Self::new(
             EvalErrorKind::TypeMismatch,
-            format!("Type mismatch: expected {}, got {}", 
-                expected_str, 
-                Self::format_value_type_static(&actual))
-        ).with_type_mismatch(expected_str.clone(), actual)
+            format!(
+                "Type mismatch: expected {}, got {}",
+                expected_str,
+                Self::format_value_type_static(&actual)
+            ),
+        )
+        .with_type_mismatch(expected_str.clone(), actual)
     }
 
     /// Creates an arity mismatch error.
     pub fn arity_mismatch(
-        function_name: impl Into<String>, 
-        expected: usize, 
-        actual: usize
+        function_name: impl Into<String>,
+        expected: usize,
+        actual: usize,
     ) -> Self {
         let name = function_name.into();
         Self::new(
             EvalErrorKind::ArityMismatch,
-            format!("Function '{name}' expects {expected} arguments, got {actual}")
-        ).with_function_context(name)
+            format!("Function '{name}' expects {expected} arguments, got {actual}"),
+        )
+        .with_function_context(name)
     }
 
     /// Creates an undefined variable error.
@@ -391,7 +394,7 @@ impl EvalUnifiedError {
         let var_name = variable_name.into();
         let mut error = Self::new(
             EvalErrorKind::UndefinedVariable,
-            format!("Undefined variable: '{var_name}'")
+            format!("Undefined variable: '{var_name}'"),
         );
         error.base = error.base.with_context("variable_name", var_name);
         error
@@ -399,18 +402,16 @@ impl EvalUnifiedError {
 
     /// Creates a division by zero error.
     pub fn division_by_zero() -> Self {
-        Self::new(
-            EvalErrorKind::DivisionByZero,
-            "Division by zero"
-        )
+        Self::new(EvalErrorKind::DivisionByZero, "Division by zero")
     }
 
     /// Creates a stack overflow error.
     pub fn stack_overflow(depth: usize) -> Self {
         Self::new(
             EvalErrorKind::StackOverflow,
-            format!("Stack overflow at depth {depth}")
-        ).with_stack_context(depth, false)
+            format!("Stack overflow at depth {depth}"),
+        )
+        .with_stack_context(depth, false)
     }
 
     /// Creates a fast path failure error.
@@ -418,8 +419,9 @@ impl EvalUnifiedError {
         let op_name = operation.into();
         Self::new(
             EvalErrorKind::FastPathFailure,
-            format!("Fast path failed for {}: {}", op_name, reason.into())
-        ).with_fast_path_context(op_name)
+            format!("Fast path failed for {}: {}", op_name, reason.into()),
+        )
+        .with_fast_path_context(op_name)
     }
 }
 
@@ -458,7 +460,7 @@ mod tests {
     #[test]
     fn test_type_mismatch_error() {
         let error = EvalUnifiedError::type_mismatch("number", Value::string("hello"));
-        
+
         assert_eq!(error.eval_kind, EvalErrorKind::TypeMismatch);
         assert_eq!(error.expected_type, Some("number".to_string()));
         assert!(error.explanation().contains("Expected number"));
@@ -467,7 +469,7 @@ mod tests {
     #[test]
     fn test_arity_mismatch_error() {
         let error = EvalUnifiedError::arity_mismatch("add", 2, 3);
-        
+
         assert_eq!(error.eval_kind, EvalErrorKind::ArityMismatch);
         assert_eq!(error.eval_context.current_function, Some("add".to_string()));
     }
@@ -475,7 +477,7 @@ mod tests {
     #[test]
     fn test_undefined_variable_error() {
         let error = EvalUnifiedError::undefined_variable("unknown_var");
-        
+
         assert_eq!(error.eval_kind, EvalErrorKind::UndefinedVariable);
         assert!(error.explanation().contains("not defined"));
     }
@@ -483,7 +485,7 @@ mod tests {
     #[test]
     fn test_stack_overflow_error() {
         let error = EvalUnifiedError::stack_overflow(1000);
-        
+
         assert_eq!(error.eval_kind, EvalErrorKind::StackOverflow);
         assert_eq!(error.eval_context.stack_depth, 1000);
         assert!(!error.allows_fallback());
@@ -492,7 +494,7 @@ mod tests {
     #[test]
     fn test_fast_path_failure_allows_fallback() {
         let error = EvalUnifiedError::fast_path_failed("add", "optimization failed");
-        
+
         assert_eq!(error.eval_kind, EvalErrorKind::FastPathFailure);
         assert!(error.allows_fallback());
     }
@@ -505,7 +507,7 @@ mod tests {
             expected: "number",
             actual: Value::string("hello")
         );
-        
+
         assert_eq!(error.eval_kind, EvalErrorKind::TypeMismatch);
         assert_eq!(error.expected_type, Some("number".to_string()));
     }

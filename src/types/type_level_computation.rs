@@ -20,58 +20,58 @@ use std::fmt;
 pub enum TypeComputation {
     /// Type variable reference
     TypeVar(String),
-    
+
     /// Type constant (base types, constructors)
     TypeConstant(String),
-    
+
     /// Type-level lambda: Λα.T
     TypeLambda {
         param: String,
         param_kind: Kind,
         body: Box<TypeComputation>,
     },
-    
+
     /// Type-level application: F[A]
     TypeApplication {
         function: Box<TypeComputation>,
         argument: Box<TypeComputation>,
     },
-    
+
     /// Type-level conditional: if P then T else U
     TypeConditional {
         condition: Box<TypeComputation>,
         then_type: Box<TypeComputation>,
         else_type: Box<TypeComputation>,
     },
-    
+
     /// Type-level case analysis
     TypeCase {
         scrutinee: Box<TypeComputation>,
         branches: Vec<(TypePattern, TypeComputation)>,
     },
-    
+
     /// Type-level arithmetic (for type-level naturals)
     TypeArithmetic {
         op: TypeArithOp,
         left: Box<TypeComputation>,
         right: Box<TypeComputation>,
     },
-    
+
     /// Type-level natural number
     TypeNat(u64),
-    
+
     /// Type-level boolean
     TypeBool(bool),
-    
+
     /// Type-level list
     TypeList(Vec<TypeComputation>),
-    
+
     /// Type family application
     TypeFamily {
         family: String,
         args: Vec<TypeComputation>,
     },
-    
+
     /// Type-level fixpoint: μα.T
     TypeFixpoint {
         var: String,
@@ -84,22 +84,22 @@ pub enum TypeComputation {
 pub enum TypePattern {
     /// Variable pattern (binds type variable)
     Var(String),
-    
+
     /// Constructor pattern
     Constructor {
         name: String,
         args: Vec<TypePattern>,
     },
-    
+
     /// Natural number pattern
     Nat(u64),
-    
+
     /// Boolean pattern
     Bool(bool),
-    
+
     /// List pattern
     List(Vec<TypePattern>),
-    
+
     /// Wildcard pattern
     Wildcard,
 }
@@ -124,16 +124,16 @@ pub enum TypeArithOp {
 pub struct TypeFamily {
     /// Family name
     pub name: String,
-    
+
     /// Parameter kinds
     pub params: Vec<(String, Kind)>,
-    
+
     /// Result kind
     pub result_kind: Kind,
-    
+
     /// Family equations (instances)
     pub equations: Vec<TypeFamilyEquation>,
-    
+
     /// Whether this family is injective
     pub injective: bool,
 }
@@ -143,10 +143,10 @@ pub struct TypeFamily {
 pub struct TypeFamilyEquation {
     /// Left-hand side patterns
     pub lhs_patterns: Vec<TypePattern>,
-    
+
     /// Right-hand side result
     pub rhs: TypeComputation,
-    
+
     /// Guards (optional conditions)
     pub guards: Vec<TypeComputation>,
 }
@@ -155,13 +155,13 @@ pub struct TypeFamilyEquation {
 pub struct TypeLevelEvaluator {
     /// Type families
     families: HashMap<String, TypeFamily>,
-    
+
     /// Type variable bindings
     bindings: HashMap<String, TypeComputation>,
-    
+
     /// Evaluation depth (to prevent infinite recursion)
     depth: u32,
-    
+
     /// Maximum evaluation depth
     max_depth: u32,
 }
@@ -178,11 +178,11 @@ impl TypeLevelEvaluator {
         evaluator.register_builtin_families();
         evaluator
     }
-    
+
     /// Register built-in type families.
     fn register_builtin_families(&mut self) {
         // Register built-in families like Add, Mul, If, etc.
-        
+
         // Type-level addition: Add n m
         let add_family = TypeFamily {
             name: "Add".to_string(),
@@ -207,7 +207,7 @@ impl TypeLevelEvaluator {
             injective: true,
         };
         self.families.insert("Add".to_string(), add_family);
-        
+
         // Type-level conditional: If b t e
         let if_family = TypeFamily {
             name: "If".to_string(),
@@ -243,7 +243,7 @@ impl TypeLevelEvaluator {
         };
         self.families.insert("If".to_string(), if_family);
     }
-    
+
     /// Evaluate a type-level computation.
     pub fn evaluate(&mut self, computation: &TypeComputation) -> Result<TypeComputation> {
         if self.depth >= self.max_depth {
@@ -252,13 +252,13 @@ impl TypeLevelEvaluator {
                 Span::new(0, 0)
             )));
         }
-        
+
         self.depth += 1;
         let result = self.evaluate_inner(computation);
         self.depth -= 1;
         result
     }
-    
+
     /// Internal evaluation implementation.
     fn evaluate_inner(&mut self, computation: &TypeComputation) -> Result<TypeComputation> {
         match computation {
@@ -269,20 +269,20 @@ impl TypeLevelEvaluator {
                     Ok(computation.clone())
                 }
             }
-            
+
             TypeComputation::TypeConstant(_) => Ok(computation.clone()),
-            
+
             TypeComputation::TypeLambda { .. } => {
                 // Type lambdas are values
                 Ok(computation.clone())
             }
-            
+
             TypeComputation::TypeApplication { function, argument } => {
                 let eval_func = self.evaluate(function)?;
                 let eval_arg = self.evaluate(argument)?;
                 self.apply_type_function(&eval_func, &eval_arg)
             }
-            
+
             TypeComputation::TypeConditional { condition, then_type, else_type } => {
                 let eval_cond = self.evaluate(condition)?;
                 match eval_cond {
@@ -298,13 +298,13 @@ impl TypeLevelEvaluator {
                     }
                 }
             }
-            
+
             TypeComputation::TypeArithmetic { op, left, right } => {
                 let eval_left = self.evaluate(left)?;
                 let eval_right = self.evaluate(right)?;
                 self.apply_arithmetic_op(*op, &eval_left, &eval_right)
             }
-            
+
             TypeComputation::TypeFamily { family, args } => {
                 let eval_args: Result<Vec<TypeComputation>> = args.iter()
                     .map(|arg| self.evaluate(arg))
@@ -312,12 +312,12 @@ impl TypeLevelEvaluator {
                 let eval_args = eval_args?;
                 self.apply_type_family(family, &eval_args)
             }
-            
+
             TypeComputation::TypeCase { scrutinee, branches } => {
                 let eval_scrutinee = self.evaluate(scrutinee)?;
                 self.apply_type_case(&eval_scrutinee, branches)
             }
-            
+
             TypeComputation::TypeFixpoint { var, body } => {
                 // μα.T - substitute α with (μα.T) in T
                 let fixpoint = computation.clone();
@@ -325,14 +325,14 @@ impl TypeLevelEvaluator {
                 self.substitute_type_var(&mut substituted_body, var, &fixpoint);
                 self.evaluate(&substituted_body)
             }
-            
+
             // Literals evaluate to themselves
             TypeComputation::TypeNat(_) |
             TypeComputation::TypeBool(_) |
             TypeComputation::TypeList(_) => Ok(computation.clone()),
         }
     }
-    
+
     /// Apply a type-level function to an argument.
     fn apply_type_function(
         &mut self,
@@ -355,7 +355,7 @@ impl TypeLevelEvaluator {
             }
         }
     }
-    
+
     /// Apply arithmetic operation.
     fn apply_arithmetic_op(
         &mut self,
@@ -405,7 +405,7 @@ impl TypeLevelEvaluator {
             }
         }
     }
-    
+
     /// Apply type family.
     fn apply_type_family(
         &mut self,
@@ -434,7 +434,7 @@ impl TypeLevelEvaluator {
                         }
                         all_satisfied
                     };
-                    
+
                     if guards_satisfied {
                         // Apply bindings to RHS
                         let mut result = equation.rhs.clone();
@@ -445,7 +445,7 @@ impl TypeLevelEvaluator {
                     }
                 }
             }
-            
+
             // No equation matched - return unevaluated
             Ok(TypeComputation::TypeFamily {
                 family: family_name.to_string(),
@@ -458,7 +458,7 @@ impl TypeLevelEvaluator {
             )))
         }
     }
-    
+
     /// Apply type-level case analysis.
     fn apply_type_case(
         &mut self,
@@ -474,14 +474,14 @@ impl TypeLevelEvaluator {
                 return self.evaluate(&result_with_bindings);
             }
         }
-        
+
         // No pattern matched
         Err(Box::new(Error::type_error(
             "No pattern matched in type case".to_string(),
             Span::new(0, 0)
         )))
     }
-    
+
     /// Match patterns against arguments.
     fn match_patterns(
         &self,
@@ -491,7 +491,7 @@ impl TypeLevelEvaluator {
         if patterns.len() != args.len() {
             return None;
         }
-        
+
         let mut bindings = HashMap::new();
         for (pattern, arg) in patterns.iter().zip(args.iter()) {
             if let Some(pattern_bindings) = self.match_pattern(pattern, arg) {
@@ -502,7 +502,7 @@ impl TypeLevelEvaluator {
         }
         Some(bindings)
     }
-    
+
     /// Match a single pattern against a computation.
     fn match_pattern(
         &self,
@@ -515,17 +515,17 @@ impl TypeLevelEvaluator {
                 bindings.insert(name.clone(), comp.clone());
                 Some(bindings)
             }
-            
+
             (TypePattern::Nat(n1), TypeComputation::TypeNat(n2)) => {
                 if n1 == n2 { Some(HashMap::new()) } else { None }
             }
-            
+
             (TypePattern::Bool(b1), TypeComputation::TypeBool(b2)) => {
                 if b1 == b2 { Some(HashMap::new()) } else { None }
             }
-            
+
             (TypePattern::Wildcard, _) => Some(HashMap::new()),
-            
+
             (TypePattern::Constructor { name: pname, args: pargs },
              TypeComputation::TypeFamily { family, args }) => {
                 if pname == family && pargs.len() == args.len() {
@@ -534,11 +534,11 @@ impl TypeLevelEvaluator {
                     None
                 }
             }
-            
+
             _ => None,
         }
     }
-    
+
     /// Substitute type variable in a computation.
     #[allow(clippy::only_used_in_recursion)]
     fn substitute_type_var(
@@ -551,42 +551,42 @@ impl TypeLevelEvaluator {
             TypeComputation::TypeVar(name) if name == var => {
                 *computation = replacement.clone();
             }
-            
+
             TypeComputation::TypeLambda { param, body, .. } if param != var => {
                 self.substitute_type_var(body, var, replacement);
             }
-            
+
             TypeComputation::TypeApplication { function, argument } => {
                 self.substitute_type_var(function, var, replacement);
                 self.substitute_type_var(argument, var, replacement);
             }
-            
+
             TypeComputation::TypeConditional { condition, then_type, else_type } => {
                 self.substitute_type_var(condition, var, replacement);
                 self.substitute_type_var(then_type, var, replacement);
                 self.substitute_type_var(else_type, var, replacement);
             }
-            
+
             TypeComputation::TypeArithmetic { left, right, .. } => {
                 self.substitute_type_var(left, var, replacement);
                 self.substitute_type_var(right, var, replacement);
             }
-            
+
             TypeComputation::TypeFamily { args, .. } => {
                 for arg in args {
                     self.substitute_type_var(arg, var, replacement);
                 }
             }
-            
+
             _ => {} // Other cases don't contain variables
         }
     }
-    
+
     /// Define a new type family.
     pub fn define_family(&mut self, family: TypeFamily) {
         self.families.insert(family.name.clone(), family);
     }
-    
+
     /// Bind a type variable.
     pub fn bind_type_var(&mut self, name: String, computation: TypeComputation) {
         self.bindings.insert(name, computation);
@@ -601,7 +601,7 @@ impl From<Type> for TypeComputation {
             Type::String => TypeComputation::TypeConstant("String".to_string()),
             Type::Boolean => TypeComputation::TypeConstant("Boolean".to_string()),
             Type::Dynamic => TypeComputation::TypeConstant("Dynamic".to_string()),
-            
+
             Type::Variable(var) => {
                 if let Some(name) = var.name {
                     TypeComputation::TypeVar(name)
@@ -609,7 +609,7 @@ impl From<Type> for TypeComputation {
                     TypeComputation::TypeVar(format!("t{}", var.id))
                 }
             }
-            
+
             Type::Function { params, return_type } => {
                 // Convert to type-level function application
                 let mut result = TypeComputation::from(*return_type);
@@ -624,7 +624,7 @@ impl From<Type> for TypeComputation {
                 }
                 result
             }
-            
+
             _ => TypeComputation::TypeConstant("UnknownType".to_string()),
         }
     }
@@ -643,55 +643,55 @@ mod tests {
     #[test]
     fn test_type_level_arithmetic() {
         let mut evaluator = TypeLevelEvaluator::new();
-        
+
         let computation = TypeComputation::TypeArithmetic {
             op: TypeArithOp::Add,
             left: Box::new(TypeComputation::TypeNat(2)),
             right: Box::new(TypeComputation::TypeNat(3)),
         };
-        
+
         let result = evaluator.evaluate(&computation).unwrap();
         assert_eq!(result, TypeComputation::TypeNat(5));
     }
-    
+
     #[test]
     fn test_type_level_conditional() {
         let mut evaluator = TypeLevelEvaluator::new();
-        
+
         let computation = TypeComputation::TypeConditional {
             condition: Box::new(TypeComputation::TypeBool(true)),
             then_type: Box::new(TypeComputation::TypeConstant("String".to_string())),
             else_type: Box::new(TypeComputation::TypeConstant("Number".to_string())),
         };
-        
+
         let result = evaluator.evaluate(&computation).unwrap();
         assert_eq!(result, TypeComputation::TypeConstant("String".to_string()));
     }
-    
+
     #[test]
     fn test_type_lambda_application() {
         let mut evaluator = TypeLevelEvaluator::new();
-        
+
         // Λα. α
         let identity = TypeComputation::TypeLambda {
             param: "α".to_string(),
             param_kind: Kind::Type,
             body: Box::new(TypeComputation::TypeVar("α".to_string())),
         };
-        
+
         let application = TypeComputation::TypeApplication {
             function: Box::new(identity),
             argument: Box::new(TypeComputation::TypeConstant("Number".to_string())),
         };
-        
+
         let result = evaluator.evaluate(&application).unwrap();
         assert_eq!(result, TypeComputation::TypeConstant("Number".to_string()));
     }
-    
+
     #[test]
     fn test_type_family_evaluation() {
         let mut evaluator = TypeLevelEvaluator::new();
-        
+
         // If True String Number should evaluate to String
         let computation = TypeComputation::TypeFamily {
             family: "If".to_string(),
@@ -701,7 +701,7 @@ mod tests {
                 TypeComputation::TypeConstant("Number".to_string()),
             ],
         };
-        
+
         let result = evaluator.evaluate(&computation).unwrap();
         assert_eq!(result, TypeComputation::TypeConstant("String".to_string()));
     }

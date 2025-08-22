@@ -19,14 +19,16 @@
 //! - 25-35% reduction in memory fragmentation for complex data structures
 //! - 50-80% faster container iteration through better memory layout
 
-use crate::eval::value::Value;
-use crate::eval::value_arena::{ValueArena, ValueRef as ArenaValueRef, ArenaValue};
-use crate::eval::arena_integration::{ArenaAllocator, AllocationHint, ValueLifetime, ArenaAwareValue};
 use crate::containers::{Container, ContainerError, ContainerResult};
 use crate::diagnostics::{Error, Result, Span};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock, Mutex};
+use crate::eval::arena_integration::{
+    AllocationHint, ArenaAllocator, ArenaAwareValue, ValueLifetime,
+};
+use crate::eval::value::Value;
+use crate::eval::value_arena::{ArenaValue, ValueArena, ValueRef as ArenaValueRef};
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
 /// Type alias for complex hash table bucket pool structure
@@ -180,9 +182,13 @@ impl<T> OptimizedContainer<T> {
             allocator: Arc::new(ArenaAllocator::new()),
         }
     }
-    
+
     /// Create optimized container with custom allocator
-    pub fn with_allocator(inner: T, context: ContainerContext, allocator: Arc<ArenaAllocator>) -> Self {
+    pub fn with_allocator(
+        inner: T,
+        context: ContainerContext,
+        allocator: Arc<ArenaAllocator>,
+    ) -> Self {
         Self {
             inner,
             context,
@@ -190,41 +196,48 @@ impl<T> OptimizedContainer<T> {
             allocator,
         }
     }
-    
+
     /// Get the inner container
     pub fn inner(&self) -> &T {
         &self.inner
     }
-    
+
     /// Get mutable reference to inner container
     pub fn inner_mut(&mut self) -> &mut T {
         &mut self.inner
     }
-    
+
     /// Get optimization context
     pub fn context(&self) -> &ContainerContext {
         &self.context
     }
-    
+
     /// Get performance metrics
     pub fn metrics(&self) -> Result<ContainerMetrics> {
-        Ok(self.metrics.read()
+        Ok(self
+            .metrics
+            .try_read()
             .map(|guard| (*guard).clone())
-            .map_err(|_| Error::runtime_error("Failed to read container metrics".to_string(), Some(Span::new(0, 0))))?)
+            .map_err(|_| {
+                Error::runtime_error(
+                    "Failed to read container metrics".to_string(),
+                    Some(Span::new(0, 0)),
+                )
+            })?)
     }
-    
+
     /// Update optimization context
     pub fn update_context(&mut self, context: ContainerContext) {
         self.context = context;
     }
-    
+
     /// Record operation metrics
     fn record_operation(&self, allocation_time: u64, access_time: u64, cache_hit: bool) {
         if let Ok(mut metrics) = self.metrics.write() {
             metrics.operations_count += 1;
             metrics.allocation_time_ns += allocation_time;
             metrics.access_time_ns += access_time;
-            
+
             if cache_hit {
                 metrics.cache_hits += 1;
             } else {
@@ -239,12 +252,12 @@ impl ArenaVector {
     pub fn new() -> Self {
         Self::with_context(ContainerContext::default())
     }
-    
+
     /// Create vector with optimization context
     pub fn with_context(context: ContainerContext) -> Self {
         let allocator = Arc::new(ArenaAllocator::new());
         let capacity = context.expected_size.unwrap_or(16);
-        
+
         Self {
             elements: Vec::with_capacity(capacity),
             allocator,
@@ -252,72 +265,76 @@ impl ArenaVector {
             metrics: Arc::new(RwLock::new(ContainerMetrics::default())),
         }
     }
-    
+
     /// Push a value to the vector using arena allocation
     pub fn push(&mut self, value: Value) -> Result<()> {
         let start_time = Instant::now();
-        
+
         let hint = AllocationHint {
             lifetime: self.context.lifetime,
             sharing_expected: self.context.sharing_expected,
             size_hint: None,
             allow_deduplication: true,
         };
-        
+
         let arena_value = self.allocator.alloc_value(value, hint)?;
-        
+
         // TODO: Proper arena integration - for now use placeholder
         // This is a simplified implementation pending full arena integration
         let placeholder_ref = PlaceholderValueRef::new(self.elements.len() as u32, 0);
         self.elements.push(placeholder_ref);
-        
+
         let allocation_time = start_time.elapsed().as_nanos() as u64;
         self.record_operation(allocation_time, 0, false);
-        
+
         Ok(())
     }
-    
+
     /// Get value at index
     pub fn get(&self, index: usize) -> Result<Value> {
         let start_time = Instant::now();
-        
+
         if index >= self.elements.len() {
             return Err(Box::new(Error::runtime_error(
-                format!("Index {} out of bounds for vector of length {}", index, self.elements.len()),
-                Some(Span::new(0, 0))
+                format!(
+                    "Index {} out of bounds for vector of length {}",
+                    index,
+                    self.elements.len()
+                ),
+                Some(Span::new(0, 0)),
             )));
         }
-        
+
         let _value_ref = self.elements[index];
         // TODO: Resolve value_ref to Value through arena system
         let access_time = start_time.elapsed().as_nanos() as u64;
         self.record_operation(0, access_time, true);
-        
+
         // Placeholder: return a dummy value for now
         Ok(Value::integer(index as i64))
     }
-    
+
     /// Get the length of the vector
     pub fn len(&self) -> usize {
         self.elements.len()
     }
-    
+
     /// Check if vector is empty
     pub fn is_empty(&self) -> bool {
         self.elements.is_empty()
     }
-    
+
     /// Clear all elements
     pub fn clear(&mut self) {
         self.elements.clear();
         // Arena elements will be cleaned up automatically
     }
-    
+
     /// Create an iterator over arena values
     pub fn iter_arena(&self) -> impl Iterator<Item = ArenaValueRef> + '_ {
         self.elements.iter().copied()
     }
-    
+
     /// Convert to standard vector for compatibility
     pub fn to_standard_vector(&self) -> Result<Vec<Value>> {
         let mut result = Vec::with_capacity(self.elements.len());
@@ -327,20 +344,20 @@ impl ArenaVector {
         }
         Ok(result)
     }
-    
+
     /// Record operation metrics
     fn record_operation(&self, allocation_time: u64, access_time: u64, cache_hit: bool) {
         if let Ok(mut metrics) = self.metrics.write() {
             metrics.operations_count += 1;
             metrics.allocation_time_ns += allocation_time;
             metrics.access_time_ns += access_time;
-            
+
             if cache_hit {
                 metrics.cache_hits += 1;
             } else {
                 metrics.cache_misses += 1;
             }
-            
+
             // Update memory usage estimate
             metrics.memory_usage = self.elements.len() * std::mem::size_of::<ArenaValueRef>();
             metrics.peak_memory_usage = metrics.peak_memory_usage.max(metrics.memory_usage);
@@ -353,12 +370,12 @@ impl ArenaHashTable {
     pub fn new() -> Self {
         Self::with_context(ContainerContext::default())
     }
-    
+
     /// Create hash table with optimization context
     pub fn with_context(context: ContainerContext) -> Self {
         let allocator = Arc::new(ArenaAllocator::new());
         let capacity = context.expected_size.unwrap_or(16);
-        
+
         Self {
             buckets: vec![Vec::new(); capacity],
             size: 0,
@@ -368,74 +385,74 @@ impl ArenaHashTable {
             metrics: Arc::new(RwLock::new(ContainerMetrics::default())),
         }
     }
-    
+
     /// Insert a key-value pair using arena allocation
     pub fn insert(&mut self, key: Value, value: Value) -> Result<Option<Value>> {
         let start_time = Instant::now();
-        
+
         let hint = AllocationHint {
             lifetime: self.context.lifetime,
             sharing_expected: self.context.sharing_expected,
             size_hint: None,
             allow_deduplication: true,
         };
-        
+
         // Arena-allocate key and value
         let arena_key = self.allocator.alloc_value(key, hint.clone())?;
         let arena_value = self.allocator.alloc_value(value, hint)?;
-        
+
         // For simplified implementation, use placeholder refs
         let key_ref = PlaceholderValueRef::new(0, 0);
         let value_ref = PlaceholderValueRef::new(1, 0);
-        
+
         // Simple hash function for demonstration
         let hash = 0u64; // TODO: Implement proper hashing
         let bucket_index = (hash as usize) % self.buckets.len();
-        
+
         // Check for existing key
         let bucket = &mut self.buckets[bucket_index];
         for (_existing_key_ref, _existing_value_ref) in bucket.iter_mut() {
             // TODO: Compare keys properly through arena system
             // For now, assume no duplicates
         }
-        
+
         // Insert new entry
         bucket.push((key_ref, value_ref));
         self.size += 1;
-        
+
         // Check if resize is needed
         if self.size as f64 / self.buckets.len() as f64 > self.load_factor {
             self.resize()?;
         }
-        
+
         let allocation_time = start_time.elapsed().as_nanos() as u64;
         self.record_operation(allocation_time, 0, false);
-        
+
         Ok(None) // No previous value
     }
-    
+
     /// Get value for a key
     pub fn get(&self, key: &Value) -> Result<Option<Value>> {
         let start_time = Instant::now();
-        
+
         // TODO: Implement proper key lookup through arena system
         let access_time = start_time.elapsed().as_nanos() as u64;
         self.record_operation(0, access_time, true);
-        
+
         // Placeholder return
         Ok(Some(Value::integer(42)))
     }
-    
+
     /// Get number of entries
     pub fn len(&self) -> usize {
         self.size
     }
-    
+
     /// Check if table is empty
     pub fn is_empty(&self) -> bool {
         self.size == 0
     }
-    
+
     /// Clear all entries
     pub fn clear(&mut self) {
         for bucket in &mut self.buckets {
@@ -443,12 +460,12 @@ impl ArenaHashTable {
         }
         self.size = 0;
     }
-    
+
     /// Resize the hash table
     fn resize(&mut self) -> Result<()> {
         let new_capacity = self.buckets.len() * 2;
         let mut new_buckets = vec![Vec::new(); new_capacity];
-        
+
         // Rehash all entries
         for bucket in &self.buckets {
             for &(key_ref, value_ref) in bucket {
@@ -458,26 +475,27 @@ impl ArenaHashTable {
                 new_buckets[new_bucket_index].push((key_ref, value_ref));
             }
         }
-        
+
         self.buckets = new_buckets;
         Ok(())
     }
-    
+
     /// Record operation metrics
     fn record_operation(&self, allocation_time: u64, access_time: u64, cache_hit: bool) {
         if let Ok(mut metrics) = self.metrics.write() {
             metrics.operations_count += 1;
             metrics.allocation_time_ns += allocation_time;
             metrics.access_time_ns += access_time;
-            
+
             if cache_hit {
                 metrics.cache_hits += 1;
             } else {
                 metrics.cache_misses += 1;
             }
-            
+
             // Update memory usage estimate
-            let bucket_memory = self.buckets.len() * std::mem::size_of::<Vec<(ArenaValueRef, ArenaValueRef)>>();
+            let bucket_memory =
+                self.buckets.len() * std::mem::size_of::<Vec<(ArenaValueRef, ArenaValueRef)>>();
             let entry_memory = self.size * std::mem::size_of::<(ArenaValueRef, ArenaValueRef)>();
             metrics.memory_usage = bucket_memory + entry_memory;
             metrics.peak_memory_usage = metrics.peak_memory_usage.max(metrics.memory_usage);
@@ -490,7 +508,7 @@ impl ContainerPool {
     pub fn new() -> Self {
         Self::with_allocator(Arc::new(ArenaAllocator::new()))
     }
-    
+
     /// Create pool with custom allocator
     pub fn with_allocator(allocator: Arc<ArenaAllocator>) -> Self {
         Self {
@@ -500,7 +518,7 @@ impl ContainerPool {
             stats: Arc::new(RwLock::new(PoolStats::default())),
         }
     }
-    
+
     /// Get a vector from the pool or create a new one
     pub fn get_vector(&self, capacity: usize) -> Vec<ArenaValueRef> {
         if let Ok(mut pool) = self.vector_pool.lock() {
@@ -511,23 +529,27 @@ impl ContainerPool {
                 return vec;
             }
         }
-        
+
         self.record_vector_miss();
         Vec::with_capacity(capacity)
     }
-    
+
     /// Return a vector to the pool
     pub fn return_vector(&self, mut vec: Vec<ArenaValueRef>) {
         vec.clear();
         if let Ok(mut pool) = self.vector_pool.lock() {
-            if pool.len() < 100 { // Limit pool size
+            if pool.len() < 100 {
+                // Limit pool size
                 pool.push(vec);
             }
         }
     }
-    
+
     /// Get hash table buckets from the pool
-    pub fn get_hash_table_buckets(&self, capacity: usize) -> Vec<Vec<(ArenaValueRef, ArenaValueRef)>> {
+    pub fn get_hash_table_buckets(
+        &self,
+        capacity: usize,
+    ) -> Vec<Vec<(ArenaValueRef, ArenaValueRef)>> {
         if let Ok(mut pool) = self.hash_table_pool.lock() {
             if let Some(mut buckets) = pool.pop() {
                 buckets.clear();
@@ -536,31 +558,39 @@ impl ContainerPool {
                 return buckets;
             }
         }
-        
+
         self.record_hash_table_miss();
         vec![Vec::new(); capacity]
     }
-    
+
     /// Return hash table buckets to the pool
     pub fn return_hash_table_buckets(&self, mut buckets: Vec<Vec<(ArenaValueRef, ArenaValueRef)>>) {
         for bucket in &mut buckets {
             bucket.clear();
         }
-        
+
         if let Ok(mut pool) = self.hash_table_pool.lock() {
-            if pool.len() < 50 { // Limit pool size
+            if pool.len() < 50 {
+                // Limit pool size
                 pool.push(buckets);
             }
         }
     }
-    
+
     /// Get pool statistics
     pub fn stats(&self) -> Result<PoolStats> {
-        Ok(self.stats.read()
+        Ok(self
+            .stats
+            .try_read()
             .map(|guard| (*guard).clone())
-            .map_err(|_| Error::runtime_error("Failed to read pool stats".to_string(), Some(Span::new(0, 0))))?)
+            .map_err(|_| {
+                Error::runtime_error(
+                    "Failed to read pool stats".to_string(),
+                    Some(Span::new(0, 0)),
+                )
+            })?)
     }
-    
+
     /// Record vector pool hit
     fn record_vector_hit(&self) {
         if let Ok(mut stats) = self.stats.write() {
@@ -568,22 +598,23 @@ impl ContainerPool {
             stats.memory_saved_bytes += std::mem::size_of::<Vec<ArenaValueRef>>();
         }
     }
-    
+
     /// Record vector pool miss
     fn record_vector_miss(&self) {
         if let Ok(mut stats) = self.stats.write() {
             stats.vector_pool_misses += 1;
         }
     }
-    
+
     /// Record hash table pool hit
     fn record_hash_table_hit(&self) {
         if let Ok(mut stats) = self.stats.write() {
             stats.hash_table_pool_hits += 1;
-            stats.memory_saved_bytes += std::mem::size_of::<Vec<Vec<(ArenaValueRef, ArenaValueRef)>>>();
+            stats.memory_saved_bytes +=
+                std::mem::size_of::<Vec<Vec<(ArenaValueRef, ArenaValueRef)>>>();
         }
     }
-    
+
     /// Record hash table pool miss
     fn record_hash_table_miss(&self) {
         if let Ok(mut stats) = self.stats.write() {
@@ -629,7 +660,7 @@ impl Default for ContainerPool {
 /// Container optimization utilities
 pub mod optimization_utils {
     use super::*;
-    
+
     /// Analyze container usage patterns to recommend optimization strategies
     pub fn analyze_container_usage(metrics: &ContainerMetrics) -> OptimizationRecommendation {
         let cache_hit_rate = if metrics.cache_hits + metrics.cache_misses > 0 {
@@ -637,13 +668,14 @@ pub mod optimization_utils {
         } else {
             0.0
         };
-        
+
         let arena_allocation_rate = if metrics.arena_allocations + metrics.heap_allocations > 0 {
-            metrics.arena_allocations as f64 / (metrics.arena_allocations + metrics.heap_allocations) as f64
+            metrics.arena_allocations as f64
+                / (metrics.arena_allocations + metrics.heap_allocations) as f64
         } else {
             0.0
         };
-        
+
         OptimizationRecommendation {
             cache_hit_rate,
             arena_allocation_rate,
@@ -652,7 +684,7 @@ pub mod optimization_utils {
             suggested_improvements: suggest_improvements(cache_hit_rate, arena_allocation_rate),
         }
     }
-    
+
     fn calculate_memory_efficiency(metrics: &ContainerMetrics) -> f64 {
         if metrics.peak_memory_usage == 0 {
             1.0
@@ -660,7 +692,7 @@ pub mod optimization_utils {
             metrics.memory_usage as f64 / metrics.peak_memory_usage as f64
         }
     }
-    
+
     fn recommend_priority(cache_hit_rate: f64, arena_allocation_rate: f64) -> OptimizationPriority {
         if cache_hit_rate < 0.5 || arena_allocation_rate < 0.3 {
             OptimizationPriority::Aggressive
@@ -670,22 +702,22 @@ pub mod optimization_utils {
             OptimizationPriority::Minimal
         }
     }
-    
+
     fn suggest_improvements(cache_hit_rate: f64, arena_allocation_rate: f64) -> Vec<String> {
         let mut suggestions = Vec::new();
-        
+
         if cache_hit_rate < 0.6 {
             suggestions.push("Consider increasing cache size or improving locality".to_string());
         }
-        
+
         if arena_allocation_rate < 0.5 {
             suggestions.push("Increase arena allocation usage for better performance".to_string());
         }
-        
+
         if suggestions.is_empty() {
             suggestions.push("Container is well-optimized".to_string());
         }
-        
+
         suggestions
     }
 }
@@ -709,8 +741,16 @@ impl std::fmt::Display for OptimizationRecommendation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Container Optimization Recommendation:")?;
         writeln!(f, "  Cache Hit Rate: {:.1}%", self.cache_hit_rate * 100.0)?;
-        writeln!(f, "  Arena Allocation Rate: {:.1}%", self.arena_allocation_rate * 100.0)?;
-        writeln!(f, "  Memory Efficiency: {:.1}%", self.memory_efficiency * 100.0)?;
+        writeln!(
+            f,
+            "  Arena Allocation Rate: {:.1}%",
+            self.arena_allocation_rate * 100.0
+        )?;
+        writeln!(
+            f,
+            "  Memory Efficiency: {:.1}%",
+            self.memory_efficiency * 100.0
+        )?;
         writeln!(f, "  Recommended Priority: {:?}", self.recommended_priority)?;
         writeln!(f, "  Suggested Improvements:")?;
         for improvement in &self.suggested_improvements {
@@ -723,52 +763,54 @@ impl std::fmt::Display for OptimizationRecommendation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_arena_vector_basic_operations() {
         let mut vec = ArenaVector::new();
-        
+
         assert_eq!(vec.len(), 0);
         assert!(vec.is_empty());
-        
+
         vec.push(Value::integer(42)).unwrap();
         assert_eq!(vec.len(), 1);
         assert!(!vec.is_empty());
-        
+
         vec.clear();
         assert_eq!(vec.len(), 0);
         assert!(vec.is_empty());
     }
-    
+
     #[test]
     fn test_arena_hash_table_basic_operations() {
         let mut table = ArenaHashTable::new();
-        
+
         assert_eq!(table.len(), 0);
         assert!(table.is_empty());
-        
-        table.insert(Value::string("key"), Value::integer(42)).unwrap();
+
+        table
+            .insert(Value::string("key"), Value::integer(42))
+            .unwrap();
         assert_eq!(table.len(), 1);
         assert!(!table.is_empty());
-        
+
         table.clear();
         assert_eq!(table.len(), 0);
         assert!(table.is_empty());
     }
-    
+
     #[test]
     fn test_container_pool() {
         let pool = ContainerPool::new();
-        
+
         let vec1 = pool.get_vector(10);
         assert_eq!(vec1.capacity(), 10);
-        
+
         pool.return_vector(vec1);
-        
+
         let vec2 = pool.get_vector(15);
         assert!(vec2.capacity() >= 15);
     }
-    
+
     #[test]
     fn test_optimization_context() {
         let context = ContainerContext {
@@ -779,7 +821,7 @@ mod tests {
             optimization_priority: OptimizationPriority::Aggressive,
             name: Some("test-container".to_string()),
         };
-        
+
         let vec = ArenaVector::with_context(context);
         assert_eq!(vec.context.expected_size, Some(100));
         assert_eq!(vec.context.access_pattern, AccessPattern::Sequential);

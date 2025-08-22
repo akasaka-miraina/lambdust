@@ -13,7 +13,7 @@
 
 #![allow(missing_docs)]
 
-use super::{Type, TypeVar, Kind, TypeScheme};
+use super::{Kind, Type, TypeScheme, TypeVar};
 use crate::diagnostics::{Error, Result, Span};
 use crate::eval::value::Value;
 use std::collections::{HashMap, HashSet};
@@ -161,10 +161,7 @@ pub enum DecisionTree {
 #[derive(Debug, Clone)]
 pub enum PatternTest {
     /// Constructor test
-    Constructor {
-        name: String,
-        arity: usize,
-    },
+    Constructor { name: String, arity: usize },
     /// Literal test
     Literal(crate::ast::Literal),
     /// Type test
@@ -199,9 +196,9 @@ impl AlgebraicDataType {
 
     /// Gets the kind of this type based on its parameters.
     pub fn compute_kind(&self) -> Kind {
-        self.type_params.iter().fold(Kind::Type, |acc, _| {
-            Kind::arrow(Kind::Type, acc)
-        })
+        self.type_params
+            .iter()
+            .fold(Kind::Type, |acc, _| Kind::arrow(Kind::Type, acc))
     }
 
     /// Creates a type application with the given arguments.
@@ -243,17 +240,25 @@ impl AlgebraicDataType {
     /// Checks if this is a recursive type.
     pub fn is_recursive(&self) -> bool {
         self.constructors.iter().any(|c| {
-            c.param_types.iter().any(|t| self.contains_self_reference(t))
+            c.param_types
+                .iter()
+                .any(|t| self.contains_self_reference(t))
         })
     }
 
     fn contains_self_reference(&self, ty: &Type) -> bool {
         match ty {
             Type::Constructor { name, .. } => name == &self.name,
-            Type::Application { constructor, argument } => {
+            Type::Application {
+                constructor,
+                argument,
+            } => {
                 self.contains_self_reference(constructor) || self.contains_self_reference(argument)
             }
-            Type::Function { params, return_type } => {
+            Type::Function {
+                params,
+                return_type,
+            } => {
                 params.iter().any(|p| self.contains_self_reference(p))
                     || self.contains_self_reference(return_type)
             }
@@ -445,9 +450,7 @@ impl Pattern {
                 bindings.extend(first_bindings);
                 Ok(())
             }
-            Pattern::Guard { pattern, .. } => {
-                pattern.type_check_impl(expected_type, bindings)
-            }
+            Pattern::Guard { pattern, .. } => pattern.type_check_impl(expected_type, bindings),
         }
     }
 }
@@ -469,7 +472,7 @@ impl PatternMatcher {
     /// Compiles a match expression into a decision tree.
     pub fn compile_match(&mut self, match_expr: &MatchExpression) -> Result<CompiledPattern> {
         let cache_key = format!("{match_expr:?}");
-        
+
         if let Some(cached) = self.cache.get(&cache_key) {
             return Ok(cached.clone());
         }
@@ -479,7 +482,7 @@ impl PatternMatcher {
 
         let compiled = CompiledPattern { tree, bindings };
         self.cache.insert(cache_key, compiled.clone());
-        
+
         Ok(compiled)
     }
 
@@ -491,7 +494,7 @@ impl PatternMatcher {
         // Simplified compilation: just create a basic decision tree
         // In a full implementation, this would use sophisticated algorithms
         // like the one described in "Compiling Pattern Matching to Good Decision Trees"
-        
+
         let first_clause = &clauses[0];
         if first_clause.pattern.is_irrefutable() {
             Ok(DecisionTree::Success {
@@ -505,7 +508,7 @@ impl PatternMatcher {
                 action: first_clause.body.clone(),
             });
             let failure = Box::new(self.compile_clauses(&clauses[1..])?);
-            
+
             Ok(DecisionTree::Test {
                 test,
                 success,
@@ -525,7 +528,7 @@ impl PatternMatcher {
             _ => Err(Box::new(Error::type_error(
                 "Cannot convert pattern to test".to_string(),
                 Span::default(),
-            )))
+            ))),
         }
     }
 
@@ -540,7 +543,7 @@ impl PatternMatcher {
     pub fn check_exhaustiveness(&self, patterns: &[Pattern], _ty: &Type) -> Result<bool> {
         // Simplified exhaustiveness checking
         // A full implementation would use constraint solving
-        
+
         // Check if any pattern is irrefutable
         if patterns.iter().any(|p| p.is_irrefutable()) {
             return Ok(true);
@@ -587,16 +590,18 @@ fn types_compatible(t1: &Type, t2: &Type) -> bool {
 impl fmt::Display for AlgebraicDataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "data {}", self.name)?;
-        
+
         if !self.type_params.is_empty() {
             write!(f, " (")?;
             for (i, param) in self.type_params.iter().enumerate() {
-                if i > 0 { write!(f, " ")?; }
+                if i > 0 {
+                    write!(f, " ")?;
+                }
                 write!(f, "{param}")?;
             }
             write!(f, ")")?;
         }
-        
+
         match self.variant_type {
             AlgebraicVariant::Sum => {
                 for (i, constructor) in self.constructors.iter().enumerate() {
@@ -611,7 +616,9 @@ impl fmt::Display for AlgebraicDataType {
             AlgebraicVariant::Product => {
                 write!(f, " {{")?;
                 for (i, constructor) in self.constructors.iter().enumerate() {
-                    if i > 0 { write!(f, ", ")?; }
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
                     write!(f, "{constructor}")?;
                 }
                 write!(f, "}}")?;
@@ -623,7 +630,7 @@ impl fmt::Display for AlgebraicDataType {
                 }
             }
         }
-        
+
         Ok(())
     }
 }
@@ -631,20 +638,22 @@ impl fmt::Display for AlgebraicDataType {
 impl fmt::Display for DataConstructor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)?;
-        
+
         if !self.param_types.is_empty() {
             write!(f, " (")?;
             for (i, param_type) in self.param_types.iter().enumerate() {
-                if i > 0 { write!(f, " ")?; }
+                if i > 0 {
+                    write!(f, " ")?;
+                }
                 write!(f, "{param_type}")?;
             }
             write!(f, ")")?;
         }
-        
+
         if let Some(return_type) = &self.return_type {
             write!(f, " : {return_type}")?;
         }
-        
+
         Ok(())
     }
 }
@@ -660,7 +669,9 @@ impl fmt::Display for Pattern {
                 if !patterns.is_empty() {
                     write!(f, " (")?;
                     for (i, pattern) in patterns.iter().enumerate() {
-                        if i > 0 { write!(f, " ")?; }
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
                         write!(f, "{pattern}")?;
                     }
                     write!(f, ")")?;
@@ -670,7 +681,9 @@ impl fmt::Display for Pattern {
             Pattern::Tuple(patterns) => {
                 write!(f, "(")?;
                 for (i, pattern) in patterns.iter().enumerate() {
-                    if i > 0 { write!(f, ", ")?; }
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
                     write!(f, "{pattern}")?;
                 }
                 write!(f, ")")
@@ -678,18 +691,24 @@ impl fmt::Display for Pattern {
             Pattern::Record { fields, rest } => {
                 write!(f, "{{")?;
                 for (i, (name, pattern)) in fields.iter().enumerate() {
-                    if i > 0 { write!(f, ", ")?; }
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
                     write!(f, "{name} = {pattern}")?;
                 }
                 if let Some(rest_pattern) = rest {
-                    if !fields.is_empty() { write!(f, ", ")?; }
+                    if !fields.is_empty() {
+                        write!(f, ", ")?;
+                    }
                     write!(f, "..{rest_pattern}")?;
                 }
                 write!(f, "}}")
             }
             Pattern::Or(patterns) => {
                 for (i, pattern) in patterns.iter().enumerate() {
-                    if i > 0 { write!(f, " | ")?; }
+                    if i > 0 {
+                        write!(f, " | ")?;
+                    }
                     write!(f, "{pattern}")?;
                 }
                 Ok(())
@@ -721,11 +740,8 @@ mod tests {
         );
 
         let none_constructor = DataConstructor::new("None".to_string(), vec![], None);
-        let some_constructor = DataConstructor::new(
-            "Some".to_string(),
-            vec![Type::named_var("a")],
-            None,
-        );
+        let some_constructor =
+            DataConstructor::new("Some".to_string(), vec![Type::named_var("a")], None);
 
         maybe_type.add_constructor(none_constructor);
         maybe_type.add_constructor(some_constructor);
@@ -754,10 +770,8 @@ mod tests {
         assert!(Pattern::Variable("x".to_string()).is_irrefutable());
         assert!(!Pattern::Literal(crate::ast::Literal::Boolean(true)).is_irrefutable());
 
-        let tuple_pattern = Pattern::Tuple(vec![
-            Pattern::Variable("x".to_string()),
-            Pattern::Wildcard,
-        ]);
+        let tuple_pattern =
+            Pattern::Tuple(vec![Pattern::Variable("x".to_string()), Pattern::Wildcard]);
         assert!(tuple_pattern.is_irrefutable());
     }
 
@@ -774,7 +788,10 @@ mod tests {
 
         // Should be: a -> List a -> List a
         match &scheme.type_ {
-            Type::Function { params, return_type } => {
+            Type::Function {
+                params,
+                return_type,
+            } => {
                 assert_eq!(params.len(), 2);
                 assert_eq!(**return_type, result_type);
             }

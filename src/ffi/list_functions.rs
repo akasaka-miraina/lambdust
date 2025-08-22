@@ -22,7 +22,7 @@ impl FfiFunction for ListLengthFunction {
             documentation: Some("Returns the length of a list.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let list = Vec::<Value>::from_lambdust(&args[0])?;
         Ok((list.len() as i64).to_lambdust())
@@ -43,7 +43,7 @@ impl FfiFunction for ListMapFunction {
             documentation: Some("Maps a function over a list.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         // For now, return the list unchanged
         // In a real implementation, this would apply the function to each element
@@ -66,7 +66,7 @@ impl FfiFunction for ListFilterFunction {
             documentation: Some("Filters a list using a predicate function.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         // For now, return the list unchanged
         // In a real implementation, this would filter elements based on the predicate

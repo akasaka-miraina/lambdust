@@ -6,10 +6,10 @@
 //! - Dependency optimization strategies
 //! - Hot-reload dependency tracking
 
-use super::{Module, ModuleId, ModuleError};
+use super::{Module, ModuleError, ModuleId};
 use crate::diagnostics::{Error, Result};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 /// Enhanced dependency resolver with advanced analysis capabilities.
 #[derive(Debug)]
@@ -131,7 +131,10 @@ impl EnhancedDependencyResolver {
     }
 
     /// Resolves dependencies for a module with enhanced analysis.
-    pub fn resolve_dependencies_enhanced(&mut self, module: Module) -> Result<(Module, DependencyGraph)> {
+    pub fn resolve_dependencies_enhanced(
+        &mut self,
+        module: Module,
+    ) -> Result<(Module, DependencyGraph)> {
         let start_time = Instant::now();
         let module_id = module.id.clone();
 
@@ -148,13 +151,14 @@ impl EnhancedDependencyResolver {
         let dependency_graph = self.build_dependency_graph(&module)?;
 
         // Cache the result
-        self.dependency_cache.insert(module_id, dependency_graph.clone());
+        self.dependency_cache
+            .insert(module_id, dependency_graph.clone());
 
         // Update statistics
         let resolution_time = start_time.elapsed();
         self.resolution_stats.total_resolution_time += resolution_time;
-        self.resolution_stats.average_resolution_time = 
-            self.resolution_stats.total_resolution_time / self.resolution_stats.total_resolutions as u32;
+        self.resolution_stats.average_resolution_time = self.resolution_stats.total_resolution_time
+            / self.resolution_stats.total_resolutions as u32;
 
         Ok((module, dependency_graph))
     }
@@ -171,8 +175,9 @@ impl EnhancedDependencyResolver {
         };
 
         // Perform topological sort with cycle detection
-        let (topological_order, cycles) = self.topological_sort_with_cycle_detection(&graph.root, &module.dependencies)?;
-        
+        let (topological_order, cycles) =
+            self.topological_sort_with_cycle_detection(&graph.root, &module.dependencies)?;
+
         graph.transitive_dependencies = topological_order;
         graph.detected_cycles = cycles;
 
@@ -237,7 +242,7 @@ impl EnhancedDependencyResolver {
         // Check maximum search depth
         if depth > self.detection_config.max_search_depth {
             return Err(Box::new(Error::from(ModuleError::CircularDependency(
-                current_path.clone()
+                current_path.clone(),
             ))));
         }
 
@@ -313,14 +318,17 @@ impl EnhancedDependencyResolver {
     /// Assesses the impact of a detected cycle.
     fn assess_cycle_impact(&self, cycle_path: &[ModuleId]) -> CycleImpact {
         match cycle_path.len() {
-            2 => CycleImpact::Critical, // Direct cycles are always critical
+            2 => CycleImpact::Critical,     // Direct cycles are always critical
             3..=5 => CycleImpact::Moderate, // Small cycles are moderate
-            _ => CycleImpact::Low, // Large cycles might be manageable
+            _ => CycleImpact::Low,          // Large cycles might be manageable
         }
     }
 
     /// Computes dependency levels (distance from root).
-    fn compute_dependency_levels(&self, graph: &DependencyGraph) -> Result<HashMap<ModuleId, usize>> {
+    fn compute_dependency_levels(
+        &self,
+        graph: &DependencyGraph,
+    ) -> Result<HashMap<ModuleId, usize>> {
         let mut levels = HashMap::new();
         let mut queue = VecDeque::new();
 
@@ -347,28 +355,40 @@ impl EnhancedDependencyResolver {
 
         match cycle.cycle_type {
             CycleType::SelfDependency => {
-                suggestions.push("Remove self-dependency - modules should not depend on themselves".to_string());
+                suggestions.push(
+                    "Remove self-dependency - modules should not depend on themselves".to_string(),
+                );
             }
             CycleType::Direct => {
-                suggestions.push("Introduce an intermediate module to break the direct cycle".to_string());
-                suggestions.push("Extract common functionality into a shared base module".to_string());
+                suggestions
+                    .push("Introduce an intermediate module to break the direct cycle".to_string());
+                suggestions
+                    .push("Extract common functionality into a shared base module".to_string());
             }
             CycleType::Complex => {
                 suggestions.push("Refactor modules to reduce coupling".to_string());
                 suggestions.push("Use dependency inversion to break the cycle".to_string());
-                suggestions.push("Consider splitting large modules into smaller, focused modules".to_string());
+                suggestions.push(
+                    "Consider splitting large modules into smaller, focused modules".to_string(),
+                );
             }
         }
 
         match cycle.impact {
             CycleImpact::Critical => {
-                suggestions.push("This cycle must be resolved before the module can be loaded".to_string());
+                suggestions.push(
+                    "This cycle must be resolved before the module can be loaded".to_string(),
+                );
             }
             CycleImpact::Moderate => {
-                suggestions.push("Consider resolving this cycle to improve system reliability".to_string());
+                suggestions.push(
+                    "Consider resolving this cycle to improve system reliability".to_string(),
+                );
             }
             CycleImpact::Low => {
-                suggestions.push("This cycle may be acceptable with careful initialization order".to_string());
+                suggestions.push(
+                    "This cycle may be acceptable with careful initialization order".to_string(),
+                );
             }
         }
 
@@ -391,7 +411,10 @@ impl EnhancedDependencyResolver {
     }
 
     /// Validates a complete module dependency graph.
-    pub fn validate_module_graph(&self, modules: &HashMap<ModuleId, Module>) -> Vec<GraphValidationError> {
+    pub fn validate_module_graph(
+        &self,
+        modules: &HashMap<ModuleId, Module>,
+    ) -> Vec<GraphValidationError> {
         let mut errors = Vec::new();
 
         for (module_id, module) in modules {
@@ -422,7 +445,10 @@ impl EnhancedDependencyResolver {
     }
 
     /// Analyzes the complete module graph for global issues.
-    fn analyze_complete_graph(&self, modules: &HashMap<ModuleId, Module>) -> Result<(Vec<ModuleId>, Vec<DependencyCycle>)> {
+    fn analyze_complete_graph(
+        &self,
+        modules: &HashMap<ModuleId, Module>,
+    ) -> Result<(Vec<ModuleId>, Vec<DependencyCycle>)> {
         let mut all_modules = Vec::new();
         let mut detected_cycles = Vec::new();
         let mut visited = HashSet::new();
@@ -536,19 +562,33 @@ impl std::fmt::Display for GraphValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GraphValidationError::MissingDependency { module, dependency } => {
-                write!(f, "Module {} depends on missing module {}", 
-                       super::format_module_id(module), 
-                       super::format_module_id(dependency))
+                write!(
+                    f,
+                    "Module {} depends on missing module {}",
+                    super::format_module_id(module),
+                    super::format_module_id(dependency)
+                )
             }
             GraphValidationError::SelfDependency(module) => {
-                write!(f, "Module {} depends on itself", super::format_module_id(module))
+                write!(
+                    f,
+                    "Module {} depends on itself",
+                    super::format_module_id(module)
+                )
             }
             GraphValidationError::CircularDependency(cycle) => {
-                let cycle_str = cycle.cycle_path.iter()
+                let cycle_str = cycle
+                    .cycle_path
+                    .iter()
                     .map(super::format_module_id)
                     .collect::<Vec<_>>()
                     .join(" -> ");
-                write!(f, "Circular dependency: {} ({})", cycle_str, cycle.impact_description())
+                write!(
+                    f,
+                    "Circular dependency: {} ({})",
+                    cycle_str,
+                    cycle.impact_description()
+                )
             }
         }
     }
@@ -579,7 +619,7 @@ impl Default for EnhancedDependencyResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::module_system::{ModuleNamespace, ModuleSource, ModuleMetadata};
+    use crate::module_system::{ModuleMetadata, ModuleNamespace, ModuleSource};
 
     fn create_test_module(name: &str, deps: Vec<&str>) -> Module {
         Module {
@@ -588,10 +628,13 @@ mod tests {
                 namespace: ModuleNamespace::User,
             },
             exports: HashMap::new(),
-            dependencies: deps.into_iter().map(|dep| ModuleId {
-                components: vec![dep.to_string()],
-                namespace: ModuleNamespace::User,
-            }).collect(),
+            dependencies: deps
+                .into_iter()
+                .map(|dep| ModuleId {
+                    components: vec![dep.to_string()],
+                    namespace: ModuleNamespace::User,
+                })
+                .collect(),
             source: Some(ModuleSource::Builtin),
             metadata: ModuleMetadata::default(),
         }
@@ -607,10 +650,10 @@ mod tests {
     fn test_simple_dependency_resolution() {
         let mut resolver = EnhancedDependencyResolver::new();
         let module = create_test_module("test", vec![]);
-        
+
         let result = resolver.resolve_dependencies_enhanced(module);
         assert!(result.is_ok());
-        
+
         let (_, graph) = result.unwrap();
         assert_eq!(graph.root.components[0], "test");
         assert!(graph.detected_cycles.is_empty());
@@ -620,34 +663,61 @@ mod tests {
     fn test_self_dependency_detection() {
         let mut resolver = EnhancedDependencyResolver::new();
         let module = create_test_module("self_dep", vec!["self_dep"]);
-        
+
         let result = resolver.resolve_dependencies_enhanced(module);
         assert!(result.is_ok());
-        
+
         let (_, graph) = result.unwrap();
         assert!(!graph.detected_cycles.is_empty());
-        assert_eq!(graph.detected_cycles[0].cycle_type, CycleType::SelfDependency);
+        assert_eq!(
+            graph.detected_cycles[0].cycle_type,
+            CycleType::SelfDependency
+        );
     }
 
     #[test]
     fn test_cycle_impact_assessment() {
         let resolver = EnhancedDependencyResolver::new();
-        
+
         // Test direct cycle impact
         let direct_cycle = vec![
-            ModuleId { components: vec!["a".to_string()], namespace: ModuleNamespace::User },
-            ModuleId { components: vec!["b".to_string()], namespace: ModuleNamespace::User },
+            ModuleId {
+                components: vec!["a".to_string()],
+                namespace: ModuleNamespace::User,
+            },
+            ModuleId {
+                components: vec!["b".to_string()],
+                namespace: ModuleNamespace::User,
+            },
         ];
-        assert_eq!(resolver.assess_cycle_impact(&direct_cycle), CycleImpact::Critical);
-        
+        assert_eq!(
+            resolver.assess_cycle_impact(&direct_cycle),
+            CycleImpact::Critical
+        );
+
         // Test complex cycle impact
         let complex_cycle = vec![
-            ModuleId { components: vec!["a".to_string()], namespace: ModuleNamespace::User },
-            ModuleId { components: vec!["b".to_string()], namespace: ModuleNamespace::User },
-            ModuleId { components: vec!["c".to_string()], namespace: ModuleNamespace::User },
-            ModuleId { components: vec!["d".to_string()], namespace: ModuleNamespace::User },
+            ModuleId {
+                components: vec!["a".to_string()],
+                namespace: ModuleNamespace::User,
+            },
+            ModuleId {
+                components: vec!["b".to_string()],
+                namespace: ModuleNamespace::User,
+            },
+            ModuleId {
+                components: vec!["c".to_string()],
+                namespace: ModuleNamespace::User,
+            },
+            ModuleId {
+                components: vec!["d".to_string()],
+                namespace: ModuleNamespace::User,
+            },
         ];
-        assert_eq!(resolver.assess_cycle_impact(&complex_cycle), CycleImpact::Moderate);
+        assert_eq!(
+            resolver.assess_cycle_impact(&complex_cycle),
+            CycleImpact::Moderate
+        );
     }
 
     #[test]
@@ -655,10 +725,10 @@ mod tests {
         let mut resolver = EnhancedDependencyResolver::new();
         let module1 = create_test_module("test1", vec![]);
         let module2 = create_test_module("test2", vec![]);
-        
+
         resolver.resolve_dependencies_enhanced(module1).unwrap();
         resolver.resolve_dependencies_enhanced(module2).unwrap();
-        
+
         let stats = resolver.get_statistics();
         assert_eq!(stats.total_resolutions, 2);
         assert_eq!(stats.cache_misses, 2);
@@ -669,15 +739,17 @@ mod tests {
         let mut resolver = EnhancedDependencyResolver::new();
         let module = create_test_module("cached", vec![]);
         let module_id = module.id.clone();
-        
+
         // First resolution should be a cache miss
-        resolver.resolve_dependencies_enhanced(module.clone()).unwrap();
+        resolver
+            .resolve_dependencies_enhanced(module.clone())
+            .unwrap();
         assert_eq!(resolver.get_statistics().cache_misses, 1);
-        
+
         // Check if graph is cached
         let cached_graph = resolver.get_dependency_graph(&module_id);
         assert!(cached_graph.is_some());
-        
+
         // Second resolution should be a cache hit
         resolver.resolve_dependencies_enhanced(module).unwrap();
         assert_eq!(resolver.get_statistics().cache_hits, 1);

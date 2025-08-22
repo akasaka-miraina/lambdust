@@ -3,22 +3,24 @@
 //! This is a simplified implementation that avoids closure issues by using
 //! a different approach for dynamic primitive creation.
 
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment, Record, RecordType, FieldInfo};
-use crate::effects::Effect;
 use crate::diagnostics::{Error, Result};
+use crate::effects::Effect;
+use crate::eval::value::{
+    FieldInfo, PrimitiveImpl, PrimitiveProcedure, Record, RecordType, ThreadSafeEnvironment, Value,
+};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, Mutex};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Global counter for generating unique record type IDs.
 static RECORD_TYPE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// Global registry of record types.
-static RECORD_TYPE_REGISTRY: std::sync::LazyLock<Mutex<HashMap<u64, RecordType>>> = 
+static RECORD_TYPE_REGISTRY: std::sync::LazyLock<Mutex<HashMap<u64, RecordType>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Global registry mapping type names to type IDs.
-static RECORD_TYPE_NAME_REGISTRY: std::sync::LazyLock<Mutex<HashMap<String, u64>>> = 
+static RECORD_TYPE_NAME_REGISTRY: std::sync::LazyLock<Mutex<HashMap<String, u64>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Generates a unique record type ID.
@@ -30,16 +32,22 @@ pub fn next_record_type_id() -> u64 {
 pub fn register_record_type(record_type: RecordType) -> Result<u64> {
     let type_id = record_type.id;
     let type_name = record_type.name.clone();
-    
+
     // Register in both registries
     let mut type_registry = RECORD_TYPE_REGISTRY.lock().map_err(|_| {
-        Box::new(Error::runtime_error("Failed to acquire record type registry lock".to_string(), None))
+        Box::new(Error::runtime_error(
+            "Failed to acquire record type registry lock".to_string(),
+            None,
+        ))
     })?;
-    
+
     let mut name_registry = RECORD_TYPE_NAME_REGISTRY.lock().map_err(|_| {
-        Box::new(Error::runtime_error("Failed to acquire record type name registry lock".to_string(), None))
+        Box::new(Error::runtime_error(
+            "Failed to acquire record type name registry lock".to_string(),
+            None,
+        ))
     })?;
-    
+
     // Check for duplicate names
     if name_registry.contains_key(&type_name) {
         return Err(Box::new(Error::runtime_error(
@@ -47,19 +55,22 @@ pub fn register_record_type(record_type: RecordType) -> Result<u64> {
             None,
         )));
     }
-    
+
     type_registry.insert(type_id, record_type);
     name_registry.insert(type_name, type_id);
-    
+
     Ok(type_id)
 }
 
 /// Looks up a record type by ID.
 pub fn lookup_record_type(type_id: u64) -> Result<RecordType> {
     let registry = RECORD_TYPE_REGISTRY.lock().map_err(|_| {
-        Box::new(Error::runtime_error("Failed to acquire record type registry lock".to_string(), None))
+        Box::new(Error::runtime_error(
+            "Failed to acquire record type registry lock".to_string(),
+            None,
+        ))
     })?;
-    
+
     registry.get(&type_id).cloned().ok_or_else(|| {
         Box::new(Error::runtime_error(
             format!("Unknown record type ID: {type_id}"),
@@ -71,7 +82,7 @@ pub fn lookup_record_type(type_id: u64) -> Result<RecordType> {
 /// Creates a new record instance.
 pub fn make_record(type_id: u64, field_values: Vec<Value>) -> Result<Record> {
     let record_type = lookup_record_type(type_id)?;
-    
+
     // Validate field count
     if field_values.len() != record_type.field_names.len() {
         return Err(Box::new(Error::runtime_error(
@@ -84,7 +95,7 @@ pub fn make_record(type_id: u64, field_values: Vec<Value>) -> Result<Record> {
             None,
         )));
     }
-    
+
     Ok(Record {
         type_id,
         fields: Arc::new(RwLock::new(field_values)),
@@ -102,58 +113,76 @@ pub fn is_record_of_type(value: &Value, type_id: u64) -> bool {
 /// Creates bindings for SRFI-9 record operations in the given environment.
 pub fn create_record_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // make-record - creates a record instance from type ID and values
-    env.define("make-record".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "make-record".to_string(),
-        arity_min: 1,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_make_record),
-        effects: vec![Effect::State],
-    })));
-    
+    env.define(
+        "make-record".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "make-record".to_string(),
+            arity_min: 1,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_make_record),
+            effects: vec![Effect::State],
+        })),
+    );
+
     // record-type-id - extracts type ID from a record
-    env.define("record-type-id".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "record-type-id".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_record_type_id),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "record-type-id".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "record-type-id".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_record_type_id),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // record-field-ref - get field value by index
-    env.define("record-field-ref".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "record-field-ref".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_record_field_ref),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "record-field-ref".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "record-field-ref".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_record_field_ref),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // record-field-set! - set field value by index
-    env.define("record-field-set!".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "record-field-set!".to_string(),
-        arity_min: 3,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_record_field_set),
-        effects: vec![Effect::State],
-    })));
-    
+    env.define(
+        "record-field-set!".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "record-field-set!".to_string(),
+            arity_min: 3,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_record_field_set),
+            effects: vec![Effect::State],
+        })),
+    );
+
     // record? - generic record predicate
-    env.define("record?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "record?".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_record_p),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "record?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "record?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_record_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // define-record-type-helper - helper for the macro expansion
-    env.define("define-record-type-helper".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "define-record-type-helper".to_string(),
-        arity_min: 3,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_define_record_type_helper),
-        effects: vec![Effect::State],
-    })));
+    env.define(
+        "define-record-type-helper".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "define-record-type-helper".to_string(),
+            arity_min: 3,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_define_record_type_helper),
+            effects: vec![Effect::State],
+        })),
+    );
 }
 
 // ============= PRIMITIVE PROCEDURE IMPLEMENTATIONS =============
@@ -167,7 +196,7 @@ fn primitive_make_record(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Extract record type ID
     let type_id = match &args[0] {
         Value::Literal(literal) if literal.is_number() => {
@@ -180,12 +209,14 @@ fn primitive_make_record(args: &[Value]) -> Result<Value> {
                 )));
             }
         }
-        _ => return Err(Box::new(Error::runtime_error(
-            "make-record expects a numeric type ID as first argument".to_string(),
-            None,
-        )))
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "make-record expects a numeric type ID as first argument".to_string(),
+                None,
+            )));
+        }
     };
-    
+
     // Remaining arguments are field values
     let field_values = args[1..].to_vec();
     let record = make_record(type_id, field_values)?;
@@ -201,13 +232,13 @@ fn primitive_record_type_id(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     match &args[0] {
         Value::Record(record) => Ok(Value::number(record.type_id as f64)),
         _ => Err(Box::new(Error::runtime_error(
             "record-type-id expects a record argument".to_string(),
             None,
-        )))
+        ))),
     }
 }
 
@@ -218,17 +249,19 @@ fn primitive_record_field_ref(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("record-field-ref expects 2 arguments, got {}", args.len()),
             None,
-        )))
+        )));
     }
-    
+
     let record = match &args[0] {
         Value::Record(rec) => rec,
-        _ => return Err(Box::new(Error::runtime_error(
-            "record-field-ref expects a record as first argument".to_string(),
-            None,
-        )))
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "record-field-ref expects a record as first argument".to_string(),
+                None,
+            )));
+        }
     };
-    
+
     let index = match &args[1] {
         Value::Literal(literal) if literal.is_number() => {
             if let Some(n) = literal.to_f64() {
@@ -240,16 +273,21 @@ fn primitive_record_field_ref(args: &[Value]) -> Result<Value> {
                 )));
             }
         }
-        _ => return Err(Box::new(Error::runtime_error(
-            "record-field-ref expects a numeric index as second argument".to_string(),
-            None,
-        )))
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "record-field-ref expects a numeric index as second argument".to_string(),
+                None,
+            )));
+        }
     };
-    
-    let fields = record.fields.read().map_err(|_| {
-        Box::new(Error::runtime_error("Failed to acquire record field lock".to_string(), None))
+
+    let fields = record.fields.try_read().map_err(|_| {
+        Box::new(Error::runtime_error(
+            "Failed to acquire record field lock".to_string(),
+            None,
+        ))
     })?;
-    
+
     fields.get(index).cloned().ok_or_else(|| {
         Box::new(Error::runtime_error(
             format!("Record field index {index} out of bounds"),
@@ -267,15 +305,17 @@ fn primitive_record_field_set(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let record = match &args[0] {
         Value::Record(rec) => rec,
-        _ => return Err(Box::new(Error::runtime_error(
-            "record-field-set! expects a record as first argument".to_string(),
-            None,
-        )))
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "record-field-set! expects a record as first argument".to_string(),
+                None,
+            )));
+        }
     };
-    
+
     let index = match &args[1] {
         Value::Literal(literal) if literal.is_number() => {
             if let Some(n) = literal.to_f64() {
@@ -287,25 +327,27 @@ fn primitive_record_field_set(args: &[Value]) -> Result<Value> {
                 )));
             }
         }
-        _ => return Err(Box::new(Error::runtime_error(
-            "record-field-set! expects a numeric index as second argument".to_string(),
-            None,
-        )))
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "record-field-set! expects a numeric index as second argument".to_string(),
+                None,
+            )));
+        }
     };
-    
+
     let new_value = args[2].clone();
-    
+
     let mut fields = record.fields.write().map_err(|_| {
         Error::runtime_error("Failed to acquire record field lock".to_string(), None)
     })?;
-    
+
     if index >= fields.len() {
         return Err(Box::new(Error::runtime_error(
             format!("Record field index {index} out of bounds"),
             None,
         )));
     }
-    
+
     fields[index] = new_value;
     Ok(Value::Unspecified)
 }
@@ -319,7 +361,7 @@ fn primitive_record_p(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     Ok(Value::boolean(args[0].is_record()))
 }
 
@@ -332,7 +374,7 @@ fn primitive_define_record_type_helper(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Extract type name
     let type_name = match &args[0] {
         Value::Literal(crate::ast::Literal::String(name)) => name.clone(),
@@ -346,23 +388,22 @@ fn primitive_define_record_type_helper(args: &[Value]) -> Result<Value> {
                 )));
             }
         }
-        _ => return Err(Box::new(Error::runtime_error(
-            "Record type name must be a string or symbol".to_string(),
-            None,
-        )))
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "Record type name must be a string or symbol".to_string(),
+                None,
+            )));
+        }
     };
-    
+
     // Extract field names
     let field_names = match &args[1] {
         Value::Nil => Vec::new(),
         _ => {
             let field_list = args[1].as_list().ok_or_else(|| {
-                Error::runtime_error(
-                    "Field names must be a list".to_string(),
-                    None,
-                )
+                Error::runtime_error("Field names must be a list".to_string(), None)
             })?;
-            
+
             let mut names = Vec::new();
             for field in field_list {
                 match &field {
@@ -379,24 +420,29 @@ fn primitive_define_record_type_helper(args: &[Value]) -> Result<Value> {
                             )));
                         }
                     }
-                    _ => return Err(Box::new(Error::runtime_error(
-                        "Field names must be strings or symbols".to_string(),
-                        None,
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::runtime_error(
+                            "Field names must be strings or symbols".to_string(),
+                            None,
+                        )));
+                    }
                 }
             }
             names
         }
     };
-    
+
     // Create record type
     let type_id = next_record_type_id();
-    let field_info: Vec<FieldInfo> = field_names.iter().map(|name| FieldInfo {
-        name: name.clone(),
-        accessor: format!("{type_name}-{name}"),
-        mutator: Some(format!("{type_name}-{name}-set!")),
-    }).collect();
-    
+    let field_info: Vec<FieldInfo> = field_names
+        .iter()
+        .map(|name| FieldInfo {
+            name: name.clone(),
+            accessor: format!("{type_name}-{name}"),
+            mutator: Some(format!("{type_name}-{name}-set!")),
+        })
+        .collect();
+
     let record_type = RecordType {
         id: type_id,
         name: *type_name,
@@ -405,10 +451,10 @@ fn primitive_define_record_type_helper(args: &[Value]) -> Result<Value> {
         predicate_name: None,
         field_info,
     };
-    
+
     // Register the type
     register_record_type(record_type)?;
-    
+
     // Return the type ID
     Ok(Value::number(type_id as f64))
 }
@@ -440,16 +486,16 @@ mod tests {
                 },
             ],
         };
-        
+
         let registered_id = register_record_type(record_type).unwrap();
         assert_eq!(registered_id, type_id);
-        
+
         let field_values = vec![Value::integer(10), Value::integer(20)];
         let record = make_record(type_id, field_values).unwrap();
-        
+
         assert_eq!(record.type_id, type_id);
     }
-    
+
     #[test]
     fn test_record_predicate() {
         let type_id = next_record_type_id();
@@ -459,27 +505,25 @@ mod tests {
             field_names: vec!["field".to_string()],
             constructor_name: None,
             predicate_name: None,
-            field_info: vec![
-                FieldInfo {
-                    name: "field".to_string(),
-                    accessor: "test-field".to_string(),
-                    mutator: None,
-                },
-            ],
+            field_info: vec![FieldInfo {
+                name: "field".to_string(),
+                accessor: "test-field".to_string(),
+                mutator: None,
+            }],
         };
-        
+
         register_record_type(record_type).unwrap();
-        
+
         let record = make_record(type_id, vec![Value::integer(123)]).unwrap();
         let record_value = Value::record(record);
-        
+
         // Test with correct type
         assert!(is_record_of_type(&record_value, type_id));
-        
+
         // Test with different type
         let other_type_id = next_record_type_id();
         assert!(!is_record_of_type(&record_value, other_type_id));
-        
+
         // Test with non-record
         assert!(!is_record_of_type(&Value::integer(42), type_id));
     }

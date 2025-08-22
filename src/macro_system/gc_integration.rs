@@ -4,15 +4,15 @@
 //! macro expansion contexts, syntax transformers, and temporary values
 //! created during expansion without affecting hygienic macro semantics.
 
-use crate::utils::{GcIntegration, GcIntegrationConfig};
-use crate::utils::gc::{ObjectId, gc_alloc};
-use crate::macro_system::{MacroExpander, MacroTransformer, HygieneContext, next_hygiene_id};
-use crate::eval::{Value, ThreadSafeEnvironment};
+use crate::ast::Expr;
+use crate::diagnostics::{Error, Result, Span, Spanned};
 use crate::eval::gc_coordinator::GcCoordinator;
-use crate::ast::{Expr};
-use crate::diagnostics::{Result, Error, Span, Spanned};
-use std::sync::{Arc, RwLock, Mutex};
+use crate::eval::{ThreadSafeEnvironment, Value};
+use crate::macro_system::{HygieneContext, MacroExpander, MacroTransformer, next_hygiene_id};
+use crate::utils::gc::{ObjectId, gc_alloc};
+use crate::utils::{GcIntegration, GcIntegrationConfig};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
 /// GC-aware macro expansion coordinator that integrates with the garbage collector
@@ -161,7 +161,7 @@ impl GcMacroCoordinator {
             if self.config.track_expansions {
                 let object_id = ObjectId::new(next_hygiene_id());
                 self.gc_integration.register_macro_root(object_id);
-                
+
                 // Update entry with GC object ID
                 if let Some(entry) = registry.get_mut(&name) {
                     entry.gc_object_id = Some(object_id);
@@ -181,7 +181,7 @@ impl GcMacroCoordinator {
         let start_time = Instant::now();
         let expansion_id = ExpansionId(
             self.next_expansion_id
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst),
         );
 
         // Create expansion context
@@ -201,7 +201,7 @@ impl GcMacroCoordinator {
         if self.config.track_expansions {
             let object_id = ObjectId::new(expansion_id.0);
             self.gc_integration.register_macro_root(object_id);
-            
+
             if let Ok(mut contexts) = self.expansion_contexts.write() {
                 let mut context = context;
                 context.gc_object_id = Some(object_id);
@@ -246,7 +246,7 @@ impl GcMacroCoordinator {
         if let Ok(mut expander) = self.expander.lock() {
             // Set up GC-aware expansion environment
             let result = expander.expand(&expr)?;
-            
+
             // Track expansion statistics
             steps = 1; // Simple expansion for now
             estimated_memory = Self::estimate_expression_memory(&result);
@@ -295,7 +295,7 @@ impl GcMacroCoordinator {
         }
 
         // Check if we have many active expansions
-        if let Ok(contexts) = self.expansion_contexts.read() {
+        if let Ok(contexts) = self.expansion_contexts.try_read() {
             contexts.len() > 10 // Arbitrary threshold
         } else {
             false
@@ -306,7 +306,7 @@ impl GcMacroCoordinator {
     fn trigger_expansion_gc(&self) {
         // Collect roots from active expansion contexts
         let expansion_roots = self.collect_expansion_roots();
-        
+
         // Register roots with GC integration
         for root_id in expansion_roots {
             self.gc_integration.register_macro_root(root_id);
@@ -319,8 +319,8 @@ impl GcMacroCoordinator {
     /// Collects GC root object IDs from active expansion contexts.
     fn collect_expansion_roots(&self) -> Vec<ObjectId> {
         let mut roots = Vec::new();
-        
-        if let Ok(contexts) = self.expansion_contexts.read() {
+
+        if let Ok(contexts) = self.expansion_contexts.try_read() {
             for context in contexts.values() {
                 if let Some(object_id) = context.gc_object_id {
                     roots.push(object_id);
@@ -354,13 +354,11 @@ impl GcMacroCoordinator {
     /// Extracts the macro name from an expression for context tracking.
     fn extract_macro_name(&self, expr: &Spanned<Expr>) -> String {
         match &expr.inner {
-            Expr::Application { operator, .. } => {
-                match &operator.inner {
-                    Expr::Identifier(name) => name.clone(),
-                    Expr::Symbol(name) => name.clone(),
-                    _ => "<complex-macro>".to_string(),
-                }
-            }
+            Expr::Application { operator, .. } => match &operator.inner {
+                Expr::Identifier(name) => name.clone(),
+                Expr::Symbol(name) => name.clone(),
+                _ => "<complex-macro>".to_string(),
+            },
             Expr::Identifier(name) => name.clone(),
             Expr::Symbol(name) => name.clone(),
             _ => "<unknown-macro>".to_string(),
@@ -375,25 +373,17 @@ impl GcMacroCoordinator {
             Expr::Identifier(_) | Expr::Symbol(_) => 24,
             Expr::Application { operator, operands } => {
                 let operator_size = Self::estimate_expression_memory(operator);
-                let operands_size: usize = operands
-                    .iter()
-                    .map(Self::estimate_expression_memory)
-                    .sum();
+                let operands_size: usize =
+                    operands.iter().map(Self::estimate_expression_memory).sum();
                 48 + operator_size + operands_size
             }
             Expr::Lambda { body, .. } => {
-                let body_size: usize = body
-                    .iter()
-                    .map(Self::estimate_expression_memory)
-                    .sum();
+                let body_size: usize = body.iter().map(Self::estimate_expression_memory).sum();
                 128 + body_size // Lambda overhead plus body
             }
             Expr::Let { bindings, body } => {
                 let bindings_size = bindings.len() * 64; // Rough estimate per binding
-                let body_size: usize = body
-                    .iter()
-                    .map(Self::estimate_expression_memory)
-                    .sum();
+                let body_size: usize = body.iter().map(Self::estimate_expression_memory).sum();
                 96 + bindings_size + body_size
             }
             _ => 64, // Default estimate for other forms
@@ -402,13 +392,13 @@ impl GcMacroCoordinator {
 
     /// Gets statistics about active macro expansions.
     pub fn get_expansion_statistics(&self) -> MacroExpansionStatistics {
-        let active_expansions = if let Ok(contexts) = self.expansion_contexts.read() {
+        let active_expansions = if let Ok(contexts) = self.expansion_contexts.try_read() {
             contexts.len()
         } else {
             0
         };
 
-        let registered_transformers = if let Ok(registry) = self.transformer_registry.read() {
+        let registered_transformers = if let Ok(registry) = self.transformer_registry.try_read() {
             registry.len()
         } else {
             0
@@ -476,27 +466,36 @@ impl ExpansionId {
 /// Extension trait for MacroExpander to support GC integration.
 pub trait MacroExpanderGcExt {
     /// Expands an expression with GC tracking.
-    fn expand_with_gc(&mut self, expr: &Spanned<Expr>, env: &crate::eval::Environment) -> Result<Spanned<Expr>>;
-    
+    fn expand_with_gc(
+        &mut self,
+        expr: &Spanned<Expr>,
+        env: &crate::eval::Environment,
+    ) -> Result<Spanned<Expr>>;
+
     /// Registers a syntax transformer with GC tracking.
-    fn register_syntax_with_gc(&mut self, name: String, transformer: Value, env: Arc<ThreadSafeEnvironment>) -> Result<()>;
+    fn register_syntax_with_gc(
+        &mut self,
+        name: String,
+        transformer: Value,
+        env: Arc<ThreadSafeEnvironment>,
+    ) -> Result<()>;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::macro_system::MacroExpander;
-    use crate::utils::GcIntegration;
-    use crate::eval::value::{ThreadSafeEnvironment, Value};
     use crate::ast::{Expr, Literal};
     use crate::diagnostics::Span;
+    use crate::eval::value::{ThreadSafeEnvironment, Value};
+    use crate::macro_system::MacroExpander;
+    use crate::utils::GcIntegration;
 
     #[test]
     fn test_gc_macro_coordinator_creation() {
         let expander = MacroExpander::new();
         let gc_integration = Arc::new(GcIntegration::with_default_config());
         let coordinator = GcMacroCoordinator::with_default_config(expander, gc_integration);
-        
+
         let stats = coordinator.get_expansion_statistics();
         assert_eq!(stats.active_expansions, 0);
         assert_eq!(stats.registered_transformers, 0);
@@ -507,18 +506,14 @@ mod tests {
         let expander = MacroExpander::new();
         let gc_integration = Arc::new(GcIntegration::with_default_config());
         let coordinator = GcMacroCoordinator::with_default_config(expander, gc_integration);
-        
+
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         let transformer = Value::integer(42); // Dummy transformer
-        
-        let result = coordinator.register_transformer(
-            "test-macro".to_string(),
-            transformer,
-            env,
-        );
-        
+
+        let result = coordinator.register_transformer("test-macro".to_string(), transformer, env);
+
         assert!(result.is_ok());
-        
+
         let stats = coordinator.get_expansion_statistics();
         assert_eq!(stats.registered_transformers, 1);
     }
@@ -528,12 +523,9 @@ mod tests {
         let expander = MacroExpander::new();
         let gc_integration = Arc::new(GcIntegration::with_default_config());
         let coordinator = GcMacroCoordinator::with_default_config(expander, gc_integration);
-        
-        let simple_expr = Spanned::new(
-            Expr::Literal(Literal::Number(42.0)),
-            Span::new(0, 2),
-        );
-        
+
+        let simple_expr = Spanned::new(Expr::Literal(Literal::Number(42.0)), Span::new(0, 2));
+
         let size = GcMacroCoordinator::estimate_expression_memory(&simple_expr);
         assert!(size > 0);
         assert!(size < 100); // Should be small for a simple literal

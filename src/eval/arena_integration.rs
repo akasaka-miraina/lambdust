@@ -15,19 +15,19 @@
 //!
 //! Based on analysis of allocation patterns, the arena system provides:
 //! - 60-80% reduction in allocation overhead for list operations
-//! - 40-50% improvement in cache locality for nested data structures  
+//! - 40-50% improvement in cache locality for nested data structures
 //! - 30-40% reduction in memory fragmentation
 //! - 50-70% faster garbage collection for expression evaluation
 
 use crate::ast::Literal;
 use crate::diagnostics::{Error, Result, Span};
-use crate::eval::value::{Value, ThreadSafeEnvironment};
-use crate::eval::value_arena::{ValueArena, ValueRef, ArenaValue, ArenaConfig, ArenaMemoryStats};
+use crate::eval::value::{ThreadSafeEnvironment, Value};
+use crate::eval::value_arena::{ArenaConfig, ArenaMemoryStats, ArenaValue, ValueArena, ValueRef};
 use crate::utils::SymbolId;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock, Mutex};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Thread-local arena allocator for expression evaluation.
 ///
@@ -40,9 +40,8 @@ thread_local! {
 /// Global arena allocator for long-lived values.
 ///
 /// Shared across threads for global definitions and cached computations.
-static GLOBAL_ARENA: std::sync::LazyLock<Mutex<ValueArena>> = std::sync::LazyLock::new(|| {
-    Mutex::new(ValueArena::new())
-});
+static GLOBAL_ARENA: std::sync::LazyLock<Mutex<ValueArena>> =
+    std::sync::LazyLock::new(|| Mutex::new(ValueArena::new()));
 
 /// Arena-aware Value wrapper that seamlessly integrates arena and heap allocation.
 ///
@@ -82,7 +81,7 @@ pub struct ArenaId {
 pub enum ComponentPath {
     /// Car of a pair
     PairCar,
-    /// Cdr of a pair  
+    /// Cdr of a pair
     PairCdr,
     /// Vector element at index
     VectorElement(usize),
@@ -146,7 +145,7 @@ impl ArenaAllocator {
             stats: Arc::new(RwLock::new(AllocationStats::default())),
         }
     }
-    
+
     /// Create allocator with custom configuration
     pub fn with_config(config: ArenaConfig) -> Self {
         Self {
@@ -154,117 +153,135 @@ impl ArenaAllocator {
             stats: Arc::new(RwLock::new(AllocationStats::default())),
         }
     }
-    
+
     /// Allocate a Value using optimal strategy
     pub fn alloc_value(&self, value: Value, hint: AllocationHint) -> Result<ArenaAwareValue> {
         let start_time = std::time::Instant::now();
-        
+
         // Decide allocation strategy based on hint and value type
         let strategy = self.choose_allocation_strategy(&value, &hint);
-        
+
         let result = match strategy {
             AllocationStrategy::Arena => self.alloc_arena_value(value, hint),
             AllocationStrategy::Heap => Ok(ArenaAwareValue::Heap(value)),
             AllocationStrategy::Hybrid => self.alloc_hybrid_value(value, hint),
         };
-        
+
         // Update statistics
         if let Ok(ref allocated_value) = result {
             let allocation_time = start_time.elapsed().as_nanos() as u64;
             self.update_stats(allocated_value, allocation_time);
         }
-        
+
         result
     }
-    
+
     /// Resolve an ArenaAwareValue to a standard Value for compatibility
     pub fn resolve_value(&self, arena_value: &ArenaAwareValue) -> Result<Value> {
         match arena_value {
             ArenaAwareValue::Heap(value) => Ok(value.clone()),
-            ArenaAwareValue::Arena { value_ref, arena_id } => {
-                self.resolve_arena_value(*value_ref, *arena_id)
-            }
-            ArenaAwareValue::Hybrid { base, arena_components, arena_id } => {
-                self.resolve_hybrid_value(base, arena_components, *arena_id)
-            }
+            ArenaAwareValue::Arena {
+                value_ref,
+                arena_id,
+            } => self.resolve_arena_value(*value_ref, *arena_id),
+            ArenaAwareValue::Hybrid {
+                base,
+                arena_components,
+                arena_id,
+            } => self.resolve_hybrid_value(base, arena_components, *arena_id),
         }
     }
-    
+
     /// Create optimized list from vector of values
     pub fn create_list(&self, values: Vec<Value>, hint: AllocationHint) -> Result<ArenaAwareValue> {
         if values.is_empty() {
             return Ok(ArenaAwareValue::Heap(Value::Nil));
         }
-        
+
         // Use arena allocation for list construction to improve cache locality
         let arena_id = self.get_thread_arena_id();
-        
+
         THREAD_ARENA.with(|arena| {
-            let arena = arena.borrow();
-            
+            let arena = arena.try_borrow().map_err(|_| {
+                Box::new(Error::runtime_error(
+                    "Arena borrow failed".to_string(),
+                    Some(Span::new(0, 0)),
+                ))
+            })?;
+
             // Build list from right to left using arena allocation
             let mut result_ref = arena.alloc_smart(ArenaValue::Nil)?;
-            
+
             for value in values.into_iter().rev() {
                 let arena_value = arena.from_standard_value(&value);
                 let value_ref = arena.alloc_smart(arena_value)?;
                 let pair_value = ArenaValue::Pair(value_ref, result_ref);
                 result_ref = arena.alloc_smart(pair_value)?;
             }
-            
+
             Ok(ArenaAwareValue::Arena {
                 value_ref: result_ref,
                 arena_id,
             })
         })
     }
-    
+
     /// Create optimized vector from iterator
     pub fn create_vector<I>(&self, values: I, hint: AllocationHint) -> Result<ArenaAwareValue>
     where
         I: IntoIterator<Item = Value>,
     {
         let values: Vec<_> = values.into_iter().collect();
-        
+
         if values.len() < 10 {
             // Small vectors: use heap allocation
             return Ok(ArenaAwareValue::Heap(Value::vector(values)));
         }
-        
+
         // Large vectors: use arena allocation with pre-allocated refs
         let arena_id = self.get_thread_arena_id();
-        
+
         THREAD_ARENA.with(|arena| {
-            let arena = arena.borrow();
-            
+            let arena = arena.try_borrow().map_err(|_| {
+                Box::new(Error::runtime_error(
+                    "Arena borrow failed".to_string(),
+                    Some(Span::new(0, 0)),
+                ))
+            })?;
+
             let mut value_refs = Vec::with_capacity(values.len());
             for value in values {
                 let arena_value = arena.from_standard_value(&value);
                 let value_ref = arena.alloc_smart(arena_value)?;
                 value_refs.push(value_ref);
             }
-            
+
             let vector_value = ArenaValue::Vector(value_refs);
             let vector_ref = arena.alloc_smart(vector_value)?;
-            
+
             Ok(ArenaAwareValue::Arena {
                 value_ref: vector_ref,
                 arena_id,
             })
         })
     }
-    
+
     /// Optimize function call allocation
     pub fn alloc_call_frame(&self, procedure: Value, args: Vec<Value>) -> Result<CallFrameRef> {
         let arena_id = self.get_thread_arena_id();
-        
+
         THREAD_ARENA.with(|arena| {
-            let arena = arena.borrow();
-            
+            let arena = arena.try_borrow().map_err(|_| {
+                Box::new(Error::runtime_error(
+                    "Arena borrow failed".to_string(),
+                    Some(Span::new(0, 0)),
+                ))
+            })?;
+
             // Allocate procedure reference
             let proc_arena_value = arena.from_standard_value(&procedure);
             let proc_ref = arena.alloc_medium(proc_arena_value)?;
-            
+
             // Allocate argument references
             let mut arg_refs = Vec::with_capacity(args.len());
             for arg in args {
@@ -272,7 +289,7 @@ impl ArenaAllocator {
                 let arg_ref = arena.alloc_medium(arg_arena_value)?;
                 arg_refs.push(arg_ref);
             }
-            
+
             Ok(CallFrameRef {
                 procedure_ref: proc_ref,
                 arg_refs,
@@ -280,32 +297,60 @@ impl ArenaAllocator {
             })
         })
     }
-    
+
     /// Get memory usage statistics across all arenas
     pub fn global_stats(&self) -> Result<GlobalArenaStats> {
         let mut thread_stats = Vec::new();
-        
+
         THREAD_ARENA.with(|arena| {
-            thread_stats.push(arena.borrow().memory_stats());
+            if let Ok(arena_ref) = arena.try_borrow() {
+                if let Some(stats) = arena_ref.memory_stats() {
+                    thread_stats.push(stats);
+                }
+            }
         });
-        
-        let global_stats = GLOBAL_ARENA.lock()
-            .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Some(Span::new(0, 0))))?
-            .memory_stats();
-        
+
+        let global_stats = GLOBAL_ARENA
+            .lock()
+            .map_err(|_| {
+                Error::runtime_error(
+                    "Failed to lock global arena".to_string(),
+                    Some(Span::new(0, 0)),
+                )
+            })?
+            .memory_stats()
+            .unwrap_or(ArenaMemoryStats {
+                short_count: 0,
+                medium_count: 0,
+                long_count: 0,
+                valid_count: 0,
+                total_allocated: 0,
+                short_memory: 0,
+                medium_memory: 0,
+                long_memory: 0,
+                literal_cache_size: 0,
+                symbol_cache_size: 0,
+                pair_cache_size: 0,
+                allocation_count: 0,
+            });
+
         let allocation_stats = {
-            let stats_guard = self.stats.read()
-                .map_err(|_| Error::runtime_error("Failed to read allocation stats".to_string(), Some(Span::new(0, 0))))?;
+            let stats_guard = self.stats.try_read().map_err(|_| {
+                Error::runtime_error(
+                    "Failed to read allocation stats".to_string(),
+                    Some(Span::new(0, 0)),
+                )
+            })?;
             stats_guard.clone()
         };
-        
+
         Ok(GlobalArenaStats {
             thread_arenas: thread_stats,
             global_arena: global_stats,
             allocation_stats,
         })
     }
-    
+
     /// Force garbage collection of thread-local arenas
     pub fn collect_thread_arena(&self) -> Result<()> {
         THREAD_ARENA.with(|arena| {
@@ -314,56 +359,61 @@ impl ArenaAllocator {
             Ok(())
         })
     }
-    
-    /// Force garbage collection of global arena  
+
+    /// Force garbage collection of global arena
     pub fn collect_global_arena(&self) -> Result<()> {
-        let mut global = GLOBAL_ARENA.lock()
-            .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Some(Span::new(0, 0))))?;
-        
+        let mut global = GLOBAL_ARENA.lock().map_err(|_| {
+            Error::runtime_error(
+                "Failed to lock global arena".to_string(),
+                Some(Span::new(0, 0)),
+            )
+        })?;
+
         global.compact()?;
         Ok(())
     }
-    
+
     // ============= PRIVATE IMPLEMENTATION =============
-    
+
     /// Choose optimal allocation strategy for a value
-    fn choose_allocation_strategy(&self, value: &Value, hint: &AllocationHint) -> AllocationStrategy {
+    fn choose_allocation_strategy(
+        &self,
+        value: &Value,
+        hint: &AllocationHint,
+    ) -> AllocationStrategy {
         match (value, hint.lifetime) {
             // Primitives: always arena-allocate for deduplication
-            (Value::Literal(_), _) | (Value::Symbol(_), _) | (Value::Nil, _) | (Value::Unspecified, _) => {
-                AllocationStrategy::Arena
-            }
-            
+            (Value::Literal(_), _)
+            | (Value::Symbol(_), _)
+            | (Value::Nil, _)
+            | (Value::Unspecified, _) => AllocationStrategy::Arena,
+
             // Small containers: arena-allocate for short/medium lifetimes
             (Value::Pair(_, _), ValueLifetime::Temporary | ValueLifetime::Call) => {
                 AllocationStrategy::Arena
             }
-            
+
             // Large containers: hybrid allocation to balance memory and performance
-            (Value::Vector(v), _) if v.read().is_ok_and(|vec| vec.len() > 100) => {
+            (Value::Vector(v), _) if v.try_borrow().is_ok_and(|vec| vec.len() > 100) => {
                 AllocationStrategy::Hybrid
             }
-            
+
             // Complex types: remain on heap for now (future optimization target)
-            (Value::Procedure(_), _) | (Value::Continuation(_), _) => {
-                AllocationStrategy::Heap
-            }
-            
+            (Value::Procedure(_), _) | (Value::Continuation(_), _) => AllocationStrategy::Heap,
+
             // Default: arena for temporary, heap for long-lived
-            (_, ValueLifetime::Temporary | ValueLifetime::Call) => {
-                AllocationStrategy::Arena
-            }
+            (_, ValueLifetime::Temporary | ValueLifetime::Call) => AllocationStrategy::Arena,
             _ => AllocationStrategy::Heap,
         }
     }
-    
+
     /// Allocate value using arena allocation
     fn alloc_arena_value(&self, value: Value, hint: AllocationHint) -> Result<ArenaAwareValue> {
         let arena_id = match hint.lifetime {
             ValueLifetime::Program => self.get_global_arena_id(),
             _ => self.get_thread_arena_id(),
         };
-        
+
         let allocate_fn = |arena: &ValueArena| -> Result<ValueRef> {
             let arena_value = arena.from_standard_value(&value);
             match hint.lifetime {
@@ -372,48 +422,69 @@ impl ArenaAllocator {
                 ValueLifetime::Module | ValueLifetime::Program => arena.alloc_long(arena_value),
             }
         };
-        
+
         let value_ref = match hint.lifetime {
             ValueLifetime::Program => {
-                let mut global = GLOBAL_ARENA.lock()
-                    .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Some(Span::new(0, 0))))?;
+                let mut global = GLOBAL_ARENA.lock().map_err(|_| {
+                    Error::runtime_error(
+                        "Failed to lock global arena".to_string(),
+                        Some(Span::new(0, 0)),
+                    )
+                })?;
                 allocate_fn(&global)?
             }
-            _ => {
-                THREAD_ARENA.with(|arena| {
-                    allocate_fn(&arena.borrow())
-                })?
-            }
+            _ => THREAD_ARENA.with(|arena| {
+                let arena_ref = arena.try_borrow().map_err(|_| {
+                    Box::new(Error::runtime_error(
+                        "Arena borrow failed".to_string(),
+                        Some(Span::new(0, 0)),
+                    ))
+                })?;
+                allocate_fn(&arena_ref)
+            })?,
         };
-        
-        Ok(ArenaAwareValue::Arena { value_ref, arena_id })
+
+        Ok(ArenaAwareValue::Arena {
+            value_ref,
+            arena_id,
+        })
     }
-    
+
     /// Allocate value using hybrid allocation strategy
     fn alloc_hybrid_value(&self, value: Value, _hint: AllocationHint) -> Result<ArenaAwareValue> {
         // For now, hybrid allocation is a placeholder
         // Future implementation will selectively arena-allocate components
         Ok(ArenaAwareValue::Heap(value))
     }
-    
+
     /// Resolve arena-allocated value to standard Value
     fn resolve_arena_value(&self, value_ref: ValueRef, arena_id: ArenaId) -> Result<Value> {
         let resolve_fn = |arena: &ValueArena| -> Result<Value> {
             let arena_value = arena.resolve(value_ref)?;
             arena.to_standard_value(arena_value)
         };
-        
+
         if arena_id.thread_id == self.get_current_thread_id() {
             THREAD_ARENA.with(|arena| {
-                resolve_fn(&arena.borrow())
+                let borrowed = arena.try_borrow().map_err(|_| {
+                    Box::new(Error::runtime_error(
+                        "Arena borrow failed".to_string(),
+                        Some(Span::new(0, 0)),
+                    ))
+                })?;
+                resolve_fn(&borrowed)
             })
         } else {
-            let global = GLOBAL_ARENA.lock()
-                .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Some(Span::new(0, 0))))?;
+            let global = GLOBAL_ARENA.lock().map_err(|_| {
+                Error::runtime_error(
+                    "Failed to lock global arena".to_string(),
+                    Some(Span::new(0, 0)),
+                )
+            })?;
             resolve_fn(&global)
         }
     }
-    
+
     /// Resolve hybrid value with arena components
     fn resolve_hybrid_value(
         &self,
@@ -425,7 +496,7 @@ impl ArenaAllocator {
         // Future implementation will merge arena components
         Ok(base.clone())
     }
-    
+
     /// Get thread-local arena ID
     fn get_thread_arena_id(&self) -> ArenaId {
         ArenaId {
@@ -433,7 +504,7 @@ impl ArenaAllocator {
             arena_generation: 0, // TODO: Implement proper generation tracking
         }
     }
-    
+
     /// Get global arena ID
     fn get_global_arena_id(&self) -> ArenaId {
         ArenaId {
@@ -441,18 +512,18 @@ impl ArenaAllocator {
             arena_generation: 0,
         }
     }
-    
+
     /// Get current thread ID (simplified implementation)
     fn get_current_thread_id(&self) -> u64 {
         // Use a hash of the thread ID as a stable substitute
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         std::thread::current().id().hash(&mut hasher);
         hasher.finish()
     }
-    
+
     /// Update allocation statistics
     fn update_stats(&self, allocated_value: &ArenaAwareValue, allocation_time_ns: u64) {
         if let Ok(mut stats) = self.stats.write() {
@@ -509,13 +580,17 @@ pub struct GlobalArenaStats {
 impl GlobalArenaStats {
     /// Total memory used across all arenas
     pub fn total_memory(&self) -> usize {
-        self.thread_arenas.iter().map(|s| s.total_memory()).sum::<usize>()
+        self.thread_arenas
+            .iter()
+            .map(|s| s.total_memory())
+            .sum::<usize>()
             + self.global_arena.total_memory()
     }
-    
+
     /// Total arena allocation efficiency
     pub fn arena_efficiency(&self) -> f64 {
-        let total_allocations = self.allocation_stats.arena_allocations + self.allocation_stats.heap_allocations;
+        let total_allocations =
+            self.allocation_stats.arena_allocations + self.allocation_stats.heap_allocations;
         if total_allocations == 0 {
             0.0
         } else {
@@ -528,32 +603,41 @@ impl GlobalArenaStats {
 impl ArenaAllocator {
     /// Quick allocation for temporary expression results
     pub fn alloc_temp(&self, value: Value) -> Result<ArenaAwareValue> {
-        self.alloc_value(value, AllocationHint {
-            lifetime: ValueLifetime::Temporary,
-            sharing_expected: false,
-            size_hint: None,
-            allow_deduplication: true,
-        })
+        self.alloc_value(
+            value,
+            AllocationHint {
+                lifetime: ValueLifetime::Temporary,
+                sharing_expected: false,
+                size_hint: None,
+                allow_deduplication: true,
+            },
+        )
     }
-    
+
     /// Quick allocation for function call arguments
     pub fn alloc_call(&self, value: Value) -> Result<ArenaAwareValue> {
-        self.alloc_value(value, AllocationHint {
-            lifetime: ValueLifetime::Call,
-            sharing_expected: true,
-            size_hint: None,
-            allow_deduplication: true,
-        })
+        self.alloc_value(
+            value,
+            AllocationHint {
+                lifetime: ValueLifetime::Call,
+                sharing_expected: true,
+                size_hint: None,
+                allow_deduplication: true,
+            },
+        )
     }
-    
+
     /// Quick allocation for global definitions
     pub fn alloc_global(&self, value: Value) -> Result<ArenaAwareValue> {
-        self.alloc_value(value, AllocationHint {
-            lifetime: ValueLifetime::Program,
-            sharing_expected: true,
-            size_hint: None,
-            allow_deduplication: true,
-        })
+        self.alloc_value(
+            value,
+            AllocationHint {
+                lifetime: ValueLifetime::Program,
+                sharing_expected: true,
+                size_hint: None,
+                allow_deduplication: true,
+            },
+        )
     }
 }
 
@@ -577,12 +661,32 @@ impl Default for AllocationHint {
 impl std::fmt::Display for GlobalArenaStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Global Arena Statistics:")?;
-        writeln!(f, "  Total Memory: {:.1}KB", self.total_memory() as f64 / 1024.0)?;
-        writeln!(f, "  Arena Efficiency: {:.1}%", self.arena_efficiency() * 100.0)?;
-        writeln!(f, "  Arena Allocations: {}", self.allocation_stats.arena_allocations)?;
-        writeln!(f, "  Heap Allocations: {}", self.allocation_stats.heap_allocations)?;
+        writeln!(
+            f,
+            "  Total Memory: {:.1}KB",
+            self.total_memory() as f64 / 1024.0
+        )?;
+        writeln!(
+            f,
+            "  Arena Efficiency: {:.1}%",
+            self.arena_efficiency() * 100.0
+        )?;
+        writeln!(
+            f,
+            "  Arena Allocations: {}",
+            self.allocation_stats.arena_allocations
+        )?;
+        writeln!(
+            f,
+            "  Heap Allocations: {}",
+            self.allocation_stats.heap_allocations
+        )?;
         writeln!(f, "  Cache Hits: {}", self.allocation_stats.cache_hits)?;
-        writeln!(f, "  Memory Saved: {:.1}KB", self.allocation_stats.memory_saved_bytes as f64 / 1024.0)?;
+        writeln!(
+            f,
+            "  Memory Saved: {:.1}KB",
+            self.allocation_stats.memory_saved_bytes as f64 / 1024.0
+        )?;
         writeln!(f, "Global Arena: {}", self.global_arena)?;
         writeln!(f, "Thread Arenas: {}", self.thread_arenas.len())?;
         for (i, arena) in self.thread_arenas.iter().enumerate() {
@@ -595,27 +699,30 @@ impl std::fmt::Display for GlobalArenaStats {
 /// Thread-safe arena management utilities
 pub mod arena_utils {
     use super::*;
-    
+
     /// Initialize arena system with custom configuration
     pub fn init_arena_system(config: ArenaConfig) -> Result<()> {
         THREAD_ARENA.with(|arena| {
             *arena.borrow_mut() = ValueArena::with_config(config.clone());
         });
-        
+
         // Initialize global arena
-        *GLOBAL_ARENA.lock()
-            .map_err(|_| Error::runtime_error("Failed to initialize global arena".to_string(), Some(Span::new(0, 0))))?
-            = ValueArena::with_config(config);
-        
+        *GLOBAL_ARENA.lock().map_err(|_| {
+            Error::runtime_error(
+                "Failed to initialize global arena".to_string(),
+                Some(Span::new(0, 0)),
+            )
+        })? = ValueArena::with_config(config);
+
         Ok(())
     }
-    
+
     /// Shutdown arena system and collect statistics
     pub fn shutdown_arena_system() -> Result<GlobalArenaStats> {
         let allocator = ArenaAllocator::new();
         allocator.global_stats()
     }
-    
+
     /// Force full garbage collection across all arenas
     pub fn force_full_gc() -> Result<()> {
         let allocator = ArenaAllocator::new();
@@ -628,33 +735,33 @@ pub mod arena_utils {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_arena_allocator_basic() {
         let allocator = ArenaAllocator::new();
         let value = Value::integer(42);
-        
+
         let arena_value = allocator.alloc_temp(value.clone()).unwrap();
         let resolved = allocator.resolve_value(&arena_value).unwrap();
-        
+
         assert_eq!(value, resolved);
     }
-    
+
     #[test]
     fn test_list_creation_optimization() {
         let allocator = ArenaAllocator::new();
         let values = vec![Value::integer(1), Value::integer(2), Value::integer(3)];
-        
+
         let hint = AllocationHint {
             lifetime: ValueLifetime::Temporary,
             sharing_expected: false,
             size_hint: Some(3),
             allow_deduplication: true,
         };
-        
+
         let list = allocator.create_list(values.clone(), hint).unwrap();
         let resolved = allocator.resolve_value(&list).unwrap();
-        
+
         // Verify the list structure
         if let Some(resolved_list) = resolved.as_list() {
             assert_eq!(resolved_list.len(), 3);
@@ -665,27 +772,27 @@ mod tests {
             panic!("Expected a proper list");
         }
     }
-    
+
     #[test]
     fn test_call_frame_allocation() {
         let allocator = ArenaAllocator::new();
         let procedure = Value::symbol_from_str("test-proc");
         let args = vec![Value::integer(1), Value::integer(2)];
-        
+
         let call_frame = allocator.alloc_call_frame(procedure, args).unwrap();
-        
+
         assert_eq!(call_frame.arg_refs.len(), 2);
     }
-    
+
     #[test]
     fn test_global_statistics() {
         let allocator = ArenaAllocator::new();
-        
+
         // Perform some allocations
         let _temp = allocator.alloc_temp(Value::integer(1)).unwrap();
         let _call = allocator.alloc_call(Value::integer(2)).unwrap();
         let _global = allocator.alloc_global(Value::integer(3)).unwrap();
-        
+
         let stats = allocator.global_stats().unwrap();
         assert!(stats.allocation_stats.arena_allocations > 0);
     }

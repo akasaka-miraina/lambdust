@@ -6,13 +6,13 @@
 use crate::ast::Literal;
 use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::effects::Effect;
-use crate::eval::value::{PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment, Value};
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use std::collections::BTreeSet;
 use std::fmt;
 use std::sync::Arc;
 
 /// Character set implementation using a BTreeSet for efficient Unicode support.
-/// 
+///
 /// BTreeSet provides:
 /// - O(log n) insertion, deletion, and lookup
 /// - Efficient range operations
@@ -53,13 +53,11 @@ impl CharSet {
         if start > end {
             return Self::new();
         }
-        
+
         let start_code = start as u32;
         let end_code = end as u32;
-        let chars = (start_code..=end_code)
-            .filter_map(char::from_u32)
-            .collect();
-        
+        let chars = (start_code..=end_code).filter_map(char::from_u32).collect();
+
         Self { chars }
     }
 
@@ -119,7 +117,11 @@ impl CharSet {
 
     /// Returns the symmetric difference (XOR) of two character sets.
     pub fn symmetric_difference(&self, other: &Self) -> Self {
-        let chars = self.chars.symmetric_difference(&other.chars).cloned().collect();
+        let chars = self
+            .chars
+            .symmetric_difference(&other.chars)
+            .cloned()
+            .collect();
         Self { chars }
     }
 
@@ -128,7 +130,7 @@ impl CharSet {
     pub fn complement(&self) -> Self {
         // For practical purposes, complement against printable ASCII + common Unicode ranges
         let mut complement_chars = BTreeSet::new();
-        
+
         // Add ASCII printable characters not in the set
         for code in 32..=126 {
             if let Some(c) = char::from_u32(code) {
@@ -137,7 +139,7 @@ impl CharSet {
                 }
             }
         }
-        
+
         // Add common whitespace characters not in the set
         let whitespace_chars = ['\t', '\n', '\r', ' '];
         for &c in &whitespace_chars {
@@ -145,8 +147,10 @@ impl CharSet {
                 complement_chars.insert(c);
             }
         }
-        
-        Self { chars: complement_chars }
+
+        Self {
+            chars: complement_chars,
+        }
     }
 
     /// Checks if this set is a subset of another set.
@@ -174,7 +178,12 @@ impl CharSet {
     where
         F: Fn(char) -> bool,
     {
-        let chars = self.chars.iter().filter(|&&c| predicate(c)).cloned().collect();
+        let chars = self
+            .chars
+            .iter()
+            .filter(|&&c| predicate(c))
+            .cloned()
+            .collect();
         Self { chars }
     }
 
@@ -200,7 +209,7 @@ impl fmt::Display for CharSet {
             write!(f, " empty")?;
         } else {
             write!(f, " size={}", self.size())?;
-            
+
             // Show a preview of characters for small sets
             if self.size() <= 10 {
                 write!(f, " {{")?;
@@ -306,207 +315,306 @@ impl StandardCharSets {
 pub fn create_charset_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // Character set predicates
     bind_charset_predicates(env);
-    
+
     // Character set constructors
     bind_charset_constructors(env);
-    
+
     // Character set operations
     bind_charset_operations(env);
-    
+
     // Standard character sets
     bind_standard_charsets(env);
-    
+
     // Character set conversions
     bind_charset_conversions(env);
 }
 
 fn bind_charset_predicates(env: &Arc<ThreadSafeEnvironment>) {
     // char-set?
-    env.define("char-set?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set?".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_p),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_p),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set=
-    env.define("char-set=".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set=".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_equal),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set=".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set=".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_equal),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set<=
-    env.define("char-set<=".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set<=".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_subset),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set<=".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set<=".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_subset),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set-contains?
-    env.define("char-set-contains?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set-contains?".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_contains),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set-contains?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set-contains?".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_contains),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 fn bind_charset_constructors(env: &Arc<ThreadSafeEnvironment>) {
     // char-set
-    env.define("char-set".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_char_set),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set".to_string(),
+            arity_min: 0,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_char_set),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // list->char-set
-    env.define("list->char-set".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "list->char-set".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_list_to_char_set),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "list->char-set".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "list->char-set".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_list_to_char_set),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // string->char-set
-    env.define("string->char-set".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "string->char-set".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_string_to_char_set),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "string->char-set".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "string->char-set".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_string_to_char_set),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set-filter
-    env.define("char-set-filter".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set-filter".to_string(),
-        arity_min: 2,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_filter),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set-filter".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set-filter".to_string(),
+            arity_min: 2,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_filter),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // ucs-range->char-set
-    env.define("ucs-range->char-set".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "ucs-range->char-set".to_string(),
-        arity_min: 2,
-        arity_max: Some(4),
-        implementation: PrimitiveImpl::RustFn(primitive_ucs_range_to_char_set),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "ucs-range->char-set".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "ucs-range->char-set".to_string(),
+            arity_min: 2,
+            arity_max: Some(4),
+            implementation: PrimitiveImpl::RustFn(primitive_ucs_range_to_char_set),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 fn bind_charset_operations(env: &Arc<ThreadSafeEnvironment>) {
     // char-set-size
-    env.define("char-set-size".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set-size".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_size),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set-size".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set-size".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_size),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set-count
-    env.define("char-set-count".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set-count".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_count),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set-count".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set-count".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_count),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set-union
-    env.define("char-set-union".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set-union".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_union),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set-union".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set-union".to_string(),
+            arity_min: 0,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_union),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set-intersection
-    env.define("char-set-intersection".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set-intersection".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_intersection),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set-intersection".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set-intersection".to_string(),
+            arity_min: 0,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_intersection),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set-difference
-    env.define("char-set-difference".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set-difference".to_string(),
-        arity_min: 1,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_difference),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set-difference".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set-difference".to_string(),
+            arity_min: 1,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_difference),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set-complement
-    env.define("char-set-complement".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set-complement".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_complement),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set-complement".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set-complement".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_complement),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set-xor
-    env.define("char-set-xor".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set-xor".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_xor),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set-xor".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set-xor".to_string(),
+            arity_min: 0,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_xor),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 fn bind_standard_charsets(env: &Arc<ThreadSafeEnvironment>) {
     // Standard character sets
-    env.define("char-set:lower-case".to_string(), Value::CharSet(Arc::new(StandardCharSets::lower_case())));
-    env.define("char-set:upper-case".to_string(), Value::CharSet(Arc::new(StandardCharSets::upper_case())));
-    env.define("char-set:digit".to_string(), Value::CharSet(Arc::new(StandardCharSets::digit())));
-    env.define("char-set:letter".to_string(), Value::CharSet(Arc::new(StandardCharSets::letter())));
-    env.define("char-set:letter+digit".to_string(), Value::CharSet(Arc::new(StandardCharSets::letter_plus_digit())));
-    env.define("char-set:whitespace".to_string(), Value::CharSet(Arc::new(StandardCharSets::whitespace())));
-    env.define("char-set:punctuation".to_string(), Value::CharSet(Arc::new(StandardCharSets::punctuation())));
-    env.define("char-set:graphic".to_string(), Value::CharSet(Arc::new(StandardCharSets::graphic())));
-    env.define("char-set:printing".to_string(), Value::CharSet(Arc::new(StandardCharSets::printing())));
-    env.define("char-set:ascii".to_string(), Value::CharSet(Arc::new(StandardCharSets::ascii())));
-    env.define("char-set:empty".to_string(), Value::CharSet(Arc::new(StandardCharSets::empty())));
-    env.define("char-set:full".to_string(), Value::CharSet(Arc::new(StandardCharSets::full())));
-    env.define("char-set:hex-digit".to_string(), Value::CharSet(Arc::new(StandardCharSets::hex_digit())));
-    env.define("char-set:blank".to_string(), Value::CharSet(Arc::new(StandardCharSets::blank())));
-    env.define("char-set:iso-control".to_string(), Value::CharSet(Arc::new(StandardCharSets::iso_control())));
+    env.define(
+        "char-set:lower-case".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::lower_case())),
+    );
+    env.define(
+        "char-set:upper-case".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::upper_case())),
+    );
+    env.define(
+        "char-set:digit".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::digit())),
+    );
+    env.define(
+        "char-set:letter".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::letter())),
+    );
+    env.define(
+        "char-set:letter+digit".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::letter_plus_digit())),
+    );
+    env.define(
+        "char-set:whitespace".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::whitespace())),
+    );
+    env.define(
+        "char-set:punctuation".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::punctuation())),
+    );
+    env.define(
+        "char-set:graphic".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::graphic())),
+    );
+    env.define(
+        "char-set:printing".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::printing())),
+    );
+    env.define(
+        "char-set:ascii".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::ascii())),
+    );
+    env.define(
+        "char-set:empty".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::empty())),
+    );
+    env.define(
+        "char-set:full".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::full())),
+    );
+    env.define(
+        "char-set:hex-digit".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::hex_digit())),
+    );
+    env.define(
+        "char-set:blank".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::blank())),
+    );
+    env.define(
+        "char-set:iso-control".to_string(),
+        Value::CharSet(Arc::new(StandardCharSets::iso_control())),
+    );
 }
 
 fn bind_charset_conversions(env: &Arc<ThreadSafeEnvironment>) {
     // char-set->list
-    env.define("char-set->list".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set->list".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_to_list),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set->list".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set->list".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_to_list),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
     // char-set->string
-    env.define("char-set->string".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "char-set->string".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_char_set_to_string),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "char-set->string".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "char-set->string".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_char_set_to_string),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 // ============= PRIMITIVE IMPLEMENTATIONS =============
@@ -542,7 +650,7 @@ fn primitive_char_set_p(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     Ok(Value::boolean(matches!(args[0], Value::CharSet(_))))
 }
 
@@ -561,7 +669,7 @@ fn primitive_char_set_equal(args: &[Value]) -> Result<Value> {
             return Ok(Value::boolean(false));
         }
     }
-    
+
     Ok(Value::boolean(true))
 }
 
@@ -580,7 +688,7 @@ fn primitive_char_set_subset(args: &[Value]) -> Result<Value> {
             return Ok(Value::boolean(false));
         }
     }
-    
+
     Ok(Value::boolean(true))
 }
 
@@ -594,7 +702,7 @@ fn primitive_char_set_contains(args: &[Value]) -> Result<Value> {
 
     let charset = get_charset(&args[0])?;
     let c = get_char(&args[1])?;
-    
+
     Ok(Value::boolean(charset.contains(c)))
 }
 
@@ -602,25 +710,31 @@ fn primitive_char_set_contains(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set(args: &[Value]) -> Result<Value> {
     let mut chars = Vec::new();
-    
+
     for arg in args {
         let c = get_char(arg)?;
         chars.push(c);
     }
-    
+
     Ok(Value::CharSet(Arc::new(CharSet::from_chars(chars))))
 }
 
 fn primitive_list_to_char_set(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("list->char-set expects 1 or 2 arguments, got {}", args.len()),
+            format!(
+                "list->char-set expects 1 or 2 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
 
     let char_list = args[0].as_list().ok_or_else(|| {
-        Box::new(DiagnosticError::runtime_error("Expected a list".to_string(), None))
+        Box::new(DiagnosticError::runtime_error(
+            "Expected a list".to_string(),
+            None,
+        ))
     })?;
 
     let mut chars = Vec::new();
@@ -642,13 +756,19 @@ fn primitive_list_to_char_set(args: &[Value]) -> Result<Value> {
 fn primitive_string_to_char_set(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("string->char-set expects 1 or 2 arguments, got {}", args.len()),
+            format!(
+                "string->char-set expects 1 or 2 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
 
     let s = args[0].as_string().ok_or_else(|| {
-        Box::new(DiagnosticError::runtime_error("Expected a string".to_string(), None))
+        Box::new(DiagnosticError::runtime_error(
+            "Expected a string".to_string(),
+            None,
+        ))
     })?;
 
     let base_charset = if args.len() == 2 {
@@ -664,7 +784,10 @@ fn primitive_string_to_char_set(args: &[Value]) -> Result<Value> {
 fn primitive_char_set_filter(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("char-set-filter expects 2 or 3 arguments, got {}", args.len()),
+            format!(
+                "char-set-filter expects 2 or 3 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
@@ -680,17 +803,26 @@ fn primitive_char_set_filter(args: &[Value]) -> Result<Value> {
 fn primitive_ucs_range_to_char_set(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("ucs-range->char-set expects 2-4 arguments, got {}", args.len()),
+            format!(
+                "ucs-range->char-set expects 2-4 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
 
     let start = args[0].as_integer().ok_or_else(|| {
-        Box::new(DiagnosticError::runtime_error("Expected integer for start".to_string(), None))
+        Box::new(DiagnosticError::runtime_error(
+            "Expected integer for start".to_string(),
+            None,
+        ))
     })? as u32;
 
     let end = args[1].as_integer().ok_or_else(|| {
-        Box::new(DiagnosticError::runtime_error("Expected integer for end".to_string(), None))
+        Box::new(DiagnosticError::runtime_error(
+            "Expected integer for end".to_string(),
+            None,
+        ))
     })? as u32;
 
     let error_on_invalid = if args.len() >= 3 {
@@ -718,7 +850,10 @@ fn primitive_ucs_range_to_char_set(args: &[Value]) -> Result<Value> {
                         None,
                     ))
                 } else {
-                    Box::new(DiagnosticError::runtime_error("Invalid Unicode code point".to_string(), None))
+                    Box::new(DiagnosticError::runtime_error(
+                        "Invalid Unicode code point".to_string(),
+                        None,
+                    ))
                 }
             })
         })
@@ -842,7 +977,8 @@ fn primitive_char_set_to_list(args: &[Value]) -> Result<Value> {
     }
 
     let charset = get_charset(&args[0])?;
-    let chars: Vec<Value> = charset.iter()
+    let chars: Vec<Value> = charset
+        .iter()
         .map(|&c| Value::Literal(Literal::Character(c)))
         .collect();
 

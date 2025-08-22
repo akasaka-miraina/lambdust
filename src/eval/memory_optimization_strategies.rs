@@ -5,7 +5,7 @@
 //! thread safety where needed.
 //!
 //! ## Current State Analysis
-//! 
+//!
 //! Value enum Arc usage breakdown:
 //! - Procedures: 1 Arc (environment) + 1 Arc (procedure itself) = 2 Arcs per procedure
 //! - Containers: 1-2 Arcs per container (Vector, Hashtable, etc.)
@@ -149,25 +149,25 @@ impl MemoryOptimizationEngine {
     ) -> DiagnosticResult<ComprehensiveOptimizationResult> {
         // Phase 1: Profile runtime value usage patterns
         let profiling_result = self.profile_runtime_usage(values).await?;
-        
+
         // Phase 2: Apply immediate value optimization (40% of values)
         let immediate_result = self.optimize_immediate_values(values, &profiling_result).await?;
-        
+
         // Phase 3: Consolidate smart pointers
         let consolidation_result = self.consolidate_smart_pointers(values, &immediate_result).await?;
-        
+
         // Phase 4: Selective Arc elimination
         let elimination_result = self.eliminate_unnecessary_arcs(values, &consolidation_result).await?;
-        
+
         // Phase 5: Apply memory pool optimization
         let pool_result = self.optimize_memory_pools(values, &elimination_result).await?;
-        
+
         // Phase 6: Cache-optimize memory layout
         let layout_result = self.optimize_cache_layout(values, &pool_result).await?;
-        
+
         // Phase 7: Validate and measure final optimization
         let final_metrics = self.validate_final_optimization(values, &layout_result).await?;
-        
+
         Ok(ComprehensiveOptimizationResult {
             profiling_result,
             immediate_optimization: immediate_result,
@@ -237,9 +237,9 @@ impl MemoryOptimizationEngine {
     ) -> DiagnosticResult<FinalOptimizationMetrics> {
         let original_arc_count = self.count_total_arcs(original_values);
         let optimized_arc_count = layout_result.final_arc_count;
-        
+
         let arc_reduction_percentage = 1.0 - (optimized_arc_count as f64 / original_arc_count as f64);
-        
+
         if arc_reduction_percentage < 0.9 {
             return Err(Box::new(Error::custom(format!(
                 "Failed to achieve 90% Arc reduction target. Achieved: {:.1}%",
@@ -268,24 +268,24 @@ impl MemoryOptimizationEngine {
             Value::Literal(_) => 0,
             Value::Symbol(_) => 0,
             Value::Keyword(_) => 0,
-            
+
             // Compound values with Arcs
             Value::Pair(car, cdr) => {
                 2 + self.count_arcs_in_value(car) + self.count_arcs_in_value(cdr)
             }
             Value::MutablePair(car, cdr) => {
-                2 + if let (Ok(car_val), Ok(cdr_val)) = (car.read(), cdr.read()) {
+                2 + if let (Ok(car_val), Ok(cdr_val)) = (car.try_read(), cdr.try_read()) {
                     self.count_arcs_in_value(&car_val) + self.count_arcs_in_value(&cdr_val)
                 } else { 0 }
             }
             Value::Vector(vec) => {
-                1 + if let Ok(elements) = vec.read() {
+                1 + if let Ok(elements) = vec.try_read() {
                     elements.iter().map(|v| self.count_arcs_in_value(v)).sum()
                 } else { 0 }
             }
             Value::Hashtable(_) => 1,
             Value::MutableString(_) => 1,
-            
+
             // Advanced containers
             Value::AdvancedHashTable(_) => 1,
             Value::Ideque(_) => 1,
@@ -296,14 +296,14 @@ impl MemoryOptimizationEngine {
             Value::Set(_) => 1,
             Value::Bag(_) => 1,
             Value::Generator(_) => 1,
-            
+
             // Procedures with environment Arcs
             Value::Procedure(proc) => 1 + self.count_environment_arcs(&proc.environment),
             Value::CaseLambda(case_lambda) => 1 + self.count_environment_arcs(&case_lambda.environment),
             Value::Primitive(_) => 1,
             Value::Continuation(cont) => 1 + self.count_environment_arcs(&cont.environment),
             Value::Syntax(syn) => 1 + self.count_environment_arcs(&syn.environment),
-            
+
             // I/O and other values
             Value::Port(_) => 1,
             Value::Promise(_) => 1,
@@ -313,7 +313,7 @@ impl MemoryOptimizationEngine {
             Value::CharSet(_) => 1,
             Value::Parameter(_) => 1,
             Value::Record(_) => 1,
-            
+
             // Concurrency values (when enabled)
             #[cfg(feature = "async-runtime")]
             Value::Future(_) => 1,
@@ -327,7 +327,7 @@ impl MemoryOptimizationEngine {
             Value::AtomicCounter(_) => 1,
             #[cfg(feature = "async-runtime")]
             Value::DistributedNode(_) => 1,
-            
+
             Value::Opaque(_) => 1,
         }
     }
@@ -364,11 +364,11 @@ impl ImmediateValueOptimizer {
         profiling_result: &ProfilingResult,
     ) -> DiagnosticResult<ImmediateOptimizationResult> {
         let mut result = ImmediateOptimizationResult::new();
-        
+
         // Analyze immediate value candidates
         let candidates = self.identify_immediate_candidates(values)?;
         result.total_candidates = candidates.len();
-        
+
         // Apply inline optimization based on profiling data
         for candidate in candidates {
             if self.should_inline_candidate(&candidate, profiling_result) {
@@ -379,17 +379,17 @@ impl ImmediateValueOptimizer {
                 result.skipped_candidates.push(candidate);
             }
         }
-        
+
         // Calculate memory savings
         result.arc_count_reduction = result.optimized_values.len() * 1; // Each immediate value eliminates 1 potential Arc
         result.memory_savings_bytes = self.calculate_memory_savings(&result.optimized_values);
-        
+
         Ok(result)
     }
 
     fn identify_immediate_candidates(&self, values: &[Value]) -> DiagnosticResult<Vec<ImmediateValueCandidate>> {
         let mut candidates = Vec::new();
-        
+
         for (index, value) in values.iter().enumerate() {
             match value {
                 Value::Nil => {
@@ -429,7 +429,7 @@ impl ImmediateValueOptimizer {
                 _ => {} // Not an immediate candidate
             }
         }
-        
+
         Ok(candidates)
     }
 
@@ -526,11 +526,11 @@ impl ImmediateValueOptimizer {
 
     fn determine_inlining_strategy(&self, candidate_type: &ImmediateCandidateType) -> InliningStrategy {
         match candidate_type {
-            ImmediateCandidateType::Nil | 
+            ImmediateCandidateType::Nil |
             ImmediateCandidateType::Unspecified |
             ImmediateCandidateType::Boolean(_) |
             ImmediateCandidateType::Character(_) => InliningStrategy::NaNBoxing,
-            
+
             ImmediateCandidateType::SmallInteger(_) => InliningStrategy::TaggedInteger,
             ImmediateCandidateType::SmallSymbol(_) => InliningStrategy::InlineSymbolId,
             ImmediateCandidateType::SmallString(_) => InliningStrategy::SmallStringOptimization,
@@ -618,7 +618,7 @@ impl SmartPointerConsolidator {
                 return Ok(strategy);
             }
         }
-        
+
         Err(Box::new(Error::custom("No suitable consolidation strategy found"))
     }
 
@@ -829,7 +829,7 @@ impl MemoryPoolManager {
             Value::Symbol(_) => 8,
             Value::Pair(_, _) => 16,
             Value::Vector(vec) => {
-                if let Ok(elements) = vec.read() {
+                if let Ok(elements) = vec.try_read() {
                     std::mem::size_of::<Vec<Value>>() + elements.len() * std::mem::size_of::<Value>()
                 } else {
                     std::mem::size_of::<Vec<Value>>()
@@ -869,7 +869,7 @@ impl MemoryPoolManager {
     async fn measure_allocation_efficiency(&self) -> DiagnosticResult<f64> {
         let total_allocations = self.allocation_stats.total_allocations;
         let successful_pool_allocations = self.allocation_stats.pool_allocations;
-        
+
         if total_allocations > 0 {
             Ok(successful_pool_allocations as f64 / total_allocations as f64)
         } else {
@@ -881,7 +881,7 @@ impl MemoryPoolManager {
         // Calculate reduction in allocation overhead through pooling
         let baseline_overhead = self.allocation_stats.baseline_overhead;
         let current_overhead = self.allocation_stats.current_overhead;
-        
+
         if baseline_overhead > 0.0 {
             (baseline_overhead - current_overhead) / baseline_overhead
         } else {
@@ -959,7 +959,7 @@ impl CacheOptimizedLayoutEngine {
         let original_count = original_values.iter()
             .map(|v| self.count_arcs_in_value(v))
             .sum::<usize>();
-        
+
         // Apply 90% reduction target
         (original_count as f64 * 0.1) as usize
     }
@@ -1333,14 +1333,14 @@ impl ImmediateUsageAnalyzer { pub fn new() -> Self { Self } }
 
 #[derive(Debug)]
 pub struct ImmediateOptimizationStats;
-impl ImmediateOptimizationStats { 
+impl ImmediateOptimizationStats {
     pub fn new() -> Self { Self }
     pub fn record_successful_optimization(&mut self, _candidate: &ImmediateValueCandidate) {}
 }
 
 #[derive(Debug)]
 pub struct ReferenceGroupAnalyzer;
-impl ReferenceGroupAnalyzer { 
+impl ReferenceGroupAnalyzer {
     pub fn new() -> Self { Self }
     pub async fn analyze_reference_groups(&self, _values: &[Value]) -> DiagnosticResult<Vec<ReferenceGroup>> {
         Ok(Vec::new())
@@ -1379,7 +1379,7 @@ pub struct PointerConsolidation {
 
 #[derive(Debug)]
 pub struct ConsolidationImpactPredictor;
-impl ConsolidationImpactPredictor { 
+impl ConsolidationImpactPredictor {
     pub fn new() -> Self { Self }
     pub async fn predict_consolidation_impact(&self, _group: &ReferenceGroup) -> DiagnosticResult<ConsolidationImpact> {
         Ok(ConsolidationImpact { required_benefit: 0.3 })
@@ -1397,7 +1397,7 @@ impl ConsolidationImpact {
 
 #[derive(Debug)]
 pub struct ThreadSafetyAnalysis;
-impl ThreadSafetyAnalysis { 
+impl ThreadSafetyAnalysis {
     pub fn new() -> Self { Self }
     pub fn requires_thread_safety(&self, _index: usize) -> bool { false }
 }
@@ -1435,7 +1435,7 @@ pub enum SafetyLevel {
 
 #[derive(Debug)]
 pub struct ArcEliminationSafetyValidator;
-impl ArcEliminationSafetyValidator { 
+impl ArcEliminationSafetyValidator {
     pub fn new() -> Self { Self }
     pub async fn validate_elimination_safety(&self, _candidate: &ArcEliminationCandidate) -> DiagnosticResult<bool> {
         Ok(true)
@@ -1459,7 +1459,7 @@ pub enum ReplacementType {
 
 #[derive(Debug)]
 pub struct MemoryPool;
-impl MemoryPool { 
+impl MemoryPool {
     pub fn new_optimized(_pattern: &AllocationPattern) -> Self { Self }
     pub async fn apply_optimization_policy(&mut self, _policies: &PoolOptimizationPolicies) -> DiagnosticResult<()> {
         Ok(())
@@ -1468,7 +1468,7 @@ impl MemoryPool {
 
 #[derive(Debug)]
 pub struct AllocationPatterns;
-impl AllocationPatterns { 
+impl AllocationPatterns {
     pub fn new() -> Self { Self }
     pub fn record_allocation(&mut self, _info: AllocationInfo) {}
     pub fn analyze_patterns(&mut self) {}
@@ -1529,7 +1529,7 @@ impl Default for PoolOptimizationPolicies {
 
 #[derive(Debug)]
 pub struct AccessPatternAnalyzer;
-impl AccessPatternAnalyzer { 
+impl AccessPatternAnalyzer {
     pub fn new() -> Self { Self }
     pub async fn analyze_patterns(&self, _values: &[Value]) -> DiagnosticResult<AccessPatterns> {
         Ok(AccessPatterns::new())
@@ -1596,7 +1596,7 @@ pub enum ValueTypeCategory {
 
 #[derive(Debug)]
 pub struct AccessFrequencyTracker;
-impl AccessFrequencyTracker { 
+impl AccessFrequencyTracker {
     pub fn new() -> Self { Self }
     pub async fn track_access_patterns(&self, values: &[Value]) -> DiagnosticResult<Vec<f64>> {
         Ok(vec![100.0; values.len()])
@@ -1605,7 +1605,7 @@ impl AccessFrequencyTracker {
 
 #[derive(Debug)]
 pub struct MemoryPressureMonitor;
-impl MemoryPressureMonitor { 
+impl MemoryPressureMonitor {
     pub fn new() -> Self { Self }
     pub fn current_pressure(&self) -> f64 { 0.5 }
 }
@@ -1654,7 +1654,7 @@ mod tests {
     #[test]
     fn test_immediate_value_optimization() {
         let mut optimizer = ImmediateValueOptimizer::new();
-        
+
         let test_values = vec![
             Value::Nil,
             Value::boolean(true),
@@ -1668,7 +1668,7 @@ mod tests {
     #[test]
     fn test_arc_counting() {
         let engine = MemoryOptimizationEngine::new();
-        
+
         let test_values = vec![
             Value::Nil,                                    // 0 Arcs
             Value::pair(Value::Nil, Value::boolean(true)), // 2 Arcs
@@ -1682,7 +1682,7 @@ mod tests {
     #[test]
     fn test_inline_configuration() {
         let config = InlineConfiguration::aggressive();
-        
+
         assert!(config.max_inline_integer > 1000);
         assert!(config.max_inline_string_length > 0);
         assert!(config.min_access_frequency_for_inlining >= 0.0);
@@ -1691,7 +1691,7 @@ mod tests {
     #[test]
     fn test_value_type_categorization() {
         let profiler = RuntimeValueProfiler::new();
-        
+
         assert_eq!(profiler.categorize_value(&Value::Nil), ValueTypeCategory::Immediate);
         assert_eq!(profiler.categorize_value(&Value::boolean(true)), ValueTypeCategory::Literal);
         assert_eq!(profiler.categorize_value(&Value::symbol_from_str("test")), ValueTypeCategory::Symbol);
@@ -1702,7 +1702,7 @@ mod tests {
     fn test_consolidation_strategies() {
         let strategies = SmartPointerConsolidator::create_consolidation_strategies();
         assert!(strategies.len() > 0);
-        
+
         for strategy in &strategies {
             assert!(strategy.estimated_benefit() > 0.0);
         }
@@ -1719,7 +1719,7 @@ mod tests {
     fn test_layout_strategies() {
         let strategies = CacheOptimizedLayoutEngine::create_layout_strategies();
         assert!(strategies.len() > 0);
-        
+
         let access_patterns = AccessPatterns::new();
         for strategy in &strategies {
             assert!(strategy.is_applicable(&access_patterns}))
@@ -1729,7 +1729,7 @@ mod tests {
     #[test]
     fn test_optimization_target_validation() {
         let engine = MemoryOptimizationEngine::new();
-        
+
         // Test with a complex value structure
         let complex_values = vec![
             Value::pair(
@@ -1741,7 +1741,7 @@ mod tests {
         let original_arc_count = engine.count_total_arcs(&complex_values);
         let target_reduction = 0.9;
         let target_arc_count = (original_arc_count as f64 * (1.0 - target_reduction)) as usize;
-        
+
         assert!(original_arc_count > 0);
         assert!(target_arc_count < original_arc_count);
     }

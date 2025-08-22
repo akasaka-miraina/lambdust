@@ -63,11 +63,7 @@ pub enum ChangeType {
 
 impl EnvironmentSnapshot {
     /// Creates a new environment snapshot.
-    pub fn new(
-        id: String,
-        environment_name: String,
-        bindings: HashMap<String, Value>,
-    ) -> Self {
+    pub fn new(id: String, environment_name: String, bindings: HashMap<String, Value>) -> Self {
         Self {
             id,
             environment_name,
@@ -105,11 +101,11 @@ impl ChangeTracker {
     /// Tracks a change for a given environment.
     pub fn track_change(&mut self, env_name: String, change: EnvironmentChange) {
         let changes = self.changes.entry(env_name).or_default();
-        
+
         if changes.len() >= self.max_changes {
             changes.remove(0);
         }
-        
+
         changes.push(change);
     }
 
@@ -124,9 +120,19 @@ impl ChangeTracker {
     }
 
     /// Gets changes of a specific type for an environment.
-    pub fn get_changes_by_type(&self, env_name: &str, change_type: ChangeType) -> Vec<&EnvironmentChange> {
-        self.changes.get(env_name)
-            .map(|changes| changes.iter().filter(|c| c.change_type == change_type).collect())
+    pub fn get_changes_by_type(
+        &self,
+        env_name: &str,
+        change_type: ChangeType,
+    ) -> Vec<&EnvironmentChange> {
+        self.changes
+            .get(env_name)
+            .map(|changes| {
+                changes
+                    .iter()
+                    .filter(|c| c.change_type == change_type)
+                    .collect()
+            })
             .unwrap_or_default()
     }
 

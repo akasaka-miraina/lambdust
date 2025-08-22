@@ -3,7 +3,7 @@
 //! Provides SIMD-accelerated operations, lookup tables, and specialized
 //! algorithms for high-performance numeric computing.
 
-use super::{complex::Complex, Rational};
+use super::{Rational, complex::Complex};
 use std::sync::OnceLock;
 
 /// Fast lookup tables for common mathematical functions
@@ -63,10 +63,10 @@ impl LookupTables {
     /// Fast sine approximation using table lookup with linear interpolation
     pub fn fast_sin(x: f64) -> f64 {
         let tables = Self::get();
-        
+
         // Reduce to [0, 2π]
         let x = x.rem_euclid(2.0 * std::f64::consts::PI);
-        
+
         // Use symmetry to reduce to [0, π/2]
         let (x, sign, table) = if x <= std::f64::consts::FRAC_PI_2 {
             (x, 1.0, &tables.sin_table)
@@ -104,7 +104,7 @@ impl LookupTables {
         }
 
         let tables = Self::get();
-        
+
         // Use log properties: ln(x) = ln(2^k * m) = k*ln(2) + ln(m)
         // where m is in [1, 2]
         let k = x.log2().floor();
@@ -134,7 +134,7 @@ impl LookupTables {
         }
 
         let tables = Self::get();
-        
+
         // Use exp properties: exp(x) = exp(floor(x)) * exp(x - floor(x))
         let integer_part = x.floor();
         let fractional_part = x - integer_part;
@@ -155,7 +155,7 @@ impl LookupTables {
 
         // Adjust for our scaling
         let corrected_exp_frac = exp_frac * std::f64::consts::E.powf(fractional_part - scaled_frac);
-        
+
         integer_part.exp() * corrected_exp_frac
     }
 }
@@ -169,13 +169,13 @@ impl Complex {
         let b = self.imaginary;
         let c = other.real;
         let d = other.imaginary;
-        
+
         // Standard: (a + bi)(c + di) = (ac - bd) + (ad + bc)i
         // Optimized: use 3 multiplications instead of 4
         let k1 = a * (c + d);
         let k2 = d * (a + b);
         let k3 = c * (b - a);
-        
+
         Self::new(k1 - k2, k1 + k3)
     }
 
@@ -187,7 +187,7 @@ impl Complex {
 
         // Use Smith's algorithm to avoid overflow
         let (c, d) = (other.real.abs(), other.imaginary.abs());
-        
+
         if c >= d {
             let r = other.imaginary / other.real;
             let denominator = other.real + r * other.imaginary;
@@ -209,19 +209,19 @@ impl Complex {
     pub fn fast_magnitude(&self) -> f64 {
         let a = self.real.abs();
         let b = self.imaginary.abs();
-        
+
         if a == 0.0 {
             return b;
         }
         if b == 0.0 {
             return a;
         }
-        
+
         // Use optimized hypot algorithm
         let max = a.max(b);
         let min = a.min(b);
         let r = min / max;
-        
+
         max * (1.0_f64 + r * r).sqrt()
     }
 
@@ -230,15 +230,15 @@ impl Complex {
         if n == 0 {
             return Self::ONE;
         }
-        
+
         if n < 0 {
             return Self::ONE.fast_div(&self.fast_powi(-n));
         }
-        
+
         let mut result = Self::ONE;
         let mut base = *self;
         let mut exp = n as u32;
-        
+
         while exp > 0 {
             if exp & 1 == 1 {
                 result = result.fast_mul(&base);
@@ -246,7 +246,7 @@ impl Complex {
             base = base.fast_mul(&base);
             exp >>= 1;
         }
-        
+
         result
     }
 }
@@ -258,30 +258,30 @@ impl Rational {
         if a == 0 || b == 0 {
             return a | b;
         }
-        
+
         // Count common trailing zeros
         let shift = (a | b).trailing_zeros();
         a >>= shift;
         b >>= shift;
-        
+
         // Remove remaining factors of 2 from a
         a >>= a.trailing_zeros();
-        
+
         loop {
             // Remove factors of 2 from b
             b >>= b.trailing_zeros();
-            
+
             if a > b {
                 std::mem::swap(&mut a, &mut b);
             }
-            
+
             b -= a;
-            
+
             if b == 0 {
                 break;
             }
         }
-        
+
         a << shift
     }
 
@@ -320,9 +320,9 @@ pub mod simd {
     use std::arch::x86_64::*;
 
     /// SIMD-accelerated addition of f64 arrays
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// This function requires AVX2 instruction set support. The caller must ensure:
     /// - The target CPU supports AVX2 instructions
     /// - All input slices have the same length
@@ -331,10 +331,10 @@ pub mod simd {
     pub unsafe fn simd_add_f64(a: &[f64], b: &[f64], result: &mut [f64]) {
         assert_eq!(a.len(), b.len());
         assert_eq!(a.len(), result.len());
-        
+
         let len = a.len();
         let simd_len = len - (len % 4);
-        
+
         // Process 4 elements at a time using AVX2
         for i in (0..simd_len).step_by(4) {
             let va = _mm256_loadu_pd(a.as_ptr().add(i));
@@ -342,7 +342,7 @@ pub mod simd {
             let vr = _mm256_add_pd(va, vb);
             _mm256_storeu_pd(result.as_mut_ptr().add(i), vr);
         }
-        
+
         // Handle remaining elements
         for i in simd_len..len {
             result[i] = a[i] + b[i];
@@ -350,9 +350,9 @@ pub mod simd {
     }
 
     /// SIMD-accelerated multiplication of f64 arrays
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// This function requires AVX2 instruction set support. The caller must ensure:
     /// - The target CPU supports AVX2 instructions
     /// - All input slices have the same length
@@ -361,37 +361,37 @@ pub mod simd {
     pub unsafe fn simd_mul_f64(a: &[f64], b: &[f64], result: &mut [f64]) {
         assert_eq!(a.len(), b.len());
         assert_eq!(a.len(), result.len());
-        
+
         let len = a.len();
         let simd_len = len - (len % 4);
-        
+
         for i in (0..simd_len).step_by(4) {
             let va = _mm256_loadu_pd(a.as_ptr().add(i));
             let vb = _mm256_loadu_pd(b.as_ptr().add(i));
             let vr = _mm256_mul_pd(va, vb);
             _mm256_storeu_pd(result.as_mut_ptr().add(i), vr);
         }
-        
+
         for i in simd_len..len {
             result[i] = a[i] * b[i];
         }
     }
 
     /// SIMD-accelerated dot product
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// This function requires AVX2 instruction set support. The caller must ensure:
     /// - The target CPU supports AVX2 instructions
     /// - Both input slices have the same length
     #[target_feature(enable = "avx2")]
     pub unsafe fn simd_dot_product_f64(a: &[f64], b: &[f64]) -> f64 {
         assert_eq!(a.len(), b.len());
-        
+
         let len = a.len();
         let simd_len = len - (len % 4);
         let mut sum_vec = _mm256_setzero_pd();
-        
+
         // Accumulate in SIMD register
         for i in (0..simd_len).step_by(4) {
             let va = _mm256_loadu_pd(a.as_ptr().add(i));
@@ -399,17 +399,17 @@ pub mod simd {
             let prod = _mm256_mul_pd(va, vb);
             sum_vec = _mm256_add_pd(sum_vec, prod);
         }
-        
+
         // Horizontal sum of SIMD register
         let mut sums = [0.0; 4];
         _mm256_storeu_pd(sums.as_mut_ptr(), sum_vec);
         let mut result = sums[0] + sums[1] + sums[2] + sums[3];
-        
+
         // Handle remaining elements
         for i in simd_len..len {
             result += a[i] * b[i];
         }
-        
+
         result
     }
 }
@@ -438,7 +438,7 @@ pub mod benchmark {
         pub fn new(operation: String, iterations: usize, total_time: Duration) -> Self {
             let avg_time = total_time / iterations as u32;
             let operations_per_second = iterations as f64 / total_time.as_secs_f64();
-            
+
             Self {
                 operation,
                 iterations,
@@ -455,11 +455,11 @@ pub mod benchmark {
         F: FnMut() -> R,
     {
         let start = Instant::now();
-        
+
         for _ in 0..iterations {
             std::hint::black_box(f());
         }
-        
+
         let elapsed = start.elapsed();
         BenchmarkResult::new(name.to_string(), iterations, elapsed)
     }
@@ -468,7 +468,7 @@ pub mod benchmark {
     pub fn benchmark_complex_ops(iterations: usize) -> Vec<BenchmarkResult> {
         let c1 = Complex::new(3.0, 4.0);
         let c2 = Complex::new(1.0, 2.0);
-        
+
         vec![
             benchmark("Complex Add", iterations, || c1 + c2),
             benchmark("Complex Mul", iterations, || c1 * c2),
@@ -483,7 +483,7 @@ pub mod benchmark {
     /// Benchmark trigonometric functions
     pub fn benchmark_trig_functions(iterations: usize) -> Vec<BenchmarkResult> {
         let x: f64 = 1.5;
-        
+
         vec![
             benchmark("Sin (std)", iterations, || x.sin()),
             benchmark("Sin (fast)", iterations, || LookupTables::fast_sin(x)),
@@ -531,8 +531,8 @@ mod tests {
 
         let std_mul = c1 * c2;
         let fast_mul = c1.fast_mul(&c2);
-        assert!((std_mul.real - fast_mul.real).abs() < EPSILON);
-        assert!((std_mul.imaginary - fast_mul.imaginary).abs() < EPSILON);
+        assert!((std_mul.real - fast_mul.real).abs() < f64::EPSILON);
+        assert!((std_mul.imaginary - fast_mul.imaginary).abs() < f64::EPSILON);
 
         let std_div = c1 / c2;
         let fast_div = c1.fast_div(&c2);
@@ -541,7 +541,7 @@ mod tests {
 
         let std_mag = c1.magnitude();
         let fast_mag = c1.fast_magnitude();
-        assert!((std_mag - fast_mag).abs() < EPSILON);
+        assert!((std_mag - fast_mag).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -584,6 +584,6 @@ mod tests {
 
         let dot_product = unsafe { simd::simd_dot_product_f64(&a, &b) };
         let expected: f64 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
-        assert!((dot_product - expected).abs() < EPSILON);
+        assert!((dot_product - expected).abs() < f64::EPSILON);
     }
 }

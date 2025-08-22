@@ -65,11 +65,19 @@ impl Profiler {
 
     /// Records a function call.
     pub fn record_call(&mut self, function_name: String, duration: Duration) {
-        *self.profiling_info.call_counts.entry(function_name.clone()).or_insert(0) += 1;
-        *self.profiling_info.execution_times.entry(function_name).or_insert(Duration::from_secs(0)) += duration;
+        *self
+            .profiling_info
+            .call_counts
+            .entry(function_name.clone())
+            .or_insert(0) += 1;
+        *self
+            .profiling_info
+            .execution_times
+            .entry(function_name)
+            .or_insert(Duration::from_secs(0)) += duration;
     }
 
-    /// Gets profiling results.  
+    /// Gets profiling results.
     pub fn get_results(&self) -> &ProfilingInfo {
         &self.profiling_info
     }

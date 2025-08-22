@@ -35,6 +35,28 @@ pub struct BlameInfo {
     pub parent: Option<BlameId>,
 }
 
+impl Default for BlameInfo {
+    fn default() -> Self {
+        Self {
+            positive: BlameTarget::Unknown {
+                description: "unknown".to_string(),
+            },
+            negative: BlameTarget::Unknown {
+                description: "unknown".to_string(),
+            },
+            boundary: BlameBoundary {
+                boundary_type: BoundaryType::ExplicitContract,
+                contract: String::new(),
+                location: crate::diagnostics::Span::new(0, 0),
+                context: std::collections::HashMap::new(),
+            },
+            call_stack: Vec::new(),
+            id: 0,
+            parent: None,
+        }
+    }
+}
+
 /// Unique identifier for blame contexts.
 pub type BlameId = u64;
 
@@ -222,7 +244,7 @@ impl BlameTracker {
     ) -> BlameInfo {
         let id = self.new_blame_id();
         let parent = self.current_blame_context();
-        
+
         let blame = BlameInfo {
             positive,
             negative,
@@ -320,15 +342,15 @@ impl BlameTracker {
     pub fn violation_stats(&self) -> BlameStats {
         let violations = self.violations.lock().unwrap();
         let total_violations = violations.len();
-        
+
         let mut by_target = HashMap::new();
         let mut by_contract = HashMap::new();
-        
+
         for violation in violations.iter() {
             // Count by positive blame target
             let target_key = format!("{}", violation.blame.positive);
             *by_target.entry(target_key).or_insert(0) += 1;
-            
+
             // Count by contract type
             *by_contract.entry(violation.contract.clone()).or_insert(0) += 1;
         }
@@ -365,7 +387,7 @@ impl BlameInfo {
             module: None,
             span: location,
         };
-        
+
         let negative = BlameTarget::Function {
             name: function_name,
             module,
@@ -400,7 +422,7 @@ impl BlameInfo {
             name: "client".to_string(),
             interface: interface.clone(),
         };
-        
+
         let negative = BlameTarget::Module {
             name: module_name,
             interface,
@@ -467,8 +489,19 @@ impl CallFrame {
 impl fmt::Display for BlameTarget {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BlameTarget::Location { file, span, description } => {
-                write!(f, "{}:{}:{} ({})", file, span.start, span.end(), description)
+            BlameTarget::Location {
+                file,
+                span,
+                description,
+            } => {
+                write!(
+                    f,
+                    "{}:{}:{} ({})",
+                    file,
+                    span.start,
+                    span.end(),
+                    description
+                )
             }
             BlameTarget::Function { name, module, span } => {
                 if let Some(module) = module {
@@ -481,9 +514,17 @@ impl fmt::Display for BlameTarget {
                 write!(f, "module {name} ({interface})")
             }
             BlameTarget::Repl { input_number, span } => {
-                write!(f, "REPL input #{input_number} at {}:{}", span.start, span.end())
+                write!(
+                    f,
+                    "REPL input #{input_number} at {}:{}",
+                    span.start,
+                    span.end()
+                )
             }
-            BlameTarget::System { component, description } => {
+            BlameTarget::System {
+                component,
+                description,
+            } => {
                 write!(f, "system {component} ({description})")
             }
             BlameTarget::Unknown { description } => {
@@ -495,7 +536,11 @@ impl fmt::Display for BlameTarget {
 
 impl fmt::Display for BlameInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "positive: {}, negative: {}", self.positive, self.negative)
+        write!(
+            f,
+            "positive: {}, negative: {}",
+            self.positive, self.negative
+        )
     }
 }
 
@@ -529,19 +574,19 @@ mod tests {
     #[test]
     fn test_blame_context_stack() {
         let tracker = BlameTracker::new();
-        
+
         let id1 = tracker.new_blame_id();
         let id2 = tracker.new_blame_id();
-        
+
         tracker.push_blame_context(id1);
         assert_eq!(tracker.current_blame_context(), Some(id1));
-        
+
         tracker.push_blame_context(id2);
         assert_eq!(tracker.current_blame_context(), Some(id2));
-        
+
         assert_eq!(tracker.pop_blame_context(), Some(id2));
         assert_eq!(tracker.current_blame_context(), Some(id1));
-        
+
         assert_eq!(tracker.pop_blame_context(), Some(id1));
         assert_eq!(tracker.current_blame_context(), None);
     }
@@ -555,24 +600,27 @@ mod tests {
             span,
             "number? -> string?".to_string(),
         );
-        
+
         assert!(matches!(blame.positive, BlameTarget::Function { .. }));
         assert!(matches!(blame.negative, BlameTarget::Function { .. }));
-        assert_eq!(blame.boundary.boundary_type, BoundaryType::FunctionDefinition);
+        assert_eq!(
+            blame.boundary.boundary_type,
+            BoundaryType::FunctionDefinition
+        );
     }
 
     #[test]
     fn test_violation_recording() {
         let tracker = BlameTracker::new();
         let span = Span::new(0, 10);
-        
+
         let blame = BlameInfo::function_definition(
             "test-function".to_string(),
             None,
             span,
             "number?".to_string(),
         );
-        
+
         tracker.record_violation(
             blame,
             "number?".to_string(),
@@ -581,7 +629,7 @@ mod tests {
             "Expected number, got string".to_string(),
             span,
         );
-        
+
         let violations = tracker.recent_violations(10);
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].expected, "number");
@@ -597,11 +645,17 @@ mod tests {
             span,
             "number?".to_string(),
         );
-        
+
         let swapped = blame.swap_blame();
-        
+
         // Positive and negative should be swapped
-        assert_eq!(format!("{}", blame.positive), format!("{}", swapped.negative));
-        assert_eq!(format!("{}", blame.negative), format!("{}", swapped.positive));
+        assert_eq!(
+            format!("{}", blame.positive),
+            format!("{}", swapped.negative)
+        );
+        assert_eq!(
+            format!("{}", blame.negative),
+            format!("{}", swapped.positive)
+        );
     }
 }

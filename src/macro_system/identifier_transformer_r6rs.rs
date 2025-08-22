@@ -5,17 +5,17 @@
 //! conformance testing, and standard procedures as specified in R6RS.
 
 use super::{
-    identifier_transformers::{
-        VariableTransformer, VariableTransformerRegistry, IdentifierContext,
-        TransformerProcedure, TransformationLogic
-    },
-    variable_transformer_builtins::{
-        VariableTransformerBuiltins, make_variable_transformer, make_simple_variable_transformer
-    },
-    context_aware_expander::ContextAwareMacroExpander,
-    syntax_objects::{SyntaxObject, LexicalContext, syntax_utils},
     advanced_hygiene::HygieneResolver,
+    context_aware_expander::ContextAwareMacroExpander,
+    identifier_transformers::{
+        IdentifierContext, TransformationLogic, TransformerProcedure, VariableTransformer,
+        VariableTransformerRegistry,
+    },
+    syntax_objects::{LexicalContext, SyntaxObject, syntax_utils},
     unified_expander::UnifiedMacroExpander,
+    variable_transformer_builtins::{
+        VariableTransformerBuiltins, make_simple_variable_transformer, make_variable_transformer,
+    },
 };
 use crate::ast::{Expr, Literal};
 use crate::diagnostics::{Error, Result, Span};
@@ -85,7 +85,7 @@ impl R6RSIdentifierTransformerSystem {
     fn initialize_standard_environment(&mut self) {
         // In a real implementation, this would register actual Scheme procedures
         // For now, we'll set up the structure
-        
+
         self.register_standard_procedures();
         self.register_standard_transformers();
     }
@@ -94,11 +94,26 @@ impl R6RSIdentifierTransformerSystem {
     fn register_standard_procedures(&mut self) {
         // These would be actual Scheme procedure implementations
         let procedures = vec![
-            ("make-variable-transformer", "Creates a variable transformer from a procedure"),
-            ("variable-transformer?", "Predicate to test if a value is a variable transformer"),
-            ("identifier?", "Predicate to test if a value is an identifier"),
-            ("bound-identifier=?", "Tests if two identifiers have the same binding"),
-            ("free-identifier=?", "Tests if two identifiers refer to the same binding"),
+            (
+                "make-variable-transformer",
+                "Creates a variable transformer from a procedure",
+            ),
+            (
+                "variable-transformer?",
+                "Predicate to test if a value is a variable transformer",
+            ),
+            (
+                "identifier?",
+                "Predicate to test if a value is an identifier",
+            ),
+            (
+                "bound-identifier=?",
+                "Tests if two identifiers have the same binding",
+            ),
+            (
+                "free-identifier=?",
+                "Tests if two identifiers refer to the same binding",
+            ),
             ("generate-temporaries", "Generates fresh identifiers"),
             ("datum->syntax", "Creates a syntax object from a datum"),
             ("syntax->datum", "Extracts datum from a syntax object"),
@@ -122,7 +137,8 @@ impl R6RSIdentifierTransformerSystem {
             "(syntax-violation 'define-values \"cannot be assigned\" stx)".to_string(),
             context.clone(),
         );
-        self.expander.register_variable_transformer(define_values_transformer);
+        self.expander
+            .register_variable_transformer(define_values_transformer);
 
         // Add more standard transformers as needed
     }
@@ -156,7 +172,7 @@ impl R6RSIdentifierTransformerSystem {
         // 1. That the value is actually a procedure
         // 2. That the procedure has the correct arity (1 argument)
         // 3. That the procedure accepts syntax objects
-        
+
         if self.compliance_flags.strict_binding_semantics {
             // Perform strict validation
             // For now, we'll assume validation passes
@@ -168,12 +184,13 @@ impl R6RSIdentifierTransformerSystem {
     /// Validates that a transformer complies with R6RS requirements
     fn validate_r6rs_transformer(&self, transformer: &VariableTransformer) -> Result<()> {
         // Check R6RS compliance requirements
-        
+
         if self.compliance_flags.strict_context_detection {
             // Ensure the transformer properly handles different contexts
             if !transformer.supports_context(&IdentifierContext::Reference) {
                 return Err(Box::new(Error::MacroError {
-                    message: "R6RS variable transformers must support reference context".to_string(),
+                    message: "R6RS variable transformers must support reference context"
+                        .to_string(),
                     span: Span::new(0, 0),
                 }));
             }
@@ -233,11 +250,7 @@ impl R6RSIdentifierTransformerSystem {
     }
 
     /// Implements the R6RS identifier=? procedure
-    pub fn r6rs_identifier_equal(
-        &self,
-        id1: &SyntaxObject,
-        id2: &SyntaxObject,
-    ) -> Result<bool> {
+    pub fn r6rs_identifier_equal(&self, id1: &SyntaxObject, id2: &SyntaxObject) -> Result<bool> {
         if !id1.is_identifier() || !id2.is_identifier() {
             return Err(Box::new(Error::MacroError {
                 message: "identifier=? requires identifier arguments".to_string(),
@@ -290,7 +303,11 @@ impl R6RSIdentifierTransformerSystem {
     /// Gets compliance statistics
     pub fn compliance_stats(&self) -> R6RSComplianceStats {
         R6RSComplianceStats {
-            transformers_registered: self.expander.variable_transformer_registry().list_transformers().len(),
+            transformers_registered: self
+                .expander
+                .variable_transformer_registry()
+                .list_transformers()
+                .len(),
             expansions_performed: self.expander.stats().variable_transformer_expansions,
             context_detections: self.expander.stats().context_detections,
             hygiene_violations: 0, // Would be tracked in a real implementation
@@ -362,23 +379,31 @@ pub mod r6rs_compliance_tests {
             "(let ((temp {val})) (set-value! temp))".to_string(),
             context.clone(),
         );
-        system.expander.register_variable_transformer(hygienic_transformer);
+        system
+            .expander
+            .register_variable_transformer(hygienic_transformer);
 
         // Create a form that uses the transformer in a context where 'temp' is bound
         let form = syntax_utils::make_list_syntax(
             vec![
                 syntax_utils::make_identifier_syntax("let".to_string(), span, context.clone()),
                 syntax_utils::make_list_syntax(
-                    vec![
-                        syntax_utils::make_list_syntax(
-                            vec![
-                                syntax_utils::make_identifier_syntax("temp".to_string(), span, context.clone()),
-                                syntax_utils::make_literal_syntax(Literal::ExactInteger(42), span, context.clone()),
-                            ],
-                            span,
-                            context.clone(),
-                        ),
-                    ],
+                    vec![syntax_utils::make_list_syntax(
+                        vec![
+                            syntax_utils::make_identifier_syntax(
+                                "temp".to_string(),
+                                span,
+                                context.clone(),
+                            ),
+                            syntax_utils::make_literal_syntax(
+                                Literal::ExactInteger(42),
+                                span,
+                                context.clone(),
+                            ),
+                        ],
+                        span,
+                        context.clone(),
+                    )],
                     span,
                     context.clone(),
                 ),
@@ -411,7 +436,8 @@ pub mod r6rs_compliance_tests {
         system.expander.register_variable_transformer(transformer);
 
         // Test reference context
-        let reference = syntax_utils::make_identifier_syntax("context-var".to_string(), span, context.clone());
+        let reference =
+            syntax_utils::make_identifier_syntax("context-var".to_string(), span, context.clone());
         let result = system.r6rs_expand(&reference)?;
         assert!(result.is_list() || result.is_identifier());
 
@@ -419,7 +445,11 @@ pub mod r6rs_compliance_tests {
         let assignment = syntax_utils::make_list_syntax(
             vec![
                 syntax_utils::make_identifier_syntax("set!".to_string(), span, context.clone()),
-                syntax_utils::make_identifier_syntax("context-var".to_string(), span, context.clone()),
+                syntax_utils::make_identifier_syntax(
+                    "context-var".to_string(),
+                    span,
+                    context.clone(),
+                ),
                 syntax_utils::make_literal_syntax(Literal::integer(100), span, context.clone()),
             ],
             span,
@@ -453,15 +483,15 @@ pub mod r6rs_compliance_tests {
     /// Test R6RS phase separation
     pub fn test_phase_separation() -> Result<()> {
         let mut system = R6RSIdentifierTransformerSystem::new();
-        
+
         // Variable transformers should work at macro expansion time (phase 1)
         // This test would verify that phase separation is properly maintained
-        
+
         // In a full implementation, this would test that:
         // 1. Transformers are only available at expansion time
         // 2. Runtime values don't leak into expansion time
         // 3. Expansion-time values don't leak into runtime
-        
+
         Ok(())
     }
 
@@ -473,7 +503,7 @@ pub mod r6rs_compliance_tests {
         test_context_sensitive_expansion()?;
         test_error_conditions()?;
         test_phase_separation()?;
-        
+
         println!("All R6RS compliance tests passed!");
         Ok(())
     }
@@ -548,7 +578,7 @@ impl R6RSComplianceValidator {
             rules: Vec::new(),
             results: Vec::new(),
         };
-        
+
         validator.register_standard_rules();
         validator
     }
@@ -564,7 +594,8 @@ impl R6RSComplianceValidator {
             },
             R6RSValidationRule {
                 name: "context-sensitivity".to_string(),
-                description: "Transformers must handle reference and assignment contexts".to_string(),
+                description: "Transformers must handle reference and assignment contexts"
+                    .to_string(),
                 severity: ValidationSeverity::Error,
                 rule_type: RuleType::ContextDetection,
             },
@@ -584,7 +615,10 @@ impl R6RSComplianceValidator {
     }
 
     /// Validates a variable transformer for R6RS compliance
-    pub fn validate_transformer(&mut self, transformer: &VariableTransformer) -> Vec<R6RSValidationResult> {
+    pub fn validate_transformer(
+        &mut self,
+        transformer: &VariableTransformer,
+    ) -> Vec<R6RSValidationResult> {
         let mut results = Vec::new();
 
         for rule in &self.rules {
@@ -595,7 +629,7 @@ impl R6RSComplianceValidator {
                 RuleType::BindingSemantics => self.validate_binding_rule(transformer, rule),
                 RuleType::ExpansionOrder => self.validate_expansion_rule(transformer, rule),
             };
-            
+
             results.push(result);
         }
 
@@ -696,8 +730,16 @@ impl R6RSComplianceValidator {
     pub fn validation_summary(&self) -> R6RSValidationSummary {
         let total = self.results.len();
         let passed = self.results.iter().filter(|r| r.passed).count();
-        let errors = self.results.iter().filter(|r| r.severity == ValidationSeverity::Error && !r.passed).count();
-        let warnings = self.results.iter().filter(|r| r.severity == ValidationSeverity::Warning && !r.passed).count();
+        let errors = self
+            .results
+            .iter()
+            .filter(|r| r.severity == ValidationSeverity::Error && !r.passed)
+            .count();
+        let warnings = self
+            .results
+            .iter()
+            .filter(|r| r.severity == ValidationSeverity::Warning && !r.passed)
+            .count();
 
         R6RSValidationSummary {
             total_rules: total,
@@ -748,7 +790,7 @@ mod tests {
     fn test_compliance_validator() {
         let mut validator = R6RSComplianceValidator::new();
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        
+
         let transformer = VariableTransformer::simple(
             "test-var".to_string(),
             "(get-test)".to_string(),

@@ -1,9 +1,9 @@
 //! Literal value types for the Lambdust AST.
 
+use crate::utils::InternedString;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use crate::utils::InternedString;
 
 /// Greatest common divisor calculation for rational number normalization.
 fn gcd(a: u64, b: u64) -> u64 {
@@ -11,48 +11,48 @@ fn gcd(a: u64, b: u64) -> u64 {
 }
 
 /// Literal values in the Lambdust language.
-/// 
+///
 /// This enum is optimized for memory usage by boxing large variants
 /// to reduce the overall size from 32 bytes to approximately 16 bytes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Literal {
     /// Exact integer numbers (preserves exactness)
     ExactInteger(i64),
-    
+
     /// Inexact floating-point numbers
     InexactReal(f64),
-    
+
     /// Legacy number representation for backward compatibility
     #[deprecated(note = "Use ExactInteger or InexactReal instead")]
     Number(f64),
-    
+
     /// Rational numbers (exact fractions) - boxed for size optimization
     Rational(Box<RationalLiteral>),
-    
+
     /// Complex numbers (can be exact or inexact depending on components) - boxed for size optimization
     Complex(Box<ComplexLiteral>),
-    
+
     /// String literals (traditional) - boxed for size optimization
     String(Box<String>),
-    
+
     /// Interned string literals (memory-optimized)
     InternedString(InternedString),
-    
+
     /// Character literals
     Character(char),
-    
+
     /// Boolean values
     Boolean(bool),
-    
+
     /// Bytevector literals - boxed for size optimization
     Bytevector(Box<Vec<u8>>),
-    
+
     /// The empty list (nil)
     Nil,
-    
+
     /// Unspecified value (result of side-effecting operations)
     Unspecified,
-    
+
     /// Legacy integer alias for compatibility
     #[deprecated(note = "Use ExactInteger instead")]
     Integer(i64),
@@ -73,25 +73,31 @@ impl RationalLiteral {
         if denominator == 0 {
             panic!("Rational number cannot have zero denominator");
         }
-        
+
         // Normalize the rational number
         let gcd = gcd(numerator.unsigned_abs(), denominator.unsigned_abs()) as i64;
         let num = numerator / gcd;
         let den = denominator / gcd;
-        
+
         // Ensure denominator is positive
         if den < 0 {
-            Self { numerator: -num, denominator: -den }
+            Self {
+                numerator: -num,
+                denominator: -den,
+            }
         } else {
-            Self { numerator: num, denominator: den }
+            Self {
+                numerator: num,
+                denominator: den,
+            }
         }
     }
-    
+
     /// Converts to floating-point approximation.
     pub fn to_f64(&self) -> f64 {
         self.numerator as f64 / self.denominator as f64
     }
-    
+
     /// Returns true if this represents an integer (denominator is 1).
     pub fn is_integer(&self) -> bool {
         self.denominator == 1
@@ -107,22 +113,30 @@ pub struct ComplexLiteral {
     pub imaginary: f64,
 }
 
+impl Hash for ComplexLiteral {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // Hash the bit representations of f64 values to handle NaN and signed zero correctly
+        self.real.to_bits().hash(state);
+        self.imaginary.to_bits().hash(state);
+    }
+}
+
 impl ComplexLiteral {
     /// Creates a new complex literal.
     pub fn new(real: f64, imaginary: f64) -> Self {
         Self { real, imaginary }
     }
-    
+
     /// Returns true if this is a real number (imaginary part is zero).
     pub fn is_real(&self) -> bool {
         self.imaginary == 0.0
     }
-    
+
     /// Returns true if this is an integer (real part is integer and imaginary is zero).
     pub fn is_integer(&self) -> bool {
         self.imaginary == 0.0 && self.real.fract() == 0.0 && self.real.is_finite()
     }
-    
+
     /// Returns true if this is exact (both parts are exact).
     pub fn is_exact(&self) -> bool {
         self.real.fract() == 0.0 && self.imaginary.fract() == 0.0
@@ -139,7 +153,7 @@ impl Literal {
     pub fn float(value: f64) -> Self {
         Self::InexactReal(value)
     }
-    
+
     /// Creates a number literal - chooses exact or inexact based on value
     pub fn number(value: f64) -> Self {
         if value.fract() == 0.0 && value.is_finite() && value.abs() <= i64::MAX as f64 {
@@ -163,18 +177,18 @@ impl Literal {
     pub fn string(value: impl Into<String>) -> Self {
         Self::String(Box::new(value.into()))
     }
-    
+
     /// Creates an interned string literal (memory-optimized).
     pub fn interned_string(s: &str) -> Self {
         use crate::utils::intern;
         Self::InternedString(intern(s))
     }
-    
+
     /// Creates a string literal, choosing interned vs regular based on heuristics.
     /// Short, common strings are interned for memory efficiency.
     pub fn smart_string(s: impl Into<String>) -> Self {
         let string = s.into();
-        
+
         // Heuristics for when to intern:
         // 1. Short strings (likely to be repeated)
         // 2. Common patterns (empty, single char, etc.)
@@ -202,12 +216,13 @@ impl Literal {
 
     /// Returns true if this literal is a number.
     pub fn is_number(&self) -> bool {
-        matches!(self, 
-            Literal::ExactInteger(_) | 
-            Literal::InexactReal(_) |
-            Literal::Number(_) |
-            Literal::Rational(_) | 
-            Literal::Complex(_)
+        matches!(
+            self,
+            Literal::ExactInteger(_)
+                | Literal::InexactReal(_)
+                | Literal::Number(_)
+                | Literal::Rational(_)
+                | Literal::Complex(_)
         )
     }
 
@@ -233,11 +248,12 @@ impl Literal {
 
     /// Returns true if this literal is real (not complex).
     pub fn is_real(&self) -> bool {
-        matches!(self, 
-            Literal::ExactInteger(_) |
-            Literal::InexactReal(_) | 
-            Literal::Number(_) |
-            Literal::Rational(_)
+        matches!(
+            self,
+            Literal::ExactInteger(_)
+                | Literal::InexactReal(_)
+                | Literal::Number(_)
+                | Literal::Rational(_)
         ) || matches!(self, Literal::Complex(c) if c.is_real())
     }
 
@@ -249,8 +265,13 @@ impl Literal {
             Literal::Number(n) => n.fract() == 0.0 && n.is_finite(),
             Literal::Rational(r) => r.is_integer(),
             Literal::Complex(c) => c.is_integer(),
-            Literal::String(_) | Literal::InternedString(_) | Literal::Character(_) | Literal::Boolean(_) 
-            | Literal::Bytevector(_) | Literal::Nil | Literal::Unspecified => false,
+            Literal::String(_)
+            | Literal::InternedString(_)
+            | Literal::Character(_)
+            | Literal::Boolean(_)
+            | Literal::Bytevector(_)
+            | Literal::Nil
+            | Literal::Unspecified => false,
         }
     }
 
@@ -285,13 +306,8 @@ impl Literal {
 
     /// Converts this literal to a non-negative usize if possible.
     pub fn to_usize(&self) -> Option<usize> {
-        self.to_i64().and_then(|i| {
-            if i >= 0 {
-                Some(i as usize)
-            } else {
-                None
-            }
-        })
+        self.to_i64()
+            .and_then(|i| if i >= 0 { Some(i as usize) } else { None })
     }
 
     /// Returns true if this literal is truthy in Scheme semantics.
@@ -303,12 +319,12 @@ impl Literal {
     pub fn is_falsy(&self) -> bool {
         matches!(self, Literal::Boolean(false))
     }
-    
+
     /// Returns true if this literal is a string (regular or interned).
     pub fn is_string(&self) -> bool {
         matches!(self, Literal::String(_) | Literal::InternedString(_))
     }
-    
+
     /// Gets the string value if this is a string literal (regular or interned).
     pub fn as_str(&self) -> Option<&str> {
         match self {
@@ -317,7 +333,7 @@ impl Literal {
             _ => None,
         }
     }
-    
+
     /// Gets the string value as an owned String if this is a string literal.
     pub fn to_string_value(&self) -> Option<String> {
         match self {
@@ -339,12 +355,12 @@ impl Literal {
             _ => None,
         }
     }
-    
+
     /// Helper: Check if this is any numeric literal (for pattern matching replacement)
     pub fn is_any_numeric(&self) -> bool {
         self.is_number()
     }
-    
+
     /// Convert from legacy f64 representation (for compatibility during migration)
     #[deprecated(note = "Use integer() or float() instead")]
     pub fn from_f64(value: f64) -> Self {
@@ -424,15 +440,13 @@ impl fmt::Display for Literal {
             }
             Literal::String(s) => write!(f, "\"{}\"", escape_string(s)),
             Literal::InternedString(s) => write!(f, "\"{}\"", escape_string(s.as_str())),
-            Literal::Character(c) => {
-                match c {
-                    ' ' => write!(f, "#\\space"),
-                    '\n' => write!(f, "#\\newline"),
-                    '\t' => write!(f, "#\\tab"),
-                    '\r' => write!(f, "#\\return"),
-                    _ => write!(f, "#\\{c}"),
-                }
-            }
+            Literal::Character(c) => match c {
+                ' ' => write!(f, "#\\space"),
+                '\n' => write!(f, "#\\newline"),
+                '\t' => write!(f, "#\\tab"),
+                '\r' => write!(f, "#\\return"),
+                _ => write!(f, "#\\{c}"),
+            },
             Literal::Boolean(true) => write!(f, "#t"),
             Literal::Boolean(false) => write!(f, "#f"),
             Literal::Bytevector(bv) => {
@@ -465,7 +479,6 @@ fn escape_string(s: &str) -> String {
         })
         .collect()
 }
-
 
 impl Hash for Literal {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -533,11 +546,11 @@ mod tests {
     fn test_number_creation() {
         let int_lit = Literal::integer(42);
         let float_lit = Literal::float(3.05);
-        
+
         assert!(int_lit.is_number());
         assert!(int_lit.is_integer());
         assert_eq!(int_lit.to_i64(), Some(42));
-        
+
         assert!(float_lit.is_number());
         assert!(!float_lit.is_integer());
         assert_eq!(float_lit.to_f64(), Some(3.05));
@@ -546,7 +559,7 @@ mod tests {
     #[test]
     fn test_rational_creation() {
         let rat = Literal::rational(3, 4);
-        
+
         match &rat {
             Literal::Rational(r) => {
                 assert_eq!(r.numerator, 3);
@@ -554,7 +567,7 @@ mod tests {
             }
             _ => panic!("Expected rational"),
         }
-        
+
         assert!(rat.is_exact());
         assert!(!rat.is_inexact());
         assert_eq!(rat.to_f64(), Some(0.75));
@@ -563,7 +576,7 @@ mod tests {
     #[test]
     fn test_rational_normalization() {
         let rat = Literal::rational(6, 8);
-        
+
         match &rat {
             Literal::Rational(r) => {
                 assert_eq!(r.numerator, 3);
@@ -576,7 +589,7 @@ mod tests {
     #[test]
     fn test_complex_creation() {
         let complex = Literal::complex(3.0, 4.0);
-        
+
         assert!(complex.is_number());
         assert!(!complex.is_real());
         assert!(!complex.is_integer());
@@ -600,16 +613,22 @@ mod tests {
         assert_eq!(format!("{}", Literal::complex(3.0, 4.0)), "3+4i");
         assert_eq!(format!("{}", Literal::complex(0.0, 1.0)), "i");
         assert_eq!(format!("{}", Literal::complex(3.0, -1.0)), "3-i");
-        assert_eq!(format!("{}", Literal::String(Box::new("hello".to_string()))), "\"hello\"");
+        assert_eq!(
+            format!("{}", Literal::String(Box::new("hello".to_string()))),
+            "\"hello\""
+        );
         assert_eq!(format!("{}", Literal::character('a')), "#\\a");
         assert_eq!(format!("{}", Literal::character(' ')), "#\\space");
         assert_eq!(format!("{}", Literal::boolean(true)), "#t");
         assert_eq!(format!("{}", Literal::boolean(false)), "#f");
         assert_eq!(format!("{}", Literal::Nil), "()");
-        
+
         // Special float values
         assert_eq!(format!("{}", Literal::InexactReal(f64::INFINITY)), "+inf.0");
-        assert_eq!(format!("{}", Literal::InexactReal(f64::NEG_INFINITY)), "-inf.0");
+        assert_eq!(
+            format!("{}", Literal::InexactReal(f64::NEG_INFINITY)),
+            "-inf.0"
+        );
         assert_eq!(format!("{}", Literal::InexactReal(f64::NAN)), "+nan.0");
     }
 
@@ -619,40 +638,42 @@ mod tests {
         let escaped = escape_string(s);
         assert_eq!(escaped, "hello\\n\\\"world\\\"");
     }
-    
+
     #[test]
     fn test_interned_string_creation() {
         let regular = Literal::String(Box::new("hello".to_string()));
         let interned = Literal::interned_string("hello");
         let smart = Literal::smart_string("hello"); // Should be interned due to length
-        
+
         // They should be equal
         assert_eq!(regular, interned);
         assert_eq!(regular, smart);
-        
+
         // String extraction
         assert_eq!(regular.as_str(), Some("hello"));
         assert_eq!(interned.as_str(), Some("hello"));
         assert_eq!(smart.as_str(), Some("hello"));
-        
+
         // Both should be strings
         assert!(regular.is_string());
         assert!(interned.is_string());
         assert!(smart.is_string());
     }
-    
+
     #[test]
     fn test_smart_string_heuristics() {
         // Short strings should be interned
         let short = Literal::smart_string("hi");
         assert!(matches!(short, Literal::InternedString(_)));
-        
+
         // Common strings should be interned
         let common = Literal::smart_string("error");
         assert!(matches!(common, Literal::InternedString(_)));
-        
+
         // Long uncommon strings should stay regular
-        let long = Literal::smart_string("this is a very long and uncommon string that should not be interned");
+        let long = Literal::smart_string(
+            "this is a very long and uncommon string that should not be interned",
+        );
         assert!(matches!(long, Literal::String(_)));
     }
 }
@@ -665,13 +686,13 @@ impl PartialEq for Literal {
             (Literal::Number(a), Literal::Number(b)) => a == b,
             (Literal::Rational(r1), Literal::Rational(r2)) => r1 == r2,
             (Literal::Complex(c1), Literal::Complex(c2)) => c1 == c2,
-            
+
             // String comparison handles both regular and interned strings
             (Literal::String(s1), Literal::String(s2)) => s1 == s2,
             (Literal::InternedString(s1), Literal::InternedString(s2)) => s1 == s2,
             (Literal::String(s1), Literal::InternedString(s2)) => s1.as_str() == s2.as_str(),
             (Literal::InternedString(s1), Literal::String(s2)) => s1.as_str() == s2.as_str(),
-            
+
             (Literal::Character(a), Literal::Character(b)) => a == b,
             (Literal::Boolean(a), Literal::Boolean(b)) => a == b,
             (Literal::Bytevector(a), Literal::Bytevector(b)) => a == b,

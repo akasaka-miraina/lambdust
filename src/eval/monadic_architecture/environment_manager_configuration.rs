@@ -5,10 +5,10 @@
 pub struct EnvironmentManagerConfiguration {
     /// Whether to enable environment caching
     pub enable_caching: bool,
-    
+
     /// Maximum cache size
     pub max_cache_size: usize,
-    
+
     /// Whether to enable copy-on-write optimization
     pub enable_cow: bool,
 }

@@ -1,9 +1,9 @@
 //! Common utilities and definitions for string operations.
 
-use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
-use crate::effects::Effect;
 use crate::ast::Literal;
+use crate::diagnostics::{Error as DiagnosticError, Result};
+use crate::effects::Effect;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use std::sync::Arc;
 
 /// Helper macro to bind a primitive procedure with both normal and builtin: names
@@ -29,7 +29,7 @@ pub(crate) use bind_primitive;
 pub enum CharacterSet {
     /// A predicate function that tests characters
     Predicate(fn(char) -> bool),
-    /// A character literal  
+    /// A character literal
     Character(char),
     /// A string containing characters to match
     String(String),
@@ -47,7 +47,7 @@ impl CharacterSet {
             CharacterSet::Whitespace => ch.is_whitespace(),
         }
     }
-    
+
     /// Create a character set from a Scheme value
     pub fn from_value(value: &Value) -> Result<CharacterSet> {
         match value {
@@ -74,16 +74,21 @@ impl Default for CharacterSet {
 }
 
 /// Validate string bounds for operations
-pub fn validate_string_bounds(s: &str, start: usize, end: Option<usize>, operation: &str) -> Result<usize> {
+pub fn validate_string_bounds(
+    s: &str,
+    start: usize,
+    end: Option<usize>,
+    operation: &str,
+) -> Result<usize> {
     let len = s.chars().count();
-    
+
     if start > len {
         return Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation}: start index {start} out of bounds for string of length {len}"),
             None,
         )));
     }
-    
+
     let actual_end = end.unwrap_or(len);
     if actual_end > len {
         return Err(Box::new(DiagnosticError::runtime_error(
@@ -91,14 +96,14 @@ pub fn validate_string_bounds(s: &str, start: usize, end: Option<usize>, operati
             None,
         )));
     }
-    
+
     if start > actual_end {
         return Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation}: start index {start} greater than end index {actual_end}"),
             None,
         )));
     }
-    
+
     Ok(actual_end)
 }
 

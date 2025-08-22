@@ -31,25 +31,25 @@
 //!   (lambda (f lst) (map f lst)))  ; Contract inserted automatically
 //! ```
 
-use super::{
-    Type, TypeVar, TypeScheme, TypeEnv, TypeConstraint, 
-    ConstraintSolver, Substitution, TypeInference
+use super::gradual::{
+    Cast, approximate_type, consistent, gradualize, insert_cast, is_gradual, is_static, join_types,
+    meet_types, staticize,
 };
 use super::inference::InferenceResult;
-use super::gradual::{
-    consistent, join_types, meet_types, gradualize, staticize, 
-    insert_cast, Cast, is_gradual, is_static, approximate_type
+use super::{
+    ConstraintSolver, Substitution, Type, TypeConstraint, TypeEnv, TypeInference, TypeScheme,
+    TypeVar,
 };
-use crate::ast::{Expr, Literal, Formals};
+use crate::ast::{Expr, Formals, Literal};
 use crate::contracts::{
-    ContractSystem, ContractExpr, CompilationContext, CompiledContract,
-    BlameInfo, BlameTracker, ContractError
+    BlameInfo, BlameTracker, CompilationContext, CompiledContract, ContractError, ContractExpr,
+    ContractSystem,
 };
 use crate::diagnostics::{Error, Result, Span, Spanned};
 use crate::eval::Value;
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Configuration for gradual type inference
@@ -198,7 +198,10 @@ pub struct OptimizationHint {
 #[derive(Debug, Clone)]
 pub enum OptimizationType {
     /// Specialize function for known types
-    FunctionSpecialization { argument_types: Vec<Type> },
+    FunctionSpecialization {
+        /// Types of the function arguments for specialization
+        argument_types: Vec<Type>,
+    },
     /// Remove unnecessary casts
     CastElimination,
     /// Inline function call
@@ -239,15 +242,32 @@ pub struct MigrationSuggestion {
 #[derive(Debug, Clone)]
 pub enum MigrationType {
     /// Add type annotation
-    AddTypeAnnotation { suggested_type: Type },
+    AddTypeAnnotation {
+        /// The suggested type to annotate with
+        suggested_type: Type,
+    },
     /// Add contract
-    AddContract { suggested_contract: ContractExpr },
+    AddContract {
+        /// The suggested contract expression to add
+        suggested_contract: ContractExpr,
+    },
     /// Refactor for better types
-    RefactorForTypes { suggestion: String },
+    RefactorForTypes {
+        /// Human-readable refactoring suggestion
+        suggestion: String,
+    },
     /// Extract typed function
-    ExtractTypedFunction { function_name: String },
+    ExtractTypedFunction {
+        /// Suggested name for the extracted function
+        function_name: String,
+    },
     /// Use more specific type
-    UseMoreSpecificType { current: Type, suggested: Type },
+    UseMoreSpecificType {
+        /// Current (less specific) type
+        current: Type,
+        /// Suggested (more specific) type
+        suggested: Type,
+    },
 }
 
 /// Benefit of applying migration
@@ -295,11 +315,24 @@ pub struct TypeBoundary {
 #[derive(Debug, Clone)]
 pub enum TypeContext {
     /// Static type context
-    Static { type_: Type, certainty: TypeCertainty },
+    Static {
+        /// The static type information
+        type_: Type,
+        /// Certainty level of the type information
+        certainty: TypeCertainty,
+    },
     /// Dynamic type context
-    Dynamic { runtime_type: Option<Type> },
+    Dynamic {
+        /// Optional runtime type information if available
+        runtime_type: Option<Type>,
+    },
     /// Gradual type context
-    Gradual { static_part: Type, dynamic_part: Type },
+    Gradual {
+        /// Static (compile-time known) part of the type
+        static_part: Type,
+        /// Dynamic (runtime-dependent) part of the type
+        dynamic_part: Type,
+    },
 }
 
 /// Certainty level of static type information
@@ -384,9 +417,15 @@ pub enum CastPattern {
     /// Identity cast (T -> T)
     Identity,
     /// Double cast that can be simplified
-    DoubleCast { intermediate: Type },
+    DoubleCast {
+        /// The intermediate type in the double cast chain
+        intermediate: Type,
+    },
     /// Cast followed by compatible operation
-    CastWithOperation { operation: String },
+    CastWithOperation {
+        /// Name of the operation that follows the cast
+        operation: String,
+    },
 }
 
 /// Action for cast elimination
@@ -395,7 +434,10 @@ pub enum EliminationAction {
     /// Remove the cast entirely
     Remove,
     /// Replace with simpler cast
-    Simplify { new_cast: Cast },
+    Simplify {
+        /// The simplified cast to use instead
+        new_cast: Cast,
+    },
     /// Defer to later optimization phase
     Defer,
 }
@@ -454,22 +496,22 @@ impl GradualTypeInference {
 
         // Start with static type inference
         let static_result = self.static_inference.infer(expr)?;
-        
+
         // Analyze gradual boundaries
         let boundaries = self.analyze_boundaries(expr, &static_result.type_)?;
-        
+
         // Insert necessary casts
         let casts = self.insert_casts(&boundaries)?;
-        
+
         // Generate contracts for runtime checking
         let contracts = self.generate_contracts(&boundaries, &casts)?;
-        
+
         // Extract blame information
         let blame_info = self.extract_blame_info(&boundaries);
-        
+
         // Generate optimization hints
         let optimizations = self.generate_optimizations(expr, &static_result.type_)?;
-        
+
         // Generate migration suggestions
         let migration_suggestions = if self.config.enable_migration_assistance {
             self.generate_migration_suggestions(expr, &static_result.type_)?
@@ -479,7 +521,8 @@ impl GradualTypeInference {
 
         // Record performance metrics
         let inference_time = start_time.elapsed();
-        self.profiler.record_inference_time("gradual_infer", inference_time);
+        self.profiler
+            .record_inference_time("gradual_infer", inference_time);
 
         Ok(GradualInferenceResult {
             inferred_type: static_result.type_,
@@ -494,18 +537,18 @@ impl GradualTypeInference {
 
     /// Analyzes type boundaries in an expression
     fn analyze_boundaries(
-        &mut self, 
-        expr: &Spanned<Expr>, 
-        inferred_type: &Type
+        &mut self,
+        expr: &Spanned<Expr>,
+        inferred_type: &Type,
     ) -> Result<Vec<TypeBoundary>> {
         let mut boundaries = Vec::new();
-        
+
         // Walk the expression tree looking for boundaries
         self.walk_expression_for_boundaries(expr, inferred_type, &mut boundaries)?;
-        
+
         // Update boundary manager statistics
         self.boundary_manager.update_statistics(&boundaries);
-        
+
         Ok(boundaries)
     }
 
@@ -514,75 +557,83 @@ impl GradualTypeInference {
         &mut self,
         expr: &Spanned<Expr>,
         context_type: &Type,
-        boundaries: &mut Vec<TypeBoundary>
+        boundaries: &mut Vec<TypeBoundary>,
     ) -> Result<()> {
         match &expr.inner {
             Expr::Application { operator, operands } => {
                 // Check for function application boundaries
                 let operator_result = self.static_inference.infer(operator)?;
-                
-                if let Type::Function { params, return_type: _ } = &operator_result.type_ {
+
+                if let Type::Function {
+                    params,
+                    return_type: _,
+                } = &operator_result.type_
+                {
                     for (operand, param_type) in operands.iter().zip(params.iter()) {
                         let operand_result = self.static_inference.infer(operand)?;
-                        
+
                         if !consistent(&operand_result.type_, param_type) {
                             // Found a boundary
                             let boundary = self.create_boundary(
                                 operand.span,
                                 &operand_result.type_,
-                                param_type
+                                param_type,
                             )?;
                             boundaries.push(boundary);
                         }
                     }
                 }
             }
-            
-            Expr::If { test, consequent, alternative } => {
+
+            Expr::If {
+                test,
+                consequent,
+                alternative,
+            } => {
                 // Check consistency between branches
                 let consequent_result = self.static_inference.infer(consequent)?;
-                
+
                 if let Some(alt) = alternative {
                     let alternative_result = self.static_inference.infer(alt)?;
-                    
+
                     if !consistent(&consequent_result.type_, &alternative_result.type_) {
                         // Need boundary for branch consistency
                         let boundary = self.create_boundary(
                             expr.span,
                             &consequent_result.type_,
-                            &alternative_result.type_
+                            &alternative_result.type_,
                         )?;
                         boundaries.push(boundary);
                     }
                 }
-                
+
                 // Recursively check branches
                 self.walk_expression_for_boundaries(consequent, context_type, boundaries)?;
                 if let Some(alt) = alternative {
                     self.walk_expression_for_boundaries(alt, context_type, boundaries)?;
                 }
             }
-            
-            Expr::TypeAnnotation { expr: inner_expr, type_expr: _ } => {
+
+            Expr::TypeAnnotation {
+                expr: inner_expr,
+                type_expr: _,
+            } => {
                 // Type annotations create explicit boundaries
                 let inner_result = self.static_inference.infer(inner_expr)?;
-                
+
                 if !consistent(&inner_result.type_, context_type) {
-                    let boundary = self.create_boundary(
-                        expr.span,
-                        &inner_result.type_,
-                        context_type
-                    )?;
+                    let boundary =
+                        self.create_boundary(expr.span, &inner_result.type_, context_type)?;
                     boundaries.push(boundary);
                 }
             }
-            
+
             // Handle other expression types...
             _ => {
                 // Default: no boundaries detected for this expression type
             }
         }
-        
+
         Ok(())
     }
 
@@ -591,31 +642,31 @@ impl GradualTypeInference {
         &mut self,
         location: Span,
         source_type: &Type,
-        target_type: &Type
+        target_type: &Type,
     ) -> Result<TypeBoundary> {
         let source_context = if is_static(source_type) {
-            TypeContext::Static { 
-                type_: source_type.clone(), 
-                certainty: TypeCertainty::Inferred 
+            TypeContext::Static {
+                type_: source_type.clone(),
+                certainty: TypeCertainty::Inferred,
             }
         } else if is_gradual(source_type) {
-            TypeContext::Gradual { 
+            TypeContext::Gradual {
                 static_part: staticize(source_type, &mut || TypeVar::fresh()),
-                dynamic_part: gradualize(source_type)
+                dynamic_part: gradualize(source_type),
             }
         } else {
             TypeContext::Dynamic { runtime_type: None }
         };
 
         let target_context = if is_static(target_type) {
-            TypeContext::Static { 
-                type_: target_type.clone(), 
-                certainty: TypeCertainty::Inferred 
+            TypeContext::Static {
+                type_: target_type.clone(),
+                certainty: TypeCertainty::Inferred,
             }
         } else if is_gradual(target_type) {
-            TypeContext::Gradual { 
+            TypeContext::Gradual {
                 static_part: staticize(target_type, &mut || TypeVar::fresh()),
-                dynamic_part: gradualize(target_type)
+                dynamic_part: gradualize(target_type),
             }
         } else {
             TypeContext::Dynamic { runtime_type: None }
@@ -623,33 +674,33 @@ impl GradualTypeInference {
 
         let cast = insert_cast(source_type, target_type);
         // Create blame context with proper types
-        use crate::contracts::blame::{BlameTarget, BlameBoundary, BoundaryType, CallFrame};
+        use crate::contracts::blame::{BlameBoundary, BlameTarget, BoundaryType, CallFrame};
         use std::collections::HashMap;
-        
+
         let positive_target = BlameTarget::System {
             component: "gradual_inference".to_string(),
             description: "source type".to_string(),
         };
-        
+
         let negative_target = BlameTarget::System {
             component: "gradual_inference".to_string(),
             description: "target type".to_string(),
         };
-        
+
         let boundary = BlameBoundary {
             boundary_type: BoundaryType::ExplicitContract,
             contract: "cast".to_string(),
             location,
             context: HashMap::new(),
         };
-        
+
         let call_stack = vec![];
-        
+
         let blame = self.blame_tracker.create_blame_context(
             positive_target,
             negative_target,
             boundary,
-            call_stack
+            call_stack,
         );
 
         Ok(TypeBoundary {
@@ -692,7 +743,7 @@ impl GradualTypeInference {
             (TypeContext::Dynamic { .. }, TypeContext::Static { .. }) => {
                 CastReason::StaticDynamicBoundary
             }
-            _ => CastReason::ArgumentTypeMismatch
+            _ => CastReason::ArgumentTypeMismatch,
         }
     }
 
@@ -708,11 +759,12 @@ impl GradualTypeInference {
             Cast::Upcast { .. } => PerformanceImpact::Minimal,
             Cast::Downcast { .. } => PerformanceImpact::Moderate,
             Cast::Structural { casts } => {
-                let max_impact = casts.iter()
+                let max_impact = casts
+                    .iter()
                     .map(Self::analyze_performance_impact_recursive)
                     .max()
                     .unwrap_or(PerformanceImpact::None);
-                
+
                 match max_impact {
                     PerformanceImpact::None => PerformanceImpact::Minimal,
                     PerformanceImpact::Minimal => PerformanceImpact::Moderate,
@@ -724,9 +776,9 @@ impl GradualTypeInference {
 
     /// Generates contracts for runtime checking
     fn generate_contracts(
-        &mut self, 
-        boundaries: &[TypeBoundary], 
-        casts: &[CastInsertion]
+        &mut self,
+        boundaries: &[TypeBoundary],
+        casts: &[CastInsertion],
     ) -> Result<Vec<GeneratedContract>> {
         if !self.config.enable_contract_generation {
             return Ok(Vec::new());
@@ -749,9 +801,7 @@ impl GradualTypeInference {
     fn generate_downcast_contract(&mut self, boundary: &TypeBoundary) -> Result<GeneratedContract> {
         // Create a contract expression based on the target type
         let contract = match &boundary.target_context {
-            TypeContext::Static { type_, .. } => {
-                self.type_to_contract_expr(type_)?
-            }
+            TypeContext::Static { type_, .. } => self.type_to_contract_expr(type_)?,
             _ => {
                 // Default to any/c for dynamic contexts
                 ContractExpr::Predicate {
@@ -807,15 +857,27 @@ impl GradualTypeInference {
                     location: Span::new(0, 0),
                 })
             }
-            Type::Function { params, return_type } => {
-                let param_contracts: Result<Vec<_>> = params.iter()
-                    .map(|p| Self::type_to_contract_expr_recursive(p).map(|c| Spanned { inner: c, span: Span::new(0, 0) }))
+            Type::Function {
+                params,
+                return_type,
+            } => {
+                let param_contracts: Result<Vec<_>> = params
+                    .iter()
+                    .map(|p| {
+                        Self::type_to_contract_expr_recursive(p).map(|c| Spanned {
+                            inner: c,
+                            span: Span::new(0, 0),
+                        })
+                    })
                     .collect();
                 let return_contract = Self::type_to_contract_expr_recursive(return_type)?;
-                
+
                 Ok(ContractExpr::Function {
                     domain: param_contracts?,
-                    codomain: Box::new(Spanned { inner: return_contract, span: Span::new(0, 0) }),
+                    codomain: Box::new(Spanned {
+                        inner: return_contract,
+                        span: Span::new(0, 0),
+                    }),
                     location: Span::new(0, 0),
                 })
             }
@@ -840,9 +902,9 @@ impl GradualTypeInference {
 
     /// Generates optimization hints
     fn generate_optimizations(
-        &mut self, 
-        expr: &Spanned<Expr>, 
-        inferred_type: &Type
+        &mut self,
+        expr: &Spanned<Expr>,
+        inferred_type: &Type,
     ) -> Result<Vec<OptimizationHint>> {
         if !self.config.enable_optimizations {
             return Ok(Vec::new());
@@ -873,7 +935,7 @@ impl GradualTypeInference {
     fn generate_migration_suggestions(
         &mut self,
         expr: &Spanned<Expr>,
-        inferred_type: &Type
+        inferred_type: &Type,
     ) -> Result<Vec<MigrationSuggestion>> {
         let mut suggestions = Vec::new();
 
@@ -939,7 +1001,7 @@ impl TypeBoundaryManager {
     /// Updates statistics based on boundaries
     pub fn update_statistics(&mut self, boundaries: &[TypeBoundary]) {
         self.stats.total_boundaries += boundaries.len();
-        
+
         for boundary in boundaries {
             match (&boundary.source_context, &boundary.target_context) {
                 (TypeContext::Static { .. }, TypeContext::Dynamic { .. }) => {
@@ -968,12 +1030,10 @@ impl CastOptimizer {
 
     /// Default cast elimination rules
     fn default_elimination_rules() -> Vec<CastEliminationRule> {
-        vec![
-            CastEliminationRule {
-                pattern: CastPattern::Identity,
-                action: EliminationAction::Remove,
-            },
-        ]
+        vec![CastEliminationRule {
+            pattern: CastPattern::Identity,
+            action: EliminationAction::Remove,
+        }]
     }
 
     /// Default cast combination rules
@@ -985,10 +1045,10 @@ impl CastOptimizer {
     pub fn optimize_casts(&self, casts: &mut Vec<CastInsertion>) -> Result<()> {
         // Apply elimination rules
         casts.retain(|cast| !self.should_eliminate(cast));
-        
+
         // Apply combination rules
         self.combine_casts(casts)?;
-        
+
         Ok(())
     }
 
@@ -1026,7 +1086,8 @@ impl PerformanceProfiler {
 
     /// Records inference timing
     pub fn record_inference_time(&mut self, operation: &str, duration: Duration) {
-        self.inference_timings.insert(operation.to_string(), duration);
+        self.inference_timings
+            .insert(operation.to_string(), duration);
     }
 
     /// Records cast overhead
@@ -1104,19 +1165,20 @@ mod tests {
         assert!(inference.config().enable_inference);
         assert!(!inference.config().enable_contract_generation);
         assert!(!inference.config().enable_optimizations);
-        assert_eq!(inference.config().consistency_strictness, ConsistencyStrictness::Strict);
+        assert_eq!(
+            inference.config().consistency_strictness,
+            ConsistencyStrictness::Strict
+        );
     }
 
     #[test]
     fn test_type_boundary_creation() {
         let mut inference = GradualTypeInference::new();
         let span = Span::new(0, 10);
-        
-        let boundary = inference.create_boundary(
-            span,
-            &Type::Number,
-            &Type::Dynamic
-        ).unwrap();
+
+        let boundary = inference
+            .create_boundary(span, &Type::Number, &Type::Dynamic)
+            .unwrap();
 
         assert_eq!(boundary.location, span);
         assert!(matches!(boundary.cast, Cast::Upcast { .. }));
@@ -1125,12 +1187,12 @@ mod tests {
     #[test]
     fn test_cast_performance_analysis() {
         let inference = GradualTypeInference::new();
-        
+
         assert_eq!(
             inference.analyze_performance_impact(&Cast::None),
             PerformanceImpact::None
         );
-        
+
         assert_eq!(
             inference.analyze_performance_impact(&Cast::Upcast {
                 from: Type::Number,
@@ -1143,19 +1205,23 @@ mod tests {
     #[test]
     fn test_type_to_contract_conversion() {
         let inference = GradualTypeInference::new();
-        
+
         let number_contract = inference.type_to_contract_expr(&Type::Number).unwrap();
-        assert!(matches!(number_contract, ContractExpr::Predicate(ref s) if s == "number?"));
-        
-        let list_contract = inference.type_to_contract_expr(&Type::List(Box::new(Type::String))).unwrap();
-        assert!(matches!(list_contract, ContractExpr::ListOf(_)));
+        assert!(
+            matches!(number_contract, ContractExpr::Predicate { name, .. } if name == "number?")
+        );
+
+        let list_contract = inference
+            .type_to_contract_expr(&Type::List(Box::new(Type::String)))
+            .unwrap();
+        assert!(matches!(list_contract, ContractExpr::ListOf { .. }));
     }
 
     #[test]
     fn test_boundary_statistics() {
         let mut manager = TypeBoundaryManager::new();
         let boundaries = vec![]; // Empty for test
-        
+
         manager.update_statistics(&boundaries);
         assert_eq!(manager.stats.total_boundaries, 0);
     }
@@ -1163,14 +1229,12 @@ mod tests {
     #[test]
     fn test_cast_optimizer() {
         let optimizer = CastOptimizer::new();
-        let mut casts = vec![
-            CastInsertion {
-                location: Span::new(0, 5),
-                cast: Cast::None,
-                reason: CastReason::StaticDynamicBoundary,
-                performance_impact: PerformanceImpact::None,
-            }
-        ];
+        let mut casts = vec![CastInsertion {
+            location: Span::new(0, 5),
+            cast: Cast::None,
+            reason: CastReason::StaticDynamicBoundary,
+            performance_impact: PerformanceImpact::None,
+        }];
 
         optimizer.optimize_casts(&mut casts).unwrap();
         // Identity casts should be eliminated

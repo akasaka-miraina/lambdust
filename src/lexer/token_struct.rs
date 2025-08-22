@@ -33,16 +33,16 @@ impl SmallString {
         if bytes.len() > 15 {
             return None;
         }
-        
+
         let mut data = [0u8; 15];
         data[..bytes.len()].copy_from_slice(bytes);
-        
+
         Some(Self {
             data,
             len: bytes.len() as u8,
         })
     }
-    
+
     /// Returns the string contents.
     pub fn as_str(&self) -> &str {
         let bytes = &self.data[..self.len as usize];
@@ -54,21 +54,21 @@ impl TokenText {
     /// Creates optimized token text from a string.
     pub fn new(s: impl Into<String>) -> Self {
         let string = s.into();
-        
+
         // Try inline storage first
         if let Some(small) = SmallString::new(&string) {
             return Self::Inline(small);
         }
-        
+
         // Check if it's a common token that should be interned
         if is_common_token(&string) {
             return Self::Interned(crate::utils::intern(&string));
         }
-        
+
         // Use shared storage for larger strings
         Self::Shared(string.into())
     }
-    
+
     /// Returns the string contents.
     pub fn as_str(&self) -> &str {
         match self {
@@ -77,7 +77,7 @@ impl TokenText {
             Self::Shared(arc) => arc,
         }
     }
-    
+
     /// Returns the string length.
     pub fn len(&self) -> usize {
         match self {
@@ -86,7 +86,7 @@ impl TokenText {
             Self::Shared(arc) => arc.len(),
         }
     }
-    
+
     /// Returns true if the string is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -95,27 +95,28 @@ impl TokenText {
 
 /// Checks if a token string is common enough to warrant interning.
 fn is_common_token(s: &str) -> bool {
-    matches!(s,
+    matches!(
+        s,
         // Common Scheme keywords and forms
         "define" | "lambda" | "let" | "let*" | "letrec" | "if" | "cond" | "case" |
         "and" | "or" | "not" | "begin" | "do" | "when" | "unless" | "quote" |
         "quasiquote" | "unquote" | "unquote-splicing" | "syntax" | "syntax-case" |
-        
+
         // Common operators
         "+" | "-" | "*" | "/" | "=" | "<" | ">" | "<=" | ">=" | "eq?" | "eqv?" | "equal?" |
-        
+
         // Common predicates
         "null?" | "pair?" | "list?" | "number?" | "string?" | "symbol?" | "boolean?" |
         "procedure?" | "vector?" | "char?" | "port?" | "input-port?" | "output-port?" |
-        
+
         // Common list operations
         "car" | "cdr" | "cons" | "list" | "append" | "reverse" | "length" | "member" |
         "assoc" | "map" | "for-each" | "filter" |
-        
+
         // Common I/O
         "read" | "write" | "display" | "newline" | "open-input-file" | "open-output-file" |
         "close-input-port" | "close-output-port" |
-        
+
         // Common values and literals
         "#t" | "#f" | "()" | "else"
     )
@@ -135,9 +136,9 @@ pub struct Token {
 impl Token {
     /// Creates a new token.
     pub fn new(kind: TokenKind, span: Span, text: String) -> Self {
-        Self { 
-            kind, 
-            span, 
+        Self {
+            kind,
+            span,
             text: TokenText::new(text),
         }
     }
@@ -151,7 +152,7 @@ impl Token {
     pub fn text(&self) -> &str {
         self.text.as_str()
     }
-    
+
     /// Returns the text content as a string (for compatibility).
     pub fn lexeme(&self) -> &str {
         self.text.as_str()
@@ -176,20 +177,25 @@ impl Token {
     pub fn is_literal(&self) -> bool {
         matches!(
             self.kind,
-            TokenKind::IntegerNumber | TokenKind::RealNumber | TokenKind::RationalNumber | TokenKind::ComplexNumber |
-            TokenKind::String | TokenKind::Character | TokenKind::Boolean
+            TokenKind::IntegerNumber
+                | TokenKind::RealNumber
+                | TokenKind::RationalNumber
+                | TokenKind::ComplexNumber
+                | TokenKind::String
+                | TokenKind::Character
+                | TokenKind::Boolean
         )
     }
-    
+
     /// Returns the memory footprint of this token in bytes (approximate).
     pub fn memory_footprint(&self) -> usize {
-        std::mem::size_of::<TokenKind>() + 
-        std::mem::size_of::<Span>() + 
-        match &self.text {
-            TokenText::Inline(_) => std::mem::size_of::<SmallString>(),
-            TokenText::Interned(_) => std::mem::size_of::<InternedString>(),
-            TokenText::Shared(arc) => std::mem::size_of::<Arc<str>>() + arc.len(),
-        }
+        std::mem::size_of::<TokenKind>()
+            + std::mem::size_of::<Span>()
+            + match &self.text {
+                TokenText::Inline(_) => std::mem::size_of::<SmallString>(),
+                TokenText::Interned(_) => std::mem::size_of::<InternedString>(),
+                TokenText::Shared(arc) => std::mem::size_of::<Arc<str>>() + arc.len(),
+            }
     }
 }
 
@@ -205,7 +211,7 @@ impl fmt::Display for Token {
 
 impl std::ops::Deref for Token {
     type Target = str;
-    
+
     fn deref(&self) -> &Self::Target {
         self.text.as_str()
     }

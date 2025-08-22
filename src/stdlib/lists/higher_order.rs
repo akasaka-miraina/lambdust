@@ -1,75 +1,96 @@
 //! Higher-order functions for list processing (map, filter, fold, etc.)
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
 use crate::effects::Effect;
-use crate::stdlib::lists::common::{MAP_ARITY_ERROR, FOR_EACH_ARITY_ERROR, is_proper_list};
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
+use crate::stdlib::lists::common::{FOR_EACH_ARITY_ERROR, MAP_ARITY_ERROR, is_proper_list};
 use std::sync::Arc;
 
 /// Binds higher-order functions.
 pub fn bind_higher_order_functions(env: &Arc<ThreadSafeEnvironment>) {
     // map
-    env.define("map".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "map".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_map),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "map".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "map".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_map),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // for-each
-    env.define("for-each".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "for-each".to_string(),
-        arity_min: 2,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_for_each),
-        effects: vec![Effect::IO], // Could have side effects
-    })));
-    
+    env.define(
+        "for-each".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "for-each".to_string(),
+            arity_min: 2,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_for_each),
+            effects: vec![Effect::IO], // Could have side effects
+        })),
+    );
+
     // filter
-    env.define("filter".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "filter".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_filter),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "filter".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "filter".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_filter),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // fold-left
-    env.define("fold-left".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "fold-left".to_string(),
-        arity_min: 3,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_fold_left),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "fold-left".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "fold-left".to_string(),
+            arity_min: 3,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_fold_left),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // fold-right
-    env.define("fold-right".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "fold-right".to_string(),
-        arity_min: 3,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_fold_right),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "fold-right".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "fold-right".to_string(),
+            arity_min: 3,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(primitive_fold_right),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // any (exists)
-    env.define("any".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "any".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_any),
-        effects: vec![Effect::Pure],
-    })));
-    
+    env.define(
+        "any".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "any".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_any),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
     // every (for-all)
-    env.define("every".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "every".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_every),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "every".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "every".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_every),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// map procedure - Enhanced R7RS implementation supporting multiple lists
@@ -80,10 +101,10 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let procedure = &args[0];
     let lists = &args[1..];
-    
+
     // Verify procedure is callable
     if !procedure.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
@@ -91,11 +112,11 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Convert all arguments to proper lists and find minimum length
     let mut list_vectors = Vec::new();
     let mut min_length = usize::MAX;
-    
+
     for (i, list_arg) in lists.iter().enumerate() {
         if let Some(list_values) = list_arg.as_list() {
             min_length = min_length.min(list_values.len());
@@ -107,21 +128,21 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
             )));
         }
     }
-    
+
     // If any list is empty, return empty list
     if min_length == 0 || min_length == usize::MAX {
         return Ok(Value::Nil);
     }
-    
+
     // Apply procedure to each position across all lists
     let mut results = Vec::new();
-    
+
     for i in 0..min_length {
         let mut proc_args = Vec::new();
         for list in &list_vectors {
             proc_args.push(list[i].clone());
         }
-        
+
         // Apply the procedure - for now we can only handle primitive procedures
         match procedure {
             Value::Primitive(prim) => {
@@ -142,7 +163,7 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
                     }
                 };
                 results.push(result);
-            },
+            }
             _ => {
                 return Err(Box::new(DiagnosticError::runtime_error(
                     "map with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
@@ -151,7 +172,7 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     Ok(Value::list(results))
 }
 
@@ -163,10 +184,10 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let procedure = &args[0];
     let lists = &args[1..];
-    
+
     // Verify procedure is callable
     if !procedure.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
@@ -174,11 +195,11 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Convert all arguments to proper lists and find minimum length
     let mut list_vectors = Vec::new();
     let mut min_length = usize::MAX;
-    
+
     for (i, list_arg) in lists.iter().enumerate() {
         if let Some(list_values) = list_arg.as_list() {
             min_length = min_length.min(list_values.len());
@@ -190,19 +211,19 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
             )));
         }
     }
-    
+
     // If any list is empty, return unspecified immediately
     if min_length == 0 || min_length == usize::MAX {
         return Ok(Value::Unspecified);
     }
-    
+
     // Apply procedure to each position across all lists for side effects
     for i in 0..min_length {
         let mut proc_args = Vec::new();
         for list in &list_vectors {
             proc_args.push(list[i].clone());
         }
-        
+
         // Apply the procedure - for now we can only handle primitive procedures
         match procedure {
             Value::Primitive(prim) => {
@@ -210,11 +231,11 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => {
                         // Call the function but ignore the result (for-each is for side effects)
                         func(&proc_args)?;
-                    },
+                    }
                     PrimitiveImpl::Native(func) => {
                         // Call the function but ignore the result (for-each is for side effects)
                         func(&proc_args)?;
-                    },
+                    }
                     PrimitiveImpl::EvaluatorIntegrated(_) => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "for-each with EvaluatorIntegrated functions requires evaluator access (not yet implemented)".to_string(),
@@ -228,7 +249,7 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
                         )));
                     }
                 };
-            },
+            }
             _ => {
                 return Err(Box::new(DiagnosticError::runtime_error(
                     "for-each with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
@@ -237,7 +258,7 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     Ok(Value::Unspecified)
 }
 
@@ -249,10 +270,10 @@ fn primitive_filter(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let predicate = &args[0];
     let list = &args[1];
-    
+
     // Verify predicate is callable
     if !predicate.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
@@ -260,10 +281,10 @@ fn primitive_filter(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     if let Some(list_values) = list.as_list() {
         let mut filtered = Vec::new();
-        
+
         for item in list_values {
             // Apply predicate to each item
             let keep = match predicate {
@@ -285,7 +306,7 @@ fn primitive_filter(args: &[Value]) -> Result<Value> {
                         }
                     };
                     !result.is_falsy() // In Scheme, only #f is false
-                },
+                }
                 _ => {
                     return Err(Box::new(DiagnosticError::runtime_error(
                         "filter with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
@@ -293,12 +314,12 @@ fn primitive_filter(args: &[Value]) -> Result<Value> {
                     )));
                 }
             };
-            
+
             if keep {
                 filtered.push(item);
             }
         }
-        
+
         Ok(Value::list(filtered))
     } else {
         Err(Box::new(DiagnosticError::runtime_error(
@@ -316,11 +337,11 @@ fn primitive_fold_left(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let procedure = &args[0];
     let mut acc = args[1].clone();
     let lists = &args[2..];
-    
+
     // Verify procedure is callable
     if !procedure.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
@@ -328,11 +349,11 @@ fn primitive_fold_left(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Convert all list arguments to proper lists and find minimum length
     let mut list_vectors = Vec::new();
     let mut min_length = usize::MAX;
-    
+
     for (i, list_arg) in lists.iter().enumerate() {
         if let Some(list_values) = list_arg.as_list() {
             min_length = min_length.min(list_values.len());
@@ -344,37 +365,35 @@ fn primitive_fold_left(args: &[Value]) -> Result<Value> {
             )));
         }
     }
-    
+
     // If any list is empty, return the initial accumulator
     if min_length == 0 || min_length == usize::MAX {
         return Ok(acc);
     }
-    
+
     // Fold from left to right
     for i in 0..min_length {
         let mut proc_args = vec![acc.clone()];
         for list in &list_vectors {
             proc_args.push(list[i].clone());
         }
-        
+
         // Apply the procedure
         acc = match procedure {
-            Value::Primitive(prim) => {
-                match &prim.implementation {
-                    PrimitiveImpl::RustFn(func) => func(&proc_args)?,
-                    PrimitiveImpl::Native(func) => func(&proc_args)?,
-                    PrimitiveImpl::EvaluatorIntegrated(_) => {
-                        return Err(Box::new(DiagnosticError::runtime_error(
+            Value::Primitive(prim) => match &prim.implementation {
+                PrimitiveImpl::RustFn(func) => func(&proc_args)?,
+                PrimitiveImpl::Native(func) => func(&proc_args)?,
+                PrimitiveImpl::EvaluatorIntegrated(_) => {
+                    return Err(Box::new(DiagnosticError::runtime_error(
                             "fold-left with EvaluatorIntegrated functions requires evaluator access (not yet implemented)".to_string(),
                             None,
                         )));
-                    }
-                    PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(Box::new(DiagnosticError::runtime_error(
-                            "fold-left with foreign functions not yet implemented".to_string(),
-                            None,
-                        )));
-                    }
+                }
+                PrimitiveImpl::ForeignFn { .. } => {
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        "fold-left with foreign functions not yet implemented".to_string(),
+                        None,
+                    )));
                 }
             },
             _ => {
@@ -385,7 +404,7 @@ fn primitive_fold_left(args: &[Value]) -> Result<Value> {
             }
         };
     }
-    
+
     Ok(acc)
 }
 
@@ -397,11 +416,11 @@ fn primitive_fold_right(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let procedure = &args[0];
     let acc = args[1].clone();
     let lists = &args[2..];
-    
+
     // Verify procedure is callable
     if !procedure.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
@@ -409,11 +428,11 @@ fn primitive_fold_right(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Convert all list arguments to proper lists and find minimum length
     let mut list_vectors = Vec::new();
     let mut min_length = usize::MAX;
-    
+
     for (i, list_arg) in lists.iter().enumerate() {
         if let Some(list_values) = list_arg.as_list() {
             min_length = min_length.min(list_values.len());
@@ -425,12 +444,12 @@ fn primitive_fold_right(args: &[Value]) -> Result<Value> {
             )));
         }
     }
-    
+
     // If any list is empty, return the initial accumulator
     if min_length == 0 || min_length == usize::MAX {
         return Ok(acc);
     }
-    
+
     // Fold from right to left (recursive approach)
     fold_right_recursive(procedure, &list_vectors, min_length - 1, acc)
 }
@@ -440,29 +459,29 @@ fn fold_right_recursive(
     procedure: &Value,
     list_vectors: &[Vec<Value>],
     index: usize,
-    acc: Value
+    acc: Value,
 ) -> Result<Value> {
     // Base case: if we've processed all elements
     if index == usize::MAX {
         return Ok(acc);
     }
-    
+
     // Get elements at current index from all lists
     let mut proc_args = Vec::new();
     for list in list_vectors {
         proc_args.push(list[index].clone());
     }
-    
+
     // Recursively process the rest of the list first (right-to-left)
     let next_acc = if index > 0 {
         fold_right_recursive(procedure, list_vectors, index - 1, acc)?
     } else {
         acc
     };
-    
+
     // Add the accumulated value as the last argument
     proc_args.push(next_acc);
-    
+
     // Apply the procedure
     match procedure {
         Value::Primitive(prim) => {
@@ -500,36 +519,38 @@ fn primitive_any(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let predicate = &args[0];
     let list = &args[1];
-    
+
     if !predicate.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
             "any first argument must be a procedure".to_string(),
             None,
         )));
     }
-    
+
     if let Some(list_values) = list.as_list() {
         for item in list_values {
             let result = match predicate {
-                Value::Primitive(prim) => {
-                    match &prim.implementation {
-                        PrimitiveImpl::RustFn(func) => func(&[item])?,
-                        PrimitiveImpl::Native(func) => func(&[item])?,
-                        _ => return Err(Box::new(DiagnosticError::runtime_error(
+                Value::Primitive(prim) => match &prim.implementation {
+                    PrimitiveImpl::RustFn(func) => func(&[item])?,
+                    PrimitiveImpl::Native(func) => func(&[item])?,
+                    _ => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "any with complex procedures not yet implemented".to_string(),
                             None,
-                        )))
+                        )));
                     }
                 },
-                _ => return Err(Box::new(DiagnosticError::runtime_error(
-                    "any with user-defined procedures not yet implemented".to_string(),
-                    None,
-                )))
+                _ => {
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        "any with user-defined procedures not yet implemented".to_string(),
+                        None,
+                    )));
+                }
             };
-            
+
             if !result.is_falsy() {
                 return Ok(Value::boolean(true));
             }
@@ -551,36 +572,38 @@ fn primitive_every(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let predicate = &args[0];
     let list = &args[1];
-    
+
     if !predicate.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
             "every first argument must be a procedure".to_string(),
             None,
         )));
     }
-    
+
     if let Some(list_values) = list.as_list() {
         for item in list_values {
             let result = match predicate {
-                Value::Primitive(prim) => {
-                    match &prim.implementation {
-                        PrimitiveImpl::RustFn(func) => func(&[item])?,
-                        PrimitiveImpl::Native(func) => func(&[item])?,
-                        _ => return Err(Box::new(DiagnosticError::runtime_error(
+                Value::Primitive(prim) => match &prim.implementation {
+                    PrimitiveImpl::RustFn(func) => func(&[item])?,
+                    PrimitiveImpl::Native(func) => func(&[item])?,
+                    _ => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "every with complex procedures not yet implemented".to_string(),
                             None,
-                        )))
+                        )));
                     }
                 },
-                _ => return Err(Box::new(DiagnosticError::runtime_error(
-                    "every with user-defined procedures not yet implemented".to_string(),
-                    None,
-                )))
+                _ => {
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        "every with user-defined procedures not yet implemented".to_string(),
+                        None,
+                    )));
+                }
             };
-            
+
             if result.is_falsy() {
                 return Ok(Value::boolean(false));
             }

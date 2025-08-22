@@ -69,15 +69,15 @@ pub struct OverallAssessment {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PerformanceStatus {
     /// Excellent performance (all metrics improving or stable)
-    Excellent,      // All metrics improving or stable
+    Excellent, // All metrics improving or stable
     /// Good performance (minor issues, mostly stable)
-    Good,           // Minor issues, mostly stable
+    Good, // Minor issues, mostly stable
     /// Concerning performance (some notable regressions)
-    Concerning,     // Some notable regressions
+    Concerning, // Some notable regressions
     /// Poor performance (multiple significant regressions)
-    Poor,           // Multiple significant regressions
+    Poor, // Multiple significant regressions
     /// Critical performance (severe widespread regressions)
-    Critical,       // Severe widespread regressions
+    Critical, // Severe widespread regressions
 }
 
 /// Risk level for performance issues
@@ -133,9 +133,9 @@ pub enum RecommendedAction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EffortLevel {
     /// Low effort level (< 1 day)
-    Low,      // < 1 day
+    Low, // < 1 day
     /// Medium effort level (1-5 days)
-    Medium,   // 1-5 days
+    Medium, // 1-5 days
     /// High effort level (> 5 days)
-    High,     // > 5 days
+    High, // > 5 days
 }

@@ -85,13 +85,13 @@ pub fn is_dependent_type(ty: &crate::types::Type) -> bool {
 
 pub fn dependent_consistent(dep_type: &DependentType, regular_type: &crate::types::Type) -> bool {
     match (dep_type, regular_type) {
-        (DependentType::Pi { domain, codomain, .. }, 
+        (DependentType::Pi { domain, codomain, .. },
          crate::types::Type::Function { params, return_type }) => {
-            params.len() == 1 && 
-            **domain == params[0].clone().into() && 
+            params.len() == 1 &&
+            **domain == params[0].clone().into() &&
             **codomain == (**return_type).clone().into()
         }
-        (DependentType::Sigma { first, second, .. }, 
+        (DependentType::Sigma { first, second, .. },
          crate::types::Type::Pair(a, b)) => {
             **first == (**a).clone().into() && **second == (**b).clone().into()
         }
@@ -108,7 +108,7 @@ impl Term {
     pub fn var(name: String) -> Self {
         DependentTerm::Variable(name)
     }
-    
+
     pub fn lambda(param: String, param_type: DependentType, body: Term) -> Self {
         DependentTerm::Lambda {
             param,
@@ -116,28 +116,28 @@ impl Term {
             body: Box::new(body),
         }
     }
-    
+
     pub fn app(function: Term, argument: Term) -> Self {
         DependentTerm::Application {
             function: Box::new(function),
             argument: Box::new(argument),
         }
     }
-    
+
     pub fn pair(first: Term, second: Term) -> Self {
         DependentTerm::Pair {
             first: Box::new(first),
             second: Box::new(second),
         }
     }
-    
+
     pub fn fst(pair: Term) -> Self {
         DependentTerm::Projection {
             pair: Box::new(pair),
             is_first: true,
         }
     }
-    
+
     pub fn snd(pair: Term) -> Self {
         DependentTerm::Projection {
             pair: Box::new(pair),
@@ -156,7 +156,7 @@ impl Term {
             result_type: Box::new(DependentType::Universe(0)),
         }
     }
-    
+
     pub fn bool(value: bool) -> Self {
         DependentTerm::Constructor {
             name: if value { "True" } else { "False" }.to_string(),
@@ -164,7 +164,7 @@ impl Term {
             result_type: Box::new(DependentType::Universe(0)),
         }
     }
-    
+
     pub fn string(value: String) -> Self {
         DependentTerm::Constructor {
             name: "String".to_string(),
@@ -172,7 +172,7 @@ impl Term {
             result_type: Box::new(DependentType::Universe(0)),
         }
     }
-    
+
     pub fn list(elements: Vec<Term>) -> Self {
         DependentTerm::Constructor {
             name: "List".to_string(),

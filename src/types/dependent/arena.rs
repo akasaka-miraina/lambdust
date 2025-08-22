@@ -38,7 +38,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 /// A lightweight reference to a type stored in the arena.
 ///
 /// Instead of using `Box<DependentType>`, we use `TypeRef` which is:
-/// - Only 8 bytes (vs 8 bytes for Box pointer + heap allocation overhead)  
+/// - Only 8 bytes (vs 8 bytes for Box pointer + heap allocation overhead)
 /// - Provides bounds checking and generation-based safety
 /// - Enables efficient equality comparisons by index
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,7 +53,7 @@ pub struct TypeRef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TermRef {
     /// Index into the arena storage
-    index: u32, 
+    index: u32,
     /// Generation counter for safety
     generation: u32,
 }
@@ -113,7 +113,7 @@ struct TypeHash {
 }
 
 /// Hash key for term deduplication
-#[derive(Debug, Hash, PartialEq, Eq)] 
+#[derive(Debug, Hash, PartialEq, Eq)]
 struct TermHash {
     /// Discriminant of the enum variant
     discriminant: u8,
@@ -126,34 +126,48 @@ struct TermHash {
 pub enum DependentTypeData {
     /// Universe types: Type₀, Type₁, Type₂, ...
     Universe(u32),
-    
+
     /// Π-types (dependent function types): (x : A) → B(x)
     Pi {
+        /// Parameter variable name that can appear in the codomain
         var: String,
+        /// Domain type reference - the input type
         domain: TypeRef,
+        /// Codomain type reference - potentially dependent on the parameter
         codomain: TypeRef,
     },
-    
+
     /// Σ-types (dependent pair types): (x : A) × B(x)
     Sigma {
+        /// Variable name that can appear in the second component type
         var: String,
+        /// First component type reference
         first: TypeRef,
+        /// Second component type reference - potentially dependent on first
         second: TypeRef,
     },
-    
+
     /// Identity types: Id_A(a, b)
     Identity {
+        /// The type reference over which equality is defined
         ty: TypeRef,
+        /// Left-hand side term reference of the equality
         left: TermRef,
+        /// Right-hand side term reference of the equality
         right: TermRef,
     },
-    
+
     /// Inductive types with constructors
     Inductive {
+        /// Name of the inductive type
         name: String,
+        /// Type parameters with their names and type references
         parameters: Vec<(String, TypeRef)>,
+        /// Universe level for the type hierarchy
         universe_level: u32,
+        /// Constructor names and their type references
         constructors: Vec<(String, TypeRef)>,
+        /// Optional induction principle reference for elimination
         induction_principle: Option<TypeRef>,
     },
 }
@@ -163,48 +177,64 @@ pub enum DependentTypeData {
 pub enum DependentTermData {
     /// Variable reference
     Variable(String),
-    
+
     /// Lambda abstraction: λx:A.t
     Lambda {
+        /// Parameter variable name
         param: String,
+        /// Type reference of the parameter
         param_type: TypeRef,
+        /// Body term reference of the lambda abstraction
         body: TermRef,
     },
-    
+
     /// Function application: f(a)
     Application {
+        /// Function term reference being applied
         function: TermRef,
+        /// Argument term reference being passed to the function
         argument: TermRef,
     },
-    
+
     /// Dependent pair construction: (a, b)
     Pair {
+        /// First component term reference
         first: TermRef,
+        /// Second component term reference
         second: TermRef,
     },
-    
+
     /// Projection from dependent pairs
     Projection {
+        /// Pair term reference to project from
         pair: TermRef,
+        /// True for first projection (π₁), false for second (π₂)
         is_first: bool,
     },
-    
+
     /// Reflexivity proof: refl_a
     Refl {
+        /// Type reference over which reflexivity is proven
         ty: TypeRef,
     },
-    
+
     /// Constructor application
     Constructor {
+        /// Name of the constructor being applied
         name: String,
+        /// Argument term references passed to the constructor
         args: Vec<TermRef>,
+        /// Resulting type reference after constructor application
         result_type: TypeRef,
     },
-    
+
     /// Pattern matching
     Match {
+        /// Term reference being matched against
         scrutinee: TermRef,
+        /// List of pattern-matching branches
         branches: Vec<MatchBranchData>,
+        /// Expected return type reference of the match expression
         return_type: TypeRef,
     },
 }
@@ -212,16 +242,22 @@ pub enum DependentTermData {
 /// Pattern matching branch data
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchBranchData {
+    /// Pattern to match against
     pub pattern: PatternData,
+    /// Body term reference to evaluate when pattern matches
     pub body: TermRef,
 }
 
 /// Pattern data for matching
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PatternData {
+    /// Variable pattern that binds to any value
     Variable(String),
+    /// Constructor pattern for data types
     Constructor {
+        /// Name of the constructor pattern
         name: String,
+        /// Sub-patterns for constructor arguments
         args: Vec<PatternData>,
     },
 }
@@ -239,7 +275,7 @@ impl TypeArena {
             term_cache: RefCell::new(HashMap::new()),
         }
     }
-    
+
     /// Create a new arena with specific capacity hint
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -252,152 +288,192 @@ impl TypeArena {
             term_cache: RefCell::new(HashMap::with_capacity(capacity / 4)),
         }
     }
-    
+
     /// Allocate a new type in the arena, returning a TypeRef
     pub fn alloc_type(&self, type_data: DependentTypeData) -> Result<TypeRef> {
         // Check cache for deduplication
         let type_hash = self.hash_type(&type_data);
-        if let Some(&existing_ref) = self.type_cache.borrow().get(&type_hash) {
-            if self.is_valid_type_ref(existing_ref) {
-                return Ok(existing_ref);
+        if let Ok(cache) = self.type_cache.try_borrow() {
+            if let Some(&existing_ref) = cache.get(&type_hash) {
+                if self.is_valid_type_ref(existing_ref) {
+                    return Ok(existing_ref);
+                }
             }
         }
-        
-        // Allocate in arena  
+
+        // Allocate in arena
         let arena_data: &'static DependentTypeData = unsafe {
             // Safety: The arena outlives all references to this data
             std::mem::transmute(self.types_arena.alloc(type_data.clone()))
         };
-        
+
         let current_gen = self.generation.fetch_add(1, Ordering::SeqCst);
         let mut storage = self.type_storage.borrow_mut();
-        
+
         let index = storage.len() as u32;
         let type_ref = TypeRef {
             index,
             generation: current_gen,
         };
-        
+
         storage.push(TypeEntry {
             data: arena_data,
             generation: current_gen,
             valid: true,
         });
-        
+
         // Cache for future deduplication
         self.type_cache.borrow_mut().insert(type_hash, type_ref);
-        
+
         Ok(type_ref)
     }
-    
+
     /// Allocate a new term in the arena, returning a TermRef
     pub fn alloc_term(&self, term_data: DependentTermData) -> Result<TermRef> {
         // Check cache for deduplication
         let term_hash = self.hash_term(&term_data);
-        if let Some(&existing_ref) = self.term_cache.borrow().get(&term_hash) {
-            if self.is_valid_term_ref(existing_ref) {
-                return Ok(existing_ref);
+        if let Ok(cache) = self.term_cache.try_borrow() {
+            if let Some(&existing_ref) = cache.get(&term_hash) {
+                if self.is_valid_term_ref(existing_ref) {
+                    return Ok(existing_ref);
+                }
             }
         }
-        
+
         // Allocate in arena
         let arena_data: &'static DependentTermData = unsafe {
             // Safety: The arena outlives all references to this data
             std::mem::transmute(self.terms_arena.alloc(term_data.clone()))
         };
-        
+
         let current_gen = self.generation.fetch_add(1, Ordering::SeqCst);
         let mut storage = self.term_storage.borrow_mut();
-        
+
         let index = storage.len() as u32;
         let term_ref = TermRef {
             index,
             generation: current_gen,
         };
-        
+
         storage.push(TermEntry {
             data: arena_data,
             generation: current_gen,
             valid: true,
         });
-        
+
         // Cache for future deduplication
         self.term_cache.borrow_mut().insert(term_hash, term_ref);
-        
+
         Ok(term_ref)
     }
-    
+
     /// Resolve a TypeRef to its data
     pub fn resolve_type(&self, type_ref: TypeRef) -> Result<&DependentTypeData> {
-        let storage = self.type_storage.borrow();
-        
+        let storage = self.type_storage.try_borrow().map_err(|_| {
+            Box::new(Error::type_error(
+                "Cannot borrow type storage".to_string(),
+                Span::new(0, 0),
+            ))
+        })?;
+
         if type_ref.index as usize >= storage.len() {
-            return Err(Box::new(Error::type_error(format!("Invalid type reference: index {} out of bounds", type_ref.index), Span::new(0, 0))));
+            return Err(Box::new(Error::type_error(
+                format!(
+                    "Invalid type reference: index {} out of bounds",
+                    type_ref.index
+                ),
+                Span::new(0, 0),
+            )));
         }
-        
+
         let entry = &storage[type_ref.index as usize];
-        
+
         if !entry.valid || entry.generation != type_ref.generation {
-            return Err(Box::new(Error::type_error("Invalid type reference: generation mismatch or invalidated".to_string(), Span::new(0, 0))));
+            return Err(Box::new(Error::type_error(
+                "Invalid type reference: generation mismatch or invalidated".to_string(),
+                Span::new(0, 0),
+            )));
         }
-        
+
         Ok(entry.data)
     }
-    
+
     /// Resolve a TermRef to its data
     pub fn resolve_term(&self, term_ref: TermRef) -> Result<&DependentTermData> {
-        let storage = self.term_storage.borrow();
-        
+        let storage = self.term_storage.try_borrow().map_err(|_| {
+            Box::new(Error::type_error(
+                "Cannot borrow term storage".to_string(),
+                Span::new(0, 0),
+            ))
+        })?;
+
         if term_ref.index as usize >= storage.len() {
-            return Err(Box::new(Error::type_error(format!("Invalid term reference: index {} out of bounds", term_ref.index), Span::new(0, 0))));
+            return Err(Box::new(Error::type_error(
+                format!(
+                    "Invalid term reference: index {} out of bounds",
+                    term_ref.index
+                ),
+                Span::new(0, 0),
+            )));
         }
-        
+
         let entry = &storage[term_ref.index as usize];
-        
+
         if !entry.valid || entry.generation != term_ref.generation {
-            return Err(Box::new(Error::type_error("Invalid term reference: generation mismatch or invalidated".to_string(), Span::new(0, 0))));
+            return Err(Box::new(Error::type_error(
+                "Invalid term reference: generation mismatch or invalidated".to_string(),
+                Span::new(0, 0),
+            )));
         }
-        
+
         Ok(entry.data)
     }
-    
+
     /// Check if a TypeRef is still valid
     pub fn is_valid_type_ref(&self, type_ref: TypeRef) -> bool {
-        let storage = self.type_storage.borrow();
+        let storage = match self.type_storage.try_borrow() {
+            Ok(storage) => storage,
+            Err(_) => return false,
+        };
         if type_ref.index as usize >= storage.len() {
             return false;
         }
-        
+
         let entry = &storage[type_ref.index as usize];
         entry.valid && entry.generation == type_ref.generation
     }
-    
-    /// Check if a TermRef is still valid  
+
+    /// Check if a TermRef is still valid
     pub fn is_valid_term_ref(&self, term_ref: TermRef) -> bool {
-        let storage = self.term_storage.borrow();
+        let storage = match self.term_storage.try_borrow() {
+            Ok(storage) => storage,
+            Err(_) => return false,
+        };
         if term_ref.index as usize >= storage.len() {
             return false;
         }
-        
+
         let entry = &storage[term_ref.index as usize];
         entry.valid && entry.generation == term_ref.generation
     }
-    
+
     /// Get memory usage statistics
-    pub fn memory_stats(&self) -> ArenaStats {
-        let type_storage = self.type_storage.borrow();
-        let term_storage = self.term_storage.borrow();
-        
-        ArenaStats {
+    pub fn memory_stats(&self) -> Option<ArenaStats> {
+        let type_storage = self.type_storage.try_borrow().ok()?;
+        let term_storage = self.term_storage.try_borrow().ok()?;
+        let type_cache = self.type_cache.try_borrow().ok()?;
+        let term_cache = self.term_cache.try_borrow().ok()?;
+
+        Some(ArenaStats {
             types_count: type_storage.len(),
             terms_count: term_storage.len(),
             types_memory: self.types_arena.allocated_bytes(),
             terms_memory: self.terms_arena.allocated_bytes(),
-            cache_hits_types: self.type_cache.borrow().len(),
-            cache_hits_terms: self.term_cache.borrow().len(),
-        }
+            cache_hits_types: type_cache.len(),
+            cache_hits_terms: term_cache.len(),
+        })
     }
-    
+
     /// Clear the arena and reset all allocations
     pub fn clear(&mut self) {
         self.types_arena.reset();
@@ -408,11 +484,11 @@ impl TypeArena {
         self.term_cache.borrow_mut().clear();
         self.generation.store(0, Ordering::SeqCst);
     }
-    
+
     /// Create hash for type deduplication
     fn hash_type(&self, type_data: &DependentTypeData) -> TypeHash {
         use std::collections::hash_map::DefaultHasher;
-        
+
         let discriminant = match type_data {
             DependentTypeData::Universe(_) => 0,
             DependentTypeData::Pi { .. } => 1,
@@ -420,21 +496,21 @@ impl TypeArena {
             DependentTypeData::Identity { .. } => 3,
             DependentTypeData::Inductive { .. } => 4,
         };
-        
+
         let mut hasher = DefaultHasher::new();
         type_data.hash(&mut hasher);
         let content_hash = hasher.finish();
-        
+
         TypeHash {
             discriminant,
             content_hash,
         }
     }
-    
+
     /// Create hash for term deduplication
     fn hash_term(&self, term_data: &DependentTermData) -> TermHash {
         use std::collections::hash_map::DefaultHasher;
-        
+
         let discriminant = match term_data {
             DependentTermData::Variable(_) => 0,
             DependentTermData::Lambda { .. } => 1,
@@ -445,11 +521,11 @@ impl TypeArena {
             DependentTermData::Constructor { .. } => 6,
             DependentTermData::Match { .. } => 7,
         };
-        
+
         let mut hasher = DefaultHasher::new();
         term_data.hash(&mut hasher);
         let content_hash = hasher.finish();
-        
+
         TermHash {
             discriminant,
             content_hash,
@@ -479,7 +555,7 @@ impl ArenaStats {
     pub fn total_memory(&self) -> usize {
         self.types_memory + self.terms_memory
     }
-    
+
     /// Average memory per type
     pub fn avg_memory_per_type(&self) -> f64 {
         if self.types_count == 0 {
@@ -488,7 +564,7 @@ impl ArenaStats {
             self.types_memory as f64 / self.types_count as f64
         }
     }
-    
+
     /// Average memory per term
     pub fn avg_memory_per_term(&self) -> f64 {
         if self.terms_count == 0 {
@@ -507,7 +583,11 @@ impl Hash for DependentTypeData {
                 0u8.hash(state);
                 level.hash(state);
             }
-            DependentTypeData::Pi { var, domain, codomain } => {
+            DependentTypeData::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 1u8.hash(state);
                 var.hash(state);
                 domain.hash(state);
@@ -525,7 +605,13 @@ impl Hash for DependentTypeData {
                 left.hash(state);
                 right.hash(state);
             }
-            DependentTypeData::Inductive { name, parameters, universe_level, constructors, induction_principle } => {
+            DependentTypeData::Inductive {
+                name,
+                parameters,
+                universe_level,
+                constructors,
+                induction_principle,
+            } => {
                 4u8.hash(state);
                 name.hash(state);
                 parameters.hash(state);
@@ -544,7 +630,11 @@ impl Hash for DependentTermData {
                 0u8.hash(state);
                 name.hash(state);
             }
-            DependentTermData::Lambda { param, param_type, body } => {
+            DependentTermData::Lambda {
+                param,
+                param_type,
+                body,
+            } => {
                 1u8.hash(state);
                 param.hash(state);
                 param_type.hash(state);
@@ -569,13 +659,21 @@ impl Hash for DependentTermData {
                 5u8.hash(state);
                 ty.hash(state);
             }
-            DependentTermData::Constructor { name, args, result_type } => {
+            DependentTermData::Constructor {
+                name,
+                args,
+                result_type,
+            } => {
                 6u8.hash(state);
                 name.hash(state);
                 args.hash(state);
                 result_type.hash(state);
             }
-            DependentTermData::Match { scrutinee, branches, return_type } => {
+            DependentTermData::Match {
+                scrutinee,
+                branches,
+                return_type,
+            } => {
                 7u8.hash(state);
                 scrutinee.hash(state);
                 branches.hash(state);
@@ -611,7 +709,8 @@ impl Hash for PatternData {
 // Display implementations
 impl fmt::Display for ArenaStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, 
+        write!(
+            f,
             "Arena Stats: {} types ({:.1}KB), {} terms ({:.1}KB), {} cached types, {} cached terms",
             self.types_count,
             self.types_memory as f64 / 1024.0,
@@ -632,108 +731,113 @@ impl Default for TypeArena {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_arena_basic_allocation() {
         let arena = TypeArena::new();
-        
+
         // Allocate a universe type
         let universe_data = DependentTypeData::Universe(0);
         let type_ref = arena.alloc_type(universe_data.clone()).unwrap();
-        
+
         // Resolve and verify
         let resolved = arena.resolve_type(type_ref).unwrap();
         assert_eq!(resolved, &universe_data);
     }
-    
+
     #[test]
     fn test_arena_deduplication() {
         let arena = TypeArena::new();
-        
+
         // Allocate the same type twice
         let universe_data = DependentTypeData::Universe(0);
         let type_ref1 = arena.alloc_type(universe_data.clone()).unwrap();
         let type_ref2 = arena.alloc_type(universe_data).unwrap();
-        
+
         // Should return the same reference due to deduplication
         assert_eq!(type_ref1, type_ref2);
     }
-    
+
     #[test]
     fn test_arena_memory_stats() {
         let arena = TypeArena::new();
-        
-        let initial_stats = arena.memory_stats();
+
+        let initial_stats = arena.memory_stats().unwrap();
         assert_eq!(initial_stats.types_count, 0);
-        
+
         // Allocate some types
         let _ref1 = arena.alloc_type(DependentTypeData::Universe(0)).unwrap();
         let _ref2 = arena.alloc_type(DependentTypeData::Universe(1)).unwrap();
-        
-        let after_stats = arena.memory_stats();
+
+        let after_stats = arena.memory_stats().unwrap();
         assert_eq!(after_stats.types_count, 2);
         assert!(after_stats.types_memory > 0);
     }
-    
+
     #[test]
     fn test_invalid_reference_detection() {
         let arena = TypeArena::new();
-        
+
         // Create an invalid reference
         let invalid_ref = TypeRef {
             index: 999,
             generation: 0,
         };
-        
+
         // Should detect invalid reference
         assert!(!arena.is_valid_type_ref(invalid_ref));
         assert!(arena.resolve_type(invalid_ref).is_err());
     }
-    
+
     #[test]
     fn test_arena_clear() {
         let mut arena = TypeArena::new();
-        
+
         // Allocate some data
         let _ref1 = arena.alloc_type(DependentTypeData::Universe(0)).unwrap();
-        let _ref2 = arena.alloc_term(DependentTermData::Variable("x".to_string())).unwrap();
-        
-        let stats_before = arena.memory_stats();
+        let _ref2 = arena
+            .alloc_term(DependentTermData::Variable("x".to_string()))
+            .unwrap();
+
+        let stats_before = arena.memory_stats().unwrap();
         assert!(stats_before.types_count > 0);
         assert!(stats_before.terms_count > 0);
-        
+
         // Clear the arena
         arena.clear();
-        
-        let stats_after = arena.memory_stats();
+
+        let stats_after = arena.memory_stats().unwrap();
         assert_eq!(stats_after.types_count, 0);
         assert_eq!(stats_after.terms_count, 0);
     }
-    
+
     #[test]
     fn test_complex_type_allocation() {
         let arena = TypeArena::new();
-        
+
         // Create a Pi type: (x : Type₀) → Type₀
         let domain_ref = arena.alloc_type(DependentTypeData::Universe(0)).unwrap();
         let codomain_ref = arena.alloc_type(DependentTypeData::Universe(0)).unwrap();
-        
+
         let pi_data = DependentTypeData::Pi {
             var: "x".to_string(),
             domain: domain_ref,
             codomain: codomain_ref,
         };
-        
+
         let pi_ref = arena.alloc_type(pi_data.clone()).unwrap();
         let resolved_pi = arena.resolve_type(pi_ref).unwrap();
-        
+
         assert_eq!(resolved_pi, &pi_data);
-        
+
         // Verify we can resolve the nested references
-        if let DependentTypeData::Pi { domain, codomain, .. } = resolved_pi {
+        if let DependentTypeData::Pi {
+            domain, codomain, ..
+        } = resolved_pi
+        {
             let resolved_domain = arena.resolve_type(*domain).unwrap();
             let resolved_codomain = arena.resolve_type(*codomain).unwrap();
-            
+
             assert_eq!(resolved_domain, &DependentTypeData::Universe(0));
             assert_eq!(resolved_codomain, &DependentTypeData::Universe(0));
         }

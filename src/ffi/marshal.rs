@@ -3,9 +3,9 @@
 //! This module provides type-safe conversion functions between
 //! Rust native types and Lambdust runtime values.
 
-use crate::eval::Value;
-use crate::ast::Literal;
 use super::FfiError;
+use crate::ast::Literal;
+use crate::eval::Value;
 use std::collections::HashMap;
 
 /// Trait for converting Rust types to Lambdust values.
@@ -18,7 +18,7 @@ pub trait ToLambdust {
 pub trait FromLambdust: Sized {
     /// Convert a Lambdust value to this Rust type.
     fn from_lambdust(value: &Value) -> Result<Self, FfiError>;
-    
+
     /// Get the expected type name for error reporting.
     fn expected_type() -> &'static str;
 }
@@ -41,7 +41,7 @@ impl FromLambdust for Value {
     fn from_lambdust(value: &Value) -> Result<Self, FfiError> {
         Ok(value.clone())
     }
-    
+
     fn expected_type() -> &'static str {
         "any"
     }
@@ -57,7 +57,7 @@ impl FromLambdust for () {
             }),
         }
     }
-    
+
     fn expected_type() -> &'static str {
         "unspecified"
     }
@@ -77,7 +77,7 @@ impl FromLambdust for f64 {
             message: format!("Expected number, got {value}"),
         })
     }
-    
+
     fn expected_type() -> &'static str {
         "number"
     }
@@ -97,7 +97,7 @@ impl FromLambdust for f32 {
         })?;
         Ok(num as f32)
     }
-    
+
     fn expected_type() -> &'static str {
         "number"
     }
@@ -111,21 +111,24 @@ impl ToLambdust for i64 {
 
 impl FromLambdust for i64 {
     fn from_lambdust(value: &Value) -> Result<Self, FfiError> {
-        value.as_integer().or_else(|| {
-            // Try to convert from f64 if it's a whole number
-            value.as_number().and_then(|n| {
-                if n.fract() == 0.0 && n.is_finite() {
-                    Some(n as i64)
-                } else {
-                    None
-                }
+        value
+            .as_integer()
+            .or_else(|| {
+                // Try to convert from f64 if it's a whole number
+                value.as_number().and_then(|n| {
+                    if n.fract() == 0.0 && n.is_finite() {
+                        Some(n as i64)
+                    } else {
+                        None
+                    }
+                })
             })
-        }).ok_or_else(|| FfiError::RuntimeError {
-            function: "type_conversion".to_string(),
-            message: format!("Expected integer, got {value}"),
-        })
+            .ok_or_else(|| FfiError::RuntimeError {
+                function: "type_conversion".to_string(),
+                message: format!("Expected integer, got {value}"),
+            })
     }
-    
+
     fn expected_type() -> &'static str {
         "integer"
     }
@@ -149,7 +152,7 @@ impl FromLambdust for i32 {
             })
         }
     }
-    
+
     fn expected_type() -> &'static str {
         "i32"
     }
@@ -173,7 +176,7 @@ impl FromLambdust for usize {
             })
         }
     }
-    
+
     fn expected_type() -> &'static str {
         "non-negative integer"
     }
@@ -193,7 +196,7 @@ impl FromLambdust for bool {
             _ => Ok(value.is_truthy()), // Scheme semantics: everything except #f is truthy
         }
     }
-    
+
     fn expected_type() -> &'static str {
         "boolean"
     }
@@ -214,12 +217,15 @@ impl ToLambdust for &str {
 
 impl FromLambdust for String {
     fn from_lambdust(value: &Value) -> Result<Self, FfiError> {
-        value.as_string().map(|s| s.to_string()).ok_or_else(|| FfiError::RuntimeError {
-            function: "type_conversion".to_string(),
-            message: format!("Expected string, got {value}"),
-        })
+        value
+            .as_string()
+            .map(|s| s.to_string())
+            .ok_or_else(|| FfiError::RuntimeError {
+                function: "type_conversion".to_string(),
+                message: format!("Expected string, got {value}"),
+            })
     }
-    
+
     fn expected_type() -> &'static str {
         "string"
     }
@@ -242,7 +248,7 @@ impl FromLambdust for char {
             }),
         }
     }
-    
+
     fn expected_type() -> &'static str {
         "character"
     }
@@ -257,29 +263,33 @@ impl<T: FromLambdust> FromLambdust for Vec<T> {
                 for (i, val) in list_values.iter().enumerate() {
                     match T::from_lambdust(val) {
                         Ok(item) => result.push(item),
-                        Err(_) => return Err(FfiError::TypeMismatch {
-                            function: "type_conversion".to_string(),
-                            parameter: i,
-                            expected: T::expected_type().to_string(),
-                            actual: format!("{val}"),
-                        }),
+                        Err(_) => {
+                            return Err(FfiError::TypeMismatch {
+                                function: "type_conversion".to_string(),
+                                parameter: i,
+                                expected: T::expected_type().to_string(),
+                                actual: format!("{val}"),
+                            });
+                        }
                     }
                 }
                 Ok(result)
             }
             None => match value {
                 Value::Vector(vec_ref) => {
-                    let vec = vec_ref.read().unwrap();
+                    let vec = vec_ref.try_borrow().unwrap();
                     let mut result = Vec::with_capacity(vec.len());
                     for (i, val) in vec.iter().enumerate() {
                         match T::from_lambdust(val) {
                             Ok(item) => result.push(item),
-                            Err(_) => return Err(FfiError::TypeMismatch {
-                                function: "type_conversion".to_string(),
-                                parameter: i,
-                                expected: T::expected_type().to_string(),
-                                actual: format!("{val}"),
-                            }),
+                            Err(_) => {
+                                return Err(FfiError::TypeMismatch {
+                                    function: "type_conversion".to_string(),
+                                    parameter: i,
+                                    expected: T::expected_type().to_string(),
+                                    actual: format!("{val}"),
+                                });
+                            }
                         }
                     }
                     Ok(result)
@@ -288,10 +298,10 @@ impl<T: FromLambdust> FromLambdust for Vec<T> {
                     function: "type_conversion".to_string(),
                     message: format!("Expected list or vector, got {value}"),
                 }),
-            }
+            },
         }
     }
-    
+
     fn expected_type() -> &'static str {
         "list"
     }
@@ -321,7 +331,7 @@ impl<T: FromLambdust> FromLambdust for Option<T> {
             _ => T::from_lambdust(value).map(Some),
         }
     }
-    
+
     fn expected_type() -> &'static str {
         "optional value"
     }
@@ -370,7 +380,7 @@ impl<A: FromLambdust, B: FromLambdust> FromLambdust for (A, B) {
             }),
         }
     }
-    
+
     fn expected_type() -> &'static str {
         "pair"
     }
@@ -379,11 +389,9 @@ impl<A: FromLambdust, B: FromLambdust> FromLambdust for (A, B) {
 // Hash maps (for keyword arguments or association lists)
 impl<V: ToLambdust> ToLambdust for HashMap<String, V> {
     fn to_lambdust(self) -> Value {
-        let pairs: Vec<Value> = self.into_iter()
-            .map(|(k, v)| Value::pair(
-                Value::string(k),
-                v.to_lambdust()
-            ))
+        let pairs: Vec<Value> = self
+            .into_iter()
+            .map(|(k, v)| Value::pair(Value::string(k), v.to_lambdust()))
             .collect();
         Value::list(pairs)
     }
@@ -395,7 +403,7 @@ impl<V: FromLambdust> FromLambdust for HashMap<String, V> {
             function: "type_conversion".to_string(),
             message: format!("Expected association list, got {value}"),
         })?;
-        
+
         let mut map = HashMap::new();
         for (i, pair_value) in list.iter().enumerate() {
             match pair_value {
@@ -404,18 +412,20 @@ impl<V: FromLambdust> FromLambdust for HashMap<String, V> {
                     let val = V::from_lambdust(cdr)?;
                     map.insert(key, val);
                 }
-                _ => return Err(FfiError::TypeMismatch {
-                    function: "type_conversion".to_string(),
-                    parameter: i,
-                    expected: "pair".to_string(),
-                    actual: format!("{pair_value}"),
-                }),
+                _ => {
+                    return Err(FfiError::TypeMismatch {
+                        function: "type_conversion".to_string(),
+                        parameter: i,
+                        expected: "pair".to_string(),
+                        actual: format!("{pair_value}"),
+                    });
+                }
             }
         }
-        
+
         Ok(map)
     }
-    
+
     fn expected_type() -> &'static str {
         "association list"
     }
@@ -440,9 +450,7 @@ pub fn validate_type<T: FromLambdust>(value: &Value) -> Result<(), FfiError> {
 
 /// Converts multiple Lambdust values to Rust values.
 pub fn from_lambdust_args<T: FromLambdust>(args: &[Value]) -> Result<Vec<T>, FfiError> {
-    args.iter()
-        .map(|arg| T::from_lambdust(arg))
-        .collect()
+    args.iter().map(|arg| T::from_lambdust(arg)).collect()
 }
 
 /// Macro for easy implementation of FFI functions with automatic marshaling.
@@ -454,7 +462,7 @@ macro_rules! ffi_function {
         }
     ) => {
         pub struct $name;
-        
+
         impl $crate::ffi::FfiFunction for $name {
             fn signature(&self) -> &$crate::ffi::FfiSignature {
                 use std::sync::OnceLock;
@@ -471,7 +479,7 @@ macro_rules! ffi_function {
                     }
                 })
             }
-            
+
             fn call(&self, args: &[$crate::eval::Value]) -> Result<$crate::eval::Value, $crate::ffi::FfiError> {
                 if args.len() != [$($arg_type,)*].len() {
                     return Err($crate::ffi::FfiError::ArityMismatch {
@@ -480,18 +488,18 @@ macro_rules! ffi_function {
                         actual: args.len(),
                     });
                 }
-                
+
                 let mut arg_iter = args.iter();
                 $(
                     let $arg = <$arg_type as $crate::ffi::FromLambdust>::from_lambdust(
                         arg_iter.next().unwrap()
                     )?;
                 )*
-                
+
                 let result: $ret_type = {
                     $($body)*
                 };
-                
+
                 Ok($crate::ffi::ToLambdust::to_lambdust(result))
             }
         }
@@ -501,13 +509,12 @@ macro_rules! ffi_function {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_number_conversion() {
         let val = 42.5_f64.to_lambdust();
         assert_eq!(f64::from_lambdust(&val).unwrap(), 42.5);
-        
+
         let int_val = 42_i64.to_lambdust();
         assert_eq!(i64::from_lambdust(&int_val).unwrap(), 42);
     }
@@ -522,7 +529,7 @@ mod tests {
     fn test_bool_conversion() {
         let true_val = true.to_lambdust();
         let false_val = false.to_lambdust();
-        
+
         assert!(bool::from_lambdust(&true_val).unwrap());
         assert!(!bool::from_lambdust(&false_val).unwrap());
     }
@@ -539,7 +546,7 @@ mod tests {
         let some_val = Some(42_i64).to_lambdust();
         let none_val: Option<i64> = None;
         let none_val = none_val.to_lambdust();
-        
+
         assert_eq!(Option::<i64>::from_lambdust(&some_val).unwrap(), Some(42));
         assert_eq!(Option::<i64>::from_lambdust(&none_val).unwrap(), None);
     }

@@ -3,7 +3,7 @@
 
 //! Σ-types (dependent pair types) implementation.
 //!
-//! This module provides the complete implementation of Σ-types following Martin-Löf 
+//! This module provides the complete implementation of Σ-types following Martin-Löf
 //! type theory, with precise formation, introduction, elimination, and computation rules.
 //!
 //! # Mathematical Foundation
@@ -47,7 +47,7 @@
 //!   (π₁(p), π₂(p)) ≡ p : (x:A) × B(x)
 //! ```
 
-use super::core::{DependentType, DependentTerm, TypingContext, Normalizer, UniverseLevel};
+use super::core::{DependentTerm, DependentType, Normalizer, TypingContext, UniverseLevel};
 use crate::diagnostics::{Error, Result, Span};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -89,7 +89,7 @@ impl SigmaType {
         var: String,
         first: DependentType,
         second: DependentType,
-        universe_level: UniverseLevel
+        universe_level: UniverseLevel,
     ) -> Self {
         Self {
             var,
@@ -118,7 +118,9 @@ impl SigmaType {
     fn infer_universe_level(ty: &DependentType) -> Result<UniverseLevel> {
         match ty {
             DependentType::Universe(level) => Ok(level + 1),
-            DependentType::Pi { domain, codomain, .. } => {
+            DependentType::Pi {
+                domain, codomain, ..
+            } => {
                 let domain_level = Self::infer_universe_level(domain)?;
                 let codomain_level = Self::infer_universe_level(codomain)?;
                 Ok(domain_level.max(codomain_level))
@@ -128,12 +130,8 @@ impl SigmaType {
                 let second_level = Self::infer_universe_level(second)?;
                 Ok(first_level.max(second_level))
             }
-            DependentType::Identity { ty, .. } => {
-                Self::infer_universe_level(ty)
-            }
-            DependentType::Inductive { universe_level, .. } => {
-                Ok(*universe_level)
-            }
+            DependentType::Identity { ty, .. } => Self::infer_universe_level(ty),
+            DependentType::Inductive { universe_level, .. } => Ok(*universe_level),
         }
     }
 
@@ -141,23 +139,25 @@ impl SigmaType {
     fn check_type_well_formed(ty: &DependentType, context: &TypingContext) -> Result<()> {
         match ty {
             DependentType::Universe(_) => Ok(()),
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 Self::check_type_well_formed(domain, context)?;
-                
+
                 let mut extended_context = context.clone();
                 extended_context.bind_variable(var.clone(), *domain.clone());
                 Self::check_type_well_formed(codomain, &extended_context)
             }
             DependentType::Sigma { var, first, second } => {
                 Self::check_type_well_formed(first, context)?;
-                
+
                 let mut extended_context = context.clone();
                 extended_context.bind_variable(var.clone(), *first.clone());
                 Self::check_type_well_formed(second, &extended_context)
             }
-            DependentType::Identity { ty, .. } => {
-                Self::check_type_well_formed(ty, context)
-            }
+            DependentType::Identity { ty, .. } => Self::check_type_well_formed(ty, context),
             DependentType::Inductive { constructors, .. } => {
                 for (_, ctor_type) in constructors {
                     Self::check_type_well_formed(ctor_type, context)?;
@@ -185,20 +185,26 @@ impl SigmaType {
     fn contains_free_variable(&self, ty: &DependentType, var: &str) -> bool {
         match ty {
             DependentType::Universe(_) => false,
-            DependentType::Pi { var: pi_var, domain, codomain } => {
-                self.contains_free_variable(domain, var) ||
-                (pi_var != var && self.contains_free_variable(codomain, var))
+            DependentType::Pi {
+                var: pi_var,
+                domain,
+                codomain,
+            } => {
+                self.contains_free_variable(domain, var)
+                    || (pi_var != var && self.contains_free_variable(codomain, var))
             }
-            DependentType::Sigma { var: sigma_var, first, second } => {
-                self.contains_free_variable(first, var) ||
-                (sigma_var != var && self.contains_free_variable(second, var))
+            DependentType::Sigma {
+                var: sigma_var,
+                first,
+                second,
+            } => {
+                self.contains_free_variable(first, var)
+                    || (sigma_var != var && self.contains_free_variable(second, var))
             }
-            DependentType::Identity { ty, .. } => {
-                self.contains_free_variable(ty, var)
-            }
-            DependentType::Inductive { constructors, .. } => {
-                constructors.iter().any(|(_, ctor_ty)| self.contains_free_variable(ctor_ty, var))
-            }
+            DependentType::Identity { ty, .. } => self.contains_free_variable(ty, var),
+            DependentType::Inductive { constructors, .. } => constructors
+                .iter()
+                .any(|(_, ctor_ty)| self.contains_free_variable(ctor_ty, var)),
         }
     }
 
@@ -206,28 +212,37 @@ impl SigmaType {
     pub fn free_variables(&self) -> HashSet<String> {
         let mut vars = HashSet::new();
         self.collect_free_variables(&self.first, &mut vars, &HashSet::new());
-        
+
         let mut bound = HashSet::new();
         bound.insert(self.var.clone());
         self.collect_free_variables(&self.second, &mut vars, &bound);
-        
+
         vars
     }
 
     /// Collect free variables from a type (helper function).
-    fn collect_free_variables(&self, ty: &DependentType, vars: &mut HashSet<String>, bound: &HashSet<String>) {
+    fn collect_free_variables(
+        &self,
+        ty: &DependentType,
+        vars: &mut HashSet<String>,
+        bound: &HashSet<String>,
+    ) {
         match ty {
             DependentType::Universe(_) => {}
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 self.collect_free_variables(domain, vars, bound);
-                
+
                 let mut new_bound = bound.clone();
                 new_bound.insert(var.clone());
                 self.collect_free_variables(codomain, vars, &new_bound);
             }
             DependentType::Sigma { var, first, second } => {
                 self.collect_free_variables(first, vars, bound);
-                
+
                 let mut new_bound = bound.clone();
                 new_bound.insert(var.clone());
                 self.collect_free_variables(second, vars, &new_bound);
@@ -244,15 +259,27 @@ impl SigmaType {
     }
 
     /// Substitute first component value into the second component type.
-    pub fn instantiate_second_component(&self, first_value: &DependentTerm) -> Result<DependentType> {
+    pub fn instantiate_second_component(
+        &self,
+        first_value: &DependentTerm,
+    ) -> Result<DependentType> {
         self.substitute_in_type(&self.second, &self.var, first_value)
     }
 
     /// Substitute a term for a variable in a type.
-    fn substitute_in_type(&self, ty: &DependentType, var: &str, term: &DependentTerm) -> Result<DependentType> {
+    fn substitute_in_type(
+        &self,
+        ty: &DependentType,
+        var: &str,
+        term: &DependentTerm,
+    ) -> Result<DependentType> {
         match ty {
             DependentType::Universe(level) => Ok(DependentType::Universe(*level)),
-            DependentType::Pi { var: pi_var, domain, codomain } => {
+            DependentType::Pi {
+                var: pi_var,
+                domain,
+                codomain,
+            } => {
                 if pi_var == var {
                     // Variable is bound, no substitution in codomain
                     Ok(DependentType::Pi {
@@ -268,7 +295,11 @@ impl SigmaType {
                     })
                 }
             }
-            DependentType::Sigma { var: sigma_var, first, second } => {
+            DependentType::Sigma {
+                var: sigma_var,
+                first,
+                second,
+            } => {
                 if sigma_var == var {
                     Ok(DependentType::Sigma {
                         var: sigma_var.clone(),
@@ -286,25 +317,31 @@ impl SigmaType {
             DependentType::Identity { ty, left, right } => {
                 Ok(DependentType::Identity {
                     ty: Box::new(self.substitute_in_type(ty, var, term)?),
-                    left: left.clone(), // Would need term substitution
+                    left: left.clone(),   // Would need term substitution
                     right: right.clone(), // Would need term substitution
                 })
             }
-            DependentType::Inductive { name, parameters, universe_level, constructors, induction_principle } => {
+            DependentType::Inductive {
+                name,
+                parameters,
+                universe_level,
+                constructors,
+                induction_principle,
+            } => {
                 let mut new_constructors = Vec::new();
                 for (ctor_name, ctor_type) in constructors {
                     new_constructors.push((
                         ctor_name.clone(),
-                        self.substitute_in_type(ctor_type, var, term)?
+                        self.substitute_in_type(ctor_type, var, term)?,
                     ));
                 }
-                
+
                 let new_induction = if let Some(ind_prin) = induction_principle {
                     Some(Box::new(self.substitute_in_type(ind_prin, var, term)?))
                 } else {
                     None
                 };
-                
+
                 Ok(DependentType::Inductive {
                     name: name.clone(),
                     parameters: parameters.clone(), // Would need substitution in parameter types
@@ -338,26 +375,34 @@ impl DependentPair {
     }
 
     /// Type check this pair against an expected Σ-type.
-    pub fn type_check(&self, expected_sigma_type: &SigmaType, context: &mut TypingContext) -> Result<()> {
+    pub fn type_check(
+        &self,
+        expected_sigma_type: &SigmaType,
+        context: &mut TypingContext,
+    ) -> Result<()> {
         // Check that first component has the expected first type
         let first_type = self.infer_first_type(context)?;
         if first_type != *expected_sigma_type.first {
             return Err(Box::new(Error::type_error(
-                format!("First component type mismatch: expected {:?}, got {:?}",
-                       expected_sigma_type.first, first_type),
-                Span::new(0, 0)
+                format!(
+                    "First component type mismatch: expected {:?}, got {:?}",
+                    expected_sigma_type.first, first_type
+                ),
+                Span::new(0, 0),
             )));
         }
 
         // Check that second component has the instantiated second type
         let expected_second_type = expected_sigma_type.instantiate_second_component(&self.first)?;
         let second_type = self.infer_second_type(context)?;
-        
+
         if second_type != expected_second_type {
             return Err(Box::new(Error::type_error(
-                format!("Second component type mismatch: expected {:?}, got {:?}",
-                       expected_second_type, second_type),
-                Span::new(0, 0)
+                format!(
+                    "Second component type mismatch: expected {:?}, got {:?}",
+                    expected_second_type, second_type
+                ),
+                Span::new(0, 0),
             )));
         }
 
@@ -368,17 +413,17 @@ impl DependentPair {
     fn infer_first_type(&self, context: &TypingContext) -> Result<DependentType> {
         match self.first.as_ref() {
             DependentTerm::Variable(name) => {
-                context.lookup_variable(name)
-                    .cloned()
-                    .ok_or_else(|| Box::new(Error::type_error(
+                context.lookup_variable(name).cloned().ok_or_else(|| {
+                    Box::new(Error::type_error(
                         format!("Unbound variable: {name}"),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))
+                })
             }
             _ => Err(Box::new(Error::type_error(
                 "Complex first component type inference not yet implemented".to_string(),
-                Span::new(0, 0)
-            )))
+                Span::new(0, 0),
+            ))),
         }
     }
 
@@ -386,17 +431,17 @@ impl DependentPair {
     fn infer_second_type(&self, context: &TypingContext) -> Result<DependentType> {
         match self.second.as_ref() {
             DependentTerm::Variable(name) => {
-                context.lookup_variable(name)
-                    .cloned()
-                    .ok_or_else(|| Box::new(Error::type_error(
+                context.lookup_variable(name).cloned().ok_or_else(|| {
+                    Box::new(Error::type_error(
                         format!("Unbound variable: {name}"),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))
+                })
             }
             _ => Err(Box::new(Error::type_error(
                 "Complex second component type inference not yet implemented".to_string(),
-                Span::new(0, 0)
-            )))
+                Span::new(0, 0),
+            ))),
         }
     }
 
@@ -459,8 +504,8 @@ impl Projection {
             }
             _ => Err(Box::new(Error::type_error(
                 "Cannot project from non-pair type".to_string(),
-                Span::new(0, 0)
-            )))
+                Span::new(0, 0),
+            ))),
         }
     }
 
@@ -468,34 +513,43 @@ impl Projection {
     fn infer_pair_type(&self, context: &TypingContext) -> Result<DependentType> {
         match self.pair.as_ref() {
             DependentTerm::Variable(name) => {
-                context.lookup_variable(name)
-                    .cloned()
-                    .ok_or_else(|| Box::new(Error::type_error(
+                context.lookup_variable(name).cloned().ok_or_else(|| {
+                    Box::new(Error::type_error(
                         format!("Unbound pair variable: {name}"),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))
+                })
             }
             DependentTerm::Pair { first, second } => {
                 // Pair has type (x : first_type) × second_type
                 // Would need full type inference
                 Err(Box::new(Error::type_error(
                     "Complex pair type inference not yet implemented".to_string(),
-                    Span::new(0, 0)
+                    Span::new(0, 0),
                 )))
             }
             _ => Err(Box::new(Error::type_error(
                 "Complex pair type inference not yet implemented".to_string(),
-                Span::new(0, 0)
-            )))
+                Span::new(0, 0),
+            ))),
         }
     }
 
     /// Substitute a term for a variable in a type.
-    fn substitute_in_type(&self, ty: &DependentType, var: &str, term: &DependentTerm) -> Result<DependentType> {
+    fn substitute_in_type(
+        &self,
+        ty: &DependentType,
+        var: &str,
+        term: &DependentTerm,
+    ) -> Result<DependentType> {
         // Reuse substitution logic from SigmaType
         match ty {
             DependentType::Universe(level) => Ok(DependentType::Universe(*level)),
-            DependentType::Pi { var: pi_var, domain, codomain } => {
+            DependentType::Pi {
+                var: pi_var,
+                domain,
+                codomain,
+            } => {
                 if pi_var == var {
                     Ok(DependentType::Pi {
                         var: pi_var.clone(),
@@ -510,7 +564,7 @@ impl Projection {
                     })
                 }
             }
-            _ => Ok(ty.clone()) // Other cases: handle recursively
+            _ => Ok(ty.clone()), // Other cases: handle recursively
         }
     }
 
@@ -555,7 +609,11 @@ pub struct SigmaTypeOperations;
 
 impl SigmaTypeOperations {
     /// Check if two Σ-types are definitionally equal.
-    pub fn sigma_types_equal(sigma1: &SigmaType, sigma2: &SigmaType, normalizer: &Normalizer) -> Result<bool> {
+    pub fn sigma_types_equal(
+        sigma1: &SigmaType,
+        sigma2: &SigmaType,
+        normalizer: &Normalizer,
+    ) -> Result<bool> {
         // Normalize both types and check structural equality
         let norm1 = normalizer.normalize_type(&sigma1.to_dependent_type())?;
         let norm2 = normalizer.normalize_type(&sigma2.to_dependent_type())?;
@@ -578,7 +636,7 @@ impl SigmaTypeOperations {
         if components.len() < 2 {
             return Err(Box::new(Error::type_error(
                 "Need at least 2 components for Σ-type".to_string(),
-                Span::new(0, 0)
+                Span::new(0, 0),
             )));
         }
 
@@ -617,40 +675,45 @@ impl SigmaTypeOperations {
     pub fn check_eta_equality(
         pair: &DependentPair,
         sigma_type: &SigmaType,
-        normalizer: &Normalizer
+        normalizer: &Normalizer,
     ) -> Result<bool> {
         // (π₁(p), π₂(p)) ≡ p
         let first_proj = Projection::first(pair.to_dependent_term());
         let second_proj = Projection::second(pair.to_dependent_term());
-        
+
         let reconstructed = DependentPair::new(
             first_proj.to_dependent_term(),
-            second_proj.to_dependent_term()
+            second_proj.to_dependent_term(),
         );
 
         // Check if the reconstructed pair is equal to the original
         let orig_normalized = normalizer.normalize_term(&pair.to_dependent_term())?;
-        let reconstructed_normalized = normalizer.normalize_term(&reconstructed.to_dependent_term())?;
-        
+        let reconstructed_normalized =
+            normalizer.normalize_term(&reconstructed.to_dependent_term())?;
+
         Ok(orig_normalized == reconstructed_normalized)
     }
 
     /// Create existential quantification using Σ-types.
     ///
     /// ∃x:A.B(x) ≅ (x:A) × B(x)
-    pub fn existential_quantification(var: String, domain: DependentType, predicate: DependentType) -> Result<SigmaType> {
+    pub fn existential_quantification(
+        var: String,
+        domain: DependentType,
+        predicate: DependentType,
+    ) -> Result<SigmaType> {
         SigmaType::new(var, domain, predicate)
     }
 
     /// Extract witness and proof from existential quantification.
     pub fn extract_existential_components(
         proof: &DependentTerm,
-        context: &mut TypingContext
+        context: &mut TypingContext,
     ) -> Result<(DependentTerm, DependentTerm)> {
         // Extract π₁(proof) as witness and π₂(proof) as proof
         let witness = Projection::first(proof.clone()).to_dependent_term();
         let proof_term = Projection::second(proof.clone()).to_dependent_term();
-        
+
         Ok((witness, proof_term))
     }
 }
@@ -691,7 +754,7 @@ mod tests {
         let first = DependentType::Universe(0);
         let second = DependentType::Universe(0);
         let sigma_type = SigmaType::new("x".to_string(), first, second).unwrap();
-        
+
         assert_eq!(sigma_type.var, "x");
         assert_eq!(sigma_type.universe_level, 1);
     }
@@ -701,14 +764,14 @@ mod tests {
         let first = DependentType::Universe(0);
         let second = DependentType::Universe(1);
         let sigma_type = SigmaTypeOperations::simple_product_type(first, second).unwrap();
-        
+
         assert!(!sigma_type.is_dependent());
         assert_eq!(sigma_type.var, "_");
     }
 
     #[test]
     fn test_dependent_sigma_type() {
-        // Create (n : Nat) × Vec(n) 
+        // Create (n : Nat) × Vec(n)
         let nat_type = DependentType::Inductive {
             name: "Nat".to_string(),
             parameters: vec![],
@@ -716,13 +779,13 @@ mod tests {
             constructors: Vec::new(),
             induction_principle: None,
         };
-        
+
         let vec_type = DependentType::Pi {
             var: "n".to_string(),
             domain: Box::new(nat_type.clone()),
             codomain: Box::new(DependentType::Universe(0)),
         };
-        
+
         let sigma_type = SigmaType::new("n".to_string(), nat_type, vec_type).unwrap();
         assert!(sigma_type.is_dependent());
     }
@@ -730,10 +793,10 @@ mod tests {
     #[test]
     fn test_projection_operations() {
         let pair_term = DependentTerm::Variable("p".to_string());
-        
+
         let first_proj = Projection::first(pair_term.clone());
         let second_proj = Projection::second(pair_term.clone());
-        
+
         assert!(first_proj.is_first);
         assert!(!second_proj.is_first);
     }
@@ -745,10 +808,10 @@ mod tests {
             ("y".to_string(), DependentType::Universe(0)),
             ("z".to_string(), DependentType::Universe(0)),
         ];
-        
+
         let nested = SigmaTypeOperations::nested_sigma_type(components.clone()).unwrap();
         let flattened = SigmaTypeOperations::flatten_sigma_type(&nested);
-        
+
         // Should have created nested structure
         assert!(flattened.len() >= components.len());
     }
@@ -757,13 +820,11 @@ mod tests {
     fn test_existential_quantification() {
         let domain = DependentType::Universe(0);
         let predicate = DependentType::Universe(0);
-        
-        let existential = SigmaTypeOperations::existential_quantification(
-            "x".to_string(),
-            domain,
-            predicate
-        ).unwrap();
-        
+
+        let existential =
+            SigmaTypeOperations::existential_quantification("x".to_string(), domain, predicate)
+                .unwrap();
+
         // Existential quantification is represented as Σ-type
         assert_eq!(existential.var, "x");
     }
@@ -772,9 +833,9 @@ mod tests {
     fn test_dependent_pair_display() {
         let pair = DependentPair::new(
             DependentTerm::Variable("a".to_string()),
-            DependentTerm::Variable("b".to_string())
+            DependentTerm::Variable("b".to_string()),
         );
-        
+
         let display = format!("{}", pair);
         assert!(display.contains("(a, b)"));
     }

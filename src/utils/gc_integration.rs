@@ -4,13 +4,18 @@
 //! and the parallel generational garbage collector. It maintains complete R7RS compliance
 //! while adding automatic memory management without changing observable behavior.
 
-use crate::utils::gc::{GcPtr, GcObject, GenerationId, ObjectId, gc_alloc, gc_add_root, gc_remove_root};
-use crate::eval::value::{Value, ThreadSafeEnvironment, Generation};
 use crate::ast::Expr;
 use crate::diagnostics::Span;
+use crate::eval::value::{Generation, ThreadSafeEnvironment, Value};
+use crate::utils::gc::{
+    GcObject, GcPtr, GenerationId, ObjectId, gc_add_root, gc_alloc, gc_remove_root,
+};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, atomic::{AtomicBool, AtomicU32, Ordering}};
 use std::hash::{Hash, Hasher};
+use std::sync::{
+    Arc, RwLock,
+    atomic::{AtomicBool, AtomicU32, Ordering},
+};
 
 /// A GC-aware smart pointer wrapper for Value that maintains all existing semantics.
 /// This provides transparent garbage collection without changing the Value API.
@@ -91,42 +96,42 @@ impl ValueGcWrapper {
             Value::Symbol(_) => 16,  // Just the symbol ID
             Value::Keyword(s) => 16 + s.len(),
             Value::Nil | Value::Unspecified => 8,
-            Value::Pair(_, _) => 64, // Two Arc pointers plus metadata
+            Value::Pair(_, _) => 64,        // Two Arc pointers plus metadata
             Value::MutablePair(_, _) => 96, // Two Arc<RwLock> plus metadata
             Value::Vector(vec) => {
-                if let Ok(guard) = vec.read() {
+                if let Ok(guard) = vec.try_borrow() {
                     48 + guard.len() * 8 // Vec metadata plus elements
                 } else {
                     48
                 }
             }
             Value::Hashtable(map) => {
-                if let Ok(guard) = map.read() {
+                if let Ok(guard) = map.try_borrow() {
                     64 + guard.len() * 16 // HashMap metadata plus key-value pairs
                 } else {
                     64
                 }
             }
             Value::MutableString(s) => {
-                if let Ok(guard) = s.read() {
+                if let Ok(guard) = s.try_borrow() {
                     32 + guard.len() * 4 // Vec<char> overhead
                 } else {
                     32
                 }
             }
-            Value::Procedure(_) => 128, // Closure with environment
-            Value::CaseLambda(_) => 256, // Multiple clauses
-            Value::Primitive(_) => 64,   // Function pointer metadata
+            Value::Procedure(_) => 128,    // Closure with environment
+            Value::CaseLambda(_) => 256,   // Multiple clauses
+            Value::Primitive(_) => 64,     // Function pointer metadata
             Value::Continuation(_) => 512, // Stack frames and environment
-            Value::Syntax(_) => 128,    // Transformer and environment
-            Value::Port(_) => 256,      // I/O state and buffers
-            Value::Promise(_) => 96,    // Thunk and memoization
-            Value::Type(_) => 64,       // Type metadata
-            Value::Foreign(_) => 64,    // Pointer and metadata
-            Value::ErrorObject(_) => 128, // Error details
-            Value::CharSet(_) => 1024,  // BTreeSet storage
-            Value::Parameter(_) => 96,  // Parameter state
-            Value::Record(_) => 128,    // Record fields
+            Value::Syntax(_) => 128,       // Transformer and environment
+            Value::Port(_) => 256,         // I/O state and buffers
+            Value::Promise(_) => 96,       // Thunk and memoization
+            Value::Type(_) => 64,          // Type metadata
+            Value::Foreign(_) => 64,       // Pointer and metadata
+            Value::ErrorObject(_) => 128,  // Error details
+            Value::CharSet(_) => 1024,     // BTreeSet storage
+            Value::Parameter(_) => 96,     // Parameter state
+            Value::Record(_) => 128,       // Record fields
             // Advanced containers - estimate based on typical usage
             Value::AdvancedHashTable(_) => 1024,
             Value::Ideque(_) => 512,
@@ -152,6 +157,7 @@ impl ValueGcWrapper {
             Value::DistributedNode(_) => 1024,
             Value::Opaque(_) => 64,
             Value::Environment(_) => 128, // Environment with bindings
+            Value::Box(_) => 16,          // SRFI-111 box
         }
     }
 
@@ -223,7 +229,10 @@ impl GcValue {
     }
 
     /// Creates a GC value from a regular Value, but only if it meets the size threshold.
-    pub fn from_value_conditional(value: Value, config: &GcIntegrationConfig) -> Result<Self, Value> {
+    pub fn from_value_conditional(
+        value: Value,
+        config: &GcIntegrationConfig,
+    ) -> Result<Self, Value> {
         let wrapper = ValueGcWrapper::new(value);
         if wrapper.estimate_size() >= config.gc_threshold_size {
             Ok(Self {
@@ -282,16 +291,16 @@ impl GcEnvironment {
     /// This is called during the GC mark phase to trace reachable objects.
     pub fn scan_for_gc_roots(&self) -> Vec<Value> {
         let mut roots = Vec::new();
-        
+
         // Get all variables in this environment and its parents
         let var_names = self.inner.all_variable_names();
-        
+
         for var_name in var_names {
             if let Some(value) = self.inner.lookup(&var_name) {
                 roots.push(value);
             }
         }
-        
+
         roots
     }
 }
@@ -316,14 +325,14 @@ impl GcIntegration {
     /// This is called during the GC mark phase.
     pub fn scan_environment_roots(&self) -> Vec<Value> {
         let mut all_roots = Vec::new();
-        
-        if let Ok(environments) = self.root_environments.read() {
+
+        if let Ok(environments) = self.root_environments.try_read() {
             for env in environments.iter() {
                 let gc_env = GcEnvironment::new(env.clone());
                 all_roots.extend(gc_env.scan_for_gc_roots());
             }
         }
-        
+
         all_roots
     }
 
@@ -351,10 +360,16 @@ impl GcIntegration {
     /// Performs a comprehensive GC root scan across all language features.
     pub fn comprehensive_root_scan(&self) -> GcRootScanResult {
         let environment_roots = self.scan_environment_roots();
-        let continuation_count = self.continuation_roots.read()
-            .map(|roots| roots.len()).unwrap_or(0);
-        let macro_count = self.macro_roots.read()
-            .map(|roots| roots.len()).unwrap_or(0);
+        let continuation_count = self
+            .continuation_roots
+            .try_read()
+            .map(|roots| roots.len())
+            .unwrap_or(0);
+        let macro_count = self
+            .macro_roots
+            .try_read()
+            .map(|roots| roots.len())
+            .unwrap_or(0);
 
         GcRootScanResult {
             environment_roots,
@@ -425,9 +440,7 @@ unsafe impl Sync for GcValue {}
 
 /// Creates a GC-managed value if it meets the size threshold, otherwise returns Arc-managed.
 pub fn maybe_gc_alloc(value: Value, integration: &GcIntegration) -> Value {
-    if integration.should_use_gc_for_size(
-        ValueGcWrapper::new(value.clone()).estimate_size()
-    ) {
+    if integration.should_use_gc_for_size(ValueGcWrapper::new(value.clone()).estimate_size()) {
         // For now, we'll maintain the existing Arc-based system for compatibility
         // Future versions can use GcValue more extensively
         value
@@ -439,25 +452,25 @@ pub fn maybe_gc_alloc(value: Value, integration: &GcIntegration) -> Value {
 /// Scans a value for GC-relevant references without breaking existing APIs.
 pub fn scan_value_for_gc_integration(value: &Value) -> Vec<Value> {
     let mut references = Vec::new();
-    
+
     match value {
         Value::Pair(car, cdr) => {
             references.push((**car).clone());
             references.push((**cdr).clone());
         }
         Value::MutablePair(car_ref, cdr_ref) => {
-            if let (Ok(car), Ok(cdr)) = (car_ref.read(), cdr_ref.read()) {
+            if let (Ok(car), Ok(cdr)) = (car_ref.try_borrow(), cdr_ref.try_borrow()) {
                 references.push(car.clone());
                 references.push(cdr.clone());
             }
         }
         Value::Vector(vec_ref) => {
-            if let Ok(vec) = vec_ref.read() {
+            if let Ok(vec) = vec_ref.try_borrow() {
                 references.extend(vec.iter().cloned());
             }
         }
         Value::Hashtable(map_ref) => {
-            if let Ok(map) = map_ref.read() {
+            if let Ok(map) = map_ref.try_borrow() {
                 for (key, value) in map.iter() {
                     references.push(key.clone());
                     references.push(value.clone());
@@ -471,7 +484,7 @@ pub fn scan_value_for_gc_integration(value: &Value) -> Vec<Value> {
         // For other types, we maintain existing Arc-based reference management
         _ => {}
     }
-    
+
     references
 }
 
@@ -484,7 +497,7 @@ mod tests {
     fn test_gc_value_creation() {
         let original_value = Value::integer(42);
         let gc_value = GcValue::new(original_value.clone());
-        
+
         assert_eq!(gc_value.value(), &original_value);
         assert_eq!(gc_value.into_value(), original_value);
     }
@@ -493,10 +506,10 @@ mod tests {
     fn test_gc_integration_config() {
         let config = GcIntegrationConfig::default();
         let integration = GcIntegration::new(config);
-        
+
         // Small values should not use GC
         assert!(!integration.should_use_gc_for_size(100));
-        
+
         // Large values should use GC
         assert!(integration.should_use_gc_for_size(1000));
     }
@@ -505,7 +518,7 @@ mod tests {
     fn test_value_size_estimation() {
         let wrapper = ValueGcWrapper::new(Value::integer(42));
         assert!(wrapper.estimate_size() > 0);
-        
+
         let big_vector = Value::vector(vec![Value::integer(1); 100]);
         let big_wrapper = ValueGcWrapper::new(big_vector);
         assert!(big_wrapper.estimate_size() > wrapper.estimate_size());
@@ -514,15 +527,19 @@ mod tests {
     #[test]
     fn test_gc_environment_root_scanning() {
         use crate::eval::value::ThreadSafeEnvironment;
-        
+
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         env.define("test-var".to_string(), Value::integer(42));
         env.define("test-string".to_string(), Value::string("hello"));
-        
+
         let gc_env = GcEnvironment::new(env);
         let roots = gc_env.scan_for_gc_roots();
-        
+
         assert_eq!(roots.len(), 2);
-        assert!(roots.iter().any(|v| matches!(v, Value::Literal(lit) if lit.to_i64() == Some(42))));
+        assert!(
+            roots
+                .iter()
+                .any(|v| matches!(v, Value::Literal(lit) if lit.to_i64() == Some(42)))
+        );
     }
 }

@@ -15,7 +15,6 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ContractExpr {
     // ============= BASIC CONTRACTS =============
-    
     /// Simple predicate contract (e.g., number?, string?)
     Predicate {
         /// Name of the predicate function
@@ -23,7 +22,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Flat contract with custom check function
     Flat {
         /// Expression that performs the contract check
@@ -31,21 +30,20 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Any contract (matches any value)
     Any {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// None contract (matches no value)
     None {
         /// Source location of this contract
         location: Span,
     },
-    
+
     // ============= CONTRACT COMBINATORS =============
-    
     /// Function contract: (-> domain ... codomain)
     Function {
         /// Contracts for function arguments (domain)
@@ -55,7 +53,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Dependent function contract: (->i ([x pred] ...) codomain)
     DependentFunction {
         /// Dependent parameter bindings
@@ -65,7 +63,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Case function contract: (->* (domain ... codomain) ...)
     CaseFunction {
         /// Function cases with different arities
@@ -73,7 +71,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// And combinator: (and/c contract ...)
     And {
         /// Contracts that must all be satisfied
@@ -81,7 +79,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Or combinator: (or/c contract ...)
     Or {
         /// Contracts where at least one must be satisfied
@@ -89,7 +87,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Not combinator: (not/c contract)
     Not {
         /// Contract to negate
@@ -97,7 +95,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// One-of combinator: (one-of/c value ...)
     OneOf {
         /// Values that are acceptable
@@ -105,7 +103,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Between combinator: (between/c min max)
     Between {
         /// Minimum acceptable value
@@ -115,7 +113,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Comparison contract: (</c expr), (>/c expr), etc.
     Comparison {
         /// Comparison operator to use
@@ -125,9 +123,8 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     // ============= STRUCTURAL CONTRACTS =============
-    
     /// List contract: (listof contract)
     ListOf {
         /// Contract for list elements
@@ -135,7 +132,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Vector contract: (vectorof contract)
     VectorOf {
         /// Contract for vector elements
@@ -143,7 +140,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Hash contract: (hash/c key-contract value-contract)
     Hash {
         /// Contract for hash table keys
@@ -153,7 +150,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Tuple contract: (tuple/c contract ...)
     Tuple {
         /// Contracts for each tuple element
@@ -161,7 +158,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// List contract with specific length: (list/c contract ...)
     List {
         /// Contracts for each list element
@@ -169,7 +166,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Vector contract with specific length: (vector/c contract ...)
     Vector {
         /// Contracts for each vector element
@@ -177,9 +174,8 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     // ============= OBJECT CONTRACTS =============
-    
     /// Object contract with method contracts
     Object {
         /// Method contracts for the object
@@ -187,7 +183,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Class contract for object-oriented features
     Class {
         /// Optional superclass name
@@ -199,9 +195,8 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     // ============= ADVANCED CONTRACTS =============
-    
     /// Recursive contract: (rec/c name contract)
     Recursive {
         /// Name of the recursive contract
@@ -211,7 +206,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Contract reference (for recursive contracts)
     Reference {
         /// Name of the referenced contract
@@ -219,7 +214,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Parametric contract: (contract/c param ...)
     Parametric {
         /// Name of the parametric contract
@@ -229,7 +224,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Blame boundary: (blame/c contract blame-info)
     Blame {
         /// Contract with blame boundary
@@ -241,7 +236,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Contract with custom violation message
     WithMessage {
         /// Contract to wrap with custom message
@@ -251,9 +246,8 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     // ============= SYNTAX HELPERS =============
-    
     /// Contract variable (for parametric contracts)
     Variable {
         /// Variable name for parametric contracts
@@ -261,7 +255,7 @@ pub enum ContractExpr {
         /// Source location of this contract
         location: Span,
     },
-    
+
     /// Contract application: (contract arg ...)
     Application {
         /// Contract to apply
@@ -348,48 +342,48 @@ impl ContractExpr {
             ContractExpr::Application { location, .. } => *location,
         }
     }
-    
+
     /// Returns true if this contract is a basic predicate.
     pub fn is_predicate(&self) -> bool {
         matches!(self, ContractExpr::Predicate { .. })
     }
-    
+
     /// Returns true if this contract is a function contract.
     pub fn is_function_contract(&self) -> bool {
         matches!(
             self,
-            ContractExpr::Function { .. } |
-            ContractExpr::DependentFunction { .. } |
-            ContractExpr::CaseFunction { .. }
+            ContractExpr::Function { .. }
+                | ContractExpr::DependentFunction { .. }
+                | ContractExpr::CaseFunction { .. }
         )
     }
-    
+
     /// Returns true if this contract is a combinator.
     pub fn is_combinator(&self) -> bool {
         matches!(
             self,
-            ContractExpr::And { .. } |
-            ContractExpr::Or { .. } |
-            ContractExpr::Not { .. } |
-            ContractExpr::OneOf { .. } |
-            ContractExpr::Between { .. } |
-            ContractExpr::Comparison { .. }
+            ContractExpr::And { .. }
+                | ContractExpr::Or { .. }
+                | ContractExpr::Not { .. }
+                | ContractExpr::OneOf { .. }
+                | ContractExpr::Between { .. }
+                | ContractExpr::Comparison { .. }
         )
     }
-    
+
     /// Returns true if this contract is structural.
     pub fn is_structural(&self) -> bool {
         matches!(
             self,
-            ContractExpr::ListOf { .. } |
-            ContractExpr::VectorOf { .. } |
-            ContractExpr::Hash { .. } |
-            ContractExpr::Tuple { .. } |
-            ContractExpr::List { .. } |
-            ContractExpr::Vector { .. }
+            ContractExpr::ListOf { .. }
+                | ContractExpr::VectorOf { .. }
+                | ContractExpr::Hash { .. }
+                | ContractExpr::Tuple { .. }
+                | ContractExpr::List { .. }
+                | ContractExpr::Vector { .. }
         )
     }
-    
+
     /// Gets the predicate name if this is a predicate contract.
     pub fn as_predicate(&self) -> Option<&str> {
         match self {
@@ -397,7 +391,7 @@ impl ContractExpr {
             _ => None,
         }
     }
-    
+
     /// Creates a predicate contract.
     pub fn predicate(name: impl Into<String>, location: Span) -> Self {
         ContractExpr::Predicate {
@@ -405,7 +399,7 @@ impl ContractExpr {
             location,
         }
     }
-    
+
     /// Creates a function contract.
     pub fn function(
         domain: Vec<Spanned<ContractExpr>>,
@@ -418,17 +412,23 @@ impl ContractExpr {
             location,
         }
     }
-    
+
     /// Creates an and combinator.
     pub fn and(contracts: Vec<Spanned<ContractExpr>>, location: Span) -> Self {
-        ContractExpr::And { contracts, location }
+        ContractExpr::And {
+            contracts,
+            location,
+        }
     }
-    
+
     /// Creates an or combinator.
     pub fn or(contracts: Vec<Spanned<ContractExpr>>, location: Span) -> Self {
-        ContractExpr::Or { contracts, location }
+        ContractExpr::Or {
+            contracts,
+            location,
+        }
     }
-    
+
     /// Creates a not combinator.
     pub fn not(contract: Spanned<ContractExpr>, location: Span) -> Self {
         ContractExpr::Not {
@@ -436,7 +436,7 @@ impl ContractExpr {
             location,
         }
     }
-    
+
     /// Creates a listof contract.
     pub fn listof(element_contract: Spanned<ContractExpr>, location: Span) -> Self {
         ContractExpr::ListOf {
@@ -444,7 +444,7 @@ impl ContractExpr {
             location,
         }
     }
-    
+
     /// Creates an any contract.
     pub fn any(location: Span) -> Self {
         ContractExpr::Any { location }
@@ -490,17 +490,23 @@ impl fmt::Display for ContractExpr {
             ContractExpr::Flat { check_expr, .. } => write!(f, "(flat/c {})", check_expr.inner),
             ContractExpr::Any { .. } => write!(f, "any/c"),
             ContractExpr::None { .. } => write!(f, "none/c"),
-            ContractExpr::Function { domain, codomain, .. } => {
+            ContractExpr::Function {
+                domain, codomain, ..
+            } => {
                 write!(f, "(->")?;
                 for contract in domain {
                     write!(f, " {}", contract.inner)?;
                 }
                 write!(f, " {})", codomain.inner)
             }
-            ContractExpr::DependentFunction { bindings, codomain, .. } => {
+            ContractExpr::DependentFunction {
+                bindings, codomain, ..
+            } => {
                 write!(f, "(->i (")?;
                 for (i, binding) in bindings.iter().enumerate() {
-                    if i > 0 { write!(f, " ")?; }
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
                     write!(f, "[{} {}]", binding.name, binding.contract.inner)?;
                 }
                 write!(f, ") {})", codomain.inner)
@@ -510,7 +516,9 @@ impl fmt::Display for ContractExpr {
                 for case in cases {
                     write!(f, " (")?;
                     for (i, domain) in case.domain.iter().enumerate() {
-                        if i > 0 { write!(f, " ")?; }
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
                         write!(f, "{}", domain.inner)?;
                     }
                     write!(f, " {})", case.codomain.inner)?;
@@ -544,7 +552,9 @@ impl fmt::Display for ContractExpr {
             ContractExpr::Between { min, max, .. } => {
                 write!(f, "(between/c {} {})", min.inner, max.inner)
             }
-            ContractExpr::Comparison { operator, value, .. } => {
+            ContractExpr::Comparison {
+                operator, value, ..
+            } => {
                 let op_str = match operator {
                     ComparisonOp::LessThan => "</c",
                     ComparisonOp::LessThanEqual => "<=/c",
@@ -555,30 +565,48 @@ impl fmt::Display for ContractExpr {
                 };
                 write!(f, "({} {})", op_str, value.inner)
             }
-            ContractExpr::ListOf { element_contract, .. } => {
+            ContractExpr::ListOf {
+                element_contract, ..
+            } => {
                 write!(f, "(listof {})", element_contract.inner)
             }
-            ContractExpr::VectorOf { element_contract, .. } => {
+            ContractExpr::VectorOf {
+                element_contract, ..
+            } => {
                 write!(f, "(vectorof {})", element_contract.inner)
             }
-            ContractExpr::Hash { key_contract, value_contract, .. } => {
-                write!(f, "(hash/c {} {})", key_contract.inner, value_contract.inner)
+            ContractExpr::Hash {
+                key_contract,
+                value_contract,
+                ..
+            } => {
+                write!(
+                    f,
+                    "(hash/c {} {})",
+                    key_contract.inner, value_contract.inner
+                )
             }
-            ContractExpr::Tuple { element_contracts, .. } => {
+            ContractExpr::Tuple {
+                element_contracts, ..
+            } => {
                 write!(f, "(tuple/c")?;
                 for contract in element_contracts {
                     write!(f, " {}", contract.inner)?;
                 }
                 write!(f, ")")
             }
-            ContractExpr::List { element_contracts, .. } => {
+            ContractExpr::List {
+                element_contracts, ..
+            } => {
                 write!(f, "(list/c")?;
                 for contract in element_contracts {
                     write!(f, " {}", contract.inner)?;
                 }
                 write!(f, ")")
             }
-            ContractExpr::Vector { element_contracts, .. } => {
+            ContractExpr::Vector {
+                element_contracts, ..
+            } => {
                 write!(f, "(vector/c")?;
                 for contract in element_contracts {
                     write!(f, " {}", contract.inner)?;
@@ -592,7 +620,9 @@ impl fmt::Display for ContractExpr {
                 }
                 write!(f, ")")
             }
-            ContractExpr::Class { methods, fields, .. } => {
+            ContractExpr::Class {
+                methods, fields, ..
+            } => {
                 write!(f, "(class/c")?;
                 for (name, contract) in methods {
                     write!(f, " [method {} {}]", name, contract.inner)?;
@@ -608,21 +638,38 @@ impl fmt::Display for ContractExpr {
             ContractExpr::Reference { name, .. } => {
                 write!(f, "{name}")
             }
-            ContractExpr::Parametric { name, parameters, .. } => {
+            ContractExpr::Parametric {
+                name, parameters, ..
+            } => {
                 write!(f, "({name}")?;
                 for param in parameters {
                     write!(f, " {}", param.inner)?;
                 }
                 write!(f, ")")
             }
-            ContractExpr::Blame { contract, positive_blame, negative_blame, .. } => {
-                write!(f, "(blame/c {} {} {})", contract.inner, positive_blame, negative_blame)
+            ContractExpr::Blame {
+                contract,
+                positive_blame,
+                negative_blame,
+                ..
+            } => {
+                write!(
+                    f,
+                    "(blame/c {} {} {})",
+                    contract.inner, positive_blame, negative_blame
+                )
             }
-            ContractExpr::WithMessage { contract, message, .. } => {
+            ContractExpr::WithMessage {
+                contract, message, ..
+            } => {
                 write!(f, "(with-message/c {} \"{}\")", contract.inner, message)
             }
             ContractExpr::Variable { name, .. } => write!(f, "{name}"),
-            ContractExpr::Application { contract, arguments, .. } => {
+            ContractExpr::Application {
+                contract,
+                arguments,
+                ..
+            } => {
                 write!(f, "({}", contract.inner)?;
                 for arg in arguments {
                     write!(f, " {}", arg.inner)?;
@@ -672,13 +719,13 @@ mod tests {
         let span = dummy_span();
         let number_contract = spanned_contract(ContractExpr::predicate("number?", span));
         let string_contract = spanned_contract(ContractExpr::predicate("string?", span));
-        
+
         let func_contract = ContractExpr::function(
             vec![number_contract.clone(), number_contract.clone()],
             string_contract,
             span,
         );
-        
+
         assert!(func_contract.is_function_contract());
         assert_eq!(format!("{func_contract}"), "(-> number? number? string?)");
     }
@@ -688,15 +735,17 @@ mod tests {
         let span = dummy_span();
         let number_contract = spanned_contract(ContractExpr::predicate("number?", span));
         let string_contract = spanned_contract(ContractExpr::predicate("string?", span));
-        
-        let and_contract = ContractExpr::and(vec![number_contract.clone(), string_contract.clone()], span);
+
+        let and_contract =
+            ContractExpr::and(vec![number_contract.clone(), string_contract.clone()], span);
         assert!(and_contract.is_combinator());
         assert_eq!(format!("{and_contract}"), "(and/c number? string?)");
-        
-        let or_contract = ContractExpr::or(vec![number_contract.clone(), string_contract.clone()], span);
+
+        let or_contract =
+            ContractExpr::or(vec![number_contract.clone(), string_contract.clone()], span);
         assert!(or_contract.is_combinator());
         assert_eq!(format!("{or_contract}"), "(or/c number? string?)");
-        
+
         let not_contract = ContractExpr::not(number_contract, span);
         assert!(not_contract.is_combinator());
         assert_eq!(format!("{not_contract}"), "(not/c number?)");
@@ -706,7 +755,7 @@ mod tests {
     fn test_structural_contracts() {
         let span = dummy_span();
         let number_contract = spanned_contract(ContractExpr::predicate("number?", span));
-        
+
         let listof_contract = ContractExpr::listof(number_contract, span);
         assert!(listof_contract.is_structural());
         assert_eq!(format!("{listof_contract}"), "(listof number?)");

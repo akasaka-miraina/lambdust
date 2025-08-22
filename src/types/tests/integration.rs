@@ -23,7 +23,7 @@ mod tests {
     fn test_type_variable_creation() {
         let var1 = TypeVar::new();
         let var2 = TypeVar::new();
-        
+
         // Variables should have unique IDs
         assert_ne!(var1.id, var2.id);
         assert!(var1.name.is_none());
@@ -50,7 +50,7 @@ mod tests {
         let list_type = Type::list(Type::Number);
         let pair_type = Type::pair(Type::String, Type::Boolean);
         let function_type = Type::function(vec![Type::Number, Type::String], Type::Boolean);
-        
+
         assert!(matches!(list_type, Type::List(_)));
         assert!(matches!(pair_type, Type::Pair(_, _)));
         assert!(matches!(function_type, Type::Function { .. }));
@@ -64,7 +64,7 @@ mod tests {
             vec![var_a.clone()), var_b.clone())],
             Type::function(vec![Type::Variable(var_a)], Type::Variable(var_b))
         );
-        
+
         assert!(matches!(poly_type, Type::Forall { .. }));
     }
 
@@ -72,11 +72,11 @@ mod tests {
     fn test_type_variable_contains() {
         let var_a = TypeVar::with_name("a");
         let var_b = TypeVar::with_name("b");
-        
+
         // Simple variable
         assert!(Type::Variable(var_a.clone()).contains_var(&var_a));
         assert!(!Type::Variable(var_a.clone()).contains_var(&var_b));
-        
+
         // Function type
         let func_type = Type::function(
             vec![Type::Variable(var_a.clone())],
@@ -84,7 +84,7 @@ mod tests {
         );
         assert!(func_type.contains_var(&var_a));
         assert!(func_type.contains_var(&var_b));
-        
+
         // Basic types don't contain variables
         assert!(!Type::Number.contains_var(&var_a));
     }
@@ -94,19 +94,19 @@ mod tests {
         let var_a = TypeVar::with_name("a");
         let var_b = TypeVar::with_name("b");
         let var_c = TypeVar::with_name("c");
-        
+
         // Function type with free variables
         let func_type = Type::function(
             vec![Type::Variable(var_a.clone()), Type::Variable(var_b.clone())],
             Type::Variable(var_c.clone())
         );
-        
+
         let free_vars = func_type.free_vars();
         assert_eq!(free_vars.len(), 3);
         assert!(free_vars.contains(&var_a));
         assert!(free_vars.contains(&var_b));
         assert!(free_vars.contains(&var_c));
-        
+
         // Forall type with bound variables
         let forall_type = Type::forall(
             vec![var_a.clone())],
@@ -115,7 +115,7 @@ mod tests {
                 Type::Variable(var_b.clone())
             )
         );
-        
+
         let forall_free_vars = forall_type.free_vars();
         assert_eq!(forall_free_vars.len(), 1);
         assert!(!forall_free_vars.contains(&var_a)); // bound
@@ -141,13 +141,13 @@ mod tests {
             class: "Num".to_string(),
             type_: Type::Variable(var_a.clone()),
         };
-        
+
         let scheme = TypeScheme::polymorphic(
             vec![var_a.clone())],
             vec![constraint],
             Type::function(vec![Type::Variable(var_a.clone())], Type::Variable(var_a.clone())
         );
-        
+
         assert_eq!(scheme.vars.len(), 1);
         assert_eq!(scheme.constraints.len(), 1);
         assert!(scheme.type_.is_function());
@@ -161,10 +161,10 @@ mod tests {
             vec![],
             Type::function(vec![Type::Variable(var_a.clone())], Type::Variable(var_a.clone())
         );
-        
+
         let instance1 = scheme.instantiate();
         let instance2 = scheme.instantiate();
-        
+
         // Each instantiation should create fresh variables
         assert!(instance1.is_function());
         assert!(instance2.is_function());
@@ -179,20 +179,20 @@ mod tests {
     #[test]
     fn test_type_environment_operations() {
         let mut env = TypeEnv::new();
-        
+
         // Initially empty
         assert!(env.lookup("x").is_none());
-        
+
         // Bind a variable
         env.bind("x".to_string(), TypeScheme::monomorphic(Type::Number));
         assert!(env.lookup("x").is_some());
         assert_eq!(env.lookup("x").unwrap().type_, Type::Number);
-        
+
         // Extend environment
         let mut new_bindings = HashMap::new();
         new_bindings.insert("y".to_string(), TypeScheme::monomorphic(Type::String));
         let extended_env = env.extend(new_bindings);
-        
+
         assert!(extended_env.lookup("x").is_some());
         assert!(extended_env.lookup("y").is_some());
     }
@@ -211,16 +211,16 @@ mod tests {
     #[test]
     fn test_type_checker_error_handling() {
         let mut checker = TypeChecker::new(TypeLevel::Static);
-        
+
         // Add an error
         let error = crate::diagnostics::Error::type_error(
             "Test error".to_string(),
             test_span(),
         );
         checker.add_error(error);
-        
+
         assert_eq!(checker.errors().len(), 1);
-        
+
         // Clear errors
         checker.clear_errors();
         assert!(checker.errors().is_empty());
@@ -238,7 +238,7 @@ mod tests {
             Some(test_span()),
             "test constraint"
         );
-        
+
         assert!(matches!(constraint, TypeConstraint::Equal { .. }));
         assert!(constraint.span().is_some());
     }
@@ -250,7 +250,7 @@ mod tests {
             Type::Variable(TypeVar::with_name("a")),
             Some(test_span())
         );
-        
+
         assert!(matches!(constraint, TypeConstraint::Instance { .. }));
     }
 
@@ -262,7 +262,7 @@ mod tests {
     fn test_kind_creation() {
         let type_kind = Kind::Type;
         let arrow_kind = Kind::arrow(Kind::Type, Kind::Type);
-        
+
         assert_eq!(type_kind.arity(), 0);
         assert_eq!(arrow_kind.arity(), 1);
     }
@@ -274,7 +274,7 @@ mod tests {
             Kind::arrow(Kind::Type, Kind::Type),
             Kind::Type
         );
-        
+
         assert_eq!(nested_kind.arity(), 1);
     }
 
@@ -287,15 +287,15 @@ mod tests {
         let empty_row = Row::empty();
         assert!(empty_row.is_closed());
         assert!(empty_row.fields.is_empty());
-        
+
         let mut fields = HashMap::new();
         fields.insert("x".to_string(), Type::Number);
         fields.insert("y".to_string(), Type::String);
-        
+
         let closed_row = Row::closed(fields);
         assert!(closed_row.is_closed());
         assert_eq!(closed_row.fields.len(), 2);
-        
+
         let open_row = Row::open(HashMap::new(), TypeVar::with_name("r"));
         assert!(!open_row.is_closed());
     }
@@ -305,7 +305,7 @@ mod tests {
         let mut row = Row::empty();
         row.extend("name".to_string(), Type::String);
         row.extend("age".to_string(), Type::Number);
-        
+
         assert_eq!(row.fields.len(), 2);
         assert_eq!(row.fields.get("name"), Some(&Type::String));
         assert_eq!(row.fields.get("age"), Some(&Type::Number));
@@ -321,7 +321,7 @@ mod tests {
         let state_effect = Effect::State(Type::Number);
         let exception_effect = Effect::Exception(Type::String);
         let pure_effect = Effect::Pure;
-        
+
         assert_eq!(io_effect, Effect::IO);
         assert!(matches!(state_effect, Effect::State(_)));
         assert!(matches!(exception_effect, Effect::Exception(_)));
@@ -335,7 +335,7 @@ mod tests {
             effects: vec![Effect::IO],
             output: Box::new(Type::String),
         };
-        
+
         assert!(matches!(effectful_type, Type::Effectful { .. }));
     }
 
@@ -368,13 +368,13 @@ mod tests {
         assert_eq!(format!("{}", Type::String), "String");
         assert_eq!(format!("{}", Type::Dynamic), "Dynamic");
         assert_eq!(format!("{}", Type::Unknown), "?");
-        
+
         let var = TypeVar::with_name("a");
         assert_eq!(format!("{}", Type::Variable(var)), "a");
-        
+
         let list_type = Type::list(Type::Number);
         assert_eq!(format!("{}", list_type), "(List Number)");
-        
+
         let func_type = Type::function(vec![Type::Number], Type::String);
         assert_eq!(format!("{}", func_type), "(-> Number String)");
     }
@@ -384,7 +384,7 @@ mod tests {
         assert_eq!(format!("{}", Kind::Type), "*");
         assert_eq!(format!("{}", Kind::Row), "Row");
         assert_eq!(format!("{}", Kind::Effect), "Effect");
-        
+
         let arrow_kind = Kind::arrow(Kind::Type, Kind::Type);
         assert_eq!(format!("{}", arrow_kind), "(* -> *)");
     }
@@ -398,10 +398,10 @@ mod tests {
     fn test_basic_type_inference() {
         // Test that basic expressions can be type-inferred
         // This requires integration with the AST and inference engine
-        
+
         let mut checker = TypeChecker::new(TypeLevel::Static);
         assert_eq!(checker.level(), TypeLevel::Static);
-        
+
         // For now, just verify the checker can be created
         // Real inference tests would require AST integration
     }
@@ -411,7 +411,7 @@ mod tests {
     fn test_type_unification() {
         // Test that types can be unified correctly
         // This requires the unification algorithm implementation
-        
+
         // For now, just test basic type equality
         assert_eq!(Type::Number, Type::Number);
         assert_ne!(Type::Number, Type::String);
@@ -422,14 +422,14 @@ mod tests {
     fn test_constraint_solving() {
         // Test that type constraints can be solved
         // This requires the constraint solver implementation
-        
+
         let constraint = TypeConstraint::equal(
             Type::Number,
             Type::Variable(TypeVar::with_name("a")),
             None,
             "test"
         );
-        
+
         // For now, just verify constraints can be created
         assert!(matches!(constraint, TypeConstraint::Equal { .. }));
     }
@@ -441,7 +441,7 @@ mod tests {
     #[test]
     fn test_type_creation_performance() {
         let start = std::time::Instant::now();
-        
+
         // Create many types to test performance
         for i in 0..1000 {
             let var = TypeVar::with_name(format!("var{}", i));
@@ -451,7 +451,7 @@ mod tests {
             );
             let _ = func_type.free_vars();
         }
-        
+
         let duration = start.elapsed();
         assert!(duration.as_millis() < 100, "Type operations should be fast");
     }
@@ -460,7 +460,7 @@ mod tests {
     fn test_type_environment_performance() {
         let mut env = TypeEnv::new();
         let start = std::time::Instant::now();
-        
+
         // Add many bindings
         for i in 0..1000 {
             env.bind(
@@ -468,12 +468,12 @@ mod tests {
                 TypeScheme::monomorphic(Type::Number)
             );
         }
-        
+
         // Look up many bindings
         for i in 0..1000 {
             let _ = env.lookup(&format!("var{}", i));
         }
-        
+
         let duration = start.elapsed();
         assert!(duration.as_millis() < 100, "Environment operations should be fast");
     }
@@ -487,7 +487,7 @@ mod tests {
         let var1 = TypeVar::with_id(1);
         let var2 = TypeVar::with_id(1);
         let var3 = TypeVar::with_id(2);
-        
+
         assert_eq!(var1, var2);
         assert_ne!(var1, var3);
     }
@@ -496,24 +496,24 @@ mod tests {
     fn test_complex_type_equality() {
         let var_a = TypeVar::with_name("a");
         let var_b = TypeVar::with_name("b");
-        
+
         let type1 = Type::function(
             vec![Type::Variable(var_a.clone())],
             Type::Variable(var_b.clone())
         );
-        
+
         let type2 = Type::function(
             vec![Type::Variable(var_a.clone())],
             Type::Variable(var_b.clone())
         );
-        
+
         assert_eq!(type1, type2);
-        
+
         let type3 = Type::function(
             vec![Type::Variable(var_a)],
             Type::Number
         );
-        
+
         assert_ne!(type1, type3);
     }
 
@@ -531,9 +531,9 @@ mod tests {
                 Type::Variable(var.clone())
             )),
         };
-        
+
         assert!(matches!(recursive_type, Type::Recursive { .. }));
-        
+
         // The recursive variable should not appear in free variables
         let free_vars = recursive_type.free_vars();
         assert!(!free_vars.contains(&var));
@@ -549,7 +549,7 @@ mod tests {
         let static_checker = TypeChecker::new(TypeLevel::Static);
         let contracts_checker = TypeChecker::new(TypeLevel::Contracts);
         let dependent_checker = TypeChecker::new(TypeLevel::Dependent);
-        
+
         assert_eq!(dynamic_checker.level(), TypeLevel::Dynamic);
         assert_eq!(static_checker.level(), TypeLevel::Static);
         assert_eq!(contracts_checker.level(), TypeLevel::Contracts);

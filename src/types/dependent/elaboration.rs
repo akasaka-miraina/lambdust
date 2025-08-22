@@ -9,16 +9,16 @@
 
 use crate::diagnostics::{Error, Result, Span};
 use crate::types::dependent::{
-    DependentType, DependentTerm, UniverseLevel, MatchBranch, Pattern,
+    DependentTerm, DependentType, MatchBranch, Pattern, UniverseLevel,
     constraint_solver::{ConstraintSolver, TypeConstraint, TypeVariable, VariableKind},
-    type_checker::{DependentTypeChecker, TypeCheckingContext},
-    inference_engine::{TypeInferenceEngine, InferenceMode, TypeSchema},
+    inference_engine::{InferenceMode, TypeInferenceEngine, TypeSchema},
     normalization::{NormalizationEngine, NormalizationStrategy},
+    type_checker::{DependentTypeChecker, TypeCheckingContext},
 };
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet, VecDeque, BTreeMap, BTreeSet};
-use std::sync::{Arc, RwLock, Mutex};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Implicit argument kind for different elaboration strategies
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -26,11 +26,20 @@ pub enum ImplicitKind {
     /// Type argument (inferred from context)
     Type,
     /// Instance argument (resolved from type class instances)
-    Instance { class: String },
+    Instance {
+        /// Name of the type class that needs an instance
+        class: String,
+    },
     /// Proof argument (constructed automatically)
-    Proof { proposition: DependentType },
+    Proof {
+        /// The proposition that needs to be proven
+        proposition: DependentType,
+    },
     /// Effect argument (for effect system integration)
-    Effect { effect_type: String },
+    Effect {
+        /// The type of effect being handled
+        effect_type: String,
+    },
     /// Level argument (universe level inference)
     Level,
 }
@@ -38,34 +47,34 @@ pub enum ImplicitKind {
 /// Implicit argument specification
 #[derive(Debug, Clone)]
 pub struct ImplicitArgument {
-    /// Name of the implicit argument
+    /// Name of the implicit argument for identification
     pub name: String,
     /// Type of the implicit argument
     pub arg_type: DependentType,
-    /// Kind of implicit argument
+    /// Kind of implicit argument determining resolution strategy
     pub kind: ImplicitKind,
-    /// Whether it's optional (can be omitted)
+    /// Whether the argument can be omitted if resolution fails
     pub optional: bool,
-    /// Priority for resolution order
+    /// Priority for resolution order (higher numbers resolved first)
     pub priority: i32,
-    /// Source span for error reporting
+    /// Source location for error reporting
     pub span: Span,
 }
 
 /// Type class instance for automatic resolution
 #[derive(Debug, Clone)]
 pub struct TypeClassInstance {
-    /// Instance name
+    /// Unique name for this instance
     pub name: String,
-    /// Type class being implemented
+    /// Name of the type class being implemented
     pub class: String,
-    /// Instance type (what type implements the class)
+    /// The type that implements this type class
     pub instance_type: DependentType,
-    /// Instance implementation (proof term)
+    /// The proof term showing the type implements the class
     pub implementation: DependentTerm,
-    /// Constraints on the instance
+    /// Additional constraints required for this instance
     pub constraints: Vec<TypeConstraint>,
-    /// Priority for instance selection
+    /// Priority for instance selection (higher numbers preferred)
     pub priority: i32,
 }
 
@@ -89,15 +98,15 @@ pub struct ElaborationContext {
 /// Elaboration result with metadata
 #[derive(Debug, Clone)]
 pub struct ElaborationResult {
-    /// Elaborated term with implicit arguments inserted
+    /// The final elaborated term with all implicit arguments inserted
     pub elaborated: DependentTerm,
-    /// Implicit arguments that were inserted
+    /// List of implicit arguments that were inserted (name, term)
     pub implicits_inserted: Vec<(String, DependentTerm)>,
-    /// Type of the elaborated term
+    /// The inferred type of the elaborated term
     pub elaborated_type: DependentType,
-    /// Constraints generated during elaboration
+    /// Additional type constraints generated during elaboration
     pub constraints: Vec<TypeConstraint>,
-    /// Whether elaboration was complete
+    /// Whether elaboration succeeded completely
     pub is_complete: bool,
 }
 
@@ -125,21 +134,32 @@ pub struct ElaborationEngine {
 /// Cache key for elaboration results
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct ElaborationCacheKey {
+    /// The term being elaborated
     term: DependentTerm,
+    /// The expected type (if known)
     expected_type: Option<DependentType>,
+    /// Hash of the elaboration context for cache validity
     context_hash: u64,
 }
 
 /// Statistics for elaboration performance monitoring
 #[derive(Debug, Default)]
 pub struct ElaborationStatistics {
+    /// Number of terms that have been elaborated
     pub terms_elaborated: usize,
+    /// Number of implicit arguments that were inserted
     pub implicits_inserted: usize,
+    /// Number of type class instances that were resolved
     pub instances_resolved: usize,
+    /// Number of proof terms that were automatically constructed
     pub proofs_constructed: usize,
+    /// Number of cache hits during elaboration
     pub cache_hits: usize,
+    /// Number of cache misses during elaboration
     pub cache_misses: usize,
+    /// Number of elaboration operations run in parallel
     pub parallel_elaborations: usize,
+    /// Number of type constraints generated during elaboration
     pub constraint_generations: usize,
 }
 
@@ -270,9 +290,11 @@ impl ElaborationEngine {
             context,
             type_checker: DependentTypeChecker::with_config(parallel, max_depth),
             inference_engine: TypeInferenceEngine::with_config(InferenceMode::Complete, max_depth),
-            normalization_engine: NormalizationEngine::with_strategy(
-                if parallel { NormalizationStrategy::Parallel } else { NormalizationStrategy::WeakHead }
-            ),
+            normalization_engine: NormalizationEngine::with_strategy(if parallel {
+                NormalizationStrategy::Parallel
+            } else {
+                NormalizationStrategy::WeakHead
+            }),
             constraint_solver: ConstraintSolver::with_config(parallel, max_depth * 10),
             cache: Arc::new(RwLock::new(HashMap::new())),
             parallel_enabled: parallel,
@@ -324,12 +346,12 @@ impl ElaborationEngine {
         span: Span,
     ) -> Result<ElaborationResult> {
         match term {
-            DependentTerm::Variable(name) => {
-                self.elaborate_variable(name, expected_type, span)
-            }
-            DependentTerm::Lambda { param, param_type, body } => {
-                self.elaborate_lambda(param, param_type, body, expected_type, span)
-            }
+            DependentTerm::Variable(name) => self.elaborate_variable(name, expected_type, span),
+            DependentTerm::Lambda {
+                param,
+                param_type,
+                body,
+            } => self.elaborate_lambda(param, param_type, body, expected_type, span),
             DependentTerm::Application { function, argument } => {
                 self.elaborate_application(function, argument, expected_type, span)
             }
@@ -339,15 +361,17 @@ impl ElaborationEngine {
             DependentTerm::Projection { pair, is_first } => {
                 self.elaborate_projection(pair, *is_first, expected_type, span)
             }
-            DependentTerm::Constructor { name, args, result_type } => {
-                self.elaborate_constructor(name, args, result_type, expected_type, span)
-            }
-            DependentTerm::Match { scrutinee, return_type, branches } => {
-                self.elaborate_match(scrutinee, return_type, branches, expected_type, span)
-            }
-            DependentTerm::Refl { ty } => {
-                self.elaborate_refl(ty, expected_type, span)
-            }
+            DependentTerm::Constructor {
+                name,
+                args,
+                result_type,
+            } => self.elaborate_constructor(name, args, result_type, expected_type, span),
+            DependentTerm::Match {
+                scrutinee,
+                return_type,
+                branches,
+            } => self.elaborate_match(scrutinee, return_type, branches, expected_type, span),
+            DependentTerm::Refl { ty } => self.elaborate_refl(ty, expected_type, span),
         }
     }
 
@@ -368,10 +392,13 @@ impl ElaborationEngine {
                             InstanceResolution::Resolved(instance) => {
                                 let mut stats = self.stats.lock().unwrap();
                                 stats.instances_resolved += 1;
-                                
+
                                 Ok(ElaborationResult {
                                     elaborated: instance.implementation.clone(),
-                                    implicits_inserted: vec![(name.to_string(), instance.implementation)],
+                                    implicits_inserted: vec![(
+                                        name.to_string(),
+                                        instance.implementation,
+                                    )],
                                     elaborated_type: instance.instance_type,
                                     constraints: instance.constraints,
                                     is_complete: true,
@@ -379,17 +406,18 @@ impl ElaborationEngine {
                             }
                             InstanceResolution::Ambiguous(instances) => {
                                 Err(Box::new(Error::type_error(
-                                    format!("Ambiguous instance resolution for class {} with {} candidates", 
-                                            class, instances.len()),
+                                    format!(
+                                        "Ambiguous instance resolution for class {} with {} candidates",
+                                        class,
+                                        instances.len()
+                                    ),
                                     span,
                                 )))
                             }
-                            InstanceResolution::NotFound => {
-                                Err(Box::new(Error::type_error(
-                                    format!("No instance found for class {}", class),
-                                    span,
-                                )))
-                            }
+                            InstanceResolution::NotFound => Err(Box::new(Error::type_error(
+                                format!("No instance found for class {}", class),
+                                span,
+                            ))),
                             InstanceResolution::Deferred => {
                                 // Generate constraint for later resolution
                                 let fresh_var = TypeVariable {
@@ -397,7 +425,7 @@ impl ElaborationEngine {
                                     name: format!("inst_{}", class),
                                     kind: VariableKind::Term,
                                 };
-                                
+
                                 Ok(ElaborationResult {
                                     elaborated: DependentTerm::Variable(fresh_var.name.clone()),
                                     implicits_inserted: vec![],
@@ -422,7 +450,7 @@ impl ElaborationEngine {
                     if let Some(proof) = self.context.lookup_proof(proposition) {
                         let mut stats = self.stats.lock().unwrap();
                         stats.proofs_constructed += 1;
-                        
+
                         Ok(ElaborationResult {
                             elaborated: proof.clone(),
                             implicits_inserted: vec![(name.to_string(), proof.clone())],
@@ -437,11 +465,10 @@ impl ElaborationEngine {
                 }
                 _ => {
                     // Other implicit kinds - generate constraints
-                    let inferred_type = self.inference_engine.infer_type(
-                        &DependentTerm::Variable(name.to_string()),
-                        span,
-                    )?;
-                    
+                    let inferred_type = self
+                        .inference_engine
+                        .infer_type(&DependentTerm::Variable(name.to_string()), span)?;
+
                     Ok(ElaborationResult {
                         elaborated: DependentTerm::Variable(name.to_string()),
                         implicits_inserted: vec![],
@@ -453,11 +480,10 @@ impl ElaborationEngine {
             }
         } else {
             // Regular variable - infer type
-            let inferred_type = self.inference_engine.infer_type(
-                &DependentTerm::Variable(name.to_string()),
-                span,
-            )?;
-            
+            let inferred_type = self
+                .inference_engine
+                .infer_type(&DependentTerm::Variable(name.to_string()), span)?;
+
             Ok(ElaborationResult {
                 elaborated: DependentTerm::Variable(name.to_string()),
                 implicits_inserted: vec![],
@@ -482,7 +508,12 @@ impl ElaborationEngine {
         let mut implicits_inserted = Vec::new();
 
         // If expected type is Pi type with implicits, insert them
-        if let Some(DependentType::Pi { var, domain, codomain }) = expected_type {
+        if let Some(DependentType::Pi {
+            var,
+            domain,
+            codomain,
+        }) = expected_type
+        {
             // Check for implicit parameters in expected type
             if let Some(implicit_arg) = self.context.lookup_implicit(var) {
                 if implicit_arg.optional {
@@ -493,7 +524,9 @@ impl ElaborationEngine {
         }
 
         // Elaborate body in extended context
-        self.type_checker.get_context_mut().bind_variable(param.to_string(), param_type.clone());
+        self.type_checker
+            .get_context_mut()
+            .bind_variable(param.to_string(), param_type.clone());
         let body_result = self.elaborate_term_internal(body, None, span)?;
         self.type_checker.get_context_mut().unbind_variable(param);
 
@@ -545,22 +578,26 @@ impl ElaborationEngine {
 
         // Check if function type expects implicit arguments
         match &func_result.elaborated_type {
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 // Check if this parameter is implicit
                 if let Some(implicit_arg) = self.context.lookup_implicit(var).cloned() {
                     // Insert implicit argument
                     let implicit_term = self.resolve_implicit(&implicit_arg.kind, domain, span)?;
-                    
+
                     if let Some(implicit) = implicit_term {
                         let mut stats = self.stats.lock().unwrap();
                         stats.implicits_inserted += 1;
-                        
+
                         // Apply implicit argument first, then explicit argument
                         let implicit_app = DependentTerm::Application {
                             function: Box::new(func_result.elaborated),
                             argument: Box::new(implicit.clone()),
                         };
-                        
+
                         let final_app = DependentTerm::Application {
                             function: Box::new(implicit_app),
                             argument: Box::new(arg_result.elaborated),
@@ -689,7 +726,12 @@ impl ElaborationEngine {
             second: Box::new(second_result.elaborated),
         };
 
-        let pair_type = if let Some(DependentType::Sigma { var, first: first_ty, second: second_ty }) = expected_type {
+        let pair_type = if let Some(DependentType::Sigma {
+            var,
+            first: first_ty,
+            second: second_ty,
+        }) = expected_type
+        {
             DependentType::Sigma {
                 var: var.clone(),
                 first: first_ty.clone(),
@@ -842,7 +884,9 @@ impl ElaborationEngine {
         expected_type: Option<&DependentType>,
         span: Span,
     ) -> Result<ElaborationResult> {
-        let refl = DependentTerm::Refl { ty: Box::new(ty.clone()) };
+        let refl = DependentTerm::Refl {
+            ty: Box::new(ty.clone()),
+        };
 
         // Infer type of refl
         let inferred = self.inference_engine.infer_type(&refl, span)?;
@@ -864,13 +908,13 @@ impl ElaborationEngine {
         span: Span,
     ) -> Result<InstanceResolution> {
         let instances = self.context.get_instances(class);
-        
+
         if instances.is_empty() {
             return Ok(InstanceResolution::NotFound);
         }
 
         let mut candidates = Vec::new();
-        
+
         for instance in instances {
             // Check if instance type matches target type
             if self.types_unify(&instance.instance_type, target_type)? {
@@ -880,12 +924,16 @@ impl ElaborationEngine {
 
         match candidates.len() {
             0 => Ok(InstanceResolution::NotFound),
-            1 => Ok(InstanceResolution::Resolved(candidates.into_iter().next().unwrap())),
+            1 => Ok(InstanceResolution::Resolved(
+                candidates.into_iter().next().unwrap(),
+            )),
             _ => {
                 // Sort by priority and check for unique best candidate
                 candidates.sort_by_key(|inst| -inst.priority); // Higher priority first
                 if candidates[0].priority > candidates[1].priority {
-                    Ok(InstanceResolution::Resolved(candidates.into_iter().next().unwrap()))
+                    Ok(InstanceResolution::Resolved(
+                        candidates.into_iter().next().unwrap(),
+                    ))
                 } else {
                     Ok(InstanceResolution::Ambiguous(candidates))
                 }
@@ -913,14 +961,14 @@ impl ElaborationEngine {
                     _ => None,
                 }
             }
-            ImplicitKind::Proof { proposition } => {
-                self.context.lookup_proof(proposition).cloned()
-            }
+            ImplicitKind::Proof { proposition } => self.context.lookup_proof(proposition).cloned(),
             _ => None, // Other kinds not implemented yet
         };
 
         // Cache the result
-        self.context.implicit_cache.insert(cache_key, result.clone());
+        self.context
+            .implicit_cache
+            .insert(cache_key, result.clone());
         Ok(result)
     }
 
@@ -936,13 +984,13 @@ impl ElaborationEngine {
                 // Try to prove equality by normalization
                 let left_normal = self.normalization_engine.normalize_term(left)?;
                 let right_normal = self.normalization_engine.normalize_term(right)?;
-                
+
                 if left_normal.normalized == right_normal.normalized {
                     let refl_proof = DependentTerm::Refl { ty: ty.clone() };
-                    
+
                     let mut stats = self.stats.lock().unwrap();
                     stats.proofs_constructed += 1;
-                    
+
                     Ok(ElaborationResult {
                         elaborated: refl_proof,
                         implicits_inserted: vec![],
@@ -957,12 +1005,13 @@ impl ElaborationEngine {
                     )))
                 }
             }
-            _ => {
-                Err(Box::new(Error::type_error(
-                    format!("Cannot automatically construct proof for: {:?}", proposition),
-                    span,
-                )))
-            }
+            _ => Err(Box::new(Error::type_error(
+                format!(
+                    "Cannot automatically construct proof for: {:?}",
+                    proposition
+                ),
+                span,
+            ))),
         }
     }
 
@@ -985,7 +1034,7 @@ impl ElaborationEngine {
 
     /// Check cache for elaboration result
     fn check_cache(&self, key: &ElaborationCacheKey) -> Option<ElaborationResult> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.try_read().unwrap();
         cache.get(key).cloned()
     }
 
@@ -1025,7 +1074,6 @@ impl Default for ElaborationEngine {
     }
 }
 
-
 impl Clone for ElaborationStatistics {
     fn clone(&self) -> Self {
         Self {
@@ -1062,7 +1110,7 @@ mod tests {
             priority: 0,
             span: Span::new(0, 0),
         };
-        
+
         assert_eq!(implicit_arg.name, "A");
         assert!(implicit_arg.optional);
     }
@@ -1077,7 +1125,7 @@ mod tests {
             constraints: vec![],
             priority: 1,
         };
-        
+
         assert_eq!(instance.class, "Eq");
         assert_eq!(instance.priority, 1);
     }
@@ -1085,7 +1133,7 @@ mod tests {
     #[test]
     fn test_elaboration_context() {
         let mut context = ElaborationContext::new();
-        
+
         let implicit_arg = ImplicitArgument {
             name: "A".to_string(),
             arg_type: DependentType::Universe(0),
@@ -1094,7 +1142,7 @@ mod tests {
             priority: 0,
             span: Span::new(0, 0),
         };
-        
+
         context.add_implicit(implicit_arg);
         assert!(context.lookup_implicit("A").is_some());
         assert!(context.lookup_implicit("B").is_none());

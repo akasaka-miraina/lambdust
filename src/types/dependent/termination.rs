@@ -30,11 +30,11 @@
 //! - **Performance monitoring** for reduction costs
 
 use crate::diagnostics::{Error, Result, Span};
-use crate::types::dependent::{DependentType, DependentTerm, UniverseLevel};
-use std::collections::{HashMap, HashSet, VecDeque, BTreeMap, BTreeSet};
-use std::sync::{Arc, RwLock, Mutex};
+use crate::types::dependent::{DependentTerm, DependentType, UniverseLevel};
 use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt;
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Complexity measure for terms and types.
 ///
@@ -140,6 +140,7 @@ pub struct ConfluenceWitness {
     pub join: Option<DependentTerm>,
     /// Proof that both sequences reduce to join
     pub join_proof1: Option<ReductionSequence>,
+    /// Proof that second sequence reduces to join
     pub join_proof2: Option<ReductionSequence>,
 }
 
@@ -352,7 +353,9 @@ impl ComplexityMeasure {
             DependentTerm::Variable(_) => {
                 self.variables += 1;
             }
-            DependentTerm::Lambda { param_type, body, .. } => {
+            DependentTerm::Lambda {
+                param_type, body, ..
+            } => {
                 self.abstractions += 1;
                 self.compute_type_complexity(param_type, depth + 1);
                 self.compute_term_complexity(body, depth + 1);
@@ -371,13 +374,19 @@ impl ComplexityMeasure {
             DependentTerm::Refl { ty } => {
                 self.compute_type_complexity(ty, depth + 1);
             }
-            DependentTerm::Constructor { args, result_type, .. } => {
+            DependentTerm::Constructor {
+                args, result_type, ..
+            } => {
                 for arg in args {
                     self.compute_term_complexity(arg, depth + 1);
                 }
                 self.compute_type_complexity(result_type, depth + 1);
             }
-            DependentTerm::Match { scrutinee, branches, return_type } => {
+            DependentTerm::Match {
+                scrutinee,
+                branches,
+                return_type,
+            } => {
                 self.compute_term_complexity(scrutinee, depth + 1);
                 for branch in branches {
                     self.compute_term_complexity(&branch.body, depth + 1);
@@ -396,7 +405,9 @@ impl ComplexityMeasure {
             DependentType::Universe(level) => {
                 self.universe_level = self.universe_level.max(*level);
             }
-            DependentType::Pi { domain, codomain, .. } => {
+            DependentType::Pi {
+                domain, codomain, ..
+            } => {
                 self.dependency_depth += 1;
                 self.compute_type_complexity(domain, depth + 1);
                 self.compute_type_complexity(codomain, depth + 1);
@@ -411,7 +422,11 @@ impl ComplexityMeasure {
                 self.compute_term_complexity(left, depth + 1);
                 self.compute_term_complexity(right, depth + 1);
             }
-            DependentType::Inductive { constructors, induction_principle, .. } => {
+            DependentType::Inductive {
+                constructors,
+                induction_principle,
+                ..
+            } => {
                 for (_, ctor_ty) in constructors {
                     self.compute_type_complexity(ctor_ty, depth + 1);
                 }
@@ -428,31 +443,23 @@ impl ComplexityMeasure {
         match self.depth.cmp(&other.depth) {
             Ordering::Less => true,
             Ordering::Greater => false,
-            Ordering::Equal => {
-                match self.size.cmp(&other.size) {
+            Ordering::Equal => match self.size.cmp(&other.size) {
+                Ordering::Less => true,
+                Ordering::Greater => false,
+                Ordering::Equal => match self.variables.cmp(&other.variables) {
                     Ordering::Less => true,
                     Ordering::Greater => false,
-                    Ordering::Equal => {
-                        match self.variables.cmp(&other.variables) {
+                    Ordering::Equal => match self.abstractions.cmp(&other.abstractions) {
+                        Ordering::Less => true,
+                        Ordering::Greater => false,
+                        Ordering::Equal => match self.universe_level.cmp(&other.universe_level) {
                             Ordering::Less => true,
                             Ordering::Greater => false,
-                            Ordering::Equal => {
-                                match self.abstractions.cmp(&other.abstractions) {
-                                    Ordering::Less => true,
-                                    Ordering::Greater => false,
-                                    Ordering::Equal => {
-                                        match self.universe_level.cmp(&other.universe_level) {
-                                            Ordering::Less => true,
-                                            Ordering::Greater => false,
-                                            Ordering::Equal => self.dependency_depth < other.dependency_depth,
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+                            Ordering::Equal => self.dependency_depth < other.dependency_depth,
+                        },
+                    },
+                },
+            },
         }
     }
 
@@ -466,7 +473,12 @@ impl ComplexityMeasure {
         let dep_diff = other.dependency_depth as i64 - self.dependency_depth as i64;
 
         // Weighted sum (larger weights for more important components)
-        1000 * depth_diff + 100 * size_diff + 10 * var_diff + 5 * abs_diff + 3 * univ_diff + dep_diff
+        1000 * depth_diff
+            + 100 * size_diff
+            + 10 * var_diff
+            + 5 * abs_diff
+            + 3 * univ_diff
+            + dep_diff
     }
 }
 
@@ -578,7 +590,7 @@ impl StrongNormalizationChecker {
 
         // Check cache first
         {
-            let cache = self.proof_cache.read().unwrap();
+            let cache = self.proof_cache.try_read().unwrap();
             if let Some(proof) = cache.get(term) {
                 let mut stats = self.stats.lock().unwrap();
                 stats.cache_hits += 1;
@@ -631,7 +643,8 @@ impl StrongNormalizationChecker {
 
         // Method 1: Structural analysis
         if self.config.use_structural_analysis {
-            let structural_confidence = self.structural_termination_analysis(term, &mut evidence)?;
+            let structural_confidence =
+                self.structural_termination_analysis(term, &mut evidence)?;
             if structural_confidence > 0.0 {
                 methods_used.push(TerminationMethod::StructuralInduction);
                 confidence = confidence.max(structural_confidence);
@@ -669,18 +682,24 @@ impl StrongNormalizationChecker {
     }
 
     /// Structural termination analysis based on term size.
-    fn structural_termination_analysis(&self, term: &DependentTerm, evidence: &mut TerminationEvidence) -> Result<f64> {
+    fn structural_termination_analysis(
+        &self,
+        term: &DependentTerm,
+        evidence: &mut TerminationEvidence,
+    ) -> Result<f64> {
         // Analyze if all recursive subterms are structurally smaller
         let mut confidence: f64 = 0.8; // Base confidence for structural analysis
-        
+
         match term {
             DependentTerm::Lambda { body, .. } => {
                 let body_complexity = self.get_complexity_measure(body);
                 let term_complexity = self.get_complexity_measure(term);
-                
+
                 if body_complexity.is_smaller_than(&term_complexity) {
                     confidence *= 1.1; // Boost confidence
-                    evidence.complexity_decreases.push(body_complexity.decrease_amount(&term_complexity));
+                    evidence
+                        .complexity_decreases
+                        .push(body_complexity.decrease_amount(&term_complexity));
                 } else {
                     confidence *= 0.8; // Reduce confidence
                 }
@@ -689,31 +708,44 @@ impl StrongNormalizationChecker {
                 let func_complexity = self.get_complexity_measure(function);
                 let arg_complexity = self.get_complexity_measure(argument);
                 let term_complexity = self.get_complexity_measure(term);
-                
-                if func_complexity.is_smaller_than(&term_complexity) && 
-                   arg_complexity.is_smaller_than(&term_complexity) {
+
+                if func_complexity.is_smaller_than(&term_complexity)
+                    && arg_complexity.is_smaller_than(&term_complexity)
+                {
                     confidence *= 1.2;
-                    evidence.complexity_decreases.push(func_complexity.decrease_amount(&term_complexity));
-                    evidence.complexity_decreases.push(arg_complexity.decrease_amount(&term_complexity));
+                    evidence
+                        .complexity_decreases
+                        .push(func_complexity.decrease_amount(&term_complexity));
+                    evidence
+                        .complexity_decreases
+                        .push(arg_complexity.decrease_amount(&term_complexity));
                 } else {
                     confidence *= 0.7;
                 }
             }
-            DependentTerm::Match { scrutinee, branches, .. } => {
+            DependentTerm::Match {
+                scrutinee,
+                branches,
+                ..
+            } => {
                 let scrutinee_complexity = self.get_complexity_measure(scrutinee);
                 let term_complexity = self.get_complexity_measure(term);
-                
+
                 if scrutinee_complexity.is_smaller_than(&term_complexity) {
                     confidence *= 1.1;
-                    evidence.complexity_decreases.push(scrutinee_complexity.decrease_amount(&term_complexity));
-                    
+                    evidence
+                        .complexity_decreases
+                        .push(scrutinee_complexity.decrease_amount(&term_complexity));
+
                     // Check branch complexities
                     for branch in branches {
                         let branch_complexity = self.get_complexity_measure(&branch.body);
                         if !branch_complexity.is_smaller_than(&term_complexity) {
                             confidence *= 0.9;
                         } else {
-                            evidence.complexity_decreases.push(branch_complexity.decrease_amount(&term_complexity));
+                            evidence
+                                .complexity_decreases
+                                .push(branch_complexity.decrease_amount(&term_complexity));
                         }
                     }
                 } else {
@@ -730,50 +762,64 @@ impl StrongNormalizationChecker {
     }
 
     /// Type-based termination analysis using type information.
-    fn type_based_termination_analysis(&self, _term: &DependentTerm, evidence: &mut TerminationEvidence) -> Result<f64> {
+    fn type_based_termination_analysis(
+        &self,
+        _term: &DependentTerm,
+        evidence: &mut TerminationEvidence,
+    ) -> Result<f64> {
         // For dependent types, we can often prove termination using type constraints
         let mut confidence: f64 = 0.7; // Base confidence for type-based analysis
-        
+
         // Add type-level constraints that ensure termination
-        evidence.type_constraints.push("Well-typed terms have finite reduction sequences".to_string());
-        evidence.type_constraints.push("Dependent elimination respects positivity conditions".to_string());
-        evidence.type_constraints.push("Inductive types have well-founded recursion principles".to_string());
-        
+        evidence
+            .type_constraints
+            .push("Well-typed terms have finite reduction sequences".to_string());
+        evidence
+            .type_constraints
+            .push("Dependent elimination respects positivity conditions".to_string());
+        evidence
+            .type_constraints
+            .push("Inductive types have well-founded recursion principles".to_string());
+
         // In a full implementation, we would analyze:
         // 1. Positivity conditions for inductive types
         // 2. Guardedness conditions for recursive definitions
         // 3. Termination metrics based on type structure
         // 4. Lexicographic orderings on dependent pairs
-        
+
         confidence *= 1.1; // Type-based analysis is generally reliable for well-typed terms
-        
+
         Ok(confidence.min(1.0))
     }
 
     /// Empirical termination testing through sample reductions.
-    fn empirical_termination_testing(&self, term: &DependentTerm, evidence: &mut TerminationEvidence) -> Result<f64> {
+    fn empirical_termination_testing(
+        &self,
+        term: &DependentTerm,
+        evidence: &mut TerminationEvidence,
+    ) -> Result<f64> {
         let mut successful_tests = 0;
         let mut max_length = 0;
-        
+
         for _ in 0..self.config.test_paths {
             let sequence_length = self.test_reduction_sequence(term)?;
             evidence.test_reductions += 1;
-            
+
             if sequence_length < self.config.max_test_length {
                 successful_tests += 1;
                 max_length = max_length.max(sequence_length);
             }
         }
-        
+
         evidence.max_sequence_length = max_length;
-        
+
         let success_rate = successful_tests as f64 / self.config.test_paths as f64;
         let length_penalty = if max_length > self.config.max_test_length / 2 {
             0.8 // Penalize very long sequences
         } else {
             1.0
         };
-        
+
         Ok(success_rate * length_penalty)
     }
 
@@ -788,19 +834,19 @@ impl StrongNormalizationChecker {
     /// Get complexity measure for a term (cached).
     fn get_complexity_measure(&self, term: &DependentTerm) -> ComplexityMeasure {
         {
-            let cache = self.complexity_cache.read().unwrap();
+            let cache = self.complexity_cache.try_read().unwrap();
             if let Some(measure) = cache.get(term) {
                 return measure.clone();
             }
         }
-        
+
         let measure = ComplexityMeasure::for_term(term);
-        
+
         {
             let mut cache = self.complexity_cache.write().unwrap();
             cache.insert(term.clone(), measure.clone());
         }
-        
+
         measure
     }
 
@@ -851,7 +897,7 @@ impl ChurchRosserChecker {
 
         // Check cache first
         {
-            let cache = self.confluence_cache.read().unwrap();
+            let cache = self.confluence_cache.try_read().unwrap();
             if let Some(&result) = cache.get(term) {
                 return Ok(result);
             }
@@ -902,7 +948,7 @@ impl ChurchRosserChecker {
 
         // Method 3: Diamond property testing
         let diamond_ok = self.test_diamond_property(term)?;
-        
+
         Ok(diamond_ok)
     }
 
@@ -913,13 +959,13 @@ impl ChurchRosserChecker {
         // 2. Generate critical pairs
         // 3. Check if each critical pair is joinable
         // 4. Return false if any critical pair is not joinable
-        
+
         {
             let mut stats = self.stats.lock().unwrap();
             stats.critical_pairs_analyzed += 10; // Simulated
             stats.joinable_pairs += 9; // Most are joinable
         }
-        
+
         Ok(true) // Simplified: assume critical pairs are joinable
     }
 
@@ -928,14 +974,14 @@ impl ChurchRosserChecker {
         // Parallel reduction is a powerful technique for proving confluence
         // If we can show that parallel reduction has the diamond property,
         // then single-step reduction is confluent
-        
+
         Ok(true) // Simplified: assume parallel reduction has diamond property
     }
 
     /// Test diamond property through sampling.
     fn test_diamond_property(&self, _term: &DependentTerm) -> Result<bool> {
         let mut successful_tests = 0;
-        
+
         for _ in 0..self.config.test_cases {
             // Generate a diverging reduction from the term
             // Check if the two paths can be joined
@@ -944,7 +990,7 @@ impl ChurchRosserChecker {
                 successful_tests += 1;
             }
         }
-        
+
         let success_rate = successful_tests as f64 / self.config.test_cases as f64;
         Ok(success_rate > 0.95) // Require 95% success rate
     }
@@ -958,20 +1004,23 @@ impl ChurchRosserChecker {
     /// Find critical pairs in the reduction system.
     pub fn find_critical_pairs(&self, term: &DependentTerm) -> Result<Vec<CriticalPair>> {
         let mut pairs = Vec::new();
-        
+
         // In a full implementation, this would systematically find
         // all possible overlapping reductions
-        
+
         // For now, return empty (no critical pairs found)
         Ok(pairs)
     }
 
     /// Generate confluence witness for a term.
-    pub fn generate_confluence_witness(&self, term: &DependentTerm) -> Result<Option<ConfluenceWitness>> {
+    pub fn generate_confluence_witness(
+        &self,
+        term: &DependentTerm,
+    ) -> Result<Option<ConfluenceWitness>> {
         // Try to find two different reduction sequences and their join
         let sequence1 = self.generate_reduction_sequence(term, 0)?;
         let sequence2 = self.generate_reduction_sequence(term, 1)?;
-        
+
         if sequence1.end == sequence2.end {
             // Already join at the same point
             let join_term = sequence1.end.clone();
@@ -986,11 +1035,11 @@ impl ChurchRosserChecker {
         } else {
             // Try to find a join point
             let join_point = self.find_join_point(&sequence1.end, &sequence2.end)?;
-            
+
             if let Some(join) = join_point {
                 let join_proof1 = self.generate_reduction_sequence(&sequence1.end, 0)?;
                 let join_proof2 = self.generate_reduction_sequence(&sequence2.end, 0)?;
-                
+
                 Ok(Some(ConfluenceWitness {
                     source: term.clone(),
                     sequence1,
@@ -1006,7 +1055,11 @@ impl ChurchRosserChecker {
     }
 
     /// Generate a reduction sequence using a specific strategy.
-    fn generate_reduction_sequence(&self, term: &DependentTerm, strategy: u32) -> Result<ReductionSequence> {
+    fn generate_reduction_sequence(
+        &self,
+        term: &DependentTerm,
+        strategy: u32,
+    ) -> Result<ReductionSequence> {
         // Simplified reduction sequence generation
         Ok(ReductionSequence {
             start: term.clone(),
@@ -1018,12 +1071,16 @@ impl ChurchRosserChecker {
     }
 
     /// Find a join point for two terms.
-    fn find_join_point(&self, term1: &DependentTerm, term2: &DependentTerm) -> Result<Option<DependentTerm>> {
+    fn find_join_point(
+        &self,
+        term1: &DependentTerm,
+        term2: &DependentTerm,
+    ) -> Result<Option<DependentTerm>> {
         // If terms are equal, they are their own join
         if term1 == term2 {
             return Ok(Some(term1.clone()));
         }
-        
+
         // Try to reduce both terms and find a common descendant
         // This is a simplified heuristic
         Ok(None)
@@ -1081,17 +1138,17 @@ impl TerminationConfluenceSystem {
     /// Check if a term has both strong normalization and confluence.
     pub fn is_well_behaved(&self, term: &DependentTerm) -> Result<(bool, bool)> {
         let start_time = std::time::Instant::now();
-        
+
         let strongly_normalizing = self.normalization_checker.is_strongly_normalizing(term)?;
         let confluent = self.confluence_checker.is_confluent(term)?;
-        
+
         let elapsed = start_time.elapsed();
-        
+
         // Update combined statistics
         {
             let mut stats = self.combined_stats.lock().unwrap();
             stats.total_analysis_time_ms += elapsed.as_millis() as u64;
-            
+
             match (strongly_normalizing, confluent) {
                 (true, true) => stats.well_behaved_terms += 1,
                 (true, false) => stats.terminating_only += 1,
@@ -1099,22 +1156,24 @@ impl TerminationConfluenceSystem {
                 (false, false) => stats.problematic_terms += 1,
             }
         }
-        
+
         Ok((strongly_normalizing, confluent))
     }
 
     /// Generate a comprehensive analysis report.
     pub fn analyze_term(&self, term: &DependentTerm) -> Result<TerminationConfluenceReport> {
         let start_time = std::time::Instant::now();
-        
-        let termination_proof = self.normalization_checker.generate_proof_certificate(term)?;
+
+        let termination_proof = self
+            .normalization_checker
+            .generate_proof_certificate(term)?;
         let confluence_witness = self.confluence_checker.generate_confluence_witness(term)?;
-        
+
         let is_strongly_normalizing = termination_proof.confidence >= 0.9;
         let is_confluent = confluence_witness.is_some();
-        
+
         let elapsed = start_time.elapsed();
-        
+
         Ok(TerminationConfluenceReport {
             term: term.clone(),
             is_strongly_normalizing,
@@ -1129,29 +1188,35 @@ impl TerminationConfluenceSystem {
     /// Generate recommendations based on analysis results.
     fn generate_recommendations(&self, strongly_normalizing: bool, confluent: bool) -> Vec<String> {
         let mut recommendations = Vec::new();
-        
+
         match (strongly_normalizing, confluent) {
             (true, true) => {
-                recommendations.push("Term is well-behaved: strongly normalizing and confluent".to_string());
+                recommendations
+                    .push("Term is well-behaved: strongly normalizing and confluent".to_string());
                 recommendations.push("Safe to use in dependent type checking".to_string());
             }
             (true, false) => {
-                recommendations.push("Term is strongly normalizing but confluence is not proven".to_string());
-                recommendations.push("Consider checking for overlapping reduction rules".to_string());
+                recommendations
+                    .push("Term is strongly normalizing but confluence is not proven".to_string());
+                recommendations
+                    .push("Consider checking for overlapping reduction rules".to_string());
                 recommendations.push("May need to restrict reduction strategy".to_string());
             }
             (false, true) => {
-                recommendations.push("Term is confluent but strong normalization is not proven".to_string());
+                recommendations
+                    .push("Term is confluent but strong normalization is not proven".to_string());
                 recommendations.push("Consider adding termination measures".to_string());
                 recommendations.push("Use with caution in type checking".to_string());
             }
             (false, false) => {
-                recommendations.push("Term has neither property proven - use with extreme caution".to_string());
+                recommendations.push(
+                    "Term has neither property proven - use with extreme caution".to_string(),
+                );
                 recommendations.push("Consider restructuring the term".to_string());
                 recommendations.push("May cause infinite loops in type checking".to_string());
             }
         }
-        
+
         recommendations
     }
 
@@ -1211,16 +1276,26 @@ impl Default for TerminationConfluenceSystem {
 
 impl fmt::Display for ComplexityMeasure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "⟨{}, {}, {}, {}, {}, {}⟩", 
-               self.depth, self.size, self.variables, 
-               self.abstractions, self.universe_level, self.dependency_depth)
+        write!(
+            f,
+            "⟨{}, {}, {}, {}, {}, {}⟩",
+            self.depth,
+            self.size,
+            self.variables,
+            self.abstractions,
+            self.universe_level,
+            self.dependency_depth
+        )
     }
 }
 
 impl fmt::Display for TerminationProof {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Termination proof: {} confidence with {}", 
-               self.confidence, self.method)
+        write!(
+            f,
+            "Termination proof: {} confidence with {}",
+            self.confidence, self.method
+        )
     }
 }
 
@@ -1232,8 +1307,15 @@ impl fmt::Display for TerminationMethod {
             TerminationMethod::TypeBased => write!(f, "type-based argument"),
             TerminationMethod::WellFoundedRelation => write!(f, "well-founded relation"),
             TerminationMethod::Combined(methods) => {
-                write!(f, "combined({})", 
-                       methods.iter().map(|m| format!("{}", m)).collect::<Vec<_>>().join(", "))
+                write!(
+                    f,
+                    "combined({})",
+                    methods
+                        .iter()
+                        .map(|m| format!("{}", m))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
         }
     }
@@ -1247,7 +1329,7 @@ mod tests {
     fn test_complexity_measure_basic() {
         let term = DependentTerm::Variable("x".to_string());
         let measure = ComplexityMeasure::for_term(&term);
-        
+
         assert_eq!(measure.depth, 0);
         assert_eq!(measure.size, 1);
         assert_eq!(measure.variables, 1);
@@ -1261,7 +1343,7 @@ mod tests {
             param_type: Box::new(DependentType::Universe(0)),
             body: Box::new(DependentTerm::Variable("x".to_string())),
         };
-        
+
         let measure = ComplexityMeasure::for_term(&lambda);
         assert!(measure.depth > 0);
         assert!(measure.size > 1);
@@ -1276,10 +1358,10 @@ mod tests {
             param_type: Box::new(DependentType::Universe(0)),
             body: Box::new(DependentTerm::Variable("x".to_string())),
         };
-        
+
         let simple_measure = ComplexityMeasure::for_term(&simple);
         let complex_measure = ComplexityMeasure::for_term(&complex);
-        
+
         assert!(simple_measure.is_smaller_than(&complex_measure));
         assert!(!complex_measure.is_smaller_than(&simple_measure));
     }
@@ -1288,7 +1370,7 @@ mod tests {
     fn test_strong_normalization_checker() {
         let checker = StrongNormalizationChecker::new();
         let term = DependentTerm::Variable("x".to_string());
-        
+
         let result = checker.is_strongly_normalizing(&term).unwrap();
         // Variables are trivially strongly normalizing
         assert!(result);
@@ -1298,7 +1380,7 @@ mod tests {
     fn test_church_rosser_checker() {
         let checker = ChurchRosserChecker::new();
         let term = DependentTerm::Variable("x".to_string());
-        
+
         let result = checker.is_confluent(&term).unwrap();
         // Variables have trivial confluence
         assert!(result);
@@ -1308,7 +1390,7 @@ mod tests {
     fn test_combined_system() {
         let system = TerminationConfluenceSystem::new();
         let term = DependentTerm::Variable("x".to_string());
-        
+
         let (normalizing, confluent) = system.is_well_behaved(&term).unwrap();
         assert!(normalizing);
         assert!(confluent);
@@ -1318,7 +1400,7 @@ mod tests {
     fn test_termination_config() {
         let fast_config = TerminationConfig::fast();
         assert!(fast_config.max_test_length < TerminationConfig::default().max_test_length);
-        
+
         let thorough_config = TerminationConfig::thorough();
         assert!(thorough_config.max_test_length > TerminationConfig::default().max_test_length);
     }
@@ -1327,7 +1409,7 @@ mod tests {
     fn test_confluence_config() {
         let fast_config = ConfluenceConfig::fast();
         assert!(fast_config.max_search_depth < ConfluenceConfig::default().max_search_depth);
-        
+
         let thorough_config = ConfluenceConfig::thorough();
         assert!(thorough_config.max_search_depth > ConfluenceConfig::default().max_search_depth);
     }

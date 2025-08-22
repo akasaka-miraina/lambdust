@@ -2,92 +2,82 @@
 //!
 //! This module provides a scientifically rigorous benchmarking system including:
 //! - Cross-implementation performance comparison (Lambdust vs major Scheme implementations)
-//! - Statistical analysis with confidence intervals and hypothesis testing  
+//! - Statistical analysis with confidence intervals and hypothesis testing
 //! - Performance regression detection with trend analysis
 //! - Memory usage analysis and garbage collection profiling
 //! - Actionable optimization recommendations
 //! - Automated result collection and reporting
 
-pub mod scheme_comparison;
-pub mod performance_analysis;
-pub mod scheme_benchmark_suite;
-pub mod comprehensive_benchmark_suite;
-pub mod environment_optimization;
-pub mod effect_analysis;
-pub mod outlier_normality;
-pub mod performance_measurement;
 pub mod analysis_support;
-pub mod external_integration;
 pub mod benchmark_config;
-pub mod system_metadata;
-pub mod results_measurements;
-pub mod statistical_analysis_results;
-pub mod regression_optimization;
+pub mod comprehensive_benchmark_suite;
+pub mod effect_analysis;
+pub mod environment_optimization;
 pub mod execution_management;
+pub mod external_integration;
+pub mod outlier_normality;
+pub mod performance_analysis;
+pub mod performance_measurement;
+pub mod regression_optimization;
+pub mod results_measurements;
+pub mod scheme_benchmark_suite;
+pub mod scheme_comparison;
+pub mod statistical_analysis_results;
+pub mod system_metadata;
 
 pub use performance_analysis::{
-    PerformanceAnalyzer, PerformanceAnalysis, AnalysisConfig,
-    AnalysisCategory, CategoryAnalysis, PerformanceBottleneck,
-    HotPath, MemoryAnalysis, OptimizationRecommendation,
-    BaselineComparison, BaselineMetrics,
+    AnalysisCategory, AnalysisConfig, BaselineComparison, BaselineMetrics, CategoryAnalysis,
+    HotPath, MemoryAnalysis, OptimizationRecommendation, PerformanceAnalysis, PerformanceAnalyzer,
+    PerformanceBottleneck,
 };
 
-
-pub use scheme_benchmark_suite::{
-    SchemeBenchmarkSuite, SchemeBenchmark, SchemeBenchmarkResult,
-};
+pub use scheme_benchmark_suite::{SchemeBenchmark, SchemeBenchmarkResult, SchemeBenchmarkSuite};
 
 // New comprehensive benchmarking system
 pub use comprehensive_benchmark_suite::{
-    ComprehensiveBenchmarkSuite, BenchmarkSuiteResult,
-    run_comprehensive_benchmarks, load_benchmark_config, save_benchmark_config,
+    BenchmarkSuiteResult, ComprehensiveBenchmarkSuite, load_benchmark_config,
+    run_comprehensive_benchmarks, save_benchmark_config,
 };
 
 pub use environment_optimization::{
     BenchmarkConfig as EnvBenchmarkConfig, BenchmarkResults as EnvBenchmarkResults,
-    run_comprehensive_benchmark as run_env_benchmark, verify_correctness as verify_env_correctness,
+    run_comprehensive_benchmark as run_env_benchmark,
     run_performance_tests as run_env_performance_tests,
+    verify_correctness as verify_env_correctness,
 };
 
 pub use benchmark_config::{
-    BenchmarkSuiteConfig, ImplementationConfig, RuntimeConfig, TestCategory, 
-    TestCase, TestParameter, ParameterValue, ScalingBehavior, ResultType,
-    TestResourceLimits, PerformanceHints, StatisticalConfig, OutlierDetection,
-    OutputConfig, OutputFormat, ChartType, ResourceConfig, SystemResourceLimits,
+    BenchmarkSuiteConfig, ChartType, ImplementationConfig, OutlierDetection, OutputConfig,
+    OutputFormat, ParameterValue, PerformanceHints, ResourceConfig, ResultType, RuntimeConfig,
+    ScalingBehavior, StatisticalConfig, SystemResourceLimits, TestCase, TestCategory,
+    TestParameter, TestResourceLimits,
 };
 
-
-
 pub use external_integration::{
-    ExternalReporting, GitHubConfig, DashboardConfig, NotificationConfig,
+    DashboardConfig, ExternalReporting, GitHubConfig, NotificationConfig,
 };
 
 pub use system_metadata::{
-    BenchmarkMetadata, SystemInfo, TestFailure, FailureReason, ResourceStats,
-    CPUStats, MemoryStats, DiskIOStats, NetworkIOStats, BenchmarkResult,
+    BenchmarkMetadata, BenchmarkResult, CPUStats, DiskIOStats, FailureReason, MemoryStats,
+    NetworkIOStats, ResourceStats, SystemInfo, TestFailure,
 };
 
 pub use results_measurements::{
-    ImplementationResult, CategoryResult, TestResult, TimingMeasurements,
-    MemoryMeasurements, ConfidenceInterval as TimingConfidenceInterval, 
-    ValidationResult, CategoryStatistics,
+    CategoryResult, CategoryStatistics, ConfidenceInterval as TimingConfidenceInterval,
+    ImplementationResult, MemoryMeasurements, TestResult, TimingMeasurements, ValidationResult,
 };
 
 pub use statistical_analysis_results::{
-    ImplementationComparison, StatisticalSignificance, CategoryComparison,
-    StatisticalSummary, PerformanceRanking, DistributionStats, DistributionShape,
-    CorrelationAnalysis,
+    CategoryComparison, CorrelationAnalysis, DistributionShape, DistributionStats,
+    ImplementationComparison, PerformanceRanking, StatisticalSignificance, StatisticalSummary,
 };
 
 pub use regression_optimization::{
-    RegressionAnalysis as BenchmarkRegressionAnalysis, 
-    PerformanceRegression as BenchmarkPerformanceRegression, 
+    OptimizationRecommendation as BenchmarkOptimizationRecommendation, PerformanceForecast,
     PerformanceImprovement as BenchmarkPerformanceImprovement,
-    RegressionSeverity, TrendAnalysis as BenchmarkTrendAnalysis, 
-    TrendDirection, PerformanceForecast, 
-    OptimizationRecommendation as BenchmarkOptimizationRecommendation,
+    PerformanceRegression as BenchmarkPerformanceRegression,
+    RegressionAnalysis as BenchmarkRegressionAnalysis, RegressionSeverity,
+    TrendAnalysis as BenchmarkTrendAnalysis, TrendDirection,
 };
 
-pub use execution_management::{
-    SystemResourceUsage, ResourceSnapshot, ResourceEfficiency,
-};
+pub use execution_management::{ResourceEfficiency, ResourceSnapshot, SystemResourceUsage};

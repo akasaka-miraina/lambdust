@@ -52,7 +52,7 @@ impl MemoryPressureMonitor {
     pub fn new() -> Self {
         let mut warning_thresholds = HashMap::new();
         warning_thresholds.insert(MemoryPressureLevel::Medium, 1024 * 1024 * 100); // 100MB
-        warning_thresholds.insert(MemoryPressureLevel::High, 1024 * 1024 * 500);   // 500MB
+        warning_thresholds.insert(MemoryPressureLevel::High, 1024 * 1024 * 500); // 500MB
         warning_thresholds.insert(MemoryPressureLevel::Critical, 1024 * 1024 * 1000); // 1GB
 
         Self {
@@ -74,7 +74,7 @@ impl MemoryPressureMonitor {
     /// Updates the pressure level based on current usage.
     pub fn update_pressure(&mut self, current_usage: usize) -> MemoryPressureLevel {
         let new_level = self.calculate_pressure_level(current_usage);
-        
+
         if new_level != self.pressure_level {
             // Record pressure change
             let point = MemoryPressurePoint {
@@ -82,39 +82,41 @@ impl MemoryPressureMonitor {
                 level: new_level,
                 usage: current_usage,
             };
-            
+
             // Keep history bounded
             if self.pressure_history.len() >= 1000 {
                 self.pressure_history.pop_front();
             }
             self.pressure_history.push_back(point);
-            
+
             self.pressure_level = new_level;
         }
-        
+
         new_level
     }
 
     /// Calculates pressure level based on current usage.
     pub fn calculate_pressure_level(&self, usage: usize) -> MemoryPressureLevel {
-        if let Some(&critical_threshold) = self.warning_thresholds.get(&MemoryPressureLevel::Critical) {
+        if let Some(&critical_threshold) =
+            self.warning_thresholds.get(&MemoryPressureLevel::Critical)
+        {
             if usage >= critical_threshold {
                 return MemoryPressureLevel::Critical;
             }
         }
-        
+
         if let Some(&high_threshold) = self.warning_thresholds.get(&MemoryPressureLevel::High) {
             if usage >= high_threshold {
                 return MemoryPressureLevel::High;
             }
         }
-        
+
         if let Some(&medium_threshold) = self.warning_thresholds.get(&MemoryPressureLevel::Medium) {
             if usage >= medium_threshold {
                 return MemoryPressureLevel::Medium;
             }
         }
-        
+
         MemoryPressureLevel::Low
     }
 
@@ -149,10 +151,15 @@ impl MemoryPressureMonitor {
     }
 
     /// Checks if pressure has been consistently high.
-    pub fn is_pressure_sustained(&self, level: MemoryPressureLevel, duration: std::time::Duration) -> bool {
+    pub fn is_pressure_sustained(
+        &self,
+        level: MemoryPressureLevel,
+        duration: std::time::Duration,
+    ) -> bool {
         let threshold_time = Instant::now() - duration;
-        
-        self.pressure_history.iter()
+
+        self.pressure_history
+            .iter()
             .filter(|p| p.timestamp >= threshold_time)
             .all(|p| p.level >= level)
     }
@@ -173,10 +180,10 @@ impl MemoryPressureMonitor {
         }
 
         let mut total_usage = 0;
-        
+
         for point in &self.pressure_history {
             total_usage += point.usage;
-            
+
             match point.level {
                 MemoryPressureLevel::Low => stats.low_count += 1,
                 MemoryPressureLevel::Medium => stats.medium_count += 1,
@@ -184,7 +191,7 @@ impl MemoryPressureMonitor {
                 MemoryPressureLevel::Critical => stats.critical_count += 1,
             }
         }
-        
+
         stats.average_usage = total_usage as f64 / stats.total_points as f64;
         stats
     }
@@ -230,7 +237,10 @@ impl MemoryPressureLevel {
 
     /// Checks if this level indicates memory stress.
     pub fn is_stressed(&self) -> bool {
-        matches!(self, MemoryPressureLevel::High | MemoryPressureLevel::Critical)
+        matches!(
+            self,
+            MemoryPressureLevel::High | MemoryPressureLevel::Critical
+        )
     }
 
     /// Checks if this level requires immediate action.
@@ -296,12 +306,24 @@ impl PressureStatistics {
 
         let total = self.total_points as f64;
         let mut percentages = HashMap::new();
-        
-        percentages.insert(MemoryPressureLevel::Low, self.low_count as f64 / total * 100.0);
-        percentages.insert(MemoryPressureLevel::Medium, self.medium_count as f64 / total * 100.0);
-        percentages.insert(MemoryPressureLevel::High, self.high_count as f64 / total * 100.0);
-        percentages.insert(MemoryPressureLevel::Critical, self.critical_count as f64 / total * 100.0);
-        
+
+        percentages.insert(
+            MemoryPressureLevel::Low,
+            self.low_count as f64 / total * 100.0,
+        );
+        percentages.insert(
+            MemoryPressureLevel::Medium,
+            self.medium_count as f64 / total * 100.0,
+        );
+        percentages.insert(
+            MemoryPressureLevel::High,
+            self.high_count as f64 / total * 100.0,
+        );
+        percentages.insert(
+            MemoryPressureLevel::Critical,
+            self.critical_count as f64 / total * 100.0,
+        );
+
         percentages
     }
 

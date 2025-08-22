@@ -7,9 +7,9 @@
 //! - Comprehensive error reporting for missing libraries
 
 use crate::diagnostics::{Error, Result};
-use std::path::{Path, PathBuf};
 use std::env;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Centralized library path resolver for all Lambdust components.
 #[derive(Debug, Clone)]
@@ -59,13 +59,14 @@ impl LibraryPathResolver {
     pub fn with_config(config: LibraryPathConfig) -> Result<Self> {
         let mut resolver = Self {
             primary_lib_dir: None,
-            search_paths: Vec::new(), 
+            search_paths: Vec::new(),
             include_dev_paths: config.include_dev_paths,
             path_cache: std::collections::HashMap::new(),
         };
 
         // Determine primary library directory
-        resolver.primary_lib_dir = resolver.determine_primary_lib_dir(config.lib_dir_override.as_deref())?;
+        resolver.primary_lib_dir =
+            resolver.determine_primary_lib_dir(config.lib_dir_override.as_deref())?;
 
         // Build search paths in priority order
         resolver.build_search_paths(&config.additional_paths);
@@ -110,7 +111,7 @@ impl LibraryPathResolver {
     }
 
     /// Resolves the full path to a specific library file.
-    pub fn resolve_library_file(&self, subdir: &str, filename: &str) -> Result<PathBuf> {        
+    pub fn resolve_library_file(&self, subdir: &str, filename: &str) -> Result<PathBuf> {
         // Check primary library directory first
         if let Some(primary) = &self.primary_lib_dir {
             let file_path = primary.join(subdir).join(filename);
@@ -137,7 +138,7 @@ impl LibraryPathResolver {
     /// Finds all available library files in a subdirectory.
     pub fn find_library_files(&self, subdir: &str, extension: &str) -> Vec<PathBuf> {
         let mut files = Vec::new();
-        
+
         // Search in primary library directory
         if let Some(primary) = &self.primary_lib_dir {
             let dir_path = primary.join(subdir);
@@ -161,7 +162,10 @@ impl LibraryPathResolver {
                         if filename.ends_with(extension) {
                             let entry_path = entry.path();
                             // Avoid duplicates by checking if we already have this filename
-                            if !files.iter().any(|f| f.file_name() == entry_path.file_name()) {
+                            if !files
+                                .iter()
+                                .any(|f| f.file_name() == entry_path.file_name())
+                            {
                                 files.push(entry_path);
                             }
                         }
@@ -209,7 +213,9 @@ impl LibraryPathResolver {
         // Count library files in each subdirectory
         for &subdir in &critical_subdirs {
             let files = self.find_library_files(subdir, ".scm");
-            report.found_library_files.insert(subdir.to_string(), files.len());
+            report
+                .found_library_files
+                .insert(subdir.to_string(), files.len());
         }
 
         // Generate recommendations
@@ -301,7 +307,7 @@ impl LibraryPathResolver {
                         self.search_paths.push(lib_path);
                     }
                 }
-                
+
                 // Check ./stdlib (binary next to stdlib)
                 let exe_stdlib = exe_dir.join("stdlib");
                 if exe_stdlib.exists() && exe_stdlib.is_dir() {
@@ -318,7 +324,7 @@ impl LibraryPathResolver {
                 "/usr/share/lambdust",
                 "/opt/lambdust/lib",
             ];
-            
+
             for &path_str in &system_paths {
                 let path = PathBuf::from(path_str);
                 if path.exists() && path.is_dir() {
@@ -343,7 +349,7 @@ impl LibraryPathResolver {
     fn add_development_paths(&mut self) {
         // Current directory stdlib (development scenario)
         if let Ok(current_dir) = env::current_dir() {
-            let dev_stdlib = current_dir.join("stdlib"); 
+            let dev_stdlib = current_dir.join("stdlib");
             if dev_stdlib.exists() && dev_stdlib.is_dir() {
                 self.search_paths.push(dev_stdlib);
             }
@@ -383,27 +389,39 @@ impl LibraryValidationReport {
     /// Gets a summary of the validation results.
     pub fn summary(&self) -> String {
         let mut summary = String::new();
-        
+
         summary.push_str("Library validation summary:\n");
-        summary.push_str(&format!("• Primary lib dir valid: {}\n", self.primary_lib_dir_valid));
-        summary.push_str(&format!("• Valid search paths found: {}\n", self.found_search_paths.len()));
-        summary.push_str(&format!("• Missing critical subdirs: {}\n", self.missing_critical_subdirs.len()));
-        
+        summary.push_str(&format!(
+            "• Primary lib dir valid: {}\n",
+            self.primary_lib_dir_valid
+        ));
+        summary.push_str(&format!(
+            "• Valid search paths found: {}\n",
+            self.found_search_paths.len()
+        ));
+        summary.push_str(&format!(
+            "• Missing critical subdirs: {}\n",
+            self.missing_critical_subdirs.len()
+        ));
+
         if !self.missing_critical_subdirs.is_empty() {
-            summary.push_str(&format!("  Missing: {}\n", self.missing_critical_subdirs.join(", ")));
+            summary.push_str(&format!(
+                "  Missing: {}\n",
+                self.missing_critical_subdirs.join(", ")
+            ));
         }
-        
+
         for (subdir, count) in &self.found_library_files {
             summary.push_str(&format!("• {count} library files in {subdir}\n"));
         }
-        
+
         if !self.recommendations.is_empty() {
             summary.push_str("\nRecommendations:\n");
             for rec in &self.recommendations {
                 summary.push_str(&format!("• {rec}\n"));
             }
         }
-        
+
         summary
     }
 }
@@ -412,7 +430,7 @@ impl LibraryValidationReport {
 #[cfg(not(test))]
 mod dirs {
     use std::path::PathBuf;
-    
+
     pub fn home_dir() -> Option<PathBuf> {
         std::env::var_os("HOME").map(PathBuf::from)
     }
@@ -422,7 +440,7 @@ mod dirs {
 #[cfg(test)]
 mod dirs {
     use std::path::PathBuf;
-    
+
     pub fn home_dir() -> Option<PathBuf> {
         Some(PathBuf::from("/tmp/test-home"))
     }
@@ -444,19 +462,19 @@ mod tests {
     fn test_with_lambdust_lib_dir_env() {
         let temp_dir = TempDir::new().unwrap();
         let lib_dir = temp_dir.path().to_path_buf();
-        
+
         // Create some subdirectories
         fs::create_dir_all(lib_dir.join("r7rs")).unwrap();
         fs::create_dir_all(lib_dir.join("bootstrap")).unwrap();
-        
+
         let config = LibraryPathConfig {
             lib_dir_override: Some(lib_dir.clone()),
             ..Default::default()
         };
-        
+
         let resolver = LibraryPathResolver::with_config(config).unwrap();
         assert_eq!(resolver.primary_lib_dir(), Some(lib_dir.as_path()));
-        
+
         let r7rs_path = resolver.resolve_lib_subdir("r7rs");
         assert!(r7rs_path.is_ok());
         assert_eq!(r7rs_path.unwrap(), lib_dir.join("r7rs"));
@@ -466,23 +484,27 @@ mod tests {
     fn test_library_file_resolution() {
         let temp_dir = TempDir::new().unwrap();
         let lib_dir = temp_dir.path().to_path_buf();
-        
+
         // Create test structure
         let r7rs_dir = lib_dir.join("r7rs");
         fs::create_dir_all(&r7rs_dir).unwrap();
-        fs::write(r7rs_dir.join("base.scm"), "(define-library (scheme base) ...)").unwrap();
-        
+        fs::write(
+            r7rs_dir.join("base.scm"),
+            "(define-library (scheme base) ...)",
+        )
+        .unwrap();
+
         let config = LibraryPathConfig {
             lib_dir_override: Some(lib_dir),
             ..Default::default()
         };
-        
+
         let resolver = LibraryPathResolver::with_config(config).unwrap();
-        
+
         // Test successful resolution
         let base_file = resolver.resolve_library_file("r7rs", "base.scm");
         assert!(base_file.is_ok());
-        
+
         // Test missing file
         let missing_file = resolver.resolve_library_file("r7rs", "missing.scm");
         assert!(missing_file.is_err());
@@ -492,24 +514,25 @@ mod tests {
     fn test_find_library_files() {
         let temp_dir = TempDir::new().unwrap();
         let lib_dir = temp_dir.path().to_path_buf();
-        
+
         // Create test files
         let r7rs_dir = lib_dir.join("r7rs");
         fs::create_dir_all(&r7rs_dir).unwrap();
         fs::write(r7rs_dir.join("base.scm"), "").unwrap();
         fs::write(r7rs_dir.join("char.scm"), "").unwrap();
         fs::write(r7rs_dir.join("readme.txt"), "").unwrap(); // Should be ignored
-        
+
         let config = LibraryPathConfig {
             lib_dir_override: Some(lib_dir),
             ..Default::default()
         };
-        
+
         let resolver = LibraryPathResolver::with_config(config).unwrap();
         let files = resolver.find_library_files("r7rs", ".scm");
-        
+
         assert_eq!(files.len(), 2);
-        let filenames: Vec<String> = files.iter()
+        let filenames: Vec<String> = files
+            .iter()
             .filter_map(|p| p.file_name()?.to_str())
             .map(|s| s.to_string())
             .collect();
@@ -522,25 +545,29 @@ mod tests {
     fn test_validation_report() {
         let temp_dir = TempDir::new().unwrap();
         let lib_dir = temp_dir.path().to_path_buf();
-        
+
         // Create partial structure (missing some critical subdirs)
         fs::create_dir_all(lib_dir.join("r7rs")).unwrap();
         fs::write(lib_dir.join("r7rs").join("base.scm"), "").unwrap();
         // Don't create bootstrap directory to test missing subdir detection
-        
+
         let config = LibraryPathConfig {
             lib_dir_override: Some(lib_dir),
             ..Default::default()
         };
-        
+
         let resolver = LibraryPathResolver::with_config(config).unwrap();
         let report = resolver.validate_library_setup().unwrap();
-        
+
         assert!(report.primary_lib_dir_valid);
         assert_eq!(report.found_search_paths.len(), 1);
-        assert!(report.missing_critical_subdirs.contains(&"bootstrap".to_string()));
+        assert!(
+            report
+                .missing_critical_subdirs
+                .contains(&"bootstrap".to_string())
+        );
         assert_eq!(report.found_library_files.get("r7rs"), Some(&1));
-        
+
         let summary = report.summary();
         assert!(summary.contains("Primary lib dir valid: true"));
         assert!(summary.contains("Missing: bootstrap"));
@@ -552,10 +579,10 @@ mod tests {
             lib_dir_override: Some(PathBuf::from("/nonexistent/path")),
             ..Default::default()
         };
-        
+
         let result = LibraryPathResolver::with_config(config);
         assert!(result.is_err());
-        
+
         let error_msg = result.unwrap_err().to_string();
         assert!(error_msg.contains("LAMBDUST_LIB_DIR points to invalid directory"));
     }
@@ -565,25 +592,29 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let primary_dir = temp_dir.path().join("primary");
         let secondary_dir = temp_dir.path().join("secondary");
-        
+
         // Create same file in both directories
         fs::create_dir_all(primary_dir.join("r7rs")).unwrap();
         fs::create_dir_all(secondary_dir.join("r7rs")).unwrap();
         fs::write(primary_dir.join("r7rs").join("base.scm"), "primary version").unwrap();
-        fs::write(secondary_dir.join("r7rs").join("base.scm"), "secondary version").unwrap();
-        
+        fs::write(
+            secondary_dir.join("r7rs").join("base.scm"),
+            "secondary version",
+        )
+        .unwrap();
+
         let config = LibraryPathConfig {
             lib_dir_override: Some(primary_dir.clone()),
             additional_paths: vec![secondary_dir],
             ..Default::default()
         };
-        
+
         let resolver = LibraryPathResolver::with_config(config).unwrap();
         let resolved_file = resolver.resolve_library_file("r7rs", "base.scm").unwrap();
-        
+
         // Should resolve to primary directory (higher priority)
         assert_eq!(resolved_file, primary_dir.join("r7rs").join("base.scm"));
-        
+
         let content = fs::read_to_string(&resolved_file).unwrap();
         assert_eq!(content, "primary version");
     }

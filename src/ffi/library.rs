@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
 
-use libloading::{Library, Symbol};
 use crate::diagnostics::Error;
+use libloading::{Library, Symbol};
 
 /// Platform-specific library extensions
 #[cfg(target_os = "windows")]
@@ -28,15 +28,9 @@ pub enum LibraryError {
     /// Library not found
     NotFound(PathBuf),
     /// Failed to load library
-    LoadFailed {
-        path: PathBuf,
-        reason: String,
-    },
+    LoadFailed { path: PathBuf, reason: String },
     /// Symbol not found in library
-    SymbolNotFound {
-        library: String,
-        symbol: String,
-    },
+    SymbolNotFound { library: String, symbol: String },
     /// Library already loaded
     AlreadyLoaded(String),
     /// Library has active references and cannot be unloaded
@@ -63,7 +57,10 @@ impl fmt::Display for LibraryError {
                 write!(f, "Library '{name}' is already loaded")
             }
             LibraryError::HasActiveReferences(name) => {
-                write!(f, "Library '{name}' has active references and cannot be unloaded")
+                write!(
+                    f,
+                    "Library '{name}' has active references and cannot be unloaded"
+                )
             }
             LibraryError::InvalidHandle(name) => {
                 write!(f, "Invalid library handle for '{name}'")
@@ -130,7 +127,7 @@ impl LibraryHandle {
 
     /// Get current reference count
     pub fn ref_count(&self) -> usize {
-        *self.ref_count.read().unwrap()
+        *self.ref_count.try_read().unwrap()
     }
 
     /// Increment reference count
@@ -152,7 +149,7 @@ impl LibraryHandle {
     pub fn get_symbol<T>(&self, name: &str) -> std::result::Result<Symbol<'_, T>, LibraryError> {
         // Check cache first
         {
-            let cache = self.symbol_cache.read().unwrap();
+            let cache = self.symbol_cache.try_read().unwrap();
             if let Some(&addr) = cache.get(name) {
                 // Safety: We're casting back to the symbol type, this is inherently unsafe
                 // but necessary for FFI operations
@@ -163,14 +160,14 @@ impl LibraryHandle {
         }
 
         // Load symbol
-        let c_name = CString::new(name)
-            .map_err(|_| LibraryError::SymbolNotFound {
-                library: self.name.clone(),
-                symbol: name.to_string(),
-            })?;
+        let c_name = CString::new(name).map_err(|_| LibraryError::SymbolNotFound {
+            library: self.name.clone(),
+            symbol: name.to_string(),
+        })?;
 
         let symbol: Symbol<'_, T> = unsafe {
-            self.library.get(c_name.as_bytes())
+            self.library
+                .get(c_name.as_bytes())
                 .map_err(|_e| LibraryError::SymbolNotFound {
                     library: self.name.clone(),
                     symbol: name.to_string(),
@@ -194,7 +191,7 @@ impl LibraryHandle {
     pub fn has_symbol(&self, name: &str) -> bool {
         // Check cache first
         {
-            let cache = self.symbol_cache.read().unwrap();
+            let cache = self.symbol_cache.try_read().unwrap();
             if cache.contains_key(name) {
                 return true;
             }
@@ -206,9 +203,7 @@ impl LibraryHandle {
             Err(_) => return false,
         };
 
-        unsafe {
-            self.library.get::<*const ()>(c_name.as_bytes()).is_ok()
-        }
+        unsafe { self.library.get::<*const ()>(c_name.as_bytes()).is_ok() }
     }
 
     /// List all exported symbols (platform dependent)
@@ -323,14 +318,14 @@ impl LibraryManager {
 
     /// Find library in search paths
     fn find_library(&self, name: &str) -> Option<PathBuf> {
-        let config = self.search_config.read().unwrap();
-        
+        let config = self.search_config.try_read().unwrap();
+
         // Try different combinations of prefix + name + extension
         let extensions = vec![LIBRARY_EXTENSION];
         let prefixes = &config.prefixes;
-        
+
         let mut candidates = Vec::new();
-        
+
         for prefix in prefixes {
             for ext in &extensions {
                 let filename = if prefix.is_empty() {
@@ -347,13 +342,13 @@ impl LibraryManager {
 
         // Search in configured paths
         let mut search_paths = Vec::new();
-        
+
         if config.use_current_dir {
             search_paths.push(PathBuf::from("."));
         }
-        
+
         search_paths.extend(config.search_paths.iter().cloned());
-        
+
         if config.use_system_paths {
             // Add platform-specific system paths
             #[cfg(unix)]
@@ -364,7 +359,7 @@ impl LibraryManager {
                     PathBuf::from("/lib"),
                 ]);
             }
-            
+
             #[cfg(windows)]
             {
                 if let Ok(sys_dir) = std::env::var("SYSTEMROOT") {
@@ -390,26 +385,27 @@ impl LibraryManager {
     pub fn load_library(&self, name: &str) -> std::result::Result<LibraryHandle, LibraryError> {
         // Check if already loaded
         {
-            let libraries = self.libraries.read().unwrap();
+            let libraries = self.libraries.try_read().unwrap();
             if let Some(handle) = libraries.get(name) {
                 return Ok(handle.clone());
             }
         }
 
         // Find the library file
-        let library_path = if Path::new(name).is_absolute() || name.contains('/') || name.contains('\\') {
-            PathBuf::from(name)
-        } else {
-            self.find_library(name).ok_or_else(|| LibraryError::NotFound(PathBuf::from(name)))?
-        };
+        let library_path =
+            if Path::new(name).is_absolute() || name.contains('/') || name.contains('\\') {
+                PathBuf::from(name)
+            } else {
+                self.find_library(name)
+                    .ok_or_else(|| LibraryError::NotFound(PathBuf::from(name)))?
+            };
 
         // Load the library
         let library = unsafe {
-            Library::new(&library_path)
-                .map_err(|e| LibraryError::LoadFailed {
-                    path: library_path.clone(),
-                    reason: e.to_string(),
-                })?
+            Library::new(&library_path).map_err(|e| LibraryError::LoadFailed {
+                path: library_path.clone(),
+                reason: e.to_string(),
+            })?
         };
 
         // Create handle
@@ -425,7 +421,7 @@ impl LibraryManager {
         {
             let mut stats = self.stats.write().unwrap();
             stats.total_loaded += 1;
-            stats.currently_loaded = self.libraries.read().unwrap().len();
+            stats.currently_loaded = self.libraries.try_read().unwrap().len();
         }
 
         Ok(handle)
@@ -445,8 +441,8 @@ impl LibraryManager {
 
             // Update statistics
             let mut stats = self.stats.write().unwrap();
-            stats.currently_loaded = self.libraries.read().unwrap().len();
-            
+            stats.currently_loaded = self.libraries.try_read().unwrap().len();
+
             Ok(())
         } else {
             Err(LibraryError::NotFound(PathBuf::from(name)))
@@ -455,25 +451,25 @@ impl LibraryManager {
 
     /// Get a library handle
     pub fn get_library(&self, name: &str) -> Option<LibraryHandle> {
-        let libraries = self.libraries.read().unwrap();
+        let libraries = self.libraries.try_read().unwrap();
         libraries.get(name).cloned()
     }
 
     /// List loaded libraries
     pub fn list_libraries(&self) -> Vec<String> {
-        let libraries = self.libraries.read().unwrap();
+        let libraries = self.libraries.try_read().unwrap();
         libraries.keys().cloned().collect()
     }
 
     /// Get library statistics
     pub fn stats(&self) -> LibraryStats {
-        self.stats.read().unwrap().clone()
+        self.stats.try_read().unwrap().clone()
     }
 
     /// Unload all libraries
     pub fn unload_all(&self) -> std::result::Result<(), Vec<LibraryError>> {
         let names: Vec<String> = {
-            let libraries = self.libraries.read().unwrap();
+            let libraries = self.libraries.try_read().unwrap();
             libraries.keys().cloned().collect()
         };
 
@@ -501,7 +497,7 @@ impl LibraryManager {
 
     /// Get dependencies for a library
     pub fn get_dependencies(&self, library: &str) -> Vec<String> {
-        let deps = self.dependencies.read().unwrap();
+        let deps = self.dependencies.try_read().unwrap();
         deps.get(library).cloned().unwrap_or_default()
     }
 }
@@ -509,19 +505,27 @@ impl LibraryManager {
 /// Convenience functions for library management
 impl LibraryManager {
     /// Load symbol from library
-    pub fn load_symbol<T>(&self, library_name: &str, symbol_name: &str) 
-        -> std::result::Result<*const T, LibraryError> {
+    pub fn load_symbol<T>(
+        &self,
+        library_name: &str,
+        symbol_name: &str,
+    ) -> std::result::Result<*const T, LibraryError> {
         let handle = self.load_library(library_name)?;
         let symbol = handle.get_symbol::<T>(symbol_name)?;
-        Ok(unsafe { std::mem::transmute::<libloading::os::unix::Symbol<T>, *const T>(symbol.into_raw()) })
+        Ok(unsafe {
+            std::mem::transmute::<libloading::os::unix::Symbol<T>, *const T>(symbol.into_raw())
+        })
     }
 
     /// Load and get symbol in one call
     /// Note: The returned symbol is tied to the library lifetime
-    pub fn get_symbol<T>(&self, library_name: &str, symbol_name: &str) 
-        -> std::result::Result<*const T, LibraryError> {
+    pub fn get_symbol<T>(
+        &self,
+        library_name: &str,
+        symbol_name: &str,
+    ) -> std::result::Result<*const T, LibraryError> {
         let handle = self.load_library(library_name)?;
-        
+
         // Update symbol lookup statistics
         {
             let mut stats = self.stats.write().unwrap();
@@ -532,7 +536,11 @@ impl LibraryManager {
             Ok(symbol) => {
                 let mut stats = self.stats.write().unwrap();
                 stats.successful_lookups += 1;
-                Ok(unsafe { std::mem::transmute::<libloading::os::unix::Symbol<T>, *const T>(symbol.into_raw()) })
+                Ok(unsafe {
+                    std::mem::transmute::<libloading::os::unix::Symbol<T>, *const T>(
+                        symbol.into_raw(),
+                    )
+                })
             }
             Err(e) => {
                 let mut stats = self.stats.write().unwrap();
@@ -564,8 +572,10 @@ pub fn get_library(name: &str) -> Option<LibraryHandle> {
     GLOBAL_LIBRARY_MANAGER.get_library(name)
 }
 
-pub fn load_symbol<T>(library_name: &str, symbol_name: &str) 
-    -> std::result::Result<*const T, LibraryError> {
+pub fn load_symbol<T>(
+    library_name: &str,
+    symbol_name: &str,
+) -> std::result::Result<*const T, LibraryError> {
     GLOBAL_LIBRARY_MANAGER.load_symbol(library_name, symbol_name)
 }
 
@@ -593,7 +603,7 @@ mod tests {
     #[test]
     fn test_library_path_search() {
         let manager = LibraryManager::new();
-        
+
         // This should not find a non-existent library
         let result = manager.find_library("nonexistent_library_12345");
         assert!(result.is_none());
@@ -603,8 +613,8 @@ mod tests {
     fn test_search_path_addition() {
         let manager = LibraryManager::new();
         manager.add_search_path("/custom/path");
-        
-        let config = manager.search_config.read().unwrap();
+
+        let config = manager.search_config.try_read().unwrap();
         assert!(config.search_paths.contains(&PathBuf::from("/custom/path")));
     }
 }

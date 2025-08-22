@@ -33,19 +33,18 @@
 //! 6. **Migration Assistant**: Suggestions for improving type safety
 
 use super::{
-    GradualTypeInference, GradualInferenceConfig, GradualInferenceResult,
-    GradualEvaluatorIntegration, EvaluatorIntegrationConfig,
-    GradualConsistencyChecker, ConsistencyConfig, ConsistencyResult,
-    GradualContractIntegration, GradualContractConfig, IntegrationResult,
-    Type, TypeScheme, TypeEnv
+    ConsistencyConfig, ConsistencyResult, EvaluatorIntegrationConfig, GradualConsistencyChecker,
+    GradualContractConfig, GradualContractIntegration, GradualEvaluatorIntegration,
+    GradualInferenceConfig, GradualInferenceResult, GradualTypeInference, IntegrationResult, Type,
+    TypeEnv, TypeScheme,
 };
 use crate::ast::{Expr, Program};
-use crate::contracts::{ContractSystem, CompilationContext};
+use crate::contracts::{CompilationContext, ContractSystem};
 use crate::diagnostics::{Error, Result, Span, Spanned};
-use crate::eval::{Value, Environment, Evaluator};
+use crate::eval::{Environment, Evaluator, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 /// Configuration for the complete gradual type system
 #[derive(Debug, Clone)]
@@ -361,18 +360,18 @@ impl GradualTypeSystem {
 
     /// Creates a gradual type system with configuration
     pub fn with_config(config: GradualSystemConfig) -> Self {
-        let inference_engine = Arc::new(Mutex::new(
-            GradualTypeInference::with_config(config.inference.clone())
-        ));
-        let evaluator_integration = Arc::new(Mutex::new(
-            GradualEvaluatorIntegration::with_config(config.evaluator.clone())
-        ));
-        let consistency_checker = Arc::new(Mutex::new(
-            GradualConsistencyChecker::with_config(config.consistency.clone())
-        ));
-        let contract_integration = Arc::new(Mutex::new(
-            GradualContractIntegration::with_config(config.contracts.clone())
-        ));
+        let inference_engine = Arc::new(Mutex::new(GradualTypeInference::with_config(
+            config.inference.clone(),
+        )));
+        let evaluator_integration = Arc::new(Mutex::new(GradualEvaluatorIntegration::with_config(
+            config.evaluator.clone(),
+        )));
+        let consistency_checker = Arc::new(Mutex::new(GradualConsistencyChecker::with_config(
+            config.consistency.clone(),
+        )));
+        let contract_integration = Arc::new(Mutex::new(GradualContractIntegration::with_config(
+            config.contracts.clone(),
+        )));
         let performance_monitor = SystemPerformanceMonitor::new();
         let migration_assistant = MigrationAssistant::new();
         let type_env_cache = Arc::new(Mutex::new(HashMap::new()));
@@ -436,18 +435,13 @@ impl GradualTypeSystem {
 
         // Phase 6: Performance Analysis
         let analysis_time = start_time.elapsed();
-        let performance_metrics = self.calculate_performance_metrics(
-            analysis_time,
-            &inference_result,
-            &contract_result,
-        );
+        let performance_metrics =
+            self.calculate_performance_metrics(analysis_time, &inference_result, &contract_result);
 
         // Update system metrics
         if self.config.enable_monitoring {
-            self.performance_monitor.record_processing(
-                analysis_time,
-                &performance_metrics,
-            );
+            self.performance_monitor
+                .record_processing(analysis_time, &performance_metrics);
         }
 
         // Construct result
@@ -484,17 +478,17 @@ impl GradualTypeSystem {
             // For now, we'll analyze each expression independently
             // In a full implementation, we'd maintain context across expressions
             let inference_result = self.infer_type_only(expr)?;
-            
+
             // Accumulate metrics
             overall_metrics.expressions_processed += 1;
-            
+
             results.push(inference_result);
         }
 
         Ok(ProgramAnalysisResult {
             expression_results: results,
             overall_metrics,
-            program_consistency: 0.85, // Simplified calculation
+            program_consistency: 0.85,     // Simplified calculation
             migration_roadmap: Vec::new(), // Would generate comprehensive roadmap
         })
     }
@@ -512,8 +506,8 @@ impl GradualTypeSystem {
 
     /// Assesses type certainty
     fn assess_type_certainty(&self, type_: &Type) -> TypeCertainty {
-        use super::gradual::{is_static, is_gradual};
-        
+        use super::gradual::{is_gradual, is_static};
+
         if is_static(type_) {
             TypeCertainty::VeryHigh
         } else if is_gradual(type_) {
@@ -526,7 +520,9 @@ impl GradualTypeSystem {
     /// Extracts consistency analysis
     fn extract_consistency_analysis(&self, result: &ConsistencyResult) -> ConsistencyAnalysis {
         let score = if result.consistent { 1.0 } else { 0.5 };
-        let max_severity = result.violations.iter()
+        let max_severity = result
+            .violations
+            .iter()
             .map(|v| v.severity)
             .max()
             .unwrap_or(ViolationSeverity::Info);
@@ -559,7 +555,7 @@ impl GradualTypeSystem {
         PerformanceMetrics {
             analysis_time,
             evaluation_time: Duration::from_millis(0), // Would measure actual evaluation
-            memory_usage: 1024, // Simplified estimate
+            memory_usage: 1024,                        // Simplified estimate
             improvement: contract_result.eliminated_contracts.len() as f64 * 0.1,
         }
     }
@@ -572,23 +568,23 @@ impl GradualTypeSystem {
     /// Updates system configuration
     pub fn update_config(&mut self, config: GradualSystemConfig) {
         self.config = config.clone();
-        
+
         // Update component configurations
         {
             let mut inference = self.inference_engine.lock().unwrap();
             inference.update_config(config.inference);
         }
-        
+
         {
             let mut eval_integration = self.evaluator_integration.lock().unwrap();
             eval_integration.update_config(config.evaluator);
         }
-        
+
         {
             let mut checker = self.consistency_checker.lock().unwrap();
             checker.update_config(config.consistency);
         }
-        
+
         {
             let mut contract_integration = self.contract_integration.lock().unwrap();
             contract_integration.update_config(config.contracts);
@@ -611,12 +607,12 @@ impl GradualTypeSystem {
             let mut cache = self.type_env_cache.lock().unwrap();
             cache.clear();
         }
-        
+
         {
             let mut checker = self.consistency_checker.lock().unwrap();
             checker.clear_caches();
         }
-        
+
         self.migration_assistant.cache.clear();
     }
 
@@ -678,7 +674,7 @@ impl SystemPerformanceMonitor {
     pub fn record_processing(&mut self, duration: Duration, metrics: &PerformanceMetrics) {
         self.system_metrics.expressions_processed += 1;
         self.system_metrics.total_inference_time += duration;
-        self.system_metrics.average_improvement = 
+        self.system_metrics.average_improvement =
             (self.system_metrics.average_improvement + metrics.improvement) / 2.0;
 
         self.history.push(PerformanceSnapshot {
@@ -706,18 +702,16 @@ impl MigrationAssistant {
 
     /// Default migration rules
     fn default_rules() -> Vec<MigrationRule> {
-        vec![
-            MigrationRule {
-                pattern: MigrationPattern {
-                    type_pattern: "Dynamic".to_string(),
-                    context_pattern: "function_parameter".to_string(),
-                    expression_pattern: "*".to_string(),
-                },
-                suggestion: MigrationType::AddTypeAnnotation,
-                condition: "frequently_used".to_string(),
-                priority: Some(Priority::Medium),
+        vec![MigrationRule {
+            pattern: MigrationPattern {
+                type_pattern: "Dynamic".to_string(),
+                context_pattern: "function_parameter".to_string(),
+                expression_pattern: "*".to_string(),
             },
-        ]
+            suggestion: MigrationType::AddTypeAnnotation,
+            condition: "frequently_used".to_string(),
+            priority: Some(Priority::Medium),
+        }]
     }
 
     /// Generates migration suggestions
@@ -806,12 +800,12 @@ mod tests {
     #[test]
     fn test_type_certainty_assessment() {
         let system = GradualTypeSystem::new();
-        
+
         assert_eq!(
             system.assess_type_certainty(&Type::Number),
             TypeCertainty::VeryHigh
         );
-        
+
         assert_eq!(
             system.assess_type_certainty(&Type::Dynamic),
             TypeCertainty::Low
@@ -821,12 +815,9 @@ mod tests {
     #[test]
     fn test_migration_assistant() {
         let mut assistant = MigrationAssistant::new();
-        
-        let expr = spanned(
-            Expr::Literal(Literal::Number(42.0)),
-            Span::new(0, 2)
-        );
-        
+
+        let expr = spanned(Expr::Literal(Literal::Number(42.0)), Span::new(0, 2));
+
         let inference_result = GradualInferenceResult {
             inferred_type: Type::Number,
             substitution: crate::types::substitution::Substitution::empty(),
@@ -836,7 +827,7 @@ mod tests {
             optimizations: Vec::new(),
             migration_suggestions: Vec::new(),
         };
-        
+
         let consistency_result = ConsistencyResult {
             consistent: true,
             precision: crate::types::gradual_consistency::PrecisionRelation::Equal,
@@ -848,13 +839,11 @@ mod tests {
                 assumptions: Vec::new(),
             },
         };
-        
-        let suggestions = assistant.generate_suggestions(
-            &expr,
-            &inference_result,
-            &consistency_result,
-        ).unwrap();
-        
+
+        let suggestions = assistant
+            .generate_suggestions(&expr, &inference_result, &consistency_result)
+            .unwrap();
+
         // Should have no suggestions for a simple literal
         assert_eq!(suggestions.len(), 0);
     }
@@ -862,16 +851,16 @@ mod tests {
     #[test]
     fn test_performance_monitoring() {
         let mut monitor = SystemPerformanceMonitor::new();
-        
+
         let metrics = PerformanceMetrics {
             analysis_time: Duration::from_millis(10),
             evaluation_time: Duration::from_millis(5),
             memory_usage: 1024,
             improvement: 0.1,
         };
-        
+
         monitor.record_processing(Duration::from_millis(15), &metrics);
-        
+
         assert_eq!(monitor.system_metrics.expressions_processed, 1);
         assert_eq!(monitor.history.len(), 1);
     }
@@ -879,10 +868,10 @@ mod tests {
     #[test]
     fn test_cache_operations() {
         let mut system = GradualTypeSystem::new();
-        
+
         // Test cache clearing
         system.clear_caches();
-        
+
         // Should not panic and caches should be empty
         let cache = system.type_env_cache.lock().unwrap();
         assert_eq!(cache.len(), 0);

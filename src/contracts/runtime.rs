@@ -5,18 +5,18 @@
 //! interface for contract operations during program execution.
 
 use crate::contracts::{
-    ContractSystem, ContractConfig, ContractError, ContractResult,
+    ContractConfig, ContractError, ContractResult, ContractSystem,
     ast::ContractExpr,
-    blame::{BlameInfo, BlameTarget, BlameBoundary, BoundaryType, BlameTracker},
-    compiler::{CompiledContract, CompilationContext, OptimizationLevel},
+    blame::{BlameBoundary, BlameInfo, BlameTarget, BlameTracker, BoundaryType},
+    compiler::{CompilationContext, CompiledContract, OptimizationLevel},
     enforcement::{ContractEnforcement, PerformanceStats},
     evaluator::ContractEvaluator,
     predicates::PredicateRegistry,
 };
-use crate::eval::Value;
 use crate::diagnostics::{Span, Spanned};
+use crate::eval::Value;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Runtime contract coordinator that manages all contract operations.
 #[derive(Debug)]
@@ -164,10 +164,8 @@ impl ContractRuntime {
     ) -> ContractResult<()> {
         let start_time = std::time::Instant::now();
 
-        let compilation_context = CompilationContext::new(
-            self.system.read().unwrap().predicates.clone(),
-            blame,
-        );
+        let compilation_context =
+            CompilationContext::new(self.system.read().unwrap().predicates.clone(), blame);
 
         let compiled = {
             let mut system = self.system.write().unwrap();
@@ -226,17 +224,19 @@ impl ContractRuntime {
         arguments: Vec<ContractExpr>,
         blame: BlameInfo,
     ) -> ContractResult<Arc<CompiledContract>> {
-        let template = {
-            let mut registry = self.contract_registry.write().unwrap();
-            let template = registry.templates.get_mut(name)
-                .ok_or_else(|| ContractError::RuntimeError {
-                    message: format!("Unknown contract template: {name}"),
-                    location: blame.boundary.location,
+        let template =
+            {
+                let mut registry = self.contract_registry.write().unwrap();
+                let template = registry.templates.get_mut(name).ok_or_else(|| {
+                    ContractError::RuntimeError {
+                        message: format!("Unknown contract template: {name}"),
+                        location: blame.boundary.location,
+                    }
                 })?;
-            
-            template.metadata.usage_count += 1;
-            template.clone()
-        };
+
+                template.metadata.usage_count += 1;
+                template.clone()
+            };
 
         if arguments.len() != template.parameters.len() {
             return Err(ContractError::RuntimeError {
@@ -247,15 +247,14 @@ impl ContractRuntime {
                     arguments.len()
                 ),
                 location: blame.boundary.location,
-            }.into());
+            }
+            .into());
         }
 
         // TODO: Substitute parameters in template with arguments
         // For now, just compile the template as-is
-        let compilation_context = CompilationContext::new(
-            self.system.read().unwrap().predicates.clone(),
-            blame,
-        );
+        let compilation_context =
+            CompilationContext::new(self.system.read().unwrap().predicates.clone(), blame);
 
         let mut system = self.system.write().unwrap();
         system.compile_contract(&template.template, &compilation_context)
@@ -264,14 +263,16 @@ impl ContractRuntime {
     /// Creates a contract alias.
     pub fn create_alias(&self, alias: String, target: String) -> ContractResult<()> {
         let mut registry = self.contract_registry.write().unwrap();
-        
+
         // Check that target exists
-        if !registry.named_contracts.contains_key(&target) && 
-           !registry.templates.contains_key(&target) {
+        if !registry.named_contracts.contains_key(&target)
+            && !registry.templates.contains_key(&target)
+        {
             return Err(ContractError::RuntimeError {
                 message: format!("Cannot create alias for unknown contract: {target}"),
                 location: Span::new(0, 0),
-            }.into());
+            }
+            .into());
         }
 
         registry.aliases.insert(alias, target);
@@ -281,10 +282,10 @@ impl ContractRuntime {
     /// Resolves a contract name (following aliases).
     pub fn resolve_name(&self, name: &str) -> String {
         let registry = self.contract_registry.read().unwrap();
-        
+
         let mut current = name.to_string();
         let mut visited = std::collections::HashSet::new();
-        
+
         while let Some(target) = registry.aliases.get(&current) {
             if visited.contains(&current) {
                 // Circular alias - return original name
@@ -293,7 +294,7 @@ impl ContractRuntime {
             visited.insert(current.clone());
             current = target.clone();
         }
-        
+
         current
     }
 
@@ -305,11 +306,12 @@ impl ContractRuntime {
         blame: &BlameInfo,
     ) -> ContractResult<()> {
         let resolved_name = self.resolve_name(contract_name);
-        let contract = self.lookup_contract(&resolved_name)
-            .ok_or_else(|| ContractError::RuntimeError {
-                message: format!("Unknown contract: {contract_name}"),
-                location: blame.boundary.location,
-            })?;
+        let contract =
+            self.lookup_contract(&resolved_name)
+                .ok_or_else(|| ContractError::RuntimeError {
+                    message: format!("Unknown contract: {contract_name}"),
+                    location: blame.boundary.location,
+                })?;
 
         let start_time = std::time::Instant::now();
         let result = {
@@ -334,11 +336,12 @@ impl ContractRuntime {
         blame: BlameInfo,
     ) -> ContractResult<Value> {
         let resolved_name = self.resolve_name(contract_name);
-        let contract = self.lookup_contract(&resolved_name)
-            .ok_or_else(|| ContractError::RuntimeError {
-                message: format!("Unknown contract: {contract_name}"),
-                location: blame.boundary.location,
-            })?;
+        let contract =
+            self.lookup_contract(&resolved_name)
+                .ok_or_else(|| ContractError::RuntimeError {
+                    message: format!("Unknown contract: {contract_name}"),
+                    location: blame.boundary.location,
+                })?;
 
         let mut system = self.system.write().unwrap();
         system.wrap_with_contract(value, contract, blame)
@@ -351,7 +354,7 @@ impl ContractRuntime {
             let evaluator = self.evaluator.read().unwrap();
             evaluator.performance_stats()
         };
-        
+
         RuntimePerformanceStats {
             compilation: monitor.compilation_stats.clone(),
             checking: monitor.checking_stats.clone(),
@@ -364,12 +367,12 @@ impl ContractRuntime {
     /// Updates the runtime configuration.
     pub fn update_config(&mut self, config: ContractConfig) {
         self.config = config.clone();
-        
+
         {
             let mut system = self.system.write().unwrap();
             system.update_config(config.clone());
         }
-        
+
         {
             let mut evaluator = self.evaluator.write().unwrap();
             evaluator.update_config(config);
@@ -382,7 +385,7 @@ impl ContractRuntime {
             let mut system = self.system.write().unwrap();
             system.clear_cache();
         }
-        
+
         {
             let mut evaluator = self.evaluator.write().unwrap();
             evaluator.clear_caches();
@@ -462,23 +465,29 @@ impl RuntimePerformanceMonitor {
     pub fn record_compilation(&mut self, duration: std::time::Duration) {
         self.compilation_stats.total_compiled += 1;
         self.compilation_stats.total_compilation_time += duration;
-        self.compilation_stats.average_compilation_time = 
-            self.compilation_stats.total_compilation_time / self.compilation_stats.total_compiled as u32;
+        self.compilation_stats.average_compilation_time =
+            self.compilation_stats.total_compilation_time
+                / self.compilation_stats.total_compiled as u32;
     }
 
     /// Records a contract check.
     pub fn record_check(&mut self, duration: std::time::Duration, success: bool) {
         self.checking_stats.total_checks += 1;
         self.checking_stats.total_checking_time += duration;
-        self.checking_stats.average_checking_time = 
+        self.checking_stats.average_checking_time =
             self.checking_stats.total_checking_time / self.checking_stats.total_checks as u32;
-        
+
         if success {
-            let total_successes = (self.checking_stats.success_rate * (self.checking_stats.total_checks - 1) as f64) + 1.0;
-            self.checking_stats.success_rate = total_successes / self.checking_stats.total_checks as f64;
+            let total_successes = (self.checking_stats.success_rate
+                * (self.checking_stats.total_checks - 1) as f64)
+                + 1.0;
+            self.checking_stats.success_rate =
+                total_successes / self.checking_stats.total_checks as f64;
         } else {
-            let total_successes = self.checking_stats.success_rate * (self.checking_stats.total_checks - 1) as f64;
-            self.checking_stats.success_rate = total_successes / self.checking_stats.total_checks as f64;
+            let total_successes =
+                self.checking_stats.success_rate * (self.checking_stats.total_checks - 1) as f64;
+            self.checking_stats.success_rate =
+                total_successes / self.checking_stats.total_checks as f64;
         }
     }
 }
@@ -599,21 +608,17 @@ mod tests {
     fn test_contract_registration() {
         let runtime = ContractRuntime::new();
         let blame = create_test_blame();
-        
+
         let contract = ContractExpr::Predicate {
             name: "number?".to_string(),
             location: Span::new(0, 10),
         };
-        
-        let result = runtime.register_contract(
-            "my-number-contract".to_string(),
-            contract,
-            blame,
-        );
-        
+
+        let result = runtime.register_contract("my-number-contract".to_string(), contract, blame);
+
         assert!(result.is_ok());
         assert_eq!(runtime.contract_count(), 1);
-        
+
         let lookup_result = runtime.lookup_contract("my-number-contract");
         assert!(lookup_result.is_some());
     }
@@ -621,19 +626,19 @@ mod tests {
     #[test]
     fn test_template_registration() {
         let runtime = ContractRuntime::new();
-        
+
         let template = ContractExpr::Predicate {
             name: "number?".to_string(),
             location: Span::new(0, 10),
         };
-        
+
         let result = runtime.register_template(
             "parameterized-contract".to_string(),
             vec!["T".to_string()],
             template,
             "A parameterized contract template".to_string(),
         );
-        
+
         assert!(result.is_ok());
         assert_eq!(runtime.template_count(), 1);
     }
@@ -642,26 +647,21 @@ mod tests {
     fn test_contract_aliases() {
         let runtime = ContractRuntime::new();
         let blame = create_test_blame();
-        
+
         // Register a contract
         let contract = ContractExpr::Predicate {
             name: "number?".to_string(),
             location: Span::new(0, 10),
         };
-        
-        runtime.register_contract(
-            "number-contract".to_string(),
-            contract,
-            blame,
-        ).unwrap();
-        
+
+        runtime
+            .register_contract("number-contract".to_string(), contract, blame)
+            .unwrap();
+
         // Create an alias
-        let result = runtime.create_alias(
-            "num".to_string(),
-            "number-contract".to_string(),
-        );
+        let result = runtime.create_alias("num".to_string(), "number-contract".to_string());
         assert!(result.is_ok());
-        
+
         // Test alias resolution
         assert_eq!(runtime.resolve_name("num"), "number-contract");
         assert_eq!(runtime.resolve_name("number-contract"), "number-contract");
@@ -671,21 +671,19 @@ mod tests {
     fn test_contract_lookup() {
         let runtime = ContractRuntime::new();
         let blame = create_test_blame();
-        
+
         let contract = ContractExpr::Predicate {
             name: "string?".to_string(),
             location: Span::new(0, 10),
         };
-        
-        runtime.register_contract(
-            "string-contract".to_string(),
-            contract,
-            blame,
-        ).unwrap();
-        
+
+        runtime
+            .register_contract("string-contract".to_string(), contract, blame)
+            .unwrap();
+
         let found = runtime.lookup_contract("string-contract");
         assert!(found.is_some());
-        
+
         let not_found = runtime.lookup_contract("nonexistent");
         assert!(not_found.is_none());
     }
@@ -694,7 +692,7 @@ mod tests {
     fn test_performance_monitoring() {
         let runtime = ContractRuntime::new();
         let stats = runtime.performance_stats();
-        
+
         assert_eq!(stats.compilation.total_compiled, 0);
         assert_eq!(stats.checking.total_checks, 0);
         assert_eq!(stats.runtime.total_violations, 0);
@@ -703,7 +701,7 @@ mod tests {
     #[test]
     fn test_cache_clearing() {
         let runtime = ContractRuntime::new();
-        
+
         // This should not panic
         runtime.clear_caches();
     }
@@ -712,21 +710,19 @@ mod tests {
     fn test_contract_listing() {
         let runtime = ContractRuntime::new();
         let blame = create_test_blame();
-        
+
         assert!(runtime.list_contracts().is_empty());
         assert!(runtime.list_templates().is_empty());
-        
+
         let contract = ContractExpr::Predicate {
             name: "boolean?".to_string(),
             location: Span::new(0, 10),
         };
-        
-        runtime.register_contract(
-            "bool-contract".to_string(),
-            contract,
-            blame,
-        ).unwrap();
-        
+
+        runtime
+            .register_contract("bool-contract".to_string(), contract, blame)
+            .unwrap();
+
         let contracts = runtime.list_contracts();
         assert_eq!(contracts.len(), 1);
         assert!(contracts.contains(&"bool-contract".to_string()));

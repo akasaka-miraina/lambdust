@@ -3,33 +3,29 @@
 //! This layer coordinates between domain services and handles
 //! business use cases without containing domain logic itself.
 
-use crate::eval::{
-    Value, Environment, 
-    operational_semantics::{EvaluationContext, ComputationState},
-    continuation_domain::{CapturedContinuation, ContinuationId},
-};
 use crate::ast::{Expr, Spanned};
-use crate::diagnostics::{Result, Error, Span};
+use crate::diagnostics::{Error, Result, Span};
 use crate::effects::{
-    Effect, EffectContext, Maybe, Either, IO, State, Reader,
-    ContinuationMonad, EffectfulComputation,
+    ContinuationMonad, Effect, EffectContext, EffectfulComputation, Either, IO, Maybe, Reader,
+    State,
 };
+use crate::eval::{
+    Environment, Value,
+    continuation_domain::{CapturedContinuation, ContinuationId},
+    operational_semantics::{ComputationState, EvaluationContext},
+};
+use async_trait::async_trait;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::collections::HashMap;
-use async_trait::async_trait;
 
 use super::{
-    monadic_computation::MonadicComputation,
-    monad_service::MonadService,
-    orchestrator_configuration::OrchestratorConfiguration,
-    monadic_evaluation_input::MonadicEvaluationInput,
+    continuation_repository::ContinuationRepository, effect_interpreter::EffectInterpreter,
+    environment_manager::EnvironmentManager, evaluation_metadata::EvaluationMetadata,
+    evaluation_metrics::EvaluationMetrics, monad_service::MonadService,
+    monadic_computation::MonadicComputation, monadic_evaluation_input::MonadicEvaluationInput,
     monadic_evaluation_result::MonadicEvaluationResult,
-    evaluation_metadata::EvaluationMetadata,
-    evaluation_metrics::EvaluationMetrics,
-    continuation_repository::ContinuationRepository,
-    effect_interpreter::EffectInterpreter,
-    environment_manager::EnvironmentManager,
+    orchestrator_configuration::OrchestratorConfiguration,
 };
 
 /// Application service for orchestrating monadic evaluations.
@@ -40,16 +36,16 @@ use super::{
 pub struct MonadicEvaluationOrchestrator {
     /// Domain service for monadic operations
     monad_service: MonadService,
-    
+
     /// Repository for continuations (injected dependency)
     continuation_repository: Box<dyn ContinuationRepository>,
-    
+
     /// Effect interpreter (injected dependency)
     effect_interpreter: Box<dyn EffectInterpreter>,
-    
+
     /// Environment manager (injected dependency)
     environment_manager: Box<dyn EnvironmentManager>,
-    
+
     /// Configuration
     orchestrator_config: OrchestratorConfiguration,
 }
@@ -69,7 +65,7 @@ impl MonadicEvaluationOrchestrator {
             orchestrator_config: OrchestratorConfiguration::default(),
         }
     }
-    
+
     /// Evaluate a monadic expression (main orchestration method)
     pub async fn evaluate(
         &mut self,
@@ -82,13 +78,15 @@ impl MonadicEvaluationOrchestrator {
         let mut effects = Vec::new();
         let mut continuations_captured = 0;
         let mut io_operations = 0;
-        
+
         // Main evaluation loop
-        let computation = self.evaluate_expression(&input.expression, &input.environment).await?;
-        
+        let computation = self
+            .evaluate_expression(&input.expression, &input.environment)
+            .await?;
+
         // Create result with metrics
         let evaluation_time_ns = start_time.elapsed().as_nanos() as u64;
-        
+
         Ok(MonadicEvaluationResult {
             computation,
             metadata: EvaluationMetadata {
@@ -106,7 +104,7 @@ impl MonadicEvaluationOrchestrator {
             },
         })
     }
-    
+
     /// Evaluate a single expression (private helper)
     async fn evaluate_expression(
         &mut self,
@@ -118,7 +116,7 @@ impl MonadicEvaluationOrchestrator {
                 // Handle call/cc by capturing continuation
                 self.handle_call_cc(proc_expr, env).await
             }
-            
+
             Expr::Application { operator, operands } => {
                 // Check if this is a monadic operation
                 if self.is_monadic_operation(operator) {
@@ -128,14 +126,14 @@ impl MonadicEvaluationOrchestrator {
                     Ok(MonadicComputation::Pure(Value::Unspecified)) // Simplified
                 }
             }
-            
+
             _ => {
                 // For other expressions, return pure computation
                 Ok(MonadicComputation::Pure(Value::Unspecified)) // Simplified
             }
         }
     }
-    
+
     /// Handle call/cc expression
     async fn handle_call_cc(
         &mut self,
@@ -143,11 +141,11 @@ impl MonadicEvaluationOrchestrator {
         _env: &Rc<Environment>,
     ) -> Result<MonadicComputation<Value>> {
         // Capture current continuation and create monadic computation
-        Ok(MonadicComputation::Continuation(
-            ContinuationMonad::pure(Value::Unspecified)
-        ))
+        Ok(MonadicComputation::Continuation(ContinuationMonad::pure(
+            Value::Unspecified,
+        )))
     }
-    
+
     /// Handle monadic operations
     async fn handle_monadic_operation(
         &mut self,
@@ -158,11 +156,14 @@ impl MonadicEvaluationOrchestrator {
         // Detect and handle specific monadic operations
         Ok(MonadicComputation::Pure(Value::Unspecified)) // Simplified
     }
-    
+
     /// Check if an expression represents a monadic operation
     fn is_monadic_operation(&self, expr: &Spanned<Expr>) -> bool {
         if let Expr::Identifier(name) = &expr.inner {
-            matches!(name.as_str(), "map" | "bind" | "pure" | "lift" | "just" | "nothing" | "left" | "right")
+            matches!(
+                name.as_str(),
+                "map" | "bind" | "pure" | "lift" | "just" | "nothing" | "left" | "right"
+            )
         } else {
             false
         }

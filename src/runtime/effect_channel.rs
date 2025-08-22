@@ -1,14 +1,14 @@
 //! Cross-thread communication channel for effects.
 
-use crossbeam::channel::{Sender, Receiver, unbounded};
 use super::effect_coordination_message::EffectCoordinationMessage;
+use crossbeam::channel::{Receiver, Sender, unbounded};
 
 /// Cross-thread communication channel for effects.
 #[derive(Debug)]
 pub struct EffectChannel {
     /// Sender for effect coordination messages
     pub sender: Sender<EffectCoordinationMessage>,
-    /// Receiver for effect coordination messages  
+    /// Receiver for effect coordination messages
     #[allow(dead_code)] // Part of Stage 3 effect coordination infrastructure
     pub receiver: Receiver<EffectCoordinationMessage>,
 }

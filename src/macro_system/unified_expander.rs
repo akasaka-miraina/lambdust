@@ -6,14 +6,16 @@
 //! transformer type and configuration.
 
 use super::{
-    ConfigurableExpander, SyntaxAwareMacroExpander, ExpansionConfig,
-    syntax_objects::{SyntaxObject, LexicalContext, syntax_utils},
-    syntax_case::{SyntaxPattern, SyntaxTemplate, SyntaxBindings, syntax_procedures},
+    ConfigurableExpander, ExpansionConfig, SyntaxAwareMacroExpander,
     advanced_hygiene::{HygieneResolver, MarkSet},
-    scope_management::{ScopeManager, ScopeType},
+    identifier_transformers::{
+        IdentifierContext, VariableTransformer, VariableTransformerRegistry,
+    },
     pattern::{Pattern, PatternBindings},
+    scope_management::{ScopeManager, ScopeType},
+    syntax_case::{SyntaxBindings, SyntaxPattern, SyntaxTemplate, syntax_procedures},
+    syntax_objects::{LexicalContext, SyntaxObject, syntax_utils},
     template::Template,
-    identifier_transformers::{VariableTransformer, VariableTransformerRegistry, IdentifierContext},
 };
 use crate::ast::Expr;
 use crate::diagnostics::{Error, Result, Span, Spanned};
@@ -24,10 +26,10 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub enum MacroTransformerType {
     /// Legacy pattern-template transformer
-    Legacy { 
+    Legacy {
         /// Pattern matching patterns
         patterns: Vec<Pattern>,
-        /// Output templates  
+        /// Output templates
         templates: Vec<Template>,
     },
     /// Syntax-case transformer
@@ -54,14 +56,40 @@ pub enum MacroTransformerType {
 impl PartialEq for MacroTransformerType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (MacroTransformerType::Legacy { patterns: p1, templates: t1 }, 
-             MacroTransformerType::Legacy { patterns: p2, templates: t2 }) => p1 == p2 && t1 == t2,
-            (MacroTransformerType::SyntaxCase { literals: l1, clauses: c1 }, 
-             MacroTransformerType::SyntaxCase { literals: l2, clauses: c2 }) => l1 == l2 && c1 == c2,
-            (MacroTransformerType::Procedure { name: n1, arity: a1 }, 
-             MacroTransformerType::Procedure { name: n2, arity: a2 }) => n1 == n2 && a1 == a2,
-            (MacroTransformerType::VariableTransformer { transformer: _ }, 
-             MacroTransformerType::VariableTransformer { transformer: _ }) => {
+            (
+                MacroTransformerType::Legacy {
+                    patterns: p1,
+                    templates: t1,
+                },
+                MacroTransformerType::Legacy {
+                    patterns: p2,
+                    templates: t2,
+                },
+            ) => p1 == p2 && t1 == t2,
+            (
+                MacroTransformerType::SyntaxCase {
+                    literals: l1,
+                    clauses: c1,
+                },
+                MacroTransformerType::SyntaxCase {
+                    literals: l2,
+                    clauses: c2,
+                },
+            ) => l1 == l2 && c1 == c2,
+            (
+                MacroTransformerType::Procedure {
+                    name: n1,
+                    arity: a1,
+                },
+                MacroTransformerType::Procedure {
+                    name: n2,
+                    arity: a2,
+                },
+            ) => n1 == n2 && a1 == a2,
+            (
+                MacroTransformerType::VariableTransformer { transformer: _ },
+                MacroTransformerType::VariableTransformer { transformer: _ },
+            ) => {
                 // Note: We can't compare VariableTransformers, so we consider them equal if they're both VariableTransformers
                 true
             }
@@ -99,14 +127,13 @@ impl UnifiedMacroTransformer {
     }
 
     /// Creates a legacy transformer
-    pub fn legacy(
-        name: String,
-        patterns: Vec<Pattern>,
-        templates: Vec<Template>,
-    ) -> Self {
+    pub fn legacy(name: String, patterns: Vec<Pattern>, templates: Vec<Template>) -> Self {
         Self::new(
             name,
-            MacroTransformerType::Legacy { patterns, templates },
+            MacroTransformerType::Legacy {
+                patterns,
+                templates,
+            },
             false,
         )
     }
@@ -129,7 +156,10 @@ impl UnifiedMacroTransformer {
         let procedure_name = name.clone();
         Self::new(
             name,
-            MacroTransformerType::Procedure { name: procedure_name, arity },
+            MacroTransformerType::Procedure {
+                name: procedure_name,
+                arity,
+            },
             true, // Procedures typically work better with syntax objects
         )
     }
@@ -225,11 +255,15 @@ impl UnifiedMacroExpander {
     /// Registers a macro transformer
     pub fn register_transformer(&mut self, transformer: UnifiedMacroTransformer) -> Result<()> {
         // If it's a variable transformer, also register it with the variable transformer registry
-        if let MacroTransformerType::VariableTransformer { transformer: ref var_transformer } = transformer.transformer_type {
+        if let MacroTransformerType::VariableTransformer {
+            transformer: ref var_transformer,
+        } = transformer.transformer_type
+        {
             self.variable_transformers.register(var_transformer.clone());
         }
-        
-        self.transformers.insert(transformer.name.clone(), transformer);
+
+        self.transformers
+            .insert(transformer.name.clone(), transformer);
         Ok(())
     }
 
@@ -239,9 +273,10 @@ impl UnifiedMacroExpander {
             transformer.name.clone(),
             transformer.clone(),
         );
-        
+
         self.variable_transformers.register(transformer);
-        self.transformers.insert(unified_transformer.name.clone(), unified_transformer);
+        self.transformers
+            .insert(unified_transformer.name.clone(), unified_transformer);
     }
 
     /// Checks if a name is bound to a macro
@@ -323,8 +358,6 @@ impl UnifiedMacroExpander {
         &mut self.variable_transformers
     }
 
-
-
     /// Expands a macro using the unified system
     pub fn expand_macro(
         &mut self,
@@ -334,11 +367,16 @@ impl UnifiedMacroExpander {
         env: &Environment,
     ) -> Result<Spanned<Expr>> {
         // Look up and clone the transformer to avoid borrowing conflicts
-        let transformer = self.transformers.get(macro_name)
-            .ok_or_else(|| Box::new(Error::macro_error(
-                format!("Unknown macro: {macro_name}"),
-                span,
-            )))?.clone();
+        let transformer = self
+            .transformers
+            .get(macro_name)
+            .ok_or_else(|| {
+                Box::new(Error::macro_error(
+                    format!("Unknown macro: {macro_name}"),
+                    span,
+                ))
+            })?
+            .clone();
 
         // Choose expansion method
         let use_syntax_objects = match &self.mode {
@@ -395,7 +433,10 @@ impl UnifiedMacroExpander {
                 }
 
                 Err(Box::new(Error::macro_error(
-                    format!("No syntax-case clause matched for macro: {}", transformer.name),
+                    format!(
+                        "No syntax-case clause matched for macro: {}",
+                        transformer.name
+                    ),
                     span,
                 )))
             }
@@ -430,8 +471,12 @@ impl UnifiedMacroExpander {
                     let elements: Vec<_> = syntax_args.iter().map(|s| s.to_spanned()).collect();
                     SyntaxObject::new(Expr::List(elements), span, current_context)
                 };
-                
-                let result = self.syntax_expander.expand_macro_with_syntax("", &[input_syntax.clone()], span)?;
+
+                let result = self.syntax_expander.expand_macro_with_syntax(
+                    "",
+                    &[input_syntax.clone()],
+                    span,
+                )?;
                 self.syntax_expander.syntax_to_expr(&result)
             }
         }
@@ -448,14 +493,17 @@ impl UnifiedMacroExpander {
         self.stats.legacy_expansions += 1;
 
         match &transformer.transformer_type {
-            MacroTransformerType::Legacy { patterns, templates } => {
+            MacroTransformerType::Legacy {
+                patterns,
+                templates,
+            } => {
                 // Use legacy pattern matching
                 for (pattern, template) in patterns.iter().zip(templates.iter()) {
                     let mut bindings = PatternBindings::new();
-                    if pattern.match_expr(&Spanned::new(
-                        Expr::List(args.to_vec()),
-                        span,
-                    )).is_ok() {
+                    if pattern
+                        .match_expr(&Spanned::new(Expr::List(args.to_vec()), span))
+                        .is_ok()
+                    {
                         return template.expand(&bindings, span);
                     }
                 }
@@ -466,26 +514,20 @@ impl UnifiedMacroExpander {
                 )))
             }
 
-            MacroTransformerType::SyntaxCase { .. } => {
-                Err(Box::new(Error::macro_error(
-                    "Cannot expand syntax-case transformer with legacy system".to_string(),
-                    span,
-                )))
-            }
+            MacroTransformerType::SyntaxCase { .. } => Err(Box::new(Error::macro_error(
+                "Cannot expand syntax-case transformer with legacy system".to_string(),
+                span,
+            ))),
 
-            MacroTransformerType::Procedure { name, .. } => {
-                Err(Box::new(Error::macro_error(
-                    format!("Procedure transformers not supported in legacy mode: {name}"),
-                    span,
-                )))
-            }
+            MacroTransformerType::Procedure { name, .. } => Err(Box::new(Error::macro_error(
+                format!("Procedure transformers not supported in legacy mode: {name}"),
+                span,
+            ))),
 
-            MacroTransformerType::VariableTransformer { .. } => {
-                Err(Box::new(Error::macro_error(
-                    "Variable transformers require syntax objects".to_string(),
-                    span,
-                )))
-            }
+            MacroTransformerType::VariableTransformer { .. } => Err(Box::new(Error::macro_error(
+                "Variable transformers require syntax objects".to_string(),
+                span,
+            ))),
         }
     }
 
@@ -510,8 +552,10 @@ impl UnifiedMacroExpander {
         // Set up context in both expanders
         let _legacy_mark = self.legacy_expander.hygiene_context.enter_scope();
         let syntax_context = self.syntax_expander.enter_macro_expansion(module_path)?;
-        let _scope_id = self.scope_manager.push_scope(ScopeType::Macro, syntax_context.module_path)?;
-        
+        let _scope_id = self
+            .scope_manager
+            .push_scope(ScopeType::Macro, syntax_context.module_path)?;
+
         Ok(())
     }
 
@@ -555,7 +599,11 @@ impl UnifiedMacroExpander {
     }
 
     /// Converts an expression to a syntax object
-    pub fn expr_to_syntax(&mut self, expr: Spanned<Expr>, template_context: Option<&SyntaxObject>) -> Result<SyntaxObject> {
+    pub fn expr_to_syntax(
+        &mut self,
+        expr: Spanned<Expr>,
+        template_context: Option<&SyntaxObject>,
+    ) -> Result<SyntaxObject> {
         self.syntax_expander.expr_to_syntax(expr, template_context)
     }
 }
@@ -577,12 +625,12 @@ pub mod unified_utils {
             hygiene_enabled: true,
             collect_stats: true,
         };
-        
+
         let mut expander = UnifiedMacroExpander::with_config(config, ExpansionMode::Hybrid);
-        
+
         // Register standard transformers
         register_standard_transformers(&mut expander);
-        
+
         expander
     }
 
@@ -599,17 +647,18 @@ pub mod unified_utils {
     fn register_let_transformer(expander: &mut UnifiedMacroExpander) {
         // Simplified let transformer using syntax-case
         let pattern = SyntaxPattern::List(vec![
-            SyntaxPattern::Identifier { name: "let".to_string(), binding_level: None },
-            SyntaxPattern::List(vec![
-                SyntaxPattern::Ellipsis {
-                    pattern: Box::new(SyntaxPattern::List(vec![
-                        SyntaxPattern::PatternVariable("var".to_string()),
-                        SyntaxPattern::PatternVariable("val".to_string()),
-                    ])),
-                    min_count: 0,
-                    max_count: None,
-                }
-            ]),
+            SyntaxPattern::Identifier {
+                name: "let".to_string(),
+                binding_level: None,
+            },
+            SyntaxPattern::List(vec![SyntaxPattern::Ellipsis {
+                pattern: Box::new(SyntaxPattern::List(vec![
+                    SyntaxPattern::PatternVariable("var".to_string()),
+                    SyntaxPattern::PatternVariable("val".to_string()),
+                ])),
+                min_count: 0,
+                max_count: None,
+            }]),
             SyntaxPattern::Ellipsis {
                 pattern: Box::new(SyntaxPattern::PatternVariable("body".to_string())),
                 min_count: 1,
@@ -620,12 +669,10 @@ pub mod unified_utils {
         let template = SyntaxTemplate::List(vec![
             SyntaxTemplate::List(vec![
                 SyntaxTemplate::Identifier("lambda".to_string()),
-                SyntaxTemplate::List(vec![
-                    SyntaxTemplate::Ellipsis {
-                        template: Box::new(SyntaxTemplate::PatternVariable("var".to_string())),
-                        separator: None,
-                    }
-                ]),
+                SyntaxTemplate::List(vec![SyntaxTemplate::Ellipsis {
+                    template: Box::new(SyntaxTemplate::PatternVariable("var".to_string())),
+                    separator: None,
+                }]),
                 SyntaxTemplate::Ellipsis {
                     template: Box::new(SyntaxTemplate::PatternVariable("body".to_string())),
                     separator: None,
@@ -668,18 +715,20 @@ pub mod unified_utils {
         rules: Vec<(Spanned<Expr>, Spanned<Expr>)>,
     ) -> Result<UnifiedMacroTransformer> {
         let mut clauses = Vec::new();
-        
+
         for (_pattern_expr, _template_expr) in rules {
             // TODO: Parse pattern and template expressions into SyntaxPattern and SyntaxTemplate
             // This would involve a complete parser for syntax-rules patterns and templates
-            
+
             // For now, create placeholder pattern/template
             let pattern = SyntaxPattern::PatternVariable("_".to_string());
             let template = SyntaxTemplate::Identifier("placeholder".to_string());
             clauses.push((pattern, template));
         }
-        
-        Ok(UnifiedMacroTransformer::syntax_case(name, literals, clauses))
+
+        Ok(UnifiedMacroTransformer::syntax_case(
+            name, literals, clauses,
+        ))
     }
 }
 
@@ -699,13 +748,9 @@ mod tests {
     #[test]
     fn test_transformer_registration() {
         let mut expander = UnifiedMacroExpander::new();
-        
-        let transformer = UnifiedMacroTransformer::legacy(
-            "test-macro".to_string(),
-            vec![],
-            vec![],
-        );
-        
+
+        let transformer = UnifiedMacroTransformer::legacy("test-macro".to_string(), vec![], vec![]);
+
         expander.register_transformer(transformer);
         assert!(expander.has_macro("test-macro"));
         assert_eq!(expander.macro_names(), vec!["test-macro"]);
@@ -714,10 +759,10 @@ mod tests {
     #[test]
     fn test_mode_switching() {
         let mut expander = UnifiedMacroExpander::new();
-        
+
         expander.set_mode(ExpansionMode::Legacy);
         assert_eq!(expander.mode, ExpansionMode::Legacy);
-        
+
         expander.set_mode(ExpansionMode::SyntaxObjects);
         assert_eq!(expander.mode, ExpansionMode::SyntaxObjects);
     }
@@ -733,10 +778,12 @@ mod tests {
     #[test]
     fn test_expansion_context() {
         let mut expander = UnifiedMacroExpander::new();
-        
-        expander.enter_expansion_context(vec!["test".to_string()]).unwrap();
+
+        expander
+            .enter_expansion_context(vec!["test".to_string()])
+            .unwrap();
         // Context should be set up in both expanders
-        
+
         expander.exit_expansion_context();
         // Context should be cleaned up
     }

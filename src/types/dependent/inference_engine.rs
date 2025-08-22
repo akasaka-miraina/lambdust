@@ -9,14 +9,14 @@
 
 use crate::diagnostics::{Error, Result, Span};
 use crate::types::dependent::{
-    DependentType, DependentTerm, UniverseLevel,
+    DependentTerm, DependentType, UniverseLevel,
     constraint_solver::{ConstraintSolver, TypeConstraint, TypeVariable, VariableKind},
-    type_checker::{DependentTypeChecker, TypeCheckingContext, CheckingMode},
+    type_checker::{CheckingMode, DependentTypeChecker, TypeCheckingContext},
 };
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet, VecDeque, BTreeMap};
-use std::sync::{Arc, RwLock, Mutex};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Type inference mode for different inference strategies
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -35,38 +35,57 @@ pub enum InferenceMode {
 #[derive(Debug, Clone)]
 pub enum InferenceEvidence {
     /// Type was inferred from variable binding
-    VariableBinding { var: String, binding_span: Span },
+    VariableBinding {
+        /// Name of the variable that provided type information
+        var: String,
+        /// Source location where the binding occurs
+        binding_span: Span,
+    },
     /// Type was inferred from function application
-    Application { func_span: Span, arg_span: Span },
+    Application {
+        /// Source location of the function being applied
+        func_span: Span,
+        /// Source location of the argument
+        arg_span: Span,
+    },
     /// Type was inferred from constraint solving
-    ConstraintSolving { constraints: Vec<TypeConstraint> },
+    ConstraintSolving {
+        /// The constraints that led to this inference
+        constraints: Vec<TypeConstraint>,
+    },
     /// Type was inferred from pattern matching
-    PatternMatching { pattern_span: Span },
+    PatternMatching {
+        /// Source location of the pattern
+        pattern_span: Span,
+    },
     /// Type was inferred from annotation
-    Annotation { annotation_span: Span },
+    Annotation {
+        /// Source location of the type annotation
+        annotation_span: Span,
+    },
 }
 
 /// Inference result with evidence and confidence
 #[derive(Debug, Clone)]
 pub struct InferenceResult {
-    /// Inferred type
+    /// The type that was successfully inferred
     pub inferred_type: DependentType,
-    /// Evidence for the inference
+    /// Evidence supporting this inference decision
     pub evidence: InferenceEvidence,
-    /// Confidence level (0.0 to 1.0)
+    /// Confidence level in the inference (0.0 to 1.0)
     pub confidence: f64,
-    /// Generated constraints
+    /// Additional constraints generated during inference
     pub constraints: Vec<TypeConstraint>,
-    /// Substitutions applied
+    /// Type variable substitutions applied during inference
     pub substitutions: HashMap<TypeVariable, DependentType>,
 }
 
 /// Type schema for polymorphic types
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeSchema {
-    /// Universally quantified variables
+    /// Variables that are universally quantified (forall α. ...)
     pub quantified_vars: Vec<TypeVariable>,
-    /// The type with quantified variables
+    /// The body type containing the quantified variables
     pub body: DependentType,
 }
 
@@ -109,20 +128,30 @@ pub struct TypeInferenceEngine {
 /// Cache key for inference results
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct InferenceCacheKey {
+    /// The term whose type is being inferred
     term: DependentTerm,
+    /// Hash of the inference context for cache validity
     context_hash: u64,
+    /// The inference mode used
     mode: InferenceMode,
 }
 
 /// Statistics for inference performance monitoring
 #[derive(Debug, Default)]
 pub struct InferenceStatistics {
+    /// Number of terms that had their types successfully inferred
     pub terms_inferred: usize,
+    /// Number of type constraints generated during inference
     pub constraints_generated: usize,
+    /// Number of unification operations performed
     pub unifications_performed: usize,
+    /// Number of cache hits during inference
     pub cache_hits: usize,
+    /// Number of cache misses during inference
     pub cache_misses: usize,
+    /// Number of polymorphic type schema instantiations
     pub schema_instantiations: usize,
+    /// Number of inference operations run in parallel
     pub parallel_inferences: usize,
 }
 
@@ -222,9 +251,12 @@ impl TypeSchema {
     }
 
     /// Instantiate schema with fresh variables
-    pub fn instantiate(&self, fresh_counter: &mut u64) -> (DependentType, HashMap<TypeVariable, TypeVariable>) {
+    pub fn instantiate(
+        &self,
+        fresh_counter: &mut u64,
+    ) -> (DependentType, HashMap<TypeVariable, TypeVariable>) {
         let mut var_mapping = HashMap::new();
-        
+
         // Generate fresh variables for quantified variables
         for old_var in &self.quantified_vars {
             *fresh_counter += 1;
@@ -282,11 +314,7 @@ impl TypeInferenceEngine {
     }
 
     /// Infer type for a term with evidence tracking
-    pub fn infer_type(
-        &mut self,
-        term: &DependentTerm,
-        span: Span,
-    ) -> Result<InferenceResult> {
+    pub fn infer_type(&mut self, term: &DependentTerm, span: Span) -> Result<InferenceResult> {
         // Check depth limit
         if self.current_depth >= self.max_depth {
             return Err(Box::new(Error::type_error(
@@ -296,7 +324,8 @@ impl TypeInferenceEngine {
         }
 
         self.current_depth += 1;
-        self.inference_context.push_inference(format!("Inferring type for: {:?}", term));
+        self.inference_context
+            .push_inference(format!("Inferring type for: {:?}", term));
 
         // Check cache first
         let cache_key = InferenceCacheKey {
@@ -335,17 +364,14 @@ impl TypeInferenceEngine {
     }
 
     /// Complete type inference
-    fn infer_complete(
-        &mut self,
-        term: &DependentTerm,
-        span: Span,
-    ) -> Result<InferenceResult> {
+    fn infer_complete(&mut self, term: &DependentTerm, span: Span) -> Result<InferenceResult> {
         match term {
             DependentTerm::Variable(name) => {
                 // Check for type schema first
                 if let Some(schema) = self.inference_context.lookup_schema(name).cloned() {
-                    let (instantiated_type, var_mapping) = schema.instantiate(&mut self.inference_context.fresh_counter);
-                    
+                    let (instantiated_type, var_mapping) =
+                        schema.instantiate(&mut self.inference_context.fresh_counter);
+
                     let mut stats = self.stats.lock().unwrap();
                     stats.schema_instantiations += 1;
                     drop(stats);
@@ -358,7 +384,10 @@ impl TypeInferenceEngine {
                         },
                         confidence: 1.0,
                         constraints: vec![],
-                        substitutions: var_mapping.into_iter().map(|(old, new)| (old, DependentType::Universe(0))).collect(),
+                        substitutions: var_mapping
+                            .into_iter()
+                            .map(|(old, new)| (old, DependentType::Universe(0)))
+                            .collect(),
                     })
                 } else {
                     // Fallback to type checker
@@ -376,15 +405,18 @@ impl TypeInferenceEngine {
                 }
             }
 
-            DependentTerm::Lambda { param, param_type, body } => {
+            DependentTerm::Lambda {
+                param,
+                param_type,
+                body,
+            } => {
                 // Infer lambda type with dependent function type
-                self.type_checker.get_context_mut().bind_variable(
-                    param.clone(),
-                    (**param_type).clone(),
-                );
+                self.type_checker
+                    .get_context_mut()
+                    .bind_variable(param.clone(), (**param_type).clone());
 
                 let body_result = self.infer_complete(body, span)?;
-                
+
                 self.type_checker.get_context_mut().unbind_variable(param);
 
                 let lambda_type = DependentType::Pi {
@@ -447,10 +479,14 @@ impl TypeInferenceEngine {
                             *first
                         } else {
                             // For dependent pair, second type may depend on first
-                            self.substitute_in_type(&second, &var, &DependentTerm::Projection {
-                                pair: pair.clone(),
-                                is_first: true,
-                            })?
+                            self.substitute_in_type(
+                                &second,
+                                &var,
+                                &DependentTerm::Projection {
+                                    pair: pair.clone(),
+                                    is_first: true,
+                                },
+                            )?
                         };
 
                         Ok(InferenceResult {
@@ -467,9 +503,10 @@ impl TypeInferenceEngine {
                     _ => {
                         // Generate constraints for sigma type
                         let fresh_first = self.inference_context.fresh_type_var(VariableKind::Type);
-                        let fresh_second = self.inference_context.fresh_type_var(VariableKind::Type);
+                        let fresh_second =
+                            self.inference_context.fresh_type_var(VariableKind::Type);
                         let fresh_var = self.inference_context.fresh_type_var(VariableKind::Type);
-                        
+
                         let sigma_type = DependentType::Sigma {
                             var: fresh_var.name.clone(),
                             first: Box::new(DependentType::Universe(0)), // Placeholder
@@ -487,7 +524,9 @@ impl TypeInferenceEngine {
 
                         Ok(InferenceResult {
                             inferred_type: result_type,
-                            evidence: InferenceEvidence::ConstraintSolving { constraints: constraints.clone() },
+                            evidence: InferenceEvidence::ConstraintSolving {
+                                constraints: constraints.clone(),
+                            },
                             confidence: 0.7,
                             constraints,
                             substitutions: pair_result.substitutions,
@@ -496,15 +535,15 @@ impl TypeInferenceEngine {
                 }
             }
 
-            DependentTerm::Constructor { result_type, .. } => {
-                Ok(InferenceResult {
-                    inferred_type: (**result_type).clone(),
-                    evidence: InferenceEvidence::Annotation { annotation_span: span },
-                    confidence: 1.0,
-                    constraints: vec![],
-                    substitutions: HashMap::new(),
-                })
-            }
+            DependentTerm::Constructor { result_type, .. } => Ok(InferenceResult {
+                inferred_type: (**result_type).clone(),
+                evidence: InferenceEvidence::Annotation {
+                    annotation_span: span,
+                },
+                confidence: 1.0,
+                constraints: vec![],
+                substitutions: HashMap::new(),
+            }),
 
             DependentTerm::Match { return_type, .. } => {
                 // Pattern matching inference is complex
@@ -527,7 +566,9 @@ impl TypeInferenceEngine {
 
                 Ok(InferenceResult {
                     inferred_type: refl_type,
-                    evidence: InferenceEvidence::Annotation { annotation_span: span },
+                    evidence: InferenceEvidence::Annotation {
+                        annotation_span: span,
+                    },
                     confidence: 1.0,
                     constraints: vec![],
                     substitutions: HashMap::new(),
@@ -547,7 +588,11 @@ impl TypeInferenceEngine {
         let arg_result = self.infer_complete(argument, span)?;
 
         match func_result.inferred_type {
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 // Check argument type against domain
                 let mut constraints = func_result.constraints;
                 constraints.extend(arg_result.constraints);
@@ -604,7 +649,9 @@ impl TypeInferenceEngine {
 
                 Ok(InferenceResult {
                     inferred_type: DependentType::Universe(0), // Placeholder for codomain
-                    evidence: InferenceEvidence::ConstraintSolving { constraints: constraints.clone() },
+                    evidence: InferenceEvidence::ConstraintSolving {
+                        constraints: constraints.clone(),
+                    },
                     confidence: 0.6,
                     constraints,
                     substitutions,
@@ -614,31 +661,19 @@ impl TypeInferenceEngine {
     }
 
     /// Partial type inference (only infer what's necessary)
-    fn infer_partial(
-        &mut self,
-        term: &DependentTerm,
-        span: Span,
-    ) -> Result<InferenceResult> {
+    fn infer_partial(&mut self, term: &DependentTerm, span: Span) -> Result<InferenceResult> {
         // Simplified partial inference
         self.infer_complete(term, span)
     }
 
     /// Local type inference (within current scope)
-    fn infer_local(
-        &mut self,
-        term: &DependentTerm,
-        span: Span,
-    ) -> Result<InferenceResult> {
+    fn infer_local(&mut self, term: &DependentTerm, span: Span) -> Result<InferenceResult> {
         // Local inference with limited context
         self.infer_complete(term, span)
     }
 
     /// Global type inference (considering entire program)
-    fn infer_global(
-        &mut self,
-        term: &DependentTerm,
-        span: Span,
-    ) -> Result<InferenceResult> {
+    fn infer_global(&mut self, term: &DependentTerm, span: Span) -> Result<InferenceResult> {
         // Global inference with full program context
         self.infer_complete(term, span)
     }
@@ -708,7 +743,7 @@ impl TypeInferenceEngine {
 
     /// Check cache for inference result
     fn check_cache(&self, key: &InferenceCacheKey) -> Option<InferenceResult> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.try_read().unwrap();
         cache.get(key).cloned()
     }
 
@@ -746,7 +781,6 @@ impl Default for TypeInferenceEngine {
         Self::new()
     }
 }
-
 
 impl Clone for InferenceStatistics {
     fn clone(&self) -> Self {
@@ -789,11 +823,8 @@ mod tests {
             name: "α".to_string(),
             kind: VariableKind::Type,
         };
-        let schema = TypeSchema::new(
-            vec![var],
-            DependentType::Universe(0),
-        );
-        
+        let schema = TypeSchema::new(vec![var], DependentType::Universe(0));
+
         let mut counter = 0;
         let (instantiated, mapping) = schema.instantiate(&mut counter);
         assert_eq!(mapping.len(), 1);
@@ -803,15 +834,12 @@ mod tests {
     #[test]
     fn test_simple_variable_inference() {
         let mut engine = TypeInferenceEngine::new();
-        let schema = TypeSchema::new(
-            vec![],
-            DependentType::Universe(0),
-        );
+        let schema = TypeSchema::new(vec![], DependentType::Universe(0));
         engine.add_schema("x".to_string(), schema);
-        
+
         let term = DependentTerm::Variable("x".to_string());
         let result = engine.infer_type(&term, Span::new(0, 0)).unwrap();
-        
+
         assert_eq!(result.inferred_type, DependentType::Universe(0));
         assert_eq!(result.confidence, 1.0);
     }

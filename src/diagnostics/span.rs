@@ -27,8 +27,8 @@ pub struct Spanned<T> {
 impl Span {
     /// Creates a new span.
     pub fn new(start: usize, len: usize) -> Self {
-        Self { 
-            start, 
+        Self {
+            start,
             len,
             file_id: None,
             line: 1,
@@ -61,7 +61,11 @@ impl Span {
             len: end - start,
             file_id: self.file_id.or(other.file_id),
             line: self.line.min(other.line),
-            column: if self.line == other.line { self.column.min(other.column) } else { self.column },
+            column: if self.line == other.line {
+                self.column.min(other.column)
+            } else {
+                self.column
+            },
         }
     }
 

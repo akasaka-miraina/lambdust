@@ -3,10 +3,10 @@
 //! Provides safe fallback mechanisms when JIT assumptions are violated.
 
 use crate::ast::Expr;
+use crate::diagnostics::{Error, Result};
 use crate::eval::{Environment, Value};
-use crate::jit::compilation_tiers::CompilationTier;
 use crate::jit::code_generator::NativeCode;
-use crate::diagnostics::{Result, Error};
+use crate::jit::compilation_tiers::CompilationTier;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -33,22 +33,23 @@ impl DeoptimizationManager {
         reason: DeoptimizationReason,
     ) -> Result<DeoptimizationResult> {
         let start_time = Instant::now();
-        
+
         let target_tier = self.determine_target_tier(context, &reason)?;
-        
+
         let result = DeoptimizationResult {
             target_tier,
             deoptimization_time: start_time.elapsed(),
             reason: reason.clone(),
         };
-        
+
         // Update statistics
         {
-            let mut stats = self.stats.write()
-                .map_err(|_| Error::runtime_error("Failed to acquire stats lock".to_string(), None))?;
+            let mut stats = self.stats.write().map_err(|_| {
+                Error::runtime_error("Failed to acquire stats lock".to_string(), None)
+            })?;
             stats.record_deoptimization(reason, start_time.elapsed());
         }
-        
+
         Ok(result)
     }
 
@@ -58,15 +59,11 @@ impl DeoptimizationManager {
         reason: &DeoptimizationReason,
     ) -> Result<CompilationTier> {
         match reason {
-            DeoptimizationReason::SecurityViolation { .. } => {
-                Ok(CompilationTier::Interpreter)
-            }
+            DeoptimizationReason::SecurityViolation { .. } => Ok(CompilationTier::Interpreter),
             DeoptimizationReason::PerformanceRegression { .. } => {
                 self.get_lower_tier(context.current_tier)
             }
-            DeoptimizationReason::MemoryPressure => {
-                self.get_lower_tier(context.current_tier)
-            }
+            DeoptimizationReason::MemoryPressure => self.get_lower_tier(context.current_tier),
             _ => self.get_lower_tier(context.current_tier),
         }
     }
@@ -93,11 +90,21 @@ pub struct DeoptimizationContext {
 /// Reasons for deoptimization
 #[derive(Debug, Clone)]
 pub enum DeoptimizationReason {
-    SecurityViolation { violation_type: String },
-    PerformanceRegression { expected_speedup: f64, actual_speedup: f64 },
+    SecurityViolation {
+        violation_type: String,
+    },
+    PerformanceRegression {
+        expected_speedup: f64,
+        actual_speedup: f64,
+    },
     MemoryPressure,
-    TypeAssumptionViolation { expected_type: String, actual_type: String },
-    Manual { reason: String },
+    TypeAssumptionViolation {
+        expected_type: String,
+        actual_type: String,
+    },
+    Manual {
+        reason: String,
+    },
 }
 
 impl DeoptimizationReason {

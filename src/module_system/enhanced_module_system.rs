@@ -6,7 +6,7 @@
 //! - Hot-reload support for development
 //! - Comprehensive validation and monitoring
 
-use super::{ModuleId, Module, ImportSpec, loader, cache, resolver, import, runtime_integration};
+use super::{ImportSpec, Module, ModuleId, cache, import, loader, resolver, runtime_integration};
 use crate::diagnostics::Result;
 use crate::eval::Value;
 use crate::runtime::GlobalEnvironmentManager;
@@ -65,7 +65,7 @@ impl EnhancedModuleSystem {
         let resolver = resolver::DependencyResolver::new();
         let global_env = Arc::new(GlobalEnvironmentManager::new());
         let instantiator = runtime_integration::LibraryInstantiator::new(global_env);
-        
+
         let mut system = Self {
             loader,
             cache,
@@ -76,7 +76,7 @@ impl EnhancedModuleSystem {
 
         // Perform initial setup
         system.initialize_system()?;
-        
+
         Ok(system)
     }
 
@@ -89,22 +89,25 @@ impl EnhancedModuleSystem {
 
         // Load the module from source
         let module = self.loader.load(id)?;
-        
+
         // Resolve dependencies
         let resolved = self.resolver.resolve_dependencies(module)?;
-        
+
         // Cache the resolved module
         let module_arc = Arc::new(resolved);
         self.cache.insert(id.clone(), module_arc.clone());
-        
+
         Ok(module_arc)
     }
 
     /// Loads and instantiates a library for runtime use.
-    pub fn instantiate_library(&mut self, id: &ModuleId) -> Result<Arc<runtime_integration::LibraryInstance>> {
+    pub fn instantiate_library(
+        &mut self,
+        id: &ModuleId,
+    ) -> Result<Arc<runtime_integration::LibraryInstance>> {
         // Load the module first
         let module = self.load_module(id)?;
-        
+
         // Instantiate it for runtime use
         self.instantiator.instantiate_library((*module).clone())
     }
@@ -112,22 +115,26 @@ impl EnhancedModuleSystem {
     /// Resolves an import specification into a set of bindings with full R7RS support.
     pub fn resolve_import(&mut self, import: &ImportSpec) -> Result<HashMap<String, Value>> {
         let library = self.instantiate_library(&import.module_id)?;
-        
+
         // Convert library bindings to import bindings
         let mut bindings = HashMap::new();
         for (name, lib_binding) in &library.exports {
             bindings.insert(name.clone(), lib_binding.value.clone());
         }
-        
+
         // Apply import configuration to filter/rename bindings
         import::apply_import_config(&bindings, &import.config)
     }
 
     /// Resolves an import specification from an AST expression.
-    pub fn resolve_import_from_expr(&mut self, import_expr: &crate::ast::Spanned<crate::ast::Expr>) -> Result<HashMap<String, Value>> {
+    pub fn resolve_import_from_expr(
+        &mut self,
+        import_expr: &crate::ast::Spanned<crate::ast::Expr>,
+    ) -> Result<HashMap<String, Value>> {
         // Use the import spec resolver to parse the expression
-        let import_resolution = runtime_integration::ImportSpecResolver::resolve_import_spec(import_expr)?;
-        
+        let import_resolution =
+            runtime_integration::ImportSpecResolver::resolve_import_spec(import_expr)?;
+
         match import_resolution {
             runtime_integration::ImportResolution::Direct(module_id) => {
                 let library = self.instantiate_library(&module_id)?;
@@ -207,7 +214,7 @@ impl EnhancedModuleSystem {
     pub fn validate_system(&self) -> Result<SystemValidationReport> {
         let loader_report = self.loader.validate_library_setup()?;
         let instantiation_stats = self.instantiator.get_statistics();
-        
+
         Ok(SystemValidationReport {
             library_validation: loader_report,
             instantiation_stats,
@@ -227,13 +234,13 @@ impl EnhancedModuleSystem {
     pub fn reload_library(&mut self, id: &ModuleId) -> Result<()> {
         // Remove from cache to force reload
         self.cache.remove(id);
-        
+
         // Clear instantiation cache for this library
         self.instantiator.clear_cache();
-        
+
         // Reload the library
         self.instantiate_library(id)?;
-        
+
         Ok(())
     }
 
@@ -270,7 +277,10 @@ impl EnhancedModuleSystem {
         for module_id in &essential_modules {
             // Try to load essential modules, but don't fail if they're not available
             if self.load_module(module_id).is_ok() {
-                eprintln!("Preloaded standard library: {}", super::format_module_id(module_id));
+                eprintln!(
+                    "Preloaded standard library: {}",
+                    super::format_module_id(module_id)
+                );
             }
         }
 
@@ -323,18 +333,29 @@ impl SystemValidationReport {
     /// Gets a comprehensive system summary.
     pub fn summary(&self) -> String {
         let mut summary = String::new();
-        
+
         summary.push_str("Enhanced Module System Status:\n");
-        summary.push_str(&format!("• System health: {}\n", 
-            if self.is_healthy() { "Healthy" } else { "Issues detected" }));
-        summary.push_str(&format!("• Available modules: {}\n", self.available_modules));
+        summary.push_str(&format!(
+            "• System health: {}\n",
+            if self.is_healthy() {
+                "Healthy"
+            } else {
+                "Issues detected"
+            }
+        ));
+        summary.push_str(&format!(
+            "• Available modules: {}\n",
+            self.available_modules
+        ));
         summary.push_str(&format!("• Cached modules: {}\n", self.cached_modules));
-        summary.push_str(&format!("• Instantiated libraries: {}\n", 
-            self.instantiation_stats.instantiated_libraries));
-        
+        summary.push_str(&format!(
+            "• Instantiated libraries: {}\n",
+            self.instantiation_stats.instantiated_libraries
+        ));
+
         summary.push('\n');
         summary.push_str(&self.library_validation.summary());
-        
+
         summary
     }
 }
@@ -342,7 +363,7 @@ impl SystemValidationReport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::module_system::{ModuleNamespace, ModuleSource, ModuleMetadata};
+    use crate::module_system::{ModuleMetadata, ModuleNamespace, ModuleSource};
 
     fn create_test_module(name: &str) -> Module {
         Module {
@@ -371,7 +392,7 @@ mod tests {
             lazy_loading: false,
             preload_timeout: std::time::Duration::from_secs(10),
         };
-        
+
         let system = EnhancedModuleSystem::with_config(config);
         assert!(system.is_ok());
     }
@@ -388,9 +409,9 @@ mod tests {
         let mut system = EnhancedModuleSystem::new().unwrap();
         let module = create_test_module("test");
         let module_id = module.id.clone();
-        
+
         system.register_builtin_module(module);
-        
+
         let info = system.get_module_info(&module_id);
         assert!(info.is_some());
     }
@@ -400,9 +421,9 @@ mod tests {
         let mut system = EnhancedModuleSystem::new().unwrap();
         let module = create_test_module("test");
         let module_id = module.id.clone();
-        
+
         system.register_builtin_module(module);
-        
+
         let result = system.instantiate_library(&module_id);
         assert!(result.is_ok());
     }

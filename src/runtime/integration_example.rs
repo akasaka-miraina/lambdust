@@ -48,7 +48,7 @@ impl IntegrationExample {
     pub fn new() -> Result<Self> {
         let mut bootstrap = BootstrapSystem::new()?;
         let primitive_bridge = PrimitiveBridge::new();
-        
+
         Ok(Self {
             bootstrap,
             global_env: Arc::new(GlobalEnvironmentManager::new()),
@@ -61,22 +61,22 @@ impl IntegrationExample {
     pub fn run_complete_example(&mut self) -> Result<()> {
         println!("🚀 Lambdust Library Loading System Integration Example");
         println!("======================================================");
-        
+
         // Phase 1: Bootstrap the system
         self.run_bootstrap_phase()?;
-        
+
         // Phase 2: Set up primitive bridge
         self.setup_primitive_bridge()?;
-        
+
         // Phase 3: Load Scheme libraries
         self.load_scheme_libraries()?;
-        
+
         // Phase 4: Demonstrate interop
         self.demonstrate_interop()?;
-        
+
         // Phase 5: Show performance metrics
         self.show_performance_metrics();
-        
+
         println!("\n✅ Integration example completed successfully!");
         Ok(())
     }
@@ -85,29 +85,29 @@ impl IntegrationExample {
     fn run_bootstrap_phase(&mut self) -> Result<()> {
         println!("\n📦 Phase 1: Bootstrapping with minimal primitives");
         println!("--------------------------------------------------");
-        
+
         let start = Instant::now();
-        
+
         // Run bootstrap process
         self.global_env = self.bootstrap.bootstrap()?;
-        
+
         let bootstrap_time = start.elapsed();
         self.metrics.bootstrap_time_ms = bootstrap_time.as_millis() as u64;
-        
+
         let stats = self.bootstrap.statistics();
         self.metrics.primitives_loaded = stats.primitives_count;
-        
-        println!("✓ Loaded {} minimal primitives in {}ms", 
+
+        println!("✓ Loaded {} minimal primitives in {}ms",
                  stats.primitives_count, self.metrics.bootstrap_time_ms);
         println!("✓ Memory usage: {} bytes", stats.memory_usage_bytes);
-        
+
         // Show some loaded primitives
         println!("✓ Essential primitives available:");
         println!("  - Arithmetic: +, -, *, =, <, >");
         println!("  - Lists: cons, car, cdr, null?, pair?");
         println!("  - Control: apply, call/cc (simplified)");
         println!("  - I/O: display, write");
-        
+
         Ok(())
     }
 
@@ -115,17 +115,17 @@ impl IntegrationExample {
     fn setup_primitive_bridge(&mut self) -> Result<()> {
         println!("\n🌉 Phase 2: Setting up primitive bridge");
         println!("---------------------------------------");
-        
+
         // Register additional primitives through the bridge
         self.register_bridge_primitives();
-        
+
         // Register type conversion rules
         self.setup_type_conversions();
-        
+
         println!("✓ Primitive bridge configured");
         println!("✓ Type conversion system active");
         println!("✓ Error translation system ready");
-        
+
         Ok(())
     }
 
@@ -133,12 +133,12 @@ impl IntegrationExample {
     fn load_scheme_libraries(&mut self) -> Result<()> {
         println!("\n📚 Phase 3: Loading Scheme libraries");
         println!("------------------------------------");
-        
+
         let start = Instant::now();
-        
+
         // Create scheme loader
         let mut scheme_loader = SchemeLibraryLoader::new(self.global_env.clone())?;
-        
+
         // Add stdlib path
         if let Ok(current_dir) = std::env::current_dir() {
             let stdlib_path = current_dir.join("stdlib");
@@ -155,11 +155,11 @@ impl IntegrationExample {
 
         match scheme_loader.load_library(&list_module_id) {
             Ok(compiled_library) => {
-                println!("✓ Loaded Scheme library: {}", 
+                println!("✓ Loaded Scheme library: {}",
                          crate::module_system::format_module_id(&list_module_id));
                 println!("  - Exports: {} functions", compiled_library.module.exports.len());
                 println!("  - Dependencies: {} modules", compiled_library.module.dependencies.len());
-                
+
                 // Install library exports
                 self.install_library_exports(&compiled_library)?;
                 self.metrics.scheme_libraries_loaded += 1;
@@ -171,7 +171,7 @@ impl IntegrationExample {
 
         let compilation_time = start.elapsed();
         self.metrics.compilation_time_ms = compilation_time.as_millis() as u64;
-        
+
         // Show cache statistics
         let cache_stats = scheme_loader.cache_statistics();
         self.metrics.cache_hit_rate = if cache_stats.hits + cache_stats.misses > 0 {
@@ -179,11 +179,11 @@ impl IntegrationExample {
         } else {
             0.0
         };
-        
+
         println!("✓ Library compilation completed in {}ms", self.metrics.compilation_time_ms);
-        println!("✓ Cache statistics: {} hits, {} misses, {:.1}% hit rate", 
+        println!("✓ Cache statistics: {} hits, {} misses, {:.1}% hit rate",
                  cache_stats.hits, cache_stats.misses, self.metrics.cache_hit_rate * 100.0);
-        
+
         Ok(())
     }
 
@@ -191,29 +191,29 @@ impl IntegrationExample {
     fn demonstrate_interop(&mut self) -> Result<()> {
         println!("\n🔄 Phase 4: Demonstrating Rust-Scheme interop");
         println!("---------------------------------------------");
-        
+
         // Example 1: Call Rust primitive from Scheme context
         self.demo_rust_primitive_call()?;
-        
+
         // Example 2: Type conversion between Rust and Scheme
         self.demo_type_conversion()?;
-        
+
         // Example 3: Error handling across language boundary
         self.demo_error_handling()?;
-        
+
         Ok(())
     }
 
     /// Demonstrates calling Rust primitives.
     fn demo_rust_primitive_call(&self) -> Result<()> {
         println!("\n📞 Calling Rust primitive from Scheme context:");
-        
+
         // Simulate calling a Rust primitive
         let args = vec![Value::integer(10), Value::integer(20), Value::integer(30)];
-        
+
         // This would normally go through the evaluator, but we'll simulate it
         println!("  (+ 10 20 30) -> Rust primitive call");
-        
+
         // Call the primitive directly (normally done by evaluator)
         if let Some(add_proc) = self.global_env.root_environment().lookup("+") {
             match &add_proc {
@@ -233,44 +233,44 @@ impl IntegrationExample {
         } else {
             println!("  + primitive not found");
         }
-        
+
         Ok(())
     }
 
     /// Demonstrates type conversion.
     fn demo_type_conversion(&self) -> Result<()> {
         println!("\n🔄 Type conversion examples:");
-        
+
         let int_val = Value::integer(42);
         let string_val = Value::string("hello");
-        
-        println!("  Integer value: {} (type: {})", int_val, 
+
+        println!("  Integer value: {} (type: {})", int_val,
                  self.primitive_bridge.type_converter.get_value_type(&int_val));
         println!("  String value: {} (type: {})", string_val,
                  self.primitive_bridge.type_converter.get_value_type(&string_val));
-        
+
         // Test type compatibility
         let int_type = SchemeType::Integer;
         let num_type = SchemeType::Number;
-        
-        println!("  Integer compatible with Number: {}", 
+
+        println!("  Integer compatible with Number: {}",
                  self.primitive_bridge.types_compatible(&int_type, &num_type));
-        
+
         Ok(())
     }
 
     /// Demonstrates error handling.
     fn demo_error_handling(&self) -> Result<()> {
         println!("\n⚠ Error handling demonstration:");
-        
+
         // Simulate an error from Rust primitive
         println!("  Attempting division by zero...");
-        
+
         // This would normally be caught and translated by the error translator
         let error_msg = "Division by zero";
         println!("  Rust error: {}", error_msg);
         println!("  → Translated to Scheme error: (error \"{}\")", error_msg);
-        
+
         Ok(())
     }
 
@@ -278,17 +278,17 @@ impl IntegrationExample {
     fn show_performance_metrics(&self) {
         println!("\n📊 Performance Metrics");
         println!("======================");
-        
+
         println!("Bootstrap Performance:");
         println!("  ⏱ Bootstrap time: {}ms", self.metrics.bootstrap_time_ms);
         println!("  🔧 Primitives loaded: {}", self.metrics.primitives_loaded);
         println!("  💾 Memory usage: {} bytes", self.metrics.memory_usage_bytes);
-        
+
         println!("\nLibrary Loading Performance:");
-        println!("  ⏱ Compilation time: {}ms", self.metrics.compilation_time_ms);  
+        println!("  ⏱ Compilation time: {}ms", self.metrics.compilation_time_ms);
         println!("  📚 Scheme libraries loaded: {}", self.metrics.scheme_libraries_loaded);
         println!("  📈 Cache hit rate: {:.1}%", self.metrics.cache_hit_rate * 100.0);
-        
+
         println!("\nArchitecture Benefits:");
         println!("  ✅ Minimal Rust core (< 50 primitives)");
         println!("  ✅ Rich Scheme standard library");
@@ -333,7 +333,7 @@ impl IntegrationExample {
         // Add custom conversion rules as needed
         // For example, integer to string conversion
         use crate::runtime::primitive_bridge::ConversionRule;
-        
+
         let int_to_string_rule = ConversionRule {
             from: SchemeType::Integer,
             to: SchemeType::String,
@@ -349,19 +349,19 @@ impl IntegrationExample {
                 }
             },
         };
-        
+
         self.primitive_bridge.add_conversion_rule(int_to_string_rule);
     }
 
     /// Installs library exports into the global environment.
     fn install_library_exports(&self, library: &crate::module_system::CompiledSchemeLibrary) -> Result<()> {
         let root_env = self.global_env.root_environment();
-        
+
         // Install each exported function
         for (name, value) in &library.module.exports {
             root_env.define(name.clone(), value.clone());
         }
-        
+
         Ok(())
     }
 
@@ -379,7 +379,7 @@ fn primitive_string_length(args: &[Value]) -> Result<Value> {
             None,
         ));
     }
-    
+
     match &args[0] {
         Value::Literal(crate::ast::Literal::String(s)) => (**s).clone()),
             Ok(Value::integer(s.len() as i64))
@@ -412,7 +412,7 @@ mod tests {
         let args = vec![Value::string("hello")];
         let result = primitive_string_length(&args).unwrap();
         assert_eq!(result, Value::integer(5));
-        
+
         let empty_args = vec![Value::string("")];
         let empty_result = primitive_string_length(&empty_args).unwrap();
         assert_eq!(empty_result, Value::integer(0));
@@ -430,7 +430,7 @@ mod tests {
     fn test_integration_metrics() {
         let mut example = IntegrationExample::new().unwrap();
         let initial_metrics = example.metrics().clone());
-        
+
         assert_eq!(initial_metrics.bootstrap_time_ms, 0);
         assert_eq!(initial_metrics.primitives_loaded, 0);
         assert_eq!(initial_metrics.scheme_libraries_loaded, 0);

@@ -1,4 +1,4 @@
-use super::{ModuleId, Module, ImportSpec, loader, cache, resolver, import};
+use super::{ImportSpec, Module, ModuleId, cache, import, loader, resolver};
 use crate::diagnostics::Result;
 use crate::eval::Value;
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ impl ModuleSystem {
         let loader = loader::ModuleLoader::new()?;
         let cache = cache::ModuleCache::new();
         let resolver = resolver::DependencyResolver::new();
-        
+
         Ok(Self {
             loader,
             cache,
@@ -38,21 +38,21 @@ impl ModuleSystem {
 
         // Load the module
         let module = self.loader.load(id)?;
-        
+
         // Resolve dependencies
         let resolved = self.resolver.resolve_dependencies(module)?;
-        
+
         // Cache the resolved module
         let module_arc = Arc::new(resolved);
         self.cache.insert(id.clone(), module_arc.clone());
-        
+
         Ok(module_arc)
     }
 
     /// Resolves an import specification into a set of bindings.
     pub fn resolve_import(&mut self, import: &ImportSpec) -> Result<HashMap<String, Value>> {
         let module = self.load_module(&import.module_id)?;
-        
+
         // Apply import configuration to get final bindings
         import::apply_import_config(&module.exports, &import.config)
     }

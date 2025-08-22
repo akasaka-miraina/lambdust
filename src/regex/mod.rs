@@ -31,17 +31,17 @@
 
 // Core engine modules
 pub mod engine;
-pub mod parser;
 pub mod matcher;
+pub mod parser;
 
 // Compatibility layer with regex crate
 pub mod compat;
 
 // Re-export primary types for convenient usage
-pub use engine::{Nfa, NfaEngine, EngineError};
-pub use parser::{Pattern, PatternParser, PatternError};
+pub use compat::{Error as RegexError, LightRegex, RegexBuilder};
+pub use engine::{EngineError, Nfa, NfaEngine};
 pub use matcher::{Match, MatchResult, Matcher};
-pub use compat::{LightRegex, RegexBuilder, Error as RegexError};
+pub use parser::{Pattern, PatternError, PatternParser};
 
 /// Result type for regex operations.
 pub type Result<T> = std::result::Result<T, RegexError>;
@@ -62,37 +62,37 @@ impl Regex {
     /// # Examples
     /// ```
     /// use lambdust::regex::Regex;
-    /// 
+    ///
     /// let regex = Regex::new(r"\d+").unwrap();
     /// assert!(regex.is_match("123"));
     /// ```
     pub fn new(pattern: &str) -> Result<Self> {
         let parsed = PatternParser::new(pattern).parse()?;
         let engine = NfaEngine::from_pattern(&parsed)?;
-        
+
         Ok(Self {
             engine,
             pattern: pattern.to_string(),
         })
     }
-    
+
     /// Tests whether the pattern matches anywhere in the text.
     pub fn is_match(&self, text: &str) -> bool {
         let mut matcher = Matcher::new(&self.engine);
         matcher.find(text).is_some()
     }
-    
+
     /// Finds the first match in the text.
     pub fn find(&self, text: &str) -> Option<Match> {
         let mut matcher = Matcher::new(&self.engine);
         matcher.find(text)
     }
-    
+
     /// Finds all non-overlapping matches in the text.
     pub fn find_iter<'t>(&'t self, text: &'t str) -> impl Iterator<Item = Match> + 't {
         FindIter::new(&self.engine, text)
     }
-    
+
     /// Returns the original pattern string.
     pub fn as_str(&self) -> &str {
         &self.pattern
@@ -118,18 +118,18 @@ impl<'t> FindIter<'t> {
 
 impl<'t> Iterator for FindIter<'t> {
     type Item = Match;
-    
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.text.len() {
             return None;
         }
-        
+
         let remaining = &self.text[self.pos..];
         if let Some(mut m) = self.matcher.find(remaining) {
             // Adjust match positions to be relative to original text
             m.start += self.pos;
             m.end += self.pos;
-            
+
             // Advance position past this match
             self.pos = m.end.max(self.pos + 1); // Ensure progress
             Some(m)
@@ -149,13 +149,13 @@ mod tests {
         assert!(regex.is_match("hello world"));
         assert!(!regex.is_match("goodbye world"));
     }
-    
+
     #[test]
     fn test_pattern_storage() {
         let regex = Regex::new(r"\d+").unwrap();
         assert_eq!(regex.as_str(), r"\d+");
     }
-    
+
     #[test]
     fn test_find_match() {
         let regex = Regex::new(r"\d+").unwrap();
@@ -164,7 +164,7 @@ mod tests {
         assert_eq!(m.end, 6);
         assert_eq!(m.as_str(), "123");
     }
-    
+
     #[test]
     fn test_find_all() {
         let regex = Regex::new(r"\d+").unwrap();

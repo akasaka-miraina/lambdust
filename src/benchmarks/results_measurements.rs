@@ -4,14 +4,14 @@
 //! analyzing, and reporting benchmark execution results, including
 //! timing measurements, memory usage, validation results, and statistics.
 
+use super::benchmark_config::{ParameterValue, TestCase};
+use super::system_metadata::{ResourceStats, TestFailure};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-use serde::{Deserialize, Serialize};
-use super::benchmark_config::{TestCase, ParameterValue};
-use super::system_metadata::{TestFailure, ResourceStats};
 
 /// Complete performance results for a single Scheme implementation.
-/// 
+///
 /// Contains all test results, performance scores, and resource usage
 /// statistics for one implementation across all test categories.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,7 +31,7 @@ pub struct ImplementationResult {
 }
 
 /// Performance results for a specific test category within an implementation.
-/// 
+///
 /// Aggregates individual test results within a category (e.g., arithmetic,
 /// list operations) with category-level statistics and analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,7 +47,7 @@ pub struct CategoryResult {
 }
 
 /// Complete execution results and measurements for a single test case.
-/// 
+///
 /// Contains timing, memory usage, validation results, and metadata
 /// for one parameterized test execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,7 +69,7 @@ pub struct TestResult {
 }
 
 /// Comprehensive timing statistics for test execution.
-/// 
+///
 /// Provides detailed timing analysis including statistical measures,
 /// confidence intervals, and performance metrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,7 +95,7 @@ pub struct TimingMeasurements {
 }
 
 /// Memory usage analysis and statistics for test execution.
-/// 
+///
 /// Tracks memory consumption patterns, peak usage, and efficiency
 /// metrics for memory performance analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,21 +111,21 @@ pub struct MemoryMeasurements {
 }
 
 /// Statistical confidence interval for timing measurements.
-/// 
+///
 /// Provides uncertainty bounds for performance measurements
 /// at a specified confidence level.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfidenceInterval {
     /// Lower bound
     pub lower: Duration,
-    /// Upper bound  
+    /// Upper bound
     pub upper: Duration,
     /// Confidence level
     pub confidence_level: f64,
 }
 
 /// Validation results for test output correctness.
-/// 
+///
 /// Compares actual test results against expected values
 /// to ensure implementation correctness alongside performance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -141,7 +141,7 @@ pub struct ValidationResult {
 }
 
 /// Aggregate statistical analysis for a test category.
-/// 
+///
 /// Provides comprehensive statistics across all tests within
 /// a category for performance trend analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]

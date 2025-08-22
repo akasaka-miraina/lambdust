@@ -8,15 +8,15 @@
 //! - Integrates with the type checker for definitional equality
 
 use crate::diagnostics::{Error, Result, Span};
-use crate::types::dependent::{DependentType, DependentTerm, UniverseLevel};
 use crate::types::dependent::termination::{
-    StrongNormalizationChecker, ChurchRosserChecker, TerminationConfluenceSystem,
-    ComplexityMeasure, TerminationConfig, ConfluenceConfig
+    ChurchRosserChecker, ComplexityMeasure, ConfluenceConfig, StrongNormalizationChecker,
+    TerminationConfig, TerminationConfluenceSystem,
 };
+use crate::types::dependent::{DependentTerm, DependentType, UniverseLevel};
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet, VecDeque, BTreeMap};
-use std::sync::{Arc, RwLock, Mutex};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Normalization strategy for different performance profiles
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,32 +53,47 @@ pub struct NormalizationContext {
 pub enum ReductionStep {
     /// Beta reduction: (λx.t) u → t[u/x]
     Beta {
+        /// The lambda abstraction being applied
         lambda: DependentTerm,
+        /// The argument being passed to the lambda
         argument: DependentTerm,
+        /// The result of the beta reduction
         result: DependentTerm,
     },
     /// Delta reduction: defined constant expansion
     Delta {
+        /// Name of the constant being expanded
         constant: String,
+        /// The definition the constant expands to
         definition: DependentTerm,
+        /// The result after delta reduction
         result: DependentTerm,
     },
     /// Iota reduction: constructor/destructor elimination
     Iota {
+        /// The constructor being eliminated
         constructor: DependentTerm,
+        /// The destructor (eliminator) being applied
         destructor: DependentTerm,
+        /// The result of the iota reduction
         result: DependentTerm,
     },
     /// Zeta reduction: let binding expansion
     Zeta {
+        /// Name of the variable being bound in the let expression
         binding: String,
+        /// Value being bound to the variable
         value: DependentTerm,
+        /// Body of the let expression
         body: DependentTerm,
+        /// Result after substituting the binding
         result: DependentTerm,
     },
     /// Eta reduction: λx.(f x) → f (when x not free in f)
     Eta {
+        /// The lambda abstraction being eta-reduced
         lambda: DependentTerm,
+        /// The result after eta reduction
         result: DependentTerm,
     },
 }
@@ -86,23 +101,26 @@ pub enum ReductionStep {
 /// Normalization result with metadata
 #[derive(Debug, Clone)]
 pub struct NormalizationResult {
-    /// Normalized term/type
+    /// The final normalized term or type
     pub normalized: DependentTerm,
-    /// Reduction steps taken
+    /// Detailed record of all reduction steps taken
     pub steps: Vec<ReductionStep>,
-    /// Total reduction count
+    /// Total number of reduction operations performed
     pub reduction_count: usize,
-    /// Whether normalization was complete
+    /// Whether normalization reached a complete normal form
     pub is_complete: bool,
-    /// Time taken (for performance analysis)
+    /// Elapsed time for the normalization process in nanoseconds
     pub duration_ns: u64,
 }
 
 /// Cache key for normalization results
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct NormalizationCacheKey {
+    /// The term being normalized
     term: DependentTerm,
+    /// The normalization strategy being used
     strategy: NormalizationStrategy,
+    /// Hash of the normalization context for cache validity
     context_hash: u64,
 }
 
@@ -138,14 +156,23 @@ pub struct NormalizationEngine {
 /// Statistics for performance monitoring with termination tracking
 #[derive(Debug, Default)]
 pub struct NormalizationStatistics {
+    /// Number of terms that have been normalized
     pub terms_normalized: usize,
+    /// Number of beta reduction steps performed
     pub beta_reductions: usize,
+    /// Number of delta reduction steps (definition unfolding)
     pub delta_reductions: usize,
+    /// Number of iota reduction steps (eliminator reductions)
     pub iota_reductions: usize,
+    /// Number of eta reduction steps performed
     pub eta_reductions: usize,
+    /// Number of successful cache lookups
     pub cache_hits: usize,
+    /// Number of cache misses requiring computation
     pub cache_misses: usize,
+    /// Number of normalizations performed in parallel
     pub parallel_normalizations: usize,
+    /// Total number of reduction steps across all normalizations
     pub total_reduction_steps: usize,
     /// Terms verified for strong normalization
     pub terms_checked_termination: usize,
@@ -167,11 +194,13 @@ pub struct NormalizationStatistics {
 
 /// Lazy evaluation thunk for deferred computation
 pub enum LazyThunk {
-    /// Already computed value
+    /// Already computed value (strict evaluation)
     Value(DependentTerm),
-    /// Deferred computation
+    /// Deferred computation (lazy evaluation)
     Thunk {
+        /// The suspended computation to be evaluated when needed
         computation: Arc<dyn Fn() -> Result<DependentTerm> + Send + Sync>,
+        /// Memoized result cache for avoiding recomputation
         memoized: Arc<RwLock<Option<DependentTerm>>>,
     },
 }
@@ -282,8 +311,12 @@ impl NormalizationEngine {
             definitions: Arc::new(RwLock::new(HashMap::new())),
             stats: Arc::new(Mutex::new(NormalizationStatistics::default())),
             parallel_enabled: true,
-            termination_checker: Arc::new(StrongNormalizationChecker::with_config(TerminationConfig::default())),
-            confluence_checker: Arc::new(ChurchRosserChecker::with_config(ConfluenceConfig::default())),
+            termination_checker: Arc::new(StrongNormalizationChecker::with_config(
+                TerminationConfig::default(),
+            )),
+            confluence_checker: Arc::new(ChurchRosserChecker::with_config(
+                ConfluenceConfig::default(),
+            )),
             termination_confluence_system: Arc::new(TerminationConfluenceSystem::new()),
             enable_termination_checking: enable_termination,
             enable_confluence_checking: enable_confluence,
@@ -300,8 +333,12 @@ impl NormalizationEngine {
             definitions: Arc::new(RwLock::new(HashMap::new())),
             stats: Arc::new(Mutex::new(NormalizationStatistics::default())),
             parallel_enabled: strategy == NormalizationStrategy::Parallel,
-            termination_checker: Arc::new(StrongNormalizationChecker::with_config(TerminationConfig::default())),
-            confluence_checker: Arc::new(ChurchRosserChecker::with_config(ConfluenceConfig::default())),
+            termination_checker: Arc::new(StrongNormalizationChecker::with_config(
+                TerminationConfig::default(),
+            )),
+            confluence_checker: Arc::new(ChurchRosserChecker::with_config(
+                ConfluenceConfig::default(),
+            )),
             termination_confluence_system: Arc::new(TerminationConfluenceSystem::new()),
             enable_termination_checking: true,
             enable_confluence_checking: true,
@@ -352,14 +389,18 @@ impl NormalizationEngine {
     /// Normalize a type (special handling for types)
     pub fn normalize_type(&mut self, ty: &DependentType) -> Result<DependentType> {
         match ty {
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 let norm_domain = Box::new(self.normalize_type(domain)?);
-                
+
                 // Normalize codomain in extended context
                 self.context.enter_depth()?;
                 let norm_codomain = Box::new(self.normalize_type(codomain)?);
                 self.context.exit_depth();
-                
+
                 Ok(DependentType::Pi {
                     var: var.clone(),
                     domain: norm_domain,
@@ -368,12 +409,12 @@ impl NormalizationEngine {
             }
             DependentType::Sigma { var, first, second } => {
                 let norm_first = Box::new(self.normalize_type(first)?);
-                
+
                 // Normalize second type in extended context
                 self.context.enter_depth()?;
                 let norm_second = Box::new(self.normalize_type(second)?);
                 self.context.exit_depth();
-                
+
                 Ok(DependentType::Sigma {
                     var: var.clone(),
                     first: norm_first,
@@ -382,11 +423,11 @@ impl NormalizationEngine {
             }
             DependentType::Identity { ty, left, right } => {
                 let norm_ty = Box::new(self.normalize_type(ty)?);
-                
+
                 // Convert terms to fake terms for normalization (simplified)
                 let norm_left = left.clone(); // Simplified
                 let norm_right = right.clone(); // Simplified
-                
+
                 Ok(DependentType::Identity {
                     ty: norm_ty,
                     left: norm_left,
@@ -394,26 +435,32 @@ impl NormalizationEngine {
                 })
             }
             DependentType::Universe(level) => Ok(DependentType::Universe(*level)),
-            DependentType::Inductive { name, parameters, universe_level, constructors, induction_principle } => {
+            DependentType::Inductive {
+                name,
+                parameters,
+                universe_level,
+                constructors,
+                induction_principle,
+            } => {
                 // Normalize constructor types
                 let mut norm_constructors = Vec::new();
                 for (ctor_name, ctor_type) in constructors {
                     norm_constructors.push((ctor_name.clone(), self.normalize_type(ctor_type)?));
                 }
-                
+
                 // Normalize parameters
                 let mut norm_parameters = Vec::new();
                 for (param_name, param_type) in parameters {
                     norm_parameters.push((param_name.clone(), self.normalize_type(param_type)?));
                 }
-                
+
                 // Normalize induction principle if present
                 let norm_induction_principle = if let Some(principle) = induction_principle {
                     Some(Box::new(self.normalize_type(principle)?))
                 } else {
                     None
                 };
-                
+
                 Ok(DependentType::Inductive {
                     name: name.clone(),
                     parameters: norm_parameters,
@@ -446,19 +493,23 @@ impl NormalizationEngine {
             match &current_term {
                 DependentTerm::Application { function, argument } => {
                     match function.as_ref() {
-                        DependentTerm::Lambda { param, param_type: _, body } => {
+                        DependentTerm::Lambda {
+                            param,
+                            param_type: _,
+                            body,
+                        } => {
                             // Beta reduction
                             self.context.increment_reductions()?;
                             let reduced = self.substitute_term(body, param, argument)?;
-                            
+
                             steps.push(ReductionStep::Beta {
                                 lambda: function.as_ref().clone(),
                                 argument: argument.as_ref().clone(),
                                 result: reduced.clone(),
                             });
-                            
+
                             current_term = reduced;
-                            
+
                             let mut stats = self.stats.lock().unwrap();
                             stats.beta_reductions += 1;
                         }
@@ -466,7 +517,7 @@ impl NormalizationEngine {
                             // Check for delta reduction (defined constants)
                             if let Some(definition) = self.lookup_definition(name) {
                                 self.context.increment_reductions()?;
-                                
+
                                 steps.push(ReductionStep::Delta {
                                     constant: name.clone(),
                                     definition: definition.clone(),
@@ -475,12 +526,12 @@ impl NormalizationEngine {
                                         argument: argument.clone(),
                                     },
                                 });
-                                
+
                                 current_term = DependentTerm::Application {
                                     function: Box::new(definition),
                                     argument: argument.clone(),
                                 };
-                                
+
                                 let mut stats = self.stats.lock().unwrap();
                                 stats.delta_reductions += 1;
                             } else {
@@ -508,15 +559,15 @@ impl NormalizationEngine {
                         current_term = substitution.clone();
                     } else if let Some(definition) = self.lookup_definition(name) {
                         self.context.increment_reductions()?;
-                        
+
                         steps.push(ReductionStep::Delta {
                             constant: name.clone(),
                             definition: definition.clone(),
                             result: definition.clone(),
                         });
-                        
+
                         current_term = definition;
-                        
+
                         let mut stats = self.stats.lock().unwrap();
                         stats.delta_reductions += 1;
                     } else {
@@ -528,16 +579,20 @@ impl NormalizationEngine {
                         DependentTerm::Pair { first, second } => {
                             // Iota reduction for pair projection
                             self.context.increment_reductions()?;
-                            let result = if *is_first { first.as_ref().clone() } else { second.as_ref().clone() };
-                            
+                            let result = if *is_first {
+                                first.as_ref().clone()
+                            } else {
+                                second.as_ref().clone()
+                            };
+
                             steps.push(ReductionStep::Iota {
                                 constructor: pair.as_ref().clone(),
                                 destructor: current_term.clone(),
                                 result: result.clone(),
                             });
-                            
+
                             current_term = result;
-                            
+
                             let mut stats = self.stats.lock().unwrap();
                             stats.iota_reductions += 1;
                         }
@@ -576,22 +631,26 @@ impl NormalizationEngine {
     fn strong_normalize(&mut self, term: &DependentTerm) -> Result<NormalizationResult> {
         // First get WHNF
         let mut whnf_result = self.weak_head_normalize(term)?;
-        
+
         // Then normalize subterms
         whnf_result.normalized = self.normalize_subterms(&whnf_result.normalized)?;
         whnf_result.is_complete = true;
-        
+
         Ok(whnf_result)
     }
 
     /// Normalize all subterms recursively
     fn normalize_subterms(&mut self, term: &DependentTerm) -> Result<DependentTerm> {
         match term {
-            DependentTerm::Lambda { param, param_type, body } => {
+            DependentTerm::Lambda {
+                param,
+                param_type,
+                body,
+            } => {
                 self.context.enter_depth()?;
                 let norm_body = Box::new(self.normalize_subterms(body)?);
                 self.context.exit_depth();
-                
+
                 Ok(DependentTerm::Lambda {
                     param: param.clone(),
                     param_type: param_type.clone(),
@@ -601,7 +660,7 @@ impl NormalizationEngine {
             DependentTerm::Application { function, argument } => {
                 let norm_function = Box::new(self.normalize_subterms(function)?);
                 let norm_argument = Box::new(self.normalize_subterms(argument)?);
-                
+
                 Ok(DependentTerm::Application {
                     function: norm_function,
                     argument: norm_argument,
@@ -610,7 +669,7 @@ impl NormalizationEngine {
             DependentTerm::Pair { first, second } => {
                 let norm_first = Box::new(self.normalize_subterms(first)?);
                 let norm_second = Box::new(self.normalize_subterms(second)?);
-                
+
                 Ok(DependentTerm::Pair {
                     first: norm_first,
                     second: norm_second,
@@ -618,7 +677,7 @@ impl NormalizationEngine {
             }
             DependentTerm::Projection { pair, is_first } => {
                 let norm_pair = Box::new(self.normalize_subterms(pair)?);
-                
+
                 Ok(DependentTerm::Projection {
                     pair: norm_pair,
                     is_first: *is_first,
@@ -646,7 +705,10 @@ impl NormalizationEngine {
         match term {
             DependentTerm::Application { function, argument } => {
                 // Normalize function and argument in parallel
-                let (func_result, arg_result): (Result<NormalizationResult>, Result<NormalizationResult>) = rayon::join(
+                let (func_result, arg_result): (
+                    Result<NormalizationResult>,
+                    Result<NormalizationResult>,
+                ) = rayon::join(
                     || {
                         let mut local_engine = self.clone_for_parallel();
                         local_engine.normalize_term(function)
@@ -679,14 +741,19 @@ impl NormalizationEngine {
                 Ok(NormalizationResult {
                     normalized: final_result.normalized,
                     steps,
-                    reduction_count: func_result.reduction_count + arg_result.reduction_count + final_result.reduction_count,
+                    reduction_count: func_result.reduction_count
+                        + arg_result.reduction_count
+                        + final_result.reduction_count,
                     is_complete: true,
                     duration_ns: 0,
                 })
             }
             DependentTerm::Pair { first, second } => {
                 // Normalize pair components in parallel
-                let (first_result, second_result): (Result<NormalizationResult>, Result<NormalizationResult>) = rayon::join(
+                let (first_result, second_result): (
+                    Result<NormalizationResult>,
+                    Result<NormalizationResult>,
+                ) = rayon::join(
                     || {
                         let mut local_engine = self.clone_for_parallel();
                         local_engine.normalize_term(first)
@@ -727,7 +794,12 @@ impl NormalizationEngine {
     }
 
     /// Substitute term for variable in another term
-    fn substitute_term(&self, term: &DependentTerm, var: &str, replacement: &DependentTerm) -> Result<DependentTerm> {
+    fn substitute_term(
+        &self,
+        term: &DependentTerm,
+        var: &str,
+        replacement: &DependentTerm,
+    ) -> Result<DependentTerm> {
         match term {
             DependentTerm::Variable(name) => {
                 if name == var {
@@ -736,7 +808,11 @@ impl NormalizationEngine {
                     Ok(term.clone())
                 }
             }
-            DependentTerm::Lambda { param, param_type, body } => {
+            DependentTerm::Lambda {
+                param,
+                param_type,
+                body,
+            } => {
                 if param == var {
                     // Variable is bound, no substitution in body
                     Ok(term.clone())
@@ -779,7 +855,7 @@ impl NormalizationEngine {
 
     /// Lookup definition for constant
     fn lookup_definition(&self, name: &str) -> Option<DependentTerm> {
-        let definitions = self.definitions.read().unwrap();
+        let definitions = self.definitions.try_read().unwrap();
         definitions.get(name).cloned()
     }
 
@@ -791,7 +867,7 @@ impl NormalizationEngine {
 
     /// Check cache for normalization result
     fn check_cache(&self, key: &NormalizationCacheKey) -> Option<NormalizationResult> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.try_read().unwrap();
         cache.get(key).cloned()
     }
 
@@ -803,7 +879,7 @@ impl NormalizationEngine {
 
     /// Check WHNF cache
     fn check_whnf_cache(&self, term: &DependentTerm) -> Option<DependentTerm> {
-        let cache = self.whnf_cache.read().unwrap();
+        let cache = self.whnf_cache.try_read().unwrap();
         cache.get(term).cloned()
     }
 
@@ -850,7 +926,7 @@ impl NormalizationEngine {
             } else {
                 stats.termination_check_failures += 1;
             }
-            stats.avg_termination_check_time_us = 
+            stats.avg_termination_check_time_us =
                 (stats.avg_termination_check_time_us + elapsed.as_micros() as u64) / 2;
         }
 
@@ -876,7 +952,7 @@ impl NormalizationEngine {
             } else {
                 stats.confluence_check_failures += 1;
             }
-            stats.avg_confluence_check_time_us = 
+            stats.avg_confluence_check_time_us =
                 (stats.avg_confluence_check_time_us + elapsed.as_micros() as u64) / 2;
         }
 
@@ -926,12 +1002,19 @@ impl NormalizationEngine {
     }
 
     /// Generate a comprehensive termination and confluence report
-    pub fn analyze_term_safety(&self, term: &DependentTerm) -> Result<crate::types::dependent::termination::TerminationConfluenceReport> {
+    pub fn analyze_term_safety(
+        &self,
+        term: &DependentTerm,
+    ) -> Result<crate::types::dependent::termination::TerminationConfluenceReport> {
         self.termination_confluence_system.analyze_term(term)
     }
 
     /// Check if two terms are definitionally equal (using normalization)
-    pub fn definitionally_equal(&mut self, term1: &DependentTerm, term2: &DependentTerm) -> Result<bool> {
+    pub fn definitionally_equal(
+        &mut self,
+        term1: &DependentTerm,
+        term2: &DependentTerm,
+    ) -> Result<bool> {
         let norm1 = self.normalize_term(term1)?;
         let norm2 = self.normalize_term(term2)?;
         Ok(norm1.normalized == norm2.normalized)
@@ -963,7 +1046,6 @@ impl Default for NormalizationEngine {
         Self::new()
     }
 }
-
 
 impl Clone for NormalizationStatistics {
     fn clone(&self) -> Self {
@@ -1005,14 +1087,14 @@ mod tests {
         let mut context = NormalizationContext::new();
         let term = DependentTerm::Variable("x".to_string());
         context.add_substitution("x".to_string(), term.clone());
-        
+
         assert_eq!(context.lookup_substitution("x"), Some(&term));
     }
 
     #[test]
     fn test_simple_beta_reduction() {
         let mut engine = NormalizationEngine::new();
-        
+
         // (λx.x) y → y
         let lambda = DependentTerm::Lambda {
             param: "x".to_string(),
@@ -1023,7 +1105,7 @@ mod tests {
             function: Box::new(lambda),
             argument: Box::new(DependentTerm::Variable("y".to_string())),
         };
-        
+
         let result = engine.normalize_term(&application).unwrap();
         assert_eq!(result.normalized, DependentTerm::Variable("y".to_string()));
         assert!(result.reduction_count > 0);
@@ -1032,7 +1114,7 @@ mod tests {
     #[test]
     fn test_pair_projection_reduction() {
         let mut engine = NormalizationEngine::new();
-        
+
         // π₁(a, b) → a
         let pair = DependentTerm::Pair {
             first: Box::new(DependentTerm::Variable("a".to_string())),
@@ -1042,7 +1124,7 @@ mod tests {
             pair: Box::new(pair),
             is_first: true,
         };
-        
+
         let result = engine.normalize_term(&projection).unwrap();
         assert_eq!(result.normalized, DependentTerm::Variable("a".to_string()));
         assert!(result.reduction_count > 0);
@@ -1067,11 +1149,11 @@ mod tests {
     fn test_strong_normalization_checking() {
         let engine = NormalizationEngine::new();
         let term = DependentTerm::Variable("x".to_string());
-        
+
         // Variables should be strongly normalizing
         let is_normalizing = engine.is_strongly_normalizing(&term).unwrap();
         assert!(is_normalizing);
-        
+
         // Check statistics
         let stats = engine.get_statistics();
         assert!(stats.terms_checked_termination > 0);
@@ -1081,11 +1163,11 @@ mod tests {
     fn test_confluence_checking() {
         let engine = NormalizationEngine::new();
         let term = DependentTerm::Variable("x".to_string());
-        
+
         // Variables should be confluent
         let is_confluent = engine.is_confluent(&term).unwrap();
         assert!(is_confluent);
-        
+
         // Check statistics
         let stats = engine.get_statistics();
         assert!(stats.terms_checked_confluence > 0);
@@ -1095,7 +1177,7 @@ mod tests {
     fn test_well_behaved_terms() {
         let engine = NormalizationEngine::new();
         let term = DependentTerm::Variable("x".to_string());
-        
+
         let (normalizing, confluent) = engine.is_well_behaved(&term).unwrap();
         assert!(normalizing);
         assert!(confluent);
@@ -1105,7 +1187,7 @@ mod tests {
     fn test_safe_normalization() {
         let mut engine = NormalizationEngine::new();
         let term = DependentTerm::Variable("x".to_string());
-        
+
         // Safe normalization should succeed for well-behaved terms
         let result = engine.safe_normalize_term(&term).unwrap();
         assert_eq!(result.normalized, term);
@@ -1114,17 +1196,17 @@ mod tests {
     #[test]
     fn test_complexity_measure() {
         let engine = NormalizationEngine::new();
-        
+
         let simple_term = DependentTerm::Variable("x".to_string());
         let complex_term = DependentTerm::Lambda {
             param: "x".to_string(),
             param_type: Box::new(DependentType::Universe(0)),
             body: Box::new(DependentTerm::Variable("x".to_string())),
         };
-        
+
         let simple_complexity = engine.get_complexity_measure(&simple_term);
         let complex_complexity = engine.get_complexity_measure(&complex_term);
-        
+
         assert!(simple_complexity.is_smaller_than(&complex_complexity));
     }
 
@@ -1132,7 +1214,7 @@ mod tests {
     fn test_termination_confluence_disabled() {
         let mut engine = NormalizationEngine::with_termination_checking(false, false);
         let term = DependentTerm::Variable("x".to_string());
-        
+
         // Should return true even when checking is disabled
         assert!(engine.is_strongly_normalizing(&term).unwrap());
         assert!(engine.is_confluent(&term).unwrap());
@@ -1141,11 +1223,11 @@ mod tests {
     #[test]
     fn test_termination_confluence_configuration() {
         let mut engine = NormalizationEngine::new();
-        
+
         // Test enabling/disabling
         engine.set_termination_checking(false);
         engine.set_confluence_checking(false);
-        
+
         let term = DependentTerm::Variable("x".to_string());
         assert!(engine.is_strongly_normalizing(&term).unwrap());
         assert!(engine.is_confluent(&term).unwrap());

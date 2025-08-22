@@ -3,12 +3,12 @@
 //! This module defines the core data structures for capturing
 //! performance measurements with system context and metadata.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::SystemTime;
-use serde::{Deserialize, Serialize};
 
 /// Single performance measurement with context and parameters.
-/// 
+///
 /// Captures a point-in-time performance measurement with
 /// associated system context and test configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,7 +26,7 @@ pub struct PerformanceMeasurement {
 }
 
 /// System environment context during performance measurement.
-/// 
+///
 /// Captures relevant system state that may influence performance
 /// to provide context for measurement interpretation.
 #[derive(Debug, Clone, Serialize, Deserialize)]

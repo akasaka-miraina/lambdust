@@ -6,13 +6,13 @@
 //! that is aware of identifier transformers.
 
 use super::{
-    identifier_transformers::{
-        VariableTransformer, VariableTransformerRegistry, IdentifierContext, ContextDetector
-    },
-    syntax_case::{SyntaxPattern, SyntaxBindings},
-    syntax_objects::{SyntaxObject, LexicalContext, syntax_utils},
     advanced_hygiene::{HygieneResolver, Mark, MarkSet},
     context_aware_expander::ContextAwareMacroExpander,
+    identifier_transformers::{
+        ContextDetector, IdentifierContext, VariableTransformer, VariableTransformerRegistry,
+    },
+    syntax_case::{SyntaxBindings, SyntaxPattern},
+    syntax_objects::{LexicalContext, SyntaxObject, syntax_utils},
 };
 use crate::ast::{Expr, Literal};
 use crate::diagnostics::{Error, Result, Span};
@@ -54,7 +54,7 @@ impl VariableTransformerAwareSyntaxCase {
         hygiene_resolver: &mut HygieneResolver,
     ) -> Result<Option<SyntaxBindings>> {
         let mut bindings = SyntaxBindings::new();
-        
+
         if self.match_pattern_with_transformers(
             &self.pattern,
             syntax,
@@ -81,8 +81,9 @@ impl VariableTransformerAwareSyntaxCase {
             SyntaxPattern::PatternVariable(name) => {
                 // Check if this syntax object is a variable transformer reference
                 if let Some(id_name) = syntax.identifier_name() {
-                    if self.transformer_registry.is_variable_transformer(id_name) 
-                        && !self.literals.contains(id_name) {
+                    if self.transformer_registry.is_variable_transformer(id_name)
+                        && !self.literals.contains(id_name)
+                    {
                         // Expand the variable transformer in the current context
                         let expanded = self.transformer_registry.expand_variable_transformer(
                             id_name,
@@ -104,12 +105,16 @@ impl VariableTransformerAwareSyntaxCase {
                 Ok(syntax.is_literal() && self.literal_matches(literal, syntax))
             }
 
-            SyntaxPattern::Identifier { name, binding_level } => {
+            SyntaxPattern::Identifier {
+                name,
+                binding_level,
+            } => {
                 if let Some(id_name) = syntax.identifier_name() {
                     if id_name == name {
                         // Check if this is a variable transformer and handle accordingly
-                        if self.transformer_registry.is_variable_transformer(id_name) 
-                            && !self.literals.contains(id_name) {
+                        if self.transformer_registry.is_variable_transformer(id_name)
+                            && !self.literals.contains(id_name)
+                        {
                             // For identifiers in patterns, we might want to match the expanded form
                             // or the original form depending on context
                             match context {
@@ -199,17 +204,19 @@ impl VariableTransformerAwareSyntaxCase {
                 }
             }
 
-            SyntaxPattern::Ellipsis { pattern, min_count, max_count } => {
-                self.match_ellipsis_pattern_with_transformers(
-                    pattern,
-                    syntax,
-                    bindings,
-                    *min_count,
-                    *max_count,
-                    context,
-                    hygiene_resolver,
-                )
-            }
+            SyntaxPattern::Ellipsis {
+                pattern,
+                min_count,
+                max_count,
+            } => self.match_ellipsis_pattern_with_transformers(
+                pattern,
+                syntax,
+                bindings,
+                *min_count,
+                *max_count,
+                context,
+                hygiene_resolver,
+            ),
 
             SyntaxPattern::Alternative(alternatives) => {
                 for alt_pattern in alternatives {
@@ -242,7 +249,10 @@ impl VariableTransformerAwareSyntaxCase {
                 }
             }
 
-            SyntaxPattern::WithProperties { pattern, required_properties } => {
+            SyntaxPattern::WithProperties {
+                pattern,
+                required_properties,
+            } => {
                 // Check if the syntax has the required properties
                 for prop_name in required_properties {
                     if syntax.get_property(prop_name).is_none() {
@@ -281,11 +291,11 @@ impl VariableTransformerAwareSyntaxCase {
     ) -> Result<bool> {
         if let Some(list) = syntax.as_list() {
             let count = list.len();
-            
+
             if count < min_count {
                 return Ok(false);
             }
-            
+
             if let Some(max) = max_count {
                 if count > max {
                     return Ok(false);
@@ -454,7 +464,8 @@ impl SyntaxTemplate {
         if self.elements.len() == 1 {
             self.expand_element(&self.elements[0], bindings, hygiene_resolver)
         } else {
-            let expanded_elements: Result<Vec<SyntaxObject>> = self.elements
+            let expanded_elements: Result<Vec<SyntaxObject>> = self
+                .elements
                 .iter()
                 .map(|elem| self.expand_element(elem, bindings, hygiene_resolver))
                 .collect();
@@ -466,7 +477,11 @@ impl SyntaxTemplate {
                 |e| e.context.clone(),
             );
 
-            Ok(syntax_utils::make_list_syntax(elements, first_span, first_context))
+            Ok(syntax_utils::make_list_syntax(
+                elements,
+                first_span,
+                first_context,
+            ))
         }
     }
 
@@ -480,12 +495,12 @@ impl SyntaxTemplate {
         match element {
             TemplateElement::Literal(syntax) => Ok((**syntax).clone()),
 
-            TemplateElement::Variable(name) => {
-                bindings.get(name).cloned().ok_or_else(|| Box::new(Error::MacroError {
+            TemplateElement::Variable(name) => bindings.get(name).cloned().ok_or_else(|| {
+                Box::new(Error::MacroError {
                     message: format!("Unbound pattern variable: {name}"),
                     span: Span::new(0, 0),
-                }))
-            }
+                })
+            }),
 
             TemplateElement::List(elements) => {
                 let expanded_elements: Result<Vec<SyntaxObject>> = elements
@@ -500,10 +515,17 @@ impl SyntaxTemplate {
                     |e| e.context.clone(),
                 );
 
-                Ok(syntax_utils::make_list_syntax(elements, first_span, first_context))
+                Ok(syntax_utils::make_list_syntax(
+                    elements,
+                    first_span,
+                    first_context,
+                ))
             }
 
-            TemplateElement::Ellipsis { pattern, separator: _separator } => {
+            TemplateElement::Ellipsis {
+                pattern,
+                separator: _separator,
+            } => {
                 // For ellipsis expansion, we need to handle pattern variables that are bound to lists
                 self.expand_ellipsis_element(pattern, bindings, hygiene_resolver)
             }
@@ -533,7 +555,7 @@ impl SyntaxTemplate {
         // This is a simplified ellipsis expansion
         // In a real implementation, this would handle multiple pattern variables
         // and complex ellipsis structures
-        
+
         if let TemplateElement::Variable(name) = pattern {
             if let Some(ellipsis_binding) = bindings.get_ellipsis(name) {
                 let first_span = ellipsis_binding.first().map_or(Span::new(0, 0), |e| e.span);
@@ -626,7 +648,7 @@ mod tests {
     fn test_transformer_aware_syntax_case() {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
         let mut registry = VariableTransformerRegistry::new();
-        
+
         // Register a simple variable transformer
         let transformer = VariableTransformer::simple(
             "my-var".to_string(),
@@ -646,20 +668,12 @@ mod tests {
         let template = SyntaxTemplate::variable("my-var".to_string());
 
         // Create the transformer-aware syntax-case
-        let syntax_case = VariableTransformerAwareSyntaxCase::new(
-            pattern,
-            template,
-            vec![],
-            registry,
-        );
+        let syntax_case =
+            VariableTransformerAwareSyntaxCase::new(pattern, template, vec![], registry);
 
         // Test matching
         let span = Span::new(0, 1);
-        let test_syntax = syntax_utils::make_identifier_syntax(
-            "my-var".to_string(),
-            span,
-            context,
-        );
+        let test_syntax = syntax_utils::make_identifier_syntax("my-var".to_string(), span, context);
 
         let mut hygiene_resolver = HygieneResolver::new();
         let result = syntax_case.match_with_transformers(
@@ -678,7 +692,7 @@ mod tests {
             let mut b = SyntaxBindings::new();
             let context = LexicalContext::new(1, vec!["test".to_string()]);
             let span = Span::new(0, 1);
-            
+
             b.bind(
                 "x".to_string(),
                 syntax_utils::make_identifier_syntax("value".to_string(), span, context),
@@ -688,10 +702,10 @@ mod tests {
 
         let template = SyntaxTemplate::variable("x".to_string());
         let mut hygiene_resolver = HygieneResolver::new();
-        
+
         let result = template.expand(&bindings, &mut hygiene_resolver);
         assert!(result.is_ok());
-        
+
         let expanded = result.unwrap();
         assert_eq!(expanded.identifier_name(), Some("value"));
     }

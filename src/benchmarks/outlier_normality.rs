@@ -3,8 +3,8 @@
 //! This module contains structures for outlier detection, normality testing,
 //! and related statistical assessments for performance data quality analysis.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Outlier analysis results
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,17 +21,17 @@ pub struct OutlierAnalysis {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub enum OutlierMethod {
     /// Interquartile range method
-    IQR,              // Interquartile range method
+    IQR, // Interquartile range method
     /// Z-score method
-    ZScore,           // Z-score method
+    ZScore, // Z-score method
     /// Modified Z-score method
-    ModifiedZScore,   // Modified Z-score method
+    ModifiedZScore, // Modified Z-score method
     /// Grubbs' test for outliers
-    Grubbs,           // Grubbs' test
+    Grubbs, // Grubbs' test
     /// Dixon's test for outliers
-    Dixon,            // Dixon's test
+    Dixon, // Dixon's test
     /// Isolation forest method
-    Isolation,        // Isolation forest
+    Isolation, // Isolation forest
 }
 
 /// Individual outlier point

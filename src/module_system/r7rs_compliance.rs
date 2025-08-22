@@ -8,7 +8,7 @@
 //! - Standard library integration
 //! - Proper scoping and hygiene
 
-use super::{Module, ModuleId, ModuleError, runtime_integration, ModuleNamespace};
+use super::{Module, ModuleError, ModuleId, ModuleNamespace, runtime_integration};
 use crate::ast::{Expr, Spanned};
 use crate::diagnostics::{Error, Result, Span};
 use crate::eval::Value;
@@ -98,9 +98,9 @@ impl ExportSpecResolver {
                         export_type: ExportType::Direct,
                     }])
                 } else {
-                    Err(Box::new(Error::from(ModuleError::ExportError(
-                        format!("Cannot export undefined binding: {name}")
-                    ))))
+                    Err(Box::new(Error::from(ModuleError::ExportError(format!(
+                        "Cannot export undefined binding: {name}"
+                    )))))
                 }
             }
             Expr::List(elements) if !elements.is_empty() => {
@@ -108,8 +108,8 @@ impl ExportSpecResolver {
                 Self::resolve_compound_export_spec(elements, library_env)
             }
             _ => Err(Box::new(Error::from(ModuleError::ExportError(
-                "Invalid export specification format".to_string()
-            ))))
+                "Invalid export specification format".to_string(),
+            )))),
         }
     }
 
@@ -146,8 +146,8 @@ impl ExportSpecResolver {
                 }
             }
             _ => Err(Box::new(Error::from(ModuleError::ExportError(
-                "Invalid compound export specification".to_string()
-            ))))
+                "Invalid compound export specification".to_string(),
+            )))),
         }
     }
 
@@ -161,9 +161,9 @@ impl ExportSpecResolver {
         for element in elements {
             if let Expr::List(rename_spec) = &element.inner {
                 if rename_spec.len() == 2 {
-                    if let (Expr::Identifier(internal_name), Expr::Identifier(exported_name)) = 
-                        (&rename_spec[0].inner, &rename_spec[1].inner) {
-                        
+                    if let (Expr::Identifier(internal_name), Expr::Identifier(exported_name)) =
+                        (&rename_spec[0].inner, &rename_spec[1].inner)
+                    {
                         if let Some(value) = library_env.get(internal_name) {
                             bindings.push(ExportBinding {
                                 exported_name: exported_name.clone(),
@@ -172,17 +172,17 @@ impl ExportSpecResolver {
                                 export_type: ExportType::Renamed,
                             });
                         } else {
-                            return Err(Box::new(Error::from(ModuleError::ExportError(
-                                format!("Cannot export undefined binding: {internal_name}")
-                            ))));
+                            return Err(Box::new(Error::from(ModuleError::ExportError(format!(
+                                "Cannot export undefined binding: {internal_name}"
+                            )))));
                         }
                         continue;
                     }
                 }
             }
-            
+
             return Err(Box::new(Error::from(ModuleError::ExportError(
-                "Invalid rename export specification".to_string()
+                "Invalid rename export specification".to_string(),
             ))));
         }
 
@@ -254,7 +254,8 @@ impl R7RSLibrarySystem {
         self.validate_dependencies(&module.dependencies, &mut report);
 
         // Check if any violations make the library non-compliant
-        report.is_compliant = report.violations.is_empty() || !self.compliance_config.strict_compliance;
+        report.is_compliant =
+            report.violations.is_empty() || !self.compliance_config.strict_compliance;
 
         Ok(report)
     }
@@ -270,17 +271,20 @@ impl R7RSLibrarySystem {
             // Check that all required exports are present
             for required_export in &std_info.required_exports {
                 if !module.exports.contains_key(required_export) {
-                    report.violations.push(ComplianceViolation::MissingRequiredExport {
-                        export_name: required_export.clone(),
-                    });
+                    report
+                        .violations
+                        .push(ComplianceViolation::MissingRequiredExport {
+                            export_name: required_export.clone(),
+                        });
                 }
             }
 
             // Check for unexpected exports (if strict compliance)
             if self.compliance_config.strict_compliance {
                 for export_name in module.exports.keys() {
-                    if !std_info.required_exports.contains(export_name) 
-                        && !std_info.optional_exports.contains(export_name) {
+                    if !std_info.required_exports.contains(export_name)
+                        && !std_info.optional_exports.contains(export_name)
+                    {
                         report.warnings.push(ComplianceWarning::UnexpectedExport {
                             export_name: export_name.clone(),
                         });
@@ -298,11 +302,13 @@ impl R7RSLibrarySystem {
         for component in &module_id.components {
             // Check if component is a valid identifier or integer
             if component.is_empty() {
-                report.violations.push(ComplianceViolation::InvalidLibraryName {
-                    reason: "Empty component in library name".to_string(),
-                });
+                report
+                    .violations
+                    .push(ComplianceViolation::InvalidLibraryName {
+                        reason: "Empty component in library name".to_string(),
+                    });
             }
-            
+
             // Additional validation could check for reserved words, etc.
         }
 
@@ -310,16 +316,20 @@ impl R7RSLibrarySystem {
         match module_id.namespace {
             ModuleNamespace::R7RS => {
                 if module_id.components.is_empty() || module_id.components[0] != "scheme" {
-                    report.violations.push(ComplianceViolation::InvalidLibraryName {
-                        reason: "R7RS libraries must start with 'scheme'".to_string(),
-                    });
+                    report
+                        .violations
+                        .push(ComplianceViolation::InvalidLibraryName {
+                            reason: "R7RS libraries must start with 'scheme'".to_string(),
+                        });
                 }
             }
             ModuleNamespace::SRFI => {
                 if module_id.components.is_empty() || module_id.components[0] != "srfi" {
-                    report.violations.push(ComplianceViolation::InvalidLibraryName {
-                        reason: "SRFI libraries must start with 'srfi'".to_string(),
-                    });
+                    report
+                        .violations
+                        .push(ComplianceViolation::InvalidLibraryName {
+                            reason: "SRFI libraries must start with 'srfi'".to_string(),
+                        });
                 }
             }
             _ => {} // No specific requirements for other namespaces
@@ -331,10 +341,13 @@ impl R7RSLibrarySystem {
         for dep_id in dependencies {
             // Check if dependency is a known standard library
             if dep_id.namespace == ModuleNamespace::R7RS
-                && !self.standard_libraries.contains_key(dep_id) {
-                report.warnings.push(ComplianceWarning::UnknownStandardLibrary {
-                    library_id: dep_id.clone(),
-                });
+                && !self.standard_libraries.contains_key(dep_id)
+            {
+                report
+                    .warnings
+                    .push(ComplianceWarning::UnknownStandardLibrary {
+                        library_id: dep_id.clone(),
+                    });
             }
         }
     }
@@ -343,21 +356,151 @@ impl R7RSLibrarySystem {
     fn initialize_standard_libraries(&mut self) {
         // R7RS-small standard libraries
         let standard_libs: [(&str, &str, Vec<&str>, Vec<&str>); 15] = [
-            ("base", "Core procedures and syntax", vec!["define", "lambda", "if", "quote", "set!", "cons", "car", "cdr", "list", "null?", "pair?", "eq?", "equal?", "+", "-", "*", "/"], vec![]),
-            ("case-lambda", "Case-lambda syntax", vec!["case-lambda"], vec![]),
-            ("char", "Character procedures", vec!["char?", "char=?", "char<?", "char>?", "char<=?", "char>=?", "char-alphabetic?", "char-numeric?", "char-whitespace?", "char-upper-case?", "char-lower-case?", "char-upcase", "char-downcase", "char-foldcase"], vec![]),
-            ("complex", "Complex number procedures", vec!["complex?", "real?", "rational?", "integer?", "exact?", "inexact?", "exact-integer?", "finite?", "infinite?", "nan?", "make-rectangular", "make-polar", "real-part", "imag-part", "magnitude", "angle"], vec![]),
-            ("cxr", "Composed car/cdr procedures", vec!["caar", "cadr", "cdar", "cddr", "caaar", "caadr", "cadar", "caddr", "cdaar", "cdadr", "cddar", "cdddr"], vec![]),
-            ("eval", "Evaluation procedures", vec!["eval", "environment"], vec![]),
-            ("file", "File I/O procedures", vec!["call-with-input-file", "call-with-output-file", "with-input-from-file", "with-output-to-file", "open-input-file", "open-output-file", "close-input-port", "close-output-port", "read-char", "peek-char", "read-line", "eof-object?", "eof-object", "char-ready?", "write-char", "newline", "write"], vec![]),
-            ("inexact", "Inexact number procedures", vec!["inexact", "exact", "floor", "ceiling", "truncate", "round", "exp", "log", "sin", "cos", "tan", "asin", "acos", "atan", "sqrt", "expt"], vec![]),
-            ("lazy", "Lazy evaluation", vec!["delay", "force", "promise?", "make-promise"], vec![]),
+            (
+                "base",
+                "Core procedures and syntax",
+                vec![
+                    "define", "lambda", "if", "quote", "set!", "cons", "car", "cdr", "list",
+                    "null?", "pair?", "eq?", "equal?", "+", "-", "*", "/",
+                ],
+                vec![],
+            ),
+            (
+                "case-lambda",
+                "Case-lambda syntax",
+                vec!["case-lambda"],
+                vec![],
+            ),
+            (
+                "char",
+                "Character procedures",
+                vec![
+                    "char?",
+                    "char=?",
+                    "char<?",
+                    "char>?",
+                    "char<=?",
+                    "char>=?",
+                    "char-alphabetic?",
+                    "char-numeric?",
+                    "char-whitespace?",
+                    "char-upper-case?",
+                    "char-lower-case?",
+                    "char-upcase",
+                    "char-downcase",
+                    "char-foldcase",
+                ],
+                vec![],
+            ),
+            (
+                "complex",
+                "Complex number procedures",
+                vec![
+                    "complex?",
+                    "real?",
+                    "rational?",
+                    "integer?",
+                    "exact?",
+                    "inexact?",
+                    "exact-integer?",
+                    "finite?",
+                    "infinite?",
+                    "nan?",
+                    "make-rectangular",
+                    "make-polar",
+                    "real-part",
+                    "imag-part",
+                    "magnitude",
+                    "angle",
+                ],
+                vec![],
+            ),
+            (
+                "cxr",
+                "Composed car/cdr procedures",
+                vec![
+                    "caar", "cadr", "cdar", "cddr", "caaar", "caadr", "cadar", "caddr", "cdaar",
+                    "cdadr", "cddar", "cdddr",
+                ],
+                vec![],
+            ),
+            (
+                "eval",
+                "Evaluation procedures",
+                vec!["eval", "environment"],
+                vec![],
+            ),
+            (
+                "file",
+                "File I/O procedures",
+                vec![
+                    "call-with-input-file",
+                    "call-with-output-file",
+                    "with-input-from-file",
+                    "with-output-to-file",
+                    "open-input-file",
+                    "open-output-file",
+                    "close-input-port",
+                    "close-output-port",
+                    "read-char",
+                    "peek-char",
+                    "read-line",
+                    "eof-object?",
+                    "eof-object",
+                    "char-ready?",
+                    "write-char",
+                    "newline",
+                    "write",
+                ],
+                vec![],
+            ),
+            (
+                "inexact",
+                "Inexact number procedures",
+                vec![
+                    "inexact", "exact", "floor", "ceiling", "truncate", "round", "exp", "log",
+                    "sin", "cos", "tan", "asin", "acos", "atan", "sqrt", "expt",
+                ],
+                vec![],
+            ),
+            (
+                "lazy",
+                "Lazy evaluation",
+                vec!["delay", "force", "promise?", "make-promise"],
+                vec![],
+            ),
             ("load", "Dynamic loading", vec!["load"], vec![]),
-            ("process-context", "Process context", vec!["command-line", "exit", "emergency-exit", "get-environment-variable", "get-environment-variables"], vec![]),
+            (
+                "process-context",
+                "Process context",
+                vec![
+                    "command-line",
+                    "exit",
+                    "emergency-exit",
+                    "get-environment-variable",
+                    "get-environment-variables",
+                ],
+                vec![],
+            ),
             ("read", "Reading procedures", vec!["read"], vec![]),
-            ("repl", "REPL interaction", vec!["interaction-environment"], vec![]),
-            ("time", "Time procedures", vec!["current-second", "current-jiffy", "jiffies-per-second"], vec![]),
-            ("write", "Writing procedures", vec!["write", "write-shared", "write-simple", "display"], vec![]),
+            (
+                "repl",
+                "REPL interaction",
+                vec!["interaction-environment"],
+                vec![],
+            ),
+            (
+                "time",
+                "Time procedures",
+                vec!["current-second", "current-jiffy", "jiffies-per-second"],
+                vec![],
+            ),
+            (
+                "write",
+                "Writing procedures",
+                vec!["write", "write-shared", "write-simple", "display"],
+                vec![],
+            ),
         ];
 
         for (name, description, required, optional) in &standard_libs {
@@ -369,8 +512,14 @@ impl R7RSLibrarySystem {
             let info = StandardLibraryInfo {
                 id: module_id.clone(),
                 description: description.to_string(),
-                required_exports: required.iter().map(|s| s.to_string()).collect::<HashSet<_>>(),
-                optional_exports: optional.iter().map(|s| s.to_string()).collect::<HashSet<_>>(),
+                required_exports: required
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<HashSet<_>>(),
+                optional_exports: optional
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<HashSet<_>>(),
                 dependencies: Vec::new(), // Most standard libraries are independent
                 introduced_in: R7RSVersion::Small,
             };
@@ -410,7 +559,10 @@ impl R7RSLibrarySystem {
     }
 
     /// Processes an import specification according to R7RS rules.
-    pub fn process_import_spec(&self, import_expr: &Spanned<Expr>) -> Result<runtime_integration::ImportResolution> {
+    pub fn process_import_spec(
+        &self,
+        import_expr: &Spanned<Expr>,
+    ) -> Result<runtime_integration::ImportResolution> {
         runtime_integration::ImportSpecResolver::resolve_import_spec(import_expr)
     }
 }
@@ -434,29 +586,29 @@ pub struct ComplianceReport {
 #[derive(Debug, Clone)]
 pub enum ComplianceViolation {
     /// Invalid library name format
-    InvalidLibraryName { 
+    InvalidLibraryName {
         /// Reason for invalid library name
-        reason: String 
+        reason: String,
     },
     /// Missing required export for standard library
-    MissingRequiredExport { 
+    MissingRequiredExport {
         /// Name of the missing required export
-        export_name: String 
+        export_name: String,
     },
     /// Invalid export specification
-    InvalidExportSpec { 
+    InvalidExportSpec {
         /// Reason for invalid export specification
-        reason: String 
+        reason: String,
     },
     /// Invalid import specification
-    InvalidImportSpec { 
+    InvalidImportSpec {
         /// Reason for invalid import specification
-        reason: String 
+        reason: String,
     },
     /// Circular dependency detected
-    CircularDependency { 
+    CircularDependency {
         /// Modules involved in the circular dependency
-        cycle: Vec<ModuleId> 
+        cycle: Vec<ModuleId>,
     },
 }
 
@@ -464,19 +616,19 @@ pub enum ComplianceViolation {
 #[derive(Debug, Clone)]
 pub enum ComplianceWarning {
     /// Unexpected export in standard library
-    UnexpectedExport { 
+    UnexpectedExport {
         /// Name of the unexpected export
-        export_name: String 
+        export_name: String,
     },
     /// Unknown standard library dependency
-    UnknownStandardLibrary { 
+    UnknownStandardLibrary {
         /// ID of the unknown standard library
-        library_id: ModuleId 
+        library_id: ModuleId,
     },
     /// Use of implementation-specific features
-    ImplementationSpecific { 
+    ImplementationSpecific {
         /// Name of the implementation-specific feature
-        feature: String 
+        feature: String,
     },
 }
 
@@ -496,7 +648,8 @@ impl std::fmt::Display for ComplianceViolation {
                 write!(f, "Invalid import specification: {reason}")
             }
             ComplianceViolation::CircularDependency { cycle } => {
-                let cycle_str = cycle.iter()
+                let cycle_str = cycle
+                    .iter()
                     .map(super::format_module_id)
                     .collect::<Vec<_>>()
                     .join(" -> ");
@@ -513,7 +666,11 @@ impl std::fmt::Display for ComplianceWarning {
                 write!(f, "Unexpected export: {export_name}")
             }
             ComplianceWarning::UnknownStandardLibrary { library_id } => {
-                write!(f, "Unknown standard library: {}", super::format_module_id(library_id))
+                write!(
+                    f,
+                    "Unknown standard library: {}",
+                    super::format_module_id(library_id)
+                )
             }
             ComplianceWarning::ImplementationSpecific { feature } => {
                 write!(f, "Implementation-specific feature: {feature}")
@@ -526,29 +683,38 @@ impl ComplianceReport {
     /// Gets a summary of the compliance status.
     pub fn summary(&self) -> String {
         let mut summary = String::new();
-        
-        summary.push_str(&format!("Library: {}\n", super::format_module_id(&self.library_id)));
-        summary.push_str(&format!("Compliant: {}\n", if self.is_compliant { "Yes" } else { "No" }));
-        
+
+        summary.push_str(&format!(
+            "Library: {}\n",
+            super::format_module_id(&self.library_id)
+        ));
+        summary.push_str(&format!(
+            "Compliant: {}\n",
+            if self.is_compliant { "Yes" } else { "No" }
+        ));
+
         if !self.violations.is_empty() {
             summary.push_str(&format!("Violations ({}):\n", self.violations.len()));
             for violation in &self.violations {
                 summary.push_str(&format!("  • {violation}\n"));
             }
         }
-        
+
         if !self.warnings.is_empty() {
             summary.push_str(&format!("Warnings ({}):\n", self.warnings.len()));
             for warning in &self.warnings {
                 summary.push_str(&format!("  • {warning}\n"));
             }
         }
-        
+
         if let Some(std_info) = &self.standard_library_info {
             summary.push_str(&format!("Standard Library: {}\n", std_info.description));
-            summary.push_str(&format!("Required exports: {}\n", std_info.required_exports.len()));
+            summary.push_str(&format!(
+                "Required exports: {}\n",
+                std_info.required_exports.len()
+            ));
         }
-        
+
         summary
     }
 }
@@ -578,10 +744,10 @@ mod tests {
             components: vec!["scheme".to_string(), "base".to_string()],
             namespace: ModuleNamespace::R7RS,
         };
-        
+
         let info = system.get_standard_library_info(&base_lib_id);
         assert!(info.is_some());
-        
+
         let info = info.unwrap();
         assert_eq!(info.description, "Core procedures and syntax");
         assert!(info.required_exports.contains("define"));
@@ -591,16 +757,19 @@ mod tests {
     #[test]
     fn test_simple_export_resolution() {
         let mut library_env = HashMap::new();
-        library_env.insert("test-export".to_string(), Value::Integer(42));
-        
+        library_env.insert(
+            "test-export".to_string(),
+            Value::Literal(crate::ast::Literal::integer(42)),
+        );
+
         let export_expr = Spanned::new(
             Expr::Identifier("test-export".to_string()),
-            Span::new(0, 11)
+            Span::new(0, 11),
         );
-        
+
         let result = ExportSpecResolver::resolve_export_spec(&export_expr, &library_env);
         assert!(result.is_ok());
-        
+
         let bindings = result.unwrap();
         assert_eq!(bindings.len(), 1);
         assert_eq!(bindings[0].exported_name, "test-export");
@@ -610,21 +779,30 @@ mod tests {
     #[test]
     fn test_rename_export_resolution() {
         let mut library_env = HashMap::new();
-        library_env.insert("internal-name".to_string(), Value::Integer(42));
-        
+        library_env.insert(
+            "internal-name".to_string(),
+            Value::Literal(crate::ast::Literal::integer(42)),
+        );
+
         // (rename (internal-name external-name))
         let rename_spec = Spanned::new(
             Expr::List(vec![
-                Spanned::new(Expr::Identifier("internal-name".to_string()), Span::new(0, 13)),
-                Spanned::new(Expr::Identifier("external-name".to_string()), Span::new(14, 27)),
+                Spanned::new(
+                    Expr::Identifier("internal-name".to_string()),
+                    Span::new(0, 13),
+                ),
+                Spanned::new(
+                    Expr::Identifier("external-name".to_string()),
+                    Span::new(14, 27),
+                ),
             ]),
-            Span::new(0, 28)
+            Span::new(0, 28),
         );
-        
+
         let elements = vec![rename_spec];
         let result = ExportSpecResolver::resolve_rename_export(&elements, &library_env);
         assert!(result.is_ok());
-        
+
         let bindings = result.unwrap();
         assert_eq!(bindings.len(), 1);
         assert_eq!(bindings[0].internal_name, "internal-name");
@@ -635,7 +813,7 @@ mod tests {
     #[test]
     fn test_library_name_validation() {
         let system = R7RSLibrarySystem::new();
-        
+
         // Valid R7RS library name
         let valid_module = Module {
             id: ModuleId {
@@ -647,10 +825,15 @@ mod tests {
             source: None,
             metadata: ModuleMetadata::default(),
         };
-        
+
         let report = system.validate_library_compliance(&valid_module).unwrap();
-        assert!(report.violations.iter().all(|v| !matches!(v, ComplianceViolation::InvalidLibraryName { .. })));
-        
+        assert!(
+            report
+                .violations
+                .iter()
+                .all(|v| !matches!(v, ComplianceViolation::InvalidLibraryName { .. }))
+        );
+
         // Invalid R7RS library name (doesn't start with 'scheme')
         let invalid_module = Module {
             id: ModuleId {
@@ -662,9 +845,14 @@ mod tests {
             source: None,
             metadata: ModuleMetadata::default(),
         };
-        
+
         let report = system.validate_library_compliance(&invalid_module).unwrap();
-        assert!(report.violations.iter().any(|v| matches!(v, ComplianceViolation::InvalidLibraryName { .. })));
+        assert!(
+            report
+                .violations
+                .iter()
+                .any(|v| matches!(v, ComplianceViolation::InvalidLibraryName { .. }))
+        );
     }
 
     #[test]
@@ -675,7 +863,7 @@ mod tests {
             allow_extensions: true,
             check_export_completeness: false,
         };
-        
+
         let system = R7RSLibrarySystem::with_config(config);
         assert!(!system.compliance_config.strict_compliance);
         assert!(system.compliance_config.allow_extensions);

@@ -6,6 +6,18 @@ use std::fmt;
 
 use super::{Expr, TypeExpr};
 
+/// Type of typed parameter detected by the parser for efficient LL(2) lookahead.
+/// This enum enables the parser to make optimal parsing decisions with minimal backtracking.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TypedParameterKind {
+    /// Single typed parameter: (param : Type)
+    Single,
+    /// List of typed parameters: ((param1 : Type1) (param2 : Type2) ...)
+    List,
+    /// Mixed typed parameters: ((param1 : Type1) ... . (rest : RestType))
+    Mixed,
+}
+
 /// Formal parameters for lambda expressions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Formals {
@@ -66,7 +78,9 @@ impl fmt::Display for Formals {
             Formals::Fixed(params) => {
                 write!(f, "(")?;
                 for (i, param) in params.iter().enumerate() {
-                    if i > 0 { write!(f, " ")?; }
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
                     write!(f, "{param}")?;
                 }
                 write!(f, ")")
@@ -75,19 +89,29 @@ impl fmt::Display for Formals {
             Formals::Mixed { fixed, rest } => {
                 write!(f, "(")?;
                 for (i, param) in fixed.iter().enumerate() {
-                    if i > 0 { write!(f, " ")?; }
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
                     write!(f, "{param}")?;
                 }
                 write!(f, " . {rest})")
             }
-            Formals::Keyword { fixed, rest, keywords } => {
+            Formals::Keyword {
+                fixed,
+                rest,
+                keywords,
+            } => {
                 write!(f, "(")?;
                 for (i, param) in fixed.iter().enumerate() {
-                    if i > 0 { write!(f, " ")?; }
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
                     write!(f, "{param}")?;
                 }
                 if let Some(rest) = rest {
-                    if !fixed.is_empty() { write!(f, " ")?; }
+                    if !fixed.is_empty() {
+                        write!(f, " ")?;
+                    }
                     write!(f, ". {rest}")?;
                 }
                 for kw in keywords {
@@ -101,7 +125,9 @@ impl fmt::Display for Formals {
             Formals::Typed(params) => {
                 write!(f, "(")?;
                 for (i, param) in params.iter().enumerate() {
-                    if i > 0 { write!(f, " ")?; }
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
                     write!(f, "({} : {})", param.name, param.type_annotation.inner)?;
                 }
                 write!(f, ")")
@@ -112,7 +138,9 @@ impl fmt::Display for Formals {
             Formals::TypedMixed { fixed, rest } => {
                 write!(f, "(")?;
                 for (i, param) in fixed.iter().enumerate() {
-                    if i > 0 { write!(f, " ")?; }
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
                     write!(f, "({} : {})", param.name, param.type_annotation.inner)?;
                 }
                 write!(f, " . ({} : {}))", rest.name, rest.type_annotation.inner)
@@ -139,7 +167,7 @@ impl KeywordParam {
             default: None,
         }
     }
-    
+
     /// Creates a new keyword parameter with a default value.
     pub fn with_default(name: impl Into<String>, default: Spanned<Expr>) -> Self {
         Self {

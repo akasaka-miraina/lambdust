@@ -100,7 +100,7 @@ impl SimdNumericOps {
             },
         }
     }
-    
+
     /// Creates a new SIMD numeric operations instance with default settings
     pub fn with_default() -> Self {
         Self::new()
@@ -159,7 +159,11 @@ impl SimdNumericOps {
     }
 
     /// Attempts to optimize a Scheme numeric operation (stub implementation)
-    pub fn optimize_scheme_numeric_operation(&mut self, _op: &str, _args: &[Value]) -> Result<Option<Value>> {
+    pub fn optimize_scheme_numeric_operation(
+        &mut self,
+        _op: &str,
+        _args: &[Value],
+    ) -> Result<Option<Value>> {
         Ok(None) // No optimization available
     }
 
@@ -172,7 +176,7 @@ impl SimdNumericOps {
     pub fn reset_performance_stats(&mut self) {
         // No-op
     }
-    
+
     /// Optimized addition of two numeric arrays (stub implementation)
     pub fn add_numeric_arrays_optimized(&mut self, a: &[f64], b: &[f64]) -> Result<Vec<f64>> {
         if a.len() != b.len() {
@@ -184,10 +188,13 @@ impl SimdNumericOps {
         let result: Vec<f64> = a.iter().zip(b.iter()).map(|(x, y)| x + y).collect();
         Ok(result)
     }
-    
+
     #[cfg(feature = "simd-benchmarks")]
     /// Benchmarks SIMD performance (stub implementation for non-SIMD architectures)
-    pub fn benchmark_simd_performance(&mut self, size: usize) -> crate::numeric::simd_benchmarks::SimdBenchmarkResults {
+    pub fn benchmark_simd_performance(
+        &mut self,
+        size: usize,
+    ) -> crate::numeric::simd_benchmarks::SimdBenchmarkResults {
         // Simple stub implementation
         crate::numeric::simd_benchmarks::SimdBenchmarkResults {
             operation: "benchmark".to_string(),

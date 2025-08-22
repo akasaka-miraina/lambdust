@@ -1,23 +1,23 @@
 //! Extensions to EffectContext for isolation support.
 
-use crate::effects::{Effect, EffectContext};
 use super::effect_isolation_level::EffectIsolationLevel;
+use crate::effects::{Effect, EffectContext};
 
 impl Effect {
     /// Returns true if this effect has side effects.
     pub fn has_side_effects(&self) -> bool {
         match self {
             Effect::Pure => false,
-            Effect::IO | Effect::State | Effect::Error => true,
+            Effect::IO | Effect::State | Effect::Error | Effect::Mutation => true,
             Effect::Custom(name) => !name.starts_with("pure_"),
         }
     }
-    
+
     /// Returns true if this effect performs write operations.
     pub fn is_write_effect(&self) -> bool {
         match self {
             Effect::Pure => false,
-            Effect::IO | Effect::State => true,
+            Effect::IO | Effect::State | Effect::Mutation => true,
             Effect::Error => false,
             Effect::Custom(name) => name.contains("write") || name.contains("set"),
         }
@@ -31,7 +31,7 @@ impl EffectContext {
         new_context.add_effect(Effect::Custom(format!("isolation:{level:?}")));
         new_context
     }
-    
+
     /// Removes isolation from this context.
     pub fn without_isolation(&self) -> Self {
         let mut new_effects = self.effects().to_vec();
@@ -42,7 +42,7 @@ impl EffectContext {
                 true
             }
         });
-        
+
         let mut new_context = EffectContext::new();
         for effect in new_effects {
             new_context.add_effect(effect);
@@ -52,7 +52,7 @@ impl EffectContext {
         }
         new_context
     }
-    
+
     /// Returns true if this context is isolated.
     pub fn is_isolated(&self) -> bool {
         self.effects().iter().any(|e| {
@@ -63,7 +63,7 @@ impl EffectContext {
             }
         })
     }
-    
+
     /// Gets the isolation level if any.
     pub fn get_isolation_level(&self) -> Option<EffectIsolationLevel> {
         for effect in self.effects() {

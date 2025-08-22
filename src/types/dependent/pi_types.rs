@@ -3,7 +3,7 @@
 
 //! Π-types (dependent function types) implementation.
 //!
-//! This module provides the complete implementation of Π-types following Martin-Löf 
+//! This module provides the complete implementation of Π-types following Martin-Löf
 //! type theory, with precise formation, introduction, elimination, and computation rules.
 //!
 //! # Mathematical Foundation
@@ -45,7 +45,7 @@
 //!   λx:A.(f(x)) ≡ f : (x:A) → B(x)  (if x ∉ FV(f))
 //! ```
 
-use super::core::{DependentType, DependentTerm, TypingContext, Normalizer, UniverseLevel};
+use super::core::{DependentTerm, DependentType, Normalizer, TypingContext, UniverseLevel};
 use crate::diagnostics::{Error, Result, Span};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -84,10 +84,10 @@ impl PiType {
 
     /// Create a Π-type with explicit universe level.
     pub fn with_universe_level(
-        var: String, 
-        domain: DependentType, 
-        codomain: DependentType, 
-        universe_level: UniverseLevel
+        var: String,
+        domain: DependentType,
+        codomain: DependentType,
+        universe_level: UniverseLevel,
     ) -> Self {
         Self {
             var,
@@ -116,7 +116,9 @@ impl PiType {
     fn infer_universe_level(ty: &DependentType) -> Result<UniverseLevel> {
         match ty {
             DependentType::Universe(level) => Ok(level + 1),
-            DependentType::Pi { domain, codomain, .. } => {
+            DependentType::Pi {
+                domain, codomain, ..
+            } => {
                 let domain_level = Self::infer_universe_level(domain)?;
                 let codomain_level = Self::infer_universe_level(codomain)?;
                 Ok(domain_level.max(codomain_level))
@@ -126,12 +128,8 @@ impl PiType {
                 let second_level = Self::infer_universe_level(second)?;
                 Ok(first_level.max(second_level))
             }
-            DependentType::Identity { ty, .. } => {
-                Self::infer_universe_level(ty)
-            }
-            DependentType::Inductive { universe_level, .. } => {
-                Ok(*universe_level)
-            }
+            DependentType::Identity { ty, .. } => Self::infer_universe_level(ty),
+            DependentType::Inductive { universe_level, .. } => Ok(*universe_level),
         }
     }
 
@@ -139,9 +137,13 @@ impl PiType {
     fn check_type_well_formed(ty: &DependentType, context: &TypingContext) -> Result<()> {
         match ty {
             DependentType::Universe(_) => Ok(()),
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 Self::check_type_well_formed(domain, context)?;
-                
+
                 // Create a temporary context with the variable bound
                 let mut extended_context = context.clone();
                 extended_context.bind_variable(var.clone(), *domain.clone());
@@ -149,14 +151,12 @@ impl PiType {
             }
             DependentType::Sigma { var, first, second } => {
                 Self::check_type_well_formed(first, context)?;
-                
+
                 let mut extended_context = context.clone();
                 extended_context.bind_variable(var.clone(), *first.clone());
                 Self::check_type_well_formed(second, &extended_context)
             }
-            DependentType::Identity { ty, .. } => {
-                Self::check_type_well_formed(ty, context)
-            }
+            DependentType::Identity { ty, .. } => Self::check_type_well_formed(ty, context),
             DependentType::Inductive { constructors, .. } => {
                 // Check all constructor types are well-formed
                 for (_, ctor_type) in constructors {
@@ -185,20 +185,26 @@ impl PiType {
     fn contains_free_variable(&self, _ty: &DependentType, var: &str) -> bool {
         match _ty {
             DependentType::Universe(_) => false,
-            DependentType::Pi { var: pi_var, domain, codomain } => {
-                self.contains_free_variable(domain, var) ||
-                (pi_var != var && self.contains_free_variable(codomain, var))
+            DependentType::Pi {
+                var: pi_var,
+                domain,
+                codomain,
+            } => {
+                self.contains_free_variable(domain, var)
+                    || (pi_var != var && self.contains_free_variable(codomain, var))
             }
-            DependentType::Sigma { var: sigma_var, first, second } => {
-                self.contains_free_variable(first, var) ||
-                (sigma_var != var && self.contains_free_variable(second, var))
+            DependentType::Sigma {
+                var: sigma_var,
+                first,
+                second,
+            } => {
+                self.contains_free_variable(first, var)
+                    || (sigma_var != var && self.contains_free_variable(second, var))
             }
-            DependentType::Identity { ty, .. } => {
-                self.contains_free_variable(ty, var)
-            }
-            DependentType::Inductive { constructors, .. } => {
-                constructors.iter().any(|(_, ctor_ty)| self.contains_free_variable(ctor_ty, var))
-            }
+            DependentType::Identity { ty, .. } => self.contains_free_variable(ty, var),
+            DependentType::Inductive { constructors, .. } => constructors
+                .iter()
+                .any(|(_, ctor_ty)| self.contains_free_variable(ctor_ty, var)),
         }
     }
 
@@ -206,28 +212,37 @@ impl PiType {
     pub fn free_variables(&self) -> HashSet<String> {
         let mut vars = HashSet::new();
         self.collect_free_variables(&self.domain, &mut vars, &HashSet::new());
-        
+
         let mut bound = HashSet::new();
         bound.insert(self.var.clone());
         self.collect_free_variables(&self.codomain, &mut vars, &bound);
-        
+
         vars
     }
 
     /// Collect free variables from a type (helper function).
-    fn collect_free_variables(&self, _ty: &DependentType, _vars: &mut HashSet<String>, bound: &HashSet<String>) {
+    fn collect_free_variables(
+        &self,
+        _ty: &DependentType,
+        _vars: &mut HashSet<String>,
+        bound: &HashSet<String>,
+    ) {
         match _ty {
             DependentType::Universe(_) => {}
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 self.collect_free_variables(domain, _vars, bound);
-                
+
                 let mut new_bound = bound.clone();
                 new_bound.insert(var.clone());
                 self.collect_free_variables(codomain, _vars, &new_bound);
             }
             DependentType::Sigma { var, first, second } => {
                 self.collect_free_variables(first, _vars, bound);
-                
+
                 let mut new_bound = bound.clone();
                 new_bound.insert(var.clone());
                 self.collect_free_variables(second, _vars, &new_bound);
@@ -272,9 +287,11 @@ impl LambdaAbstraction {
         // Check that parameter type matches domain
         if *self.param_type != *expected_pi_type.domain {
             return Err(Box::new(Error::type_error(
-                format!("Parameter type mismatch: expected {:?}, got {:?}", 
-                       expected_pi_type.domain, self.param_type),
-                Span::new(0, 0)
+                format!(
+                    "Parameter type mismatch: expected {:?}, got {:?}",
+                    expected_pi_type.domain, self.param_type
+                ),
+                Span::new(0, 0),
             )));
         }
 
@@ -287,13 +304,13 @@ impl LambdaAbstraction {
         let expected_codomain = self.substitute_in_type(
             &expected_pi_type.codomain,
             &expected_pi_type.var,
-            &DependentTerm::Variable(self.param.clone())
+            &DependentTerm::Variable(self.param.clone()),
         )?;
 
         if body_type != expected_codomain {
             return Err(Box::new(Error::type_error(
                 format!("Body type mismatch: expected {expected_codomain:?}, got {body_type:?}"),
-                Span::new(0, 0)
+                Span::new(0, 0),
             )));
         }
 
@@ -306,28 +323,37 @@ impl LambdaAbstraction {
         // For now, simplified placeholder
         match self.body.as_ref() {
             DependentTerm::Variable(name) => {
-                context.lookup_variable(name)
-                    .cloned()
-                    .ok_or_else(|| Box::new(Error::type_error(
+                context.lookup_variable(name).cloned().ok_or_else(|| {
+                    Box::new(Error::type_error(
                         format!("Unbound variable: {name}"),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))
+                })
             }
             _ => {
                 // Would need full type inference here
                 Err(Box::new(Error::type_error(
                     "Complex body type inference not yet implemented".to_string(),
-                    Span::new(0, 0)
+                    Span::new(0, 0),
                 )))
             }
         }
     }
 
     /// Substitute a term for a variable in a type.
-    fn substitute_in_type(&self, _ty: &DependentType, var: &str, _term: &DependentTerm) -> Result<DependentType> {
+    fn substitute_in_type(
+        &self,
+        _ty: &DependentType,
+        var: &str,
+        _term: &DependentTerm,
+    ) -> Result<DependentType> {
         // Simplified substitution - full implementation would handle variable capture
         match _ty {
-            DependentType::Pi { var: pi_var, domain, codomain } => {
+            DependentType::Pi {
+                var: pi_var,
+                domain,
+                codomain,
+            } => {
                 if pi_var == var {
                     // Variable is bound, don't substitute in codomain
                     Ok(DependentType::Pi {
@@ -343,7 +369,7 @@ impl LambdaAbstraction {
                     })
                 }
             }
-            _ => Ok(_ty.clone()) // Other cases: handle recursively
+            _ => Ok(_ty.clone()), // Other cases: handle recursively
         }
     }
 
@@ -381,15 +407,21 @@ impl FunctionApplication {
     pub fn type_check(&self, context: &mut TypingContext) -> Result<DependentType> {
         // Infer the type of the function
         let function_type = self.infer_function_type(context)?;
-        
+
         match function_type {
-            DependentType::Pi { var, domain, codomain } => {
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => {
                 // Check that argument has the domain type
                 let argument_type = self.infer_argument_type(context)?;
                 if argument_type != *domain {
                     return Err(Box::new(Error::type_error(
-                        format!("Argument type mismatch: expected {domain:?}, got {argument_type:?}"),
-                        Span::new(0, 0)
+                        format!(
+                            "Argument type mismatch: expected {domain:?}, got {argument_type:?}"
+                        ),
+                        Span::new(0, 0),
                     )));
                 }
 
@@ -398,8 +430,8 @@ impl FunctionApplication {
             }
             _ => Err(Box::new(Error::type_error(
                 "Cannot apply non-function type".to_string(),
-                Span::new(0, 0)
-            )))
+                Span::new(0, 0),
+            ))),
         }
     }
 
@@ -408,14 +440,18 @@ impl FunctionApplication {
         // Simplified type inference
         match self.function.as_ref() {
             DependentTerm::Variable(name) => {
-                context.lookup_variable(name)
-                    .cloned()
-                    .ok_or_else(|| Box::new(Error::type_error(
+                context.lookup_variable(name).cloned().ok_or_else(|| {
+                    Box::new(Error::type_error(
                         format!("Unbound function variable: {name}"),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))
+                })
             }
-            DependentTerm::Lambda { param, param_type, body } => {
+            DependentTerm::Lambda {
+                param,
+                param_type,
+                body,
+            } => {
                 // Lambda has type (param : param_type) → body_type
                 // Would need to infer body_type in extended context
                 Ok(DependentType::Pi {
@@ -426,8 +462,8 @@ impl FunctionApplication {
             }
             _ => Err(Box::new(Error::type_error(
                 "Complex function type inference not yet implemented".to_string(),
-                Span::new(0, 0)
-            )))
+                Span::new(0, 0),
+            ))),
         }
     }
 
@@ -435,26 +471,35 @@ impl FunctionApplication {
     fn infer_argument_type(&self, context: &TypingContext) -> Result<DependentType> {
         match self.argument.as_ref() {
             DependentTerm::Variable(name) => {
-                context.lookup_variable(name)
-                    .cloned()
-                    .ok_or_else(|| Box::new(Error::type_error(
+                context.lookup_variable(name).cloned().ok_or_else(|| {
+                    Box::new(Error::type_error(
                         format!("Unbound argument variable: {name}"),
-                        Span::new(0, 0)
-                    )))
+                        Span::new(0, 0),
+                    ))
+                })
             }
             _ => Err(Box::new(Error::type_error(
                 "Complex argument type inference not yet implemented".to_string(),
-                Span::new(0, 0)
-            )))
+                Span::new(0, 0),
+            ))),
         }
     }
 
     /// Substitute a term for a variable in a type.
-    fn substitute_in_type(&self, _ty: &DependentType, var: &str, _term: &DependentTerm) -> Result<DependentType> {
+    fn substitute_in_type(
+        &self,
+        _ty: &DependentType,
+        var: &str,
+        _term: &DependentTerm,
+    ) -> Result<DependentType> {
         // This is the same substitution logic as in LambdaAbstraction
         // In a full implementation, this would be factored out into a common module
         match _ty {
-            DependentType::Pi { var: pi_var, domain, codomain } => {
+            DependentType::Pi {
+                var: pi_var,
+                domain,
+                codomain,
+            } => {
                 if pi_var == var {
                     Ok(DependentType::Pi {
                         var: pi_var.clone(),
@@ -469,7 +514,7 @@ impl FunctionApplication {
                     })
                 }
             }
-            _ => Ok(_ty.clone())
+            _ => Ok(_ty.clone()),
         }
     }
 
@@ -491,7 +536,7 @@ impl FunctionApplication {
                     argument: self.argument.clone(),
                 })
             }
-            _ => Ok(self.to_dependent_term())
+            _ => Ok(self.to_dependent_term()),
         }
     }
 }
@@ -520,16 +565,19 @@ impl PiTypeOperations {
     }
 
     /// Curry a multi-argument function into nested Π-types.
-    pub fn curry_function(params: Vec<(String, DependentType)>, result: DependentType) -> Result<PiType> {
+    pub fn curry_function(
+        params: Vec<(String, DependentType)>,
+        result: DependentType,
+    ) -> Result<PiType> {
         if params.is_empty() {
             return Err(Box::new(Error::type_error(
                 "Cannot curry function with no parameters".to_string(),
-                Span::new(0, 0)
+                Span::new(0, 0),
             )));
         }
 
         let mut current_result = result;
-        
+
         // Build nested Π-types from right to left
         for (param_name, param_type) in params.into_iter().rev() {
             current_result = DependentType::Pi {
@@ -541,10 +589,12 @@ impl PiTypeOperations {
 
         // Extract the outermost Π-type
         match current_result {
-            DependentType::Pi { var, domain, codomain } => {
-                Ok(PiType::with_universe_level(var, *domain, *codomain, 0))
-            }
-            _ => unreachable!("Should have created a Π-type")
+            DependentType::Pi {
+                var,
+                domain,
+                codomain,
+            } => Ok(PiType::with_universe_level(var, *domain, *codomain, 0)),
+            _ => unreachable!("Should have created a Π-type"),
         }
     }
 
@@ -554,7 +604,12 @@ impl PiTypeOperations {
         let mut current_codomain = &*pi_type.codomain;
 
         // Follow the chain of Π-types
-        while let DependentType::Pi { var, domain, codomain } = current_codomain {
+        while let DependentType::Pi {
+            var,
+            domain,
+            codomain,
+        } = current_codomain
+        {
             params.push((var.clone(), (**domain).clone()));
             current_codomain = codomain;
         }
@@ -595,7 +650,7 @@ mod tests {
         let domain = DependentType::Universe(0);
         let codomain = DependentType::Universe(0);
         let pi_type = PiType::new("x".to_string(), domain, codomain).unwrap();
-        
+
         assert_eq!(pi_type.var, "x");
         assert_eq!(pi_type.universe_level, 1);
     }
@@ -605,7 +660,7 @@ mod tests {
         let domain = DependentType::Universe(0);
         let codomain = DependentType::Universe(1);
         let pi_type = PiTypeOperations::simple_function_type(domain, codomain).unwrap();
-        
+
         assert!(!pi_type.is_dependent());
         assert_eq!(pi_type.var, "_");
     }
@@ -620,13 +675,13 @@ mod tests {
             constructors: Vec::new(),
             induction_principle: None,
         };
-        
+
         let vec_type = DependentType::Pi {
             var: "_".to_string(),
             domain: Box::new(nat_type.clone()),
             codomain: Box::new(DependentType::Universe(0)),
         };
-        
+
         let pi_type = PiType::new("n".to_string(), nat_type, vec_type).unwrap();
         assert!(pi_type.is_dependent());
     }
@@ -638,10 +693,10 @@ mod tests {
             ("y".to_string(), DependentType::Universe(0)),
         ];
         let result = DependentType::Universe(0);
-        
+
         let curried = PiTypeOperations::curry_function(params.clone(), result.clone()).unwrap();
         let (uncurried_params, uncurried_result) = PiTypeOperations::uncurry_function(&curried);
-        
+
         assert_eq!(uncurried_params, params);
         assert_eq!(uncurried_result, result);
     }
@@ -651,9 +706,9 @@ mod tests {
         let lambda = LambdaAbstraction::new(
             "x".to_string(),
             DependentType::Universe(0),
-            DependentTerm::Variable("x".to_string())
+            DependentTerm::Variable("x".to_string()),
         );
-        
+
         let display = format!("{}", lambda);
         assert!(display.contains("λ"));
         assert!(display.contains("x"));

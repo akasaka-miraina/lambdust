@@ -39,7 +39,10 @@ impl EnvironmentHierarchy {
 
     /// Adds a child environment under a parent.
     pub fn add_child(&mut self, parent: String, child: String) {
-        self.relationships.entry(parent.clone()).or_default().push(child.clone());
+        self.relationships
+            .entry(parent.clone())
+            .or_default()
+            .push(child.clone());
         self.parent_lookup.insert(child, parent);
     }
 
@@ -84,12 +87,12 @@ impl EnvironmentHierarchy {
     pub fn get_ancestors(&self, name: &str) -> Vec<String> {
         let mut ancestors = Vec::new();
         let mut current = name;
-        
+
         while let Some(parent) = self.parent_lookup.get(current) {
             ancestors.push(parent.clone());
             current = parent;
         }
-        
+
         ancestors
     }
 

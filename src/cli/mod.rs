@@ -6,4 +6,4 @@
 
 pub mod lightweight_parser;
 
-pub use lightweight_parser::{LightweightCli, ArgDef, ArgType, ParsedArgs, CliError};
+pub use lightweight_parser::{ArgDef, ArgType, CliError, LightweightCli, ParsedArgs};

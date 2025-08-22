@@ -21,18 +21,18 @@
 //! # Caching Strategy
 //!
 //! - **Hot Path Cache**: Frequently used types kept in CPU cache
-//! - **LRU Eviction**: Least recently used items evicted first  
+//! - **LRU Eviction**: Least recently used items evicted first
 //! - **Prefetching**: Predict and preload related types
 //! - **Compression**: Pack similar types together
 
-use super::arena::{TypeArena, TypeRef, TermRef, ArenaStats};
+use super::arena::{ArenaStats, TermRef, TypeArena, TypeRef};
 use crate::diagnostics::{Error, Result};
-use std::collections::{HashMap, VecDeque};
+use lru::LruCache;
 use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-use std::hash::{Hash, Hasher, DefaultHasher};
-use lru::LruCache;
 
 /// Intelligent memory pool manager for dependent types.
 ///
@@ -123,97 +123,107 @@ struct AllocationEvent {
 /// Classification of allocation types
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum AllocationType {
+    /// Universe type allocations (Type₀, Type₁, etc.)
     Universe,
+    /// Π-type (dependent function type) allocations
     PiType,
+    /// Σ-type (dependent pair type) allocations
     SigmaType,
+    /// Identity type allocations for equality types
     IdentityType,
+    /// Inductive type allocations with constructors
     InductiveType,
+    /// Lambda abstraction term allocations
     Lambda,
+    /// Function application term allocations
     Application,
+    /// Constructor application term allocations
     Constructor,
+    /// Pattern matching term allocations
     Match,
 }
 
 /// Recognized allocation pattern
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct AllocationPattern {
-    /// Sequence of allocation types
+    /// Sequence of allocation types forming the pattern
     sequence: Vec<AllocationType>,
-    /// Average interval between allocations
+    /// Average time interval between allocations in the pattern
     interval: Duration,
 }
 
 /// Prediction data for a pattern
 #[derive(Debug, Clone)]
 struct PredictionData {
-    /// Confidence level (0.0-1.0)
+    /// Confidence level for this prediction (0.0-1.0)
     confidence: f32,
-    /// Number of times pattern was observed
+    /// Number of times this pattern was observed
     observation_count: u32,
-    /// Next predicted allocation type
+    /// The predicted next allocation type in the sequence
     next_allocation: AllocationType,
-    /// Suggested prefetch types
+    /// Types that should be prefetched based on this pattern
     prefetch_types: Vec<AllocationType>,
 }
 
 /// Sequence-based predictor using Markov chains
 #[derive(Debug)]
 struct SequencePredictor {
-    /// Transition matrix for allocation types
+    /// Transition probabilities between allocation types
     transitions: HashMap<AllocationType, HashMap<AllocationType, f32>>,
-    /// Current context window
+    /// Recent allocation history for context
     context_window: VecDeque<AllocationType>,
-    /// Window size for predictions
+    /// Size of the context window for pattern recognition
     window_size: usize,
 }
 
 /// Pool configuration parameters
 #[derive(Debug, Clone)]
 pub struct PoolConfig {
-    /// Initial pool size
+    /// Initial number of pre-allocated objects in the pool
     initial_size: usize,
-    /// Maximum pool size
+    /// Maximum number of objects the pool can hold
     max_size: usize,
-    /// Growth factor when expanding
+    /// Multiplicative factor for pool growth when expanding
     growth_factor: f32,
-    /// Minimum free list size before compaction
+    /// Minimum number of free objects before triggering compaction
     min_free_list: usize,
 }
 
 /// Statistics for a specialized pool
 #[derive(Debug, Clone)]
 struct PoolStats {
-    /// Total allocations from this pool
+    /// Total number of allocations ever made from this pool
     total_allocations: u64,
-    /// Current active allocations
+    /// Current number of active (not freed) allocations
     active_allocations: u64,
-    /// Peak allocations
+    /// Maximum number of simultaneous allocations ever reached
     peak_allocations: u64,
-    /// Total bytes allocated
+    /// Total number of bytes allocated by this pool
     bytes_allocated: u64,
-    /// Cache hits
+    /// Number of cache hits for this pool
     cache_hits: u64,
-    /// Cache misses
+    /// Number of cache misses for this pool
     cache_misses: u64,
 }
 
 /// Overall pool system statistics
 #[derive(Debug, Clone)]
 pub struct PoolStatistics {
-    /// Small pool stats
+    /// Statistics for the small object pool (≤64 bytes)
     small_pool: PoolStats,
-    /// Medium pool stats
+    /// Statistics for the medium object pool (65-512 bytes)
     medium_pool: PoolStats,
-    /// Large pool stats
+    /// Statistics for the large object pool (>512 bytes)
     large_pool: PoolStats,
-    /// Hot cache performance
+    /// Number of hits in the hot path cache
     hot_cache_hits: u64,
+    /// Number of misses in the hot path cache
     hot_cache_misses: u64,
-    /// Cold storage usage
+    /// Current size of cold storage in bytes
     cold_storage_size: usize,
-    /// Prefetch accuracy
+    /// Accuracy of prefetch predictions (0.0-1.0)
     prefetch_accuracy: f32,
-    /// Total memory saved vs naive allocation
+    /// Total memory saved compared to naive allocation (in bytes)
     memory_savings: f64,
 }
 
@@ -222,28 +232,28 @@ impl MemoryPoolManager {
     pub fn new() -> Self {
         Self::with_config(PoolManagerConfig::default())
     }
-    
+
     /// Create with custom configuration
     pub fn with_config(config: PoolManagerConfig) -> Self {
         Self {
-            small_pool: Rc::new(RefCell::new(
-                SpecializedPool::new(config.small_pool_config)
-            )),
-            medium_pool: Rc::new(RefCell::new(
-                SpecializedPool::new(config.medium_pool_config)
-            )),
-            large_pool: Rc::new(RefCell::new(
-                SpecializedPool::new(config.large_pool_config)
-            )),
+            small_pool: Rc::new(RefCell::new(SpecializedPool::new(config.small_pool_config))),
+            medium_pool: Rc::new(RefCell::new(SpecializedPool::new(
+                config.medium_pool_config,
+            ))),
+            large_pool: Rc::new(RefCell::new(SpecializedPool::new(config.large_pool_config))),
             hot_cache: RefCell::new(LruCache::new(config.hot_cache_size.try_into().unwrap())),
             cold_storage: RefCell::new(HashMap::new()),
             pattern_tracker: RefCell::new(AllocationPatternTracker::new()),
             stats: RefCell::new(PoolStatistics::new()),
         }
     }
-    
+
     /// Allocate a type reference with intelligent pool selection
-    pub fn allocate_type(&self, allocation_type: AllocationType, size_hint: usize) -> Result<TypeRef> {
+    pub fn allocate_type(
+        &self,
+        allocation_type: AllocationType,
+        size_hint: usize,
+    ) -> Result<TypeRef> {
         // Record allocation event for pattern learning
         let event = AllocationEvent {
             allocation_type: allocation_type.clone(),
@@ -252,54 +262,112 @@ impl MemoryPoolManager {
             context_hash: self.compute_context_hash(),
         };
         self.pattern_tracker.borrow_mut().record_event(event);
-        
+
         // Select appropriate pool based on size
         let pool = self.select_pool(size_hint);
-        
+
         // Try hot cache first
         if let Some(cached) = self.try_hot_cache(&allocation_type) {
             self.stats.borrow_mut().hot_cache_hits += 1;
             return Ok(cached);
         }
-        
+
         // Allocate from selected pool
         let type_ref = pool.borrow_mut().allocate()?;
-        
+
         // Add to hot cache if frequently used
         self.maybe_cache_hot(type_ref, allocation_type.clone());
-        
+
         // Trigger predictive prefetching
         self.trigger_prefetch(&allocation_type);
-        
+
         self.stats.borrow_mut().hot_cache_misses += 1;
         Ok(type_ref)
     }
-    
+
     /// Deallocate a type reference, potentially returning to pool
     pub fn deallocate_type(&self, type_ref: TypeRef) -> Result<()> {
         // Determine which pool owns this reference
         let pool = self.find_owning_pool(type_ref)?;
-        
+
         // Return to pool's free list
         pool.borrow_mut().deallocate(type_ref)?;
-        
+
         // Remove from hot cache if present
         self.remove_from_hot_cache(type_ref);
-        
+
         Ok(())
     }
-    
+
     /// Get comprehensive memory statistics
     pub fn memory_statistics(&self) -> MemoryPoolStatistics {
-        let stats = self.stats.borrow().clone();
-        let small_arena_stats = self.small_pool.borrow().arena.memory_stats();
-        let medium_arena_stats = self.medium_pool.borrow().arena.memory_stats();
-        let large_arena_stats = self.large_pool.borrow().arena.memory_stats();
-        
-        let total_memory = small_arena_stats.total_memory() + 
-                          medium_arena_stats.total_memory() + 
-                          large_arena_stats.total_memory();
-        
+        let stats = self
+            .stats
+            .try_borrow()
+            .map(|s| s.clone())
+            .unwrap_or_else(|_| PoolStatistics::new());
+        let small_arena_stats = if let Ok(pool) = self.small_pool.try_borrow() {
+            pool.arena.memory_stats().unwrap_or(ArenaStats {
+                types_count: 0,
+                terms_count: 0,
+                types_memory: 0,
+                terms_memory: 0,
+                cache_hits_types: 0,
+                cache_hits_terms: 0,
+            })
+        } else {
+            ArenaStats {
+                types_count: 0,
+                terms_count: 0,
+                types_memory: 0,
+                terms_memory: 0,
+                cache_hits_types: 0,
+                cache_hits_terms: 0,
+            }
+        };
+        let medium_arena_stats = if let Ok(pool) = self.medium_pool.try_borrow() {
+            pool.arena.memory_stats().unwrap_or(ArenaStats {
+                types_count: 0,
+                terms_count: 0,
+                types_memory: 0,
+                terms_memory: 0,
+                cache_hits_types: 0,
+                cache_hits_terms: 0,
+            })
+        } else {
+            ArenaStats {
+                types_count: 0,
+                terms_count: 0,
+                types_memory: 0,
+                terms_memory: 0,
+                cache_hits_types: 0,
+                cache_hits_terms: 0,
+            }
+        };
+        let large_arena_stats = if let Ok(pool) = self.large_pool.try_borrow() {
+            pool.arena.memory_stats().unwrap_or(ArenaStats {
+                types_count: 0,
+                terms_count: 0,
+                types_memory: 0,
+                terms_memory: 0,
+                cache_hits_types: 0,
+                cache_hits_terms: 0,
+            })
+        } else {
+            ArenaStats {
+                types_count: 0,
+                terms_count: 0,
+                types_memory: 0,
+                terms_memory: 0,
+                cache_hits_types: 0,
+                cache_hits_terms: 0,
+            }
+        };
+
+        let total_memory = small_arena_stats.total_memory()
+            + medium_arena_stats.total_memory()
+            + large_arena_stats.total_memory();
+
         MemoryPoolStatistics {
             pool_stats: stats,
             small_pool_arena: small_arena_stats,
@@ -310,34 +378,39 @@ impl MemoryPoolManager {
             prediction_accuracy: self.calculate_prediction_accuracy(),
         }
     }
-    
+
     /// Compact memory pools to reduce fragmentation
     pub fn compact_pools(&self) -> Result<CompactionReport> {
         let mut report = CompactionReport::new();
-        
+
         // Compact each pool
         let small_compacted = self.small_pool.borrow_mut().compact()?;
         let medium_compacted = self.medium_pool.borrow_mut().compact()?;
         let large_compacted = self.large_pool.borrow_mut().compact()?;
-        
+
         report.small_pool_savings = small_compacted;
         report.medium_pool_savings = medium_compacted;
         report.large_pool_savings = large_compacted;
         report.total_savings = small_compacted + medium_compacted + large_compacted;
-        
+
         // Migrate cold items to compressed storage
         report.cold_storage_migrations = self.migrate_to_cold_storage()?;
-        
+
         Ok(report)
     }
-    
+
     /// Force prefetch of predicted types
     pub fn prefetch_predicted(&self) -> Result<PrefetchReport> {
-        let predictions = self.pattern_tracker.borrow().get_predictions();
+        let predictions = self
+            .pattern_tracker
+            .try_borrow()
+            .map(|p| p.get_predictions())
+            .unwrap_or_default();
         let mut report = PrefetchReport::new();
-        
+
         for prediction in predictions {
-            if prediction.confidence > 0.7 { // High confidence threshold
+            if prediction.confidence > 0.7 {
+                // High confidence threshold
                 for prefetch_type in &prediction.prefetch_types {
                     match self.prefetch_type(prefetch_type.clone()) {
                         Ok(_) => report.successful_prefetches += 1,
@@ -346,27 +419,27 @@ impl MemoryPoolManager {
                 }
             }
         }
-        
+
         Ok(report)
     }
-    
+
     /// Clear all caches and reset pools
     pub fn reset_pools(&self) -> Result<()> {
         self.small_pool.borrow_mut().reset();
-        self.medium_pool.borrow_mut().reset();  
+        self.medium_pool.borrow_mut().reset();
         self.large_pool.borrow_mut().reset();
-        
+
         self.hot_cache.borrow_mut().clear();
         self.cold_storage.borrow_mut().clear();
         self.pattern_tracker.borrow_mut().reset();
-        
+
         *self.stats.borrow_mut() = PoolStatistics::new();
-        
+
         Ok(())
     }
-    
+
     // Private helper methods
-    
+
     fn select_pool(&self, size_hint: usize) -> Rc<RefCell<SpecializedPool>> {
         match size_hint {
             0..=64 => self.small_pool.clone(),
@@ -374,13 +447,13 @@ impl MemoryPoolManager {
             _ => self.large_pool.clone(),
         }
     }
-    
+
     fn try_hot_cache(&self, allocation_type: &AllocationType) -> Option<TypeRef> {
         let mut cache = self.hot_cache.borrow_mut();
         // Simplified lookup - in real implementation would use allocation_type as key
         None // Placeholder
     }
-    
+
     fn maybe_cache_hot(&self, type_ref: TypeRef, allocation_type: AllocationType) {
         let cached_data = CachedTypeData {
             type_ref,
@@ -388,26 +461,30 @@ impl MemoryPoolManager {
             access_count: 1,
             predicted_access: None,
         };
-        
+
         self.hot_cache.borrow_mut().put(type_ref, cached_data);
     }
-    
+
     fn trigger_prefetch(&self, allocation_type: &AllocationType) {
         // Get predictions and prefetch likely next allocations
-        let predictions = self.pattern_tracker.borrow().predict_next(allocation_type);
+        let predictions = if let Ok(tracker) = self.pattern_tracker.try_borrow() {
+            tracker.predict_next(allocation_type)
+        } else {
+            Vec::new()
+        };
         for prediction in predictions {
             if prediction.confidence > 0.5 {
                 let _ = self.prefetch_type(prediction.next_allocation);
             }
         }
     }
-    
+
     fn prefetch_type(&self, allocation_type: AllocationType) -> Result<TypeRef> {
         // Pre-allocate the predicted type
         let size_hint = self.estimate_size_for_type(&allocation_type);
         self.allocate_type(allocation_type, size_hint)
     }
-    
+
     fn estimate_size_for_type(&self, allocation_type: &AllocationType) -> usize {
         match allocation_type {
             AllocationType::Universe => 16,
@@ -421,54 +498,70 @@ impl MemoryPoolManager {
             AllocationType::Match => 512,
         }
     }
-    
+
     fn find_owning_pool(&self, type_ref: TypeRef) -> Result<Rc<RefCell<SpecializedPool>>> {
         // Check which pool owns this reference
         // This is a simplified implementation
-        if self.small_pool.borrow().owns_reference(type_ref) {
+        if self
+            .small_pool
+            .try_borrow()
+            .map(|p| p.owns_reference(type_ref))
+            .unwrap_or(false)
+        {
             Ok(self.small_pool.clone())
-        } else if self.medium_pool.borrow().owns_reference(type_ref) {
+        } else if self
+            .medium_pool
+            .try_borrow()
+            .map(|p| p.owns_reference(type_ref))
+            .unwrap_or(false)
+        {
             Ok(self.medium_pool.clone())
         } else {
             Ok(self.large_pool.clone())
         }
     }
-    
+
     fn remove_from_hot_cache(&self, type_ref: TypeRef) {
         self.hot_cache.borrow_mut().pop(&type_ref);
     }
-    
+
     fn compute_context_hash(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
         // Hash current allocation context
         Instant::now().hash(&mut hasher);
         hasher.finish()
     }
-    
+
     fn calculate_cache_efficiency(&self) -> f32 {
-        let stats = self.stats.borrow();
-        let total_accesses = stats.hot_cache_hits + stats.hot_cache_misses;
-        if total_accesses == 0 {
-            0.0
+        if let Ok(stats) = self.stats.try_borrow() {
+            let total_accesses = stats.hot_cache_hits + stats.hot_cache_misses;
+            if total_accesses == 0 {
+                0.0
+            } else {
+                stats.hot_cache_hits as f32 / total_accesses as f32
+            }
         } else {
-            stats.hot_cache_hits as f32 / total_accesses as f32
+            0.0
         }
     }
-    
+
     fn calculate_prediction_accuracy(&self) -> f32 {
-        self.pattern_tracker.borrow().get_accuracy()
+        self.pattern_tracker
+            .try_borrow()
+            .map(|p| p.get_accuracy())
+            .unwrap_or(0.0)
     }
-    
+
     fn migrate_to_cold_storage(&self) -> Result<usize> {
         // Move least recently used items to compressed cold storage
         let mut migrations = 0;
-        
+
         // This would be a complex implementation involving:
         // 1. Identifying cold items
-        // 2. Compressing their data  
+        // 2. Compressing their data
         // 3. Moving to cold storage
         // 4. Updating references
-        
+
         Ok(migrations)
     }
 }
@@ -482,15 +575,15 @@ impl SpecializedPool {
             config,
         }
     }
-    
+
     fn allocate(&mut self) -> Result<TypeRef> {
         self.pool_stats.total_allocations += 1;
         self.pool_stats.active_allocations += 1;
-        
+
         if self.pool_stats.active_allocations > self.pool_stats.peak_allocations {
             self.pool_stats.peak_allocations = self.pool_stats.active_allocations;
         }
-        
+
         // Try free list first
         if let Some(index) = self.free_list.pop_front() {
             // Reuse freed allocation
@@ -504,40 +597,48 @@ impl SpecializedPool {
             self.arena.alloc_type(dummy_data)
         }
     }
-    
+
     fn deallocate(&mut self, type_ref: TypeRef) -> Result<()> {
         if self.pool_stats.active_allocations > 0 {
             self.pool_stats.active_allocations -= 1;
         }
-        
+
         // Add to free list for reuse
         // Note: TypeRef.index is private, so we need a different approach
         // In a real implementation, we'd need accessor methods or different design
         // For now, we'll use a placeholder approach
         self.free_list.push_back(0); // Placeholder
-        
+
         Ok(())
     }
-    
+
     fn owns_reference(&self, type_ref: TypeRef) -> bool {
         self.arena.is_valid_type_ref(type_ref)
     }
-    
+
     fn compact(&mut self) -> Result<usize> {
         // Compact the arena and update free list
-        let old_size = self.arena.memory_stats().total_memory();
-        
+        let old_size = self
+            .arena
+            .memory_stats()
+            .map(|s| s.total_memory())
+            .unwrap_or(0);
+
         // Arena compaction would go here
         // This is complex and involves:
         // 1. Identifying live references
         // 2. Moving them to new contiguous memory
         // 3. Updating all pointers
         // 4. Freeing old memory
-        
-        let new_size = self.arena.memory_stats().total_memory();
+
+        let new_size = self
+            .arena
+            .memory_stats()
+            .map(|s| s.total_memory())
+            .unwrap_or(0);
         Ok(old_size.saturating_sub(new_size))
     }
-    
+
     fn reset(&mut self) {
         self.arena.clear();
         self.free_list.clear();
@@ -553,54 +654,55 @@ impl AllocationPatternTracker {
             sequence_state: SequencePredictor::new(),
         }
     }
-    
+
     fn record_event(&mut self, event: AllocationEvent) {
         self.history.push_back(event.clone());
-        
+
         // Keep history bounded
         if self.history.len() > 1000 {
             self.history.pop_front();
         }
-        
+
         // Update sequence predictor
         self.sequence_state.observe(&event.allocation_type);
-        
+
         // Extract patterns
         self.extract_patterns();
     }
-    
+
     fn predict_next(&self, current_type: &AllocationType) -> Vec<PredictionData> {
         self.sequence_state.predict(current_type)
     }
-    
+
     fn get_predictions(&self) -> Vec<PredictionData> {
         self.patterns.values().cloned().collect()
     }
-    
+
     fn get_accuracy(&self) -> f32 {
         self.sequence_state.get_accuracy()
     }
-    
+
     fn reset(&mut self) {
         self.history.clear();
         self.patterns.clear();
         self.sequence_state = SequencePredictor::new();
     }
-    
+
     fn extract_patterns(&mut self) {
         // Look for recurring sequences in the allocation history
         // This is a simplified pattern extraction
         if self.history.len() < 3 {
             return;
         }
-        
-        let recent: Vec<_> = self.history
+
+        let recent: Vec<_> = self
+            .history
             .iter()
             .rev()
             .take(10)
             .map(|e| e.allocation_type.clone())
             .collect();
-        
+
         // Look for patterns of length 2-5
         for pattern_len in 2..=5.min(recent.len()) {
             if let Some(sequence) = recent.get(0..pattern_len) {
@@ -608,15 +710,18 @@ impl AllocationPatternTracker {
                     sequence: sequence.to_vec(),
                     interval: Duration::from_millis(100), // Simplified
                 };
-                
+
                 // Update pattern statistics
-                let prediction = self.patterns.entry(pattern).or_insert_with(|| PredictionData {
-                    confidence: 0.1,
-                    observation_count: 0,
-                    next_allocation: sequence[0].clone(),
-                    prefetch_types: vec![],
-                });
-                
+                let prediction = self
+                    .patterns
+                    .entry(pattern)
+                    .or_insert_with(|| PredictionData {
+                        confidence: 0.1,
+                        observation_count: 0,
+                        next_allocation: sequence[0].clone(),
+                        prefetch_types: vec![],
+                    });
+
                 prediction.observation_count += 1;
                 prediction.confidence = (prediction.observation_count as f32 / 100.0).min(1.0);
             }
@@ -632,14 +737,14 @@ impl SequencePredictor {
             window_size: 5,
         }
     }
-    
+
     fn observe(&mut self, allocation_type: &AllocationType) {
         // Update transition probabilities
         if let Some(prev_type) = self.context_window.back() {
             let transitions = self.transitions.entry(prev_type.clone()).or_default();
             let count = transitions.entry(allocation_type.clone()).or_insert(0.0);
             *count += 1.0;
-            
+
             // Normalize probabilities
             let total: f32 = transitions.values().sum();
             if total > 0.0 {
@@ -648,14 +753,14 @@ impl SequencePredictor {
                 }
             }
         }
-        
+
         // Update context window
         self.context_window.push_back(allocation_type.clone());
         if self.context_window.len() > self.window_size {
             self.context_window.pop_front();
         }
     }
-    
+
     fn predict(&self, current_type: &AllocationType) -> Vec<PredictionData> {
         if let Some(transitions) = self.transitions.get(current_type) {
             transitions
@@ -671,7 +776,7 @@ impl SequencePredictor {
             vec![]
         }
     }
-    
+
     fn get_accuracy(&self) -> f32 {
         // Calculate overall prediction accuracy
         // This would be based on successful predictions vs total predictions
@@ -710,9 +815,13 @@ impl PoolStatistics {
 /// Configuration for the pool manager
 #[derive(Debug, Clone)]
 pub struct PoolManagerConfig {
+    /// Configuration for the small object pool (≤64 bytes)
     pub small_pool_config: PoolConfig,
+    /// Configuration for the medium object pool (65-512 bytes)
     pub medium_pool_config: PoolConfig,
+    /// Configuration for the large object pool (>512 bytes)
     pub large_pool_config: PoolConfig,
+    /// Size of the hot path cache for frequently accessed objects
     pub hot_cache_size: usize,
 }
 
@@ -745,22 +854,34 @@ impl Default for PoolManagerConfig {
 /// Comprehensive memory pool statistics
 #[derive(Debug, Clone)]
 pub struct MemoryPoolStatistics {
+    /// High-level statistics for all pools combined
     pub pool_stats: PoolStatistics,
+    /// Arena statistics for the small object pool
     pub small_pool_arena: ArenaStats,
+    /// Arena statistics for the medium object pool
     pub medium_pool_arena: ArenaStats,
+    /// Arena statistics for the large object pool
     pub large_pool_arena: ArenaStats,
+    /// Total number of memory pools being managed
     pub total_memory_pools: usize,
+    /// Cache hit rate efficiency (0.0-1.0)
     pub cache_efficiency: f32,
+    /// Accuracy of allocation predictions (0.0-1.0)
     pub prediction_accuracy: f32,
 }
 
 /// Report from pool compaction operation
 #[derive(Debug)]
 pub struct CompactionReport {
+    /// Memory saved by compacting the small object pool (bytes)
     pub small_pool_savings: usize,
+    /// Memory saved by compacting the medium object pool (bytes)
     pub medium_pool_savings: usize,
+    /// Memory saved by compacting the large object pool (bytes)
     pub large_pool_savings: usize,
+    /// Total memory saved across all pools (bytes)
     pub total_savings: usize,
+    /// Number of objects migrated to cold storage during compaction
     pub cold_storage_migrations: usize,
 }
 
@@ -779,7 +900,9 @@ impl CompactionReport {
 /// Report from prefetching operations
 #[derive(Debug)]
 pub struct PrefetchReport {
+    /// Number of prefetch operations that resulted in cache hits
     pub successful_prefetches: usize,
+    /// Number of prefetch operations that were not subsequently used
     pub failed_prefetches: usize,
 }
 
@@ -790,7 +913,10 @@ impl PrefetchReport {
             failed_prefetches: 0,
         }
     }
-    
+
+    /// Calculates the success rate of prefetch operations
+    ///
+    /// Returns the ratio of successful to total prefetch attempts as a value between 0.0 and 1.0
     pub fn success_rate(&self) -> f32 {
         let total = self.successful_prefetches + self.failed_prefetches;
         if total == 0 {
@@ -810,104 +936,106 @@ impl Default for MemoryPoolManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_pool_manager_creation() {
         let manager = MemoryPoolManager::new();
         let stats = manager.memory_statistics();
-        
+
         assert_eq!(stats.pool_stats.small_pool.total_allocations, 0);
         assert_eq!(stats.pool_stats.medium_pool.total_allocations, 0);
         assert_eq!(stats.pool_stats.large_pool.total_allocations, 0);
     }
-    
+
     #[test]
     fn test_size_based_pool_selection() {
         let manager = MemoryPoolManager::new();
-        
+
         // Small allocation should go to small pool
         let small_ref = manager.allocate_type(AllocationType::Universe, 32).unwrap();
-        
+
         // Large allocation should go to large pool
-        let large_ref = manager.allocate_type(AllocationType::InductiveType, 1024).unwrap();
-        
+        let large_ref = manager
+            .allocate_type(AllocationType::InductiveType, 1024)
+            .unwrap();
+
         // Verify different pools were used (simplified check)
         assert_ne!(small_ref, large_ref);
     }
-    
+
     #[test]
     fn test_allocation_pattern_tracking() {
         let manager = MemoryPoolManager::new();
-        
+
         // Create a pattern: Universe -> Pi -> Sigma repeatedly
         for _ in 0..5 {
             let _ = manager.allocate_type(AllocationType::Universe, 16);
             let _ = manager.allocate_type(AllocationType::PiType, 64);
             let _ = manager.allocate_type(AllocationType::SigmaType, 64);
         }
-        
+
         let stats = manager.memory_statistics();
-        
+
         // Should have detected some patterns
         assert!(stats.prediction_accuracy >= 0.0);
         assert!(stats.cache_efficiency >= 0.0);
     }
-    
+
     #[test]
     fn test_memory_compaction() {
         let manager = MemoryPoolManager::new();
-        
+
         // Allocate many items
         let mut refs = Vec::new();
         for i in 0..100 {
             refs.push(manager.allocate_type(AllocationType::Universe, 16).unwrap());
         }
-        
+
         // Deallocate some
         for i in (0..100).step_by(2) {
             let _ = manager.deallocate_type(refs[i]);
         }
-        
+
         // Compact should recover some memory
         let report = manager.compact_pools().unwrap();
-        
+
         // Some savings should be achieved (even if 0 in this simplified test)
         assert!(report.total_savings >= 0);
     }
-    
+
     #[test]
     fn test_prefetch_system() {
         let manager = MemoryPoolManager::new();
-        
+
         // Create predictable pattern
         for _ in 0..10 {
             let _ = manager.allocate_type(AllocationType::Lambda, 48);
             let _ = manager.allocate_type(AllocationType::Application, 32);
         }
-        
+
         // Trigger prefetch
         let report = manager.prefetch_predicted().unwrap();
-        
+
         // Should have attempted some prefetches
         let total_attempts = report.successful_prefetches + report.failed_prefetches;
         assert!(total_attempts >= 0);
     }
-    
+
     #[test]
     fn test_pool_reset() {
         let manager = MemoryPoolManager::new();
-        
+
         // Allocate some items
         for i in 0..10 {
             let _ = manager.allocate_type(AllocationType::Universe, 16);
         }
-        
+
         let stats_before = manager.memory_statistics();
         assert!(stats_before.pool_stats.small_pool.total_allocations > 0);
-        
+
         // Reset should clear everything
         manager.reset_pools().unwrap();
-        
+
         let stats_after = manager.memory_statistics();
         assert_eq!(stats_after.pool_stats.small_pool.total_allocations, 0);
     }

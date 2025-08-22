@@ -3,10 +3,10 @@
 //! This benchmark suite provides a basic performance comparison between
 //! interpreter-only execution and JIT-enabled execution.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use lambdust::eval::{Evaluator, Environment};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use lambdust::ast::{Expr, Literal};
 use lambdust::diagnostics::Spanned;
+use lambdust::eval::{Environment, Evaluator};
 use std::rc::Rc;
 
 /// Helper function to create a spanned expression
@@ -55,88 +55,112 @@ fn create_complex_arithmetic() -> Expr {
 /// Benchmark simple interpreter execution
 fn benchmark_interpreter_simple(c: &mut Criterion) {
     let mut group = c.benchmark_group("interpreter_simple");
-    
+
     group.bench_function("arithmetic", |b| {
         let mut evaluator = Evaluator::new();
         let env = Rc::new(Environment::new(None, 0));
         let expr = create_simple_arithmetic();
-        
+
         b.iter(|| {
-            black_box(evaluator.eval(&spanned_expr(expr.clone()), env.clone()).unwrap());
+            black_box(
+                evaluator
+                    .eval(&spanned_expr(expr.clone()), env.clone())
+                    .unwrap(),
+            );
         });
     });
-    
+
     group.bench_function("complex_arithmetic", |b| {
         let mut evaluator = Evaluator::new();
         let env = Rc::new(Environment::new(None, 0));
         let expr = create_complex_arithmetic();
-        
+
         b.iter(|| {
-            black_box(evaluator.eval(&spanned_expr(expr.clone()), env.clone()).unwrap());
+            black_box(
+                evaluator
+                    .eval(&spanned_expr(expr.clone()), env.clone())
+                    .unwrap(),
+            );
         });
     });
-    
+
     group.finish();
 }
 
 /// Benchmark JIT-enabled execution
 fn benchmark_jit_simple(c: &mut Criterion) {
     let mut group = c.benchmark_group("jit_simple");
-    
+
     group.bench_function("arithmetic", |b| {
         let mut evaluator = Evaluator::new();
         evaluator.enable_jit().unwrap_or(()); // Ignore errors if JIT not available
         let env = Rc::new(Environment::new(None, 0));
         let expr = create_simple_arithmetic();
-        
+
         b.iter(|| {
-            black_box(evaluator.eval(&spanned_expr(expr.clone()), env.clone()).unwrap());
+            black_box(
+                evaluator
+                    .eval(&spanned_expr(expr.clone()), env.clone())
+                    .unwrap(),
+            );
         });
     });
-    
+
     group.bench_function("complex_arithmetic", |b| {
         let mut evaluator = Evaluator::new();
         evaluator.enable_jit().unwrap_or(()); // Ignore errors if JIT not available
         let env = Rc::new(Environment::new(None, 0));
         let expr = create_complex_arithmetic();
-        
+
         b.iter(|| {
-            black_box(evaluator.eval(&spanned_expr(expr.clone()), env.clone()).unwrap());
+            black_box(
+                evaluator
+                    .eval(&spanned_expr(expr.clone()), env.clone())
+                    .unwrap(),
+            );
         });
     });
-    
+
     group.finish();
 }
 
 /// Benchmark repeated execution to test cache effectiveness
 fn benchmark_cache_effectiveness(c: &mut Criterion) {
     let mut group = c.benchmark_group("cache_effectiveness");
-    
+
     group.bench_function("interpreter_repeated", |b| {
         let mut evaluator = Evaluator::new();
         let env = Rc::new(Environment::new(None, 0));
         let expr = create_simple_arithmetic();
-        
+
         b.iter(|| {
             for _ in 0..10 {
-                black_box(evaluator.eval(&spanned_expr(expr.clone()), env.clone()).unwrap());
+                black_box(
+                    evaluator
+                        .eval(&spanned_expr(expr.clone()), env.clone())
+                        .unwrap(),
+                );
             }
         });
     });
-    
+
     group.bench_function("jit_repeated", |b| {
         let mut evaluator = Evaluator::new();
         evaluator.enable_jit().unwrap_or(()); // Ignore errors if JIT not available
         let env = Rc::new(Environment::new(None, 0));
         let expr = create_simple_arithmetic();
-        
+
         b.iter(|| {
             for _ in 0..10 {
-                black_box(evaluator.eval(&spanned_expr(expr.clone()), env.clone()).unwrap());
+                black_box(
+                    evaluator
+                        .eval(&spanned_expr(expr.clone()), env.clone())
+                        .unwrap(),
+                );
             }
         });
     });
-    
+
     group.finish();
 }
 

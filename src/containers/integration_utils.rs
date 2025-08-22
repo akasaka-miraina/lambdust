@@ -4,13 +4,13 @@
 //! with the existing Lambdust value system and runtime infrastructure.
 
 use crate::containers::context_optimization::{
-    ArenaVector, ArenaHashTable, ContainerContext, OptimizationPriority, AccessPattern
+    AccessPattern, ArenaHashTable, ArenaVector, ContainerContext, OptimizationPriority,
 };
-use crate::eval::value::Value;
-use crate::eval::arena_integration::{ValueLifetime, ArenaAllocator};
 use crate::diagnostics::{Error, Result, Span};
-use std::sync::Arc;
+use crate::eval::arena_integration::{ArenaAllocator, ValueLifetime};
+use crate::eval::value::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Container factory for creating optimized containers based on usage patterns
 pub struct OptimizedContainerFactory {
@@ -56,39 +56,45 @@ impl OptimizedContainerFactory {
     pub fn new() -> Self {
         let allocator = Arc::new(ArenaAllocator::new());
         let mut default_contexts = HashMap::new();
-        
+
         // Setup default contexts for different container types
-        default_contexts.insert(ContainerType::Vector, ContainerContext {
-            lifetime: ValueLifetime::Call,
-            expected_size: Some(32),
-            access_pattern: AccessPattern::Sequential,
-            sharing_expected: false,
-            optimization_priority: OptimizationPriority::Balanced,
-            name: Some("vector".to_string()),
-        });
-        
-        default_contexts.insert(ContainerType::HashTable, ContainerContext {
-            lifetime: ValueLifetime::Call,
-            expected_size: Some(16),
-            access_pattern: AccessPattern::Random,
-            sharing_expected: true,
-            optimization_priority: OptimizationPriority::Balanced,
-            name: Some("hash-table".to_string()),
-        });
-        
+        default_contexts.insert(
+            ContainerType::Vector,
+            ContainerContext {
+                lifetime: ValueLifetime::Call,
+                expected_size: Some(32),
+                access_pattern: AccessPattern::Sequential,
+                sharing_expected: false,
+                optimization_priority: OptimizationPriority::Balanced,
+                name: Some("vector".to_string()),
+            },
+        );
+
+        default_contexts.insert(
+            ContainerType::HashTable,
+            ContainerContext {
+                lifetime: ValueLifetime::Call,
+                expected_size: Some(16),
+                access_pattern: AccessPattern::Random,
+                sharing_expected: true,
+                optimization_priority: OptimizationPriority::Balanced,
+                name: Some("hash-table".to_string()),
+            },
+        );
+
         Self {
             allocator,
             default_contexts,
         }
     }
-    
+
     /// Create factory with custom allocator
     pub fn with_allocator(allocator: Arc<ArenaAllocator>) -> Self {
         let mut factory = Self::new();
         factory.allocator = allocator;
         factory
     }
-    
+
     /// Create optimized vector with usage hints
     pub fn create_vector(&self, usage_hint: Option<VectorUsageHint>) -> ArenaVector {
         let context = if let Some(hint) = usage_hint {
@@ -96,10 +102,10 @@ impl OptimizedContainerFactory {
         } else {
             self.default_contexts[&ContainerType::Vector].clone()
         };
-        
+
         ArenaVector::with_context(context)
     }
-    
+
     /// Create optimized hash table with usage hints
     pub fn create_hash_table(&self, usage_hint: Option<HashTableUsageHint>) -> ArenaHashTable {
         let context = if let Some(hint) = usage_hint {
@@ -107,42 +113,54 @@ impl OptimizedContainerFactory {
         } else {
             self.default_contexts[&ContainerType::HashTable].clone()
         };
-        
+
         ArenaHashTable::with_context(context)
     }
-    
+
     /// Create optimized vector from existing Value vector
-    pub fn vector_from_values(&self, values: Vec<Value>, usage_hint: Option<VectorUsageHint>) -> Result<ArenaVector> {
+    pub fn vector_from_values(
+        &self,
+        values: Vec<Value>,
+        usage_hint: Option<VectorUsageHint>,
+    ) -> Result<ArenaVector> {
         let mut optimized_vector = self.create_vector(usage_hint);
-        
+
         for value in values {
             optimized_vector.push(value)?;
         }
-        
+
         Ok(optimized_vector)
     }
-    
+
     /// Create optimized hash table from existing key-value pairs
-    pub fn hash_table_from_pairs(&self, pairs: Vec<(Value, Value)>, usage_hint: Option<HashTableUsageHint>) -> Result<ArenaHashTable> {
+    pub fn hash_table_from_pairs(
+        &self,
+        pairs: Vec<(Value, Value)>,
+        usage_hint: Option<HashTableUsageHint>,
+    ) -> Result<ArenaHashTable> {
         let mut optimized_table = self.create_hash_table(usage_hint);
-        
+
         for (key, value) in pairs {
             optimized_table.insert(key, value)?;
         }
-        
+
         Ok(optimized_table)
     }
-    
+
     /// Update default context for a container type
-    pub fn set_default_context(&mut self, container_type: ContainerType, context: ContainerContext) {
+    pub fn set_default_context(
+        &mut self,
+        container_type: ContainerType,
+        context: ContainerContext,
+    ) {
         self.default_contexts.insert(container_type, context);
     }
-    
+
     /// Get current default context for a container type
     pub fn get_default_context(&self, container_type: ContainerType) -> Option<&ContainerContext> {
         self.default_contexts.get(&container_type)
     }
-    
+
     /// Create vector context from usage hint
     fn create_vector_context(&self, hint: VectorUsageHint) -> ContainerContext {
         ContainerContext {
@@ -154,7 +172,7 @@ impl OptimizedContainerFactory {
             name: hint.name,
         }
     }
-    
+
     /// Create hash table context from usage hint
     fn create_hash_table_context(&self, hint: HashTableUsageHint) -> ContainerContext {
         ContainerContext {
@@ -215,7 +233,7 @@ impl UsagePatternAnalyzer {
             size_samples: 0,
         }
     }
-    
+
     /// Record a read operation
     pub fn record_read(&mut self, is_sequential: bool) {
         self.read_operations += 1;
@@ -225,7 +243,7 @@ impl UsagePatternAnalyzer {
             self.random_accesses += 1;
         }
     }
-    
+
     /// Record a write operation
     pub fn record_write(&mut self, is_sequential: bool) {
         self.write_operations += 1;
@@ -235,31 +253,32 @@ impl UsagePatternAnalyzer {
             self.random_accesses += 1;
         }
     }
-    
+
     /// Record container size
     pub fn record_size(&mut self, size: usize) {
         self.max_size = self.max_size.max(size);
-        self.avg_size = (self.avg_size * self.size_samples as f64 + size as f64) / (self.size_samples + 1) as f64;
+        self.avg_size = (self.avg_size * self.size_samples as f64 + size as f64)
+            / (self.size_samples + 1) as f64;
         self.size_samples += 1;
     }
-    
+
     /// Analyze patterns and generate optimization recommendation
     pub fn analyze(&self) -> UsageAnalysis {
         let total_operations = self.read_operations + self.write_operations;
         let total_accesses = self.sequential_accesses + self.random_accesses;
-        
+
         let read_ratio = if total_operations > 0 {
             self.read_operations as f64 / total_operations as f64
         } else {
             0.5
         };
-        
+
         let sequential_ratio = if total_accesses > 0 {
             self.sequential_accesses as f64 / total_accesses as f64
         } else {
             0.5
         };
-        
+
         let access_pattern = if sequential_ratio > 0.8 {
             AccessPattern::Sequential
         } else if sequential_ratio < 0.3 {
@@ -271,7 +290,7 @@ impl UsagePatternAnalyzer {
         } else {
             AccessPattern::Mixed
         };
-        
+
         let optimization_priority = if total_operations > 1000 {
             OptimizationPriority::Aggressive
         } else if total_operations > 100 {
@@ -279,7 +298,7 @@ impl UsagePatternAnalyzer {
         } else {
             OptimizationPriority::Minimal
         };
-        
+
         let recommended_context = ContainerContext {
             lifetime: ValueLifetime::Call, // Default
             expected_size: if self.avg_size > 0.0 {
@@ -292,7 +311,7 @@ impl UsagePatternAnalyzer {
             optimization_priority,
             name: None,
         };
-        
+
         UsageAnalysis {
             total_operations,
             read_ratio,
@@ -302,7 +321,7 @@ impl UsagePatternAnalyzer {
             recommended_context,
         }
     }
-    
+
     /// Reset analyzer state
     pub fn reset(&mut self) {
         self.read_operations = 0;
@@ -337,43 +356,55 @@ impl ContainerMigrator {
     pub fn new(allocator: Arc<ArenaAllocator>) -> Self {
         Self { allocator }
     }
-    
+
     /// Migrate standard `Vec<Value>` to ArenaVector
-    pub fn migrate_vector(&self, vec: Vec<Value>, context: ContainerContext) -> Result<ArenaVector> {
+    pub fn migrate_vector(
+        &self,
+        vec: Vec<Value>,
+        context: ContainerContext,
+    ) -> Result<ArenaVector> {
         let mut arena_vec = ArenaVector::with_context(context);
-        
+
         for value in vec {
             arena_vec.push(value)?;
         }
-        
+
         Ok(arena_vec)
     }
-    
+
     /// Migrate standard HashMap to ArenaHashTable
     #[allow(clippy::mutable_key_type)]
-    pub fn migrate_hash_map(&self, map: HashMap<Value, Value>, context: ContainerContext) -> Result<ArenaHashTable> {
+    pub fn migrate_hash_map(
+        &self,
+        map: HashMap<Value, Value>,
+        context: ContainerContext,
+    ) -> Result<ArenaHashTable> {
         let mut arena_table = ArenaHashTable::with_context(context);
-        
+
         for (key, value) in map {
             arena_table.insert(key, value)?;
         }
-        
+
         Ok(arena_table)
     }
-    
+
     /// Migrate ArenaVector back to standard `Vec<Value>`
     pub fn migrate_vector_back(&self, arena_vec: ArenaVector) -> Result<Vec<Value>> {
         arena_vec.to_standard_vector()
     }
-    
+
     /// Batch migrate multiple containers
-    pub fn batch_migrate_vectors(&self, vecs: Vec<Vec<Value>>, context: ContainerContext) -> Result<Vec<ArenaVector>> {
+    pub fn batch_migrate_vectors(
+        &self,
+        vecs: Vec<Vec<Value>>,
+        context: ContainerContext,
+    ) -> Result<Vec<ArenaVector>> {
         let mut results = Vec::with_capacity(vecs.len());
-        
+
         for vec in vecs {
             results.push(self.migrate_vector(vec, context.clone())?);
         }
-        
+
         Ok(results)
     }
 }
@@ -390,43 +421,60 @@ impl OptimizationAdvisor {
             analyzers: HashMap::new(),
         }
     }
-    
+
     /// Get or create analyzer for a container
     pub fn get_analyzer(&mut self, container_name: &str) -> &mut UsagePatternAnalyzer {
-        self.analyzers.entry(container_name.to_string())
+        self.analyzers
+            .entry(container_name.to_string())
             .or_default()
     }
-    
+
     /// Generate recommendations for all tracked containers
     pub fn generate_recommendations(&self) -> HashMap<String, UsageAnalysis> {
-        self.analyzers.iter()
+        self.analyzers
+            .iter()
             .map(|(name, analyzer)| (name.clone(), analyzer.analyze()))
             .collect()
     }
-    
+
     /// Generate optimization report
     pub fn optimization_report(&self) -> String {
         let mut report = String::new();
         report.push_str("Container Optimization Report\n");
         report.push_str("============================\n\n");
-        
+
         let recommendations = self.generate_recommendations();
-        
+
         for (name, analysis) in recommendations {
             report.push_str(&format!("Container: {name}\n"));
-            report.push_str(&format!("  Total operations: {}\n", analysis.total_operations));
-            report.push_str(&format!("  Read ratio: {:.1}%\n", analysis.read_ratio * 100.0));
-            report.push_str(&format!("  Sequential ratio: {:.1}%\n", analysis.sequential_ratio * 100.0));
+            report.push_str(&format!(
+                "  Total operations: {}\n",
+                analysis.total_operations
+            ));
+            report.push_str(&format!(
+                "  Read ratio: {:.1}%\n",
+                analysis.read_ratio * 100.0
+            ));
+            report.push_str(&format!(
+                "  Sequential ratio: {:.1}%\n",
+                analysis.sequential_ratio * 100.0
+            ));
             report.push_str(&format!("  Max size: {}\n", analysis.max_size));
             report.push_str(&format!("  Avg size: {:.1}\n", analysis.avg_size));
-            report.push_str(&format!("  Recommended pattern: {:?}\n", analysis.recommended_context.access_pattern));
-            report.push_str(&format!("  Recommended priority: {:?}\n", analysis.recommended_context.optimization_priority));
+            report.push_str(&format!(
+                "  Recommended pattern: {:?}\n",
+                analysis.recommended_context.access_pattern
+            ));
+            report.push_str(&format!(
+                "  Recommended priority: {:?}\n",
+                analysis.recommended_context.optimization_priority
+            ));
             report.push('\n');
         }
-        
+
         report
     }
-    
+
     /// Clear all analyzers
     pub fn clear(&mut self) {
         self.analyzers.clear();
@@ -480,7 +528,7 @@ impl Default for HashTableUsageHint {
 /// Convenience functions for creating optimized containers
 pub mod convenience {
     use super::*;
-    
+
     /// Create a high-performance vector for temporary use
     pub fn temp_vector() -> ArenaVector {
         let factory = OptimizedContainerFactory::new();
@@ -490,7 +538,7 @@ pub mod convenience {
             ..Default::default()
         }))
     }
-    
+
     /// Create a high-performance hash table for temporary use
     pub fn temp_hash_table() -> ArenaHashTable {
         let factory = OptimizedContainerFactory::new();
@@ -500,7 +548,7 @@ pub mod convenience {
             ..Default::default()
         }))
     }
-    
+
     /// Create a vector optimized for sequential access
     pub fn sequential_vector(expected_size: Option<usize>) -> ArenaVector {
         let factory = OptimizedContainerFactory::new();
@@ -511,7 +559,7 @@ pub mod convenience {
             ..Default::default()
         }))
     }
-    
+
     /// Create a hash table optimized for read-heavy workloads
     pub fn read_heavy_hash_table(expected_size: Option<usize>) -> ArenaHashTable {
         let factory = OptimizedContainerFactory::new();
@@ -528,75 +576,75 @@ pub mod convenience {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_container_factory() {
         let factory = OptimizedContainerFactory::new();
-        
+
         let vec = factory.create_vector(None);
         assert_eq!(vec.len(), 0);
-        
+
         let table = factory.create_hash_table(None);
         assert_eq!(table.len(), 0);
     }
-    
+
     #[test]
     fn test_usage_pattern_analyzer() {
         let mut analyzer = UsagePatternAnalyzer::new();
-        
+
         // Simulate operations
         analyzer.record_read(true);
         analyzer.record_read(true);
         analyzer.record_write(false);
         analyzer.record_size(100);
-        
+
         let analysis = analyzer.analyze();
         assert_eq!(analysis.total_operations, 3);
         assert!(analysis.read_ratio > 0.6);
         assert_eq!(analysis.max_size, 100);
     }
-    
+
     #[test]
     fn test_container_migrator() {
         let allocator = Arc::new(ArenaAllocator::new());
         let migrator = ContainerMigrator::new(allocator);
-        
+
         let vec = vec![Value::integer(1), Value::integer(2), Value::integer(3)];
         let context = ContainerContext::default();
-        
+
         let arena_vec = migrator.migrate_vector(vec, context).unwrap();
         assert_eq!(arena_vec.len(), 3);
-        
+
         let migrated_back = migrator.migrate_vector_back(arena_vec).unwrap();
         assert_eq!(migrated_back.len(), 3);
     }
-    
+
     #[test]
     fn test_optimization_advisor() {
         let mut advisor = OptimizationAdvisor::new();
-        
+
         let analyzer = advisor.get_analyzer("test-container");
         analyzer.record_read(true);
         analyzer.record_size(50);
-        
+
         let recommendations = advisor.generate_recommendations();
         assert!(recommendations.contains_key("test-container"));
-        
+
         let report = advisor.optimization_report();
         assert!(report.contains("Container: test-container"));
     }
-    
+
     #[test]
     fn test_convenience_functions() {
         let vec = convenience::temp_vector();
         assert_eq!(vec.len(), 0);
-        
+
         let table = convenience::temp_hash_table();
         assert_eq!(table.len(), 0);
-        
+
         let seq_vec = convenience::sequential_vector(Some(100));
         assert_eq!(seq_vec.len(), 0);
-        
+
         let read_table = convenience::read_heavy_hash_table(Some(50));
         assert_eq!(read_table.len(), 0);
     }

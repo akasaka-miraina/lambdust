@@ -3,7 +3,7 @@
 //! This module provides memory pools to reduce allocation overhead for frequently
 //! created and destroyed objects like tokens, AST nodes, and values.
 
-use std::collections::{VecDeque, HashMap};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 /// A memory pool for objects of type T.
@@ -119,7 +119,8 @@ impl<T> VecPool<T> {
     /// Gets a Vec from the pool, or creates a new one if the pool is empty.
     pub fn get(&self) -> PooledVec<T> {
         let mut vec = if let Ok(mut pool) = self.pool.lock() {
-            pool.pop_front().unwrap_or_else(|| Vec::with_capacity(self.initial_capacity))
+            pool.pop_front()
+                .unwrap_or_else(|| Vec::with_capacity(self.initial_capacity))
         } else {
             Vec::with_capacity(self.initial_capacity)
         };
@@ -210,7 +211,7 @@ impl<T> AstNodePool<T> {
             reuse_count: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
     }
-    
+
     /// Gets a boxed node from the pool or allocates a new one.
     pub fn get_boxed<F>(&self, factory: F) -> PooledBox<T>
     where
@@ -218,36 +219,41 @@ impl<T> AstNodePool<T> {
     {
         let boxed_node = if let Ok(mut pool) = self.pool.lock() {
             if let Some(mut node) = pool.pop_front() {
-                self.reuse_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.reuse_count
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 // Reset the node to a clean state
                 *node = factory();
                 node
             } else {
-                self.allocation_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.allocation_count
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 Box::new(factory())
             }
         } else {
-            self.allocation_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            self.allocation_count
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             Box::new(factory())
         };
-        
+
         PooledBox {
             boxed: Some(boxed_node),
             pool: self.pool.clone(),
             max_size: self.max_size,
         }
     }
-    
+
     /// Gets allocation statistics.
     pub fn stats(&self) -> PoolStats {
         PoolStats {
             pool_size: self.size(),
-            allocation_count: self.allocation_count.load(std::sync::atomic::Ordering::Relaxed),
+            allocation_count: self
+                .allocation_count
+                .load(std::sync::atomic::Ordering::Relaxed),
             reuse_count: self.reuse_count.load(std::sync::atomic::Ordering::Relaxed),
             max_size: self.max_size,
         }
     }
-    
+
     /// Returns the current pool size.
     pub fn size(&self) -> usize {
         if let Ok(pool) = self.pool.lock() {
@@ -256,7 +262,7 @@ impl<T> AstNodePool<T> {
             0
         }
     }
-    
+
     /// Clears all nodes from the pool.
     pub fn clear(&self) {
         if let Ok(mut pool) = self.pool.lock() {
@@ -281,7 +287,7 @@ impl<T> PooledBox<T> {
 
 impl<T> std::ops::Deref for PooledBox<T> {
     type Target = T;
-    
+
     fn deref(&self) -> &Self::Target {
         self.boxed.as_ref().expect("Box already taken")
     }
@@ -312,7 +318,7 @@ pub struct PoolStats {
     pub pool_size: usize,
     /// Total number of allocations made
     pub allocation_count: usize,
-    /// Number of times items were reused from the pool  
+    /// Number of times items were reused from the pool
     pub reuse_count: usize,
     /// Maximum pool size
     pub max_size: usize,
@@ -328,7 +334,7 @@ impl PoolStats {
             (self.reuse_count as f64 / total as f64) * 100.0
         }
     }
-    
+
     /// Calculates memory efficiency (higher is better).
     pub fn efficiency_score(&self) -> f64 {
         let utilization = self.pool_size as f64 / self.max_size as f64;
@@ -354,33 +360,35 @@ impl EnvironmentPool {
     /// Creates a new environment pool with size-based sub-pools.
     pub fn new() -> Self {
         let mut pools = HashMap::new();
-        
+
         // Create pools for common environment sizes
         let common_sizes = [4, 8, 16, 32, 64, 128];
         for &size in &common_sizes {
             pools.insert(size, AstNodePool::new(10));
         }
-        
+
         Self {
             pools,
             size_distribution: Arc::new(Mutex::new(HashMap::new())),
         }
     }
-    
+
     /// Gets an environment with the specified capacity hint.
     pub fn get_environment(&self, capacity_hint: usize) -> PooledEnvironment {
         // Find the best matching pool size
-        let pool_size = self.pools.keys()
+        let pool_size = self
+            .pools
+            .keys()
             .filter(|&&size| size >= capacity_hint)
             .min()
             .copied()
             .unwrap_or(128); // Fallback to largest pool
-        
+
         // Track size distribution
         if let Ok(mut dist) = self.size_distribution.lock() {
             *dist.entry(pool_size).or_insert(0) += 1;
         }
-        
+
         if let Some(pool) = self.pools.get(&pool_size) {
             let bindings = pool.get_boxed(|| HashMap::with_capacity(pool_size));
             PooledEnvironment { bindings }
@@ -391,11 +399,11 @@ impl EnvironmentPool {
                     boxed: Some(Box::new(HashMap::with_capacity(capacity_hint))),
                     pool: Arc::new(Mutex::new(VecDeque::new())),
                     max_size: 0,
-                }
+                },
             }
         }
     }
-    
+
     /// Gets statistics about environment allocation patterns.
     pub fn allocation_stats(&self) -> EnvironmentPoolStats {
         let mut total_allocations = 0;
@@ -405,13 +413,13 @@ impl EnvironmentPool {
         } else {
             HashMap::new()
         };
-        
+
         for pool in self.pools.values() {
             let stats = pool.stats();
             total_allocations += stats.allocation_count;
             total_reuses += stats.reuse_count;
         }
-        
+
         EnvironmentPoolStats {
             total_allocations,
             total_reuses,
@@ -439,7 +447,7 @@ impl PooledEnvironment {
 
 impl std::ops::Deref for PooledEnvironment {
     type Target = HashMap<String, crate::eval::Value>;
-    
+
     fn deref(&self) -> &Self::Target {
         &self.bindings
     }
@@ -471,23 +479,19 @@ pub mod global_pools {
     use once_cell::sync::Lazy;
 
     /// Global pool for Token vectors (used during tokenization).
-    pub static TOKEN_VEC_POOL: Lazy<VecPool<Token>> = 
-        Lazy::new(|| VecPool::new(64, 10));
+    pub static TOKEN_VEC_POOL: Lazy<VecPool<Token>> = Lazy::new(|| VecPool::new(64, 10));
 
     /// Global pool for String vectors.
-    pub static STRING_VEC_POOL: Lazy<VecPool<String>> = 
-        Lazy::new(|| VecPool::new(32, 10));
-    
+    pub static STRING_VEC_POOL: Lazy<VecPool<String>> = Lazy::new(|| VecPool::new(32, 10));
+
     /// Global pool for AST expression nodes.
-    pub static EXPR_POOL: Lazy<AstNodePool<crate::ast::Expr>> = 
-        Lazy::new(|| AstNodePool::new(50));
-    
+    pub static EXPR_POOL: Lazy<AstNodePool<crate::ast::Expr>> = Lazy::new(|| AstNodePool::new(50));
+
     /// Global pool for environment bindings.
-    pub static ENVIRONMENT_POOL: Lazy<EnvironmentPool> = 
-        Lazy::new(EnvironmentPool::new);
-    
+    pub static ENVIRONMENT_POOL: Lazy<EnvironmentPool> = Lazy::new(EnvironmentPool::new);
+
     /// Global pool for continuation frames.
-    pub static FRAME_VEC_POOL: Lazy<VecPool<crate::eval::Frame>> = 
+    pub static FRAME_VEC_POOL: Lazy<VecPool<crate::eval::Frame>> =
         Lazy::new(|| VecPool::new(16, 10));
 
     /// Gets a token vector from the global pool.
@@ -499,7 +503,7 @@ pub mod global_pools {
     pub fn get_string_vec() -> PooledVec<String> {
         STRING_VEC_POOL.get()
     }
-    
+
     /// Gets an AST expression node from the global pool.
     pub fn get_expr<F>(factory: F) -> PooledBox<crate::ast::Expr>
     where
@@ -507,12 +511,12 @@ pub mod global_pools {
     {
         EXPR_POOL.get_boxed(factory)
     }
-    
+
     /// Gets a pooled environment from the global pool.
     pub fn get_environment(capacity_hint: usize) -> PooledEnvironment {
         ENVIRONMENT_POOL.get_environment(capacity_hint)
     }
-    
+
     /// Gets a frame vector from the global pool.
     pub fn get_frame_vec() -> PooledVec<crate::eval::Frame> {
         FRAME_VEC_POOL.get()
@@ -541,7 +545,7 @@ pub mod global_pools {
 pub struct GlobalPoolStats {
     /// Token vector pool size
     pub token_vec_pool: usize,
-    /// String vector pool size  
+    /// String vector pool size
     pub string_vec_pool: usize,
     /// Expression pool statistics
     pub expr_pool: PoolStats,
@@ -558,23 +562,25 @@ impl GlobalPoolStats {
         let expr_weight = 0.4;
         let env_weight = 0.3;
         let vec_weight = 0.3;
-        
+
         let expr_efficiency = self.expr_pool.efficiency_score();
         let env_efficiency = self.environment_pool.reuse_rate / 100.0;
-        
+
         // Simple utilization for vector pools (no detailed stats available)
         let vec_efficiency = 0.5; // Assume moderate efficiency
-        
-        (expr_efficiency * expr_weight) + (env_efficiency * env_weight) + (vec_efficiency * vec_weight)
+
+        (expr_efficiency * expr_weight)
+            + (env_efficiency * env_weight)
+            + (vec_efficiency * vec_weight)
     }
-    
+
     /// Estimates total memory saved by pooling (in bytes).
     pub fn estimated_memory_saved(&self) -> usize {
         // Rough estimates based on typical object sizes
         let expr_saved = self.expr_pool.reuse_count * 128; // ~128 bytes per expression
         let env_saved = self.environment_pool.total_reuses * 256; // ~256 bytes per environment
         let vec_saved = (self.token_vec_pool + self.string_vec_pool + self.frame_vec_pool) * 64; // ~64 bytes per vector
-        
+
         expr_saved + env_saved + vec_saved
     }
 }
@@ -601,23 +607,23 @@ mod tests {
     #[test]
     fn test_memory_pool() {
         let pool = MemoryPool::new(TestObject::new, 5);
-        
+
         // Pool should be empty initially
         assert_eq!(pool.size(), 0);
-        
+
         // Get an object
         let mut obj1 = pool.get();
         obj1.value = 42;
         assert_eq!(obj1.value, 42);
-        
+
         // Drop the object back to the pool
         drop(obj1);
         assert_eq!(pool.size(), 1);
-        
+
         // Get another object - should reuse the previous one
         let obj2 = pool.get();
         assert_eq!(obj2.value, 42); // Value persists
-        
+
         // Take the object out of the pool
         let taken = obj2.take();
         assert_eq!(taken.value, 42);
@@ -628,18 +634,18 @@ mod tests {
     #[test]
     fn test_vec_pool() {
         let pool = VecPool::new(10, 3);
-        
+
         // Get a vector
         let mut vec1 = pool.get();
         vec1.push(1);
         vec1.push(2);
         vec1.push(3);
         assert_eq!(vec1.len(), 3);
-        
+
         // Drop it back to the pool
         drop(vec1);
         assert_eq!(pool.size(), 1);
-        
+
         // Get another vector - should be cleared but have retained capacity
         let vec2 = pool.get();
         assert_eq!(vec2.len(), 0);
@@ -649,16 +655,16 @@ mod tests {
     #[test]
     fn test_pool_max_size() {
         let pool = MemoryPool::new(TestObject::new, 2);
-        
+
         // Create more objects than the pool can hold
         let obj1 = pool.get();
         let obj2 = pool.get();
         let obj3 = pool.get();
-        
+
         drop(obj1);
         drop(obj2);
         drop(obj3);
-        
+
         // Pool should only hold up to max_size objects
         assert_eq!(pool.size(), 2);
     }
@@ -666,16 +672,16 @@ mod tests {
     #[test]
     fn test_global_pools() {
         use global_pools::*;
-        
+
         let mut token_vec = get_token_vec();
         assert_eq!(token_vec.len(), 0);
-        
+
         // Use the vector
         // Note: Can't actually create tokens without full setup
         // token_vec.push(some_token);
-        
+
         drop(token_vec);
-        
+
         // Should be returned to pool
         let (token_pool_size, _) = pool_stats();
         assert_eq!(token_pool_size, 1);
@@ -684,20 +690,20 @@ mod tests {
     #[test]
     fn test_multiple_borrows() {
         let pool = MemoryPool::new(TestObject::new, 10);
-        
+
         let obj1 = pool.get();
         let obj2 = pool.get();
         let obj3 = pool.get();
-        
+
         // All should be separate objects
         assert_ne!(obj1.value, 999);
         assert_ne!(obj2.value, 999);
         assert_ne!(obj3.value, 999);
-        
+
         drop(obj1);
         drop(obj2);
         drop(obj3);
-        
+
         assert_eq!(pool.size(), 3);
     }
 }

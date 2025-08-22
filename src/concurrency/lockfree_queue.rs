@@ -3,8 +3,8 @@
 //! This module provides both unbounded and bounded lock-free queue
 //! implementations using crossbeam's efficient queue structures.
 
-use std::sync::Arc;
 use crossbeam::queue::{ArrayQueue, SegQueue};
+use std::sync::Arc;
 
 /// Lock-free queue for high-performance message passing.
 #[derive(Debug, Clone)]

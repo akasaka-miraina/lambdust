@@ -5,9 +5,9 @@
 //! the `with-handler` and `define-effect-handler` constructs from the
 //! language specification.
 
-use super::{Effect, EffectResult, IOAction, StateAction, ErrorAction, EffectHandler};
+use super::{Effect, EffectHandler, EffectResult, ErrorAction, IOAction, StateAction};
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{ThreadSafeEnvironment, Value, Procedure};
+use crate::eval::value::{Procedure, ThreadSafeEnvironment, Value};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Arc, RwLock};
@@ -158,11 +158,11 @@ impl super::EffectHandler for EffectHandlerImplementation {
             Ok(EffectResult::Unhandled)
         }
     }
-    
+
     fn effect_name(&self) -> &str {
         &self.name
     }
-    
+
     fn can_handle(&self, effect: &Effect) -> bool {
         self.handled_effects.contains(effect) || self.default_handler.is_some()
     }
@@ -171,9 +171,9 @@ impl super::EffectHandler for EffectHandlerImplementation {
 impl EffectHandlerImplementation {
     /// Creates a new effect handler.
     pub fn new(
-        name: String, 
+        name: String,
         handled_effects: Vec<Effect>,
-        environment: Arc<ThreadSafeEnvironment>
+        environment: Arc<ThreadSafeEnvironment>,
     ) -> Self {
         Self {
             name,
@@ -183,7 +183,7 @@ impl EffectHandlerImplementation {
             environment,
         }
     }
-    
+
     /// Adds a handler function for a specific effect.
     pub fn add_handler(&mut self, effect: Effect, handler: HandlerFunction) {
         self.handlers.insert(effect.clone(), handler);
@@ -191,31 +191,31 @@ impl EffectHandlerImplementation {
             self.handled_effects.push(effect);
         }
     }
-    
+
     /// Sets the default handler for unhandled effects.
     pub fn set_default_handler(&mut self, handler: HandlerFunction) {
         self.default_handler = Some(handler);
     }
-    
+
     /// Executes a handler function.
     fn execute_handler(
-        &self, 
-        handler: &HandlerFunction, 
-        effect: &Effect, 
-        args: &[Value]
+        &self,
+        handler: &HandlerFunction,
+        effect: &Effect,
+        args: &[Value],
     ) -> Result<EffectResult> {
         // Check arity
         if let Err(e) = self.check_handler_arity(&handler.arity, args.len()) {
             return Ok(EffectResult::Error(*e));
         }
-        
+
         // Prepare arguments for the handler procedure
         let mut handler_args = vec![
             // Effect as the first argument
             Value::string(format!("{effect}")),
         ];
         handler_args.extend_from_slice(args);
-        
+
         // TODO: Execute the handler procedure
         // For now, return a placeholder result
         match effect {
@@ -229,27 +229,35 @@ impl EffectHandlerImplementation {
                 } else {
                     Ok(EffectResult::Value(Value::Unspecified))
                 }
-            },
+            }
             Effect::State => {
                 // Handle state effect
                 Ok(EffectResult::Value(Value::Unspecified))
-            },
+            }
             Effect::Error => {
                 // Handle error effect
                 if let Some(error_val) = args.first() {
                     let error_msg = format!("Error: {error_val}");
-                    Ok(EffectResult::Error(DiagnosticError::runtime_error(error_msg, None)))
+                    Ok(EffectResult::Error(DiagnosticError::runtime_error(
+                        error_msg, None,
+                    )))
                 } else {
                     Ok(EffectResult::Value(Value::Unspecified))
                 }
-            },
+            }
+            Effect::Mutation => {
+                // Handle mutation effect
+                Ok(EffectResult::Value(Value::Unspecified))
+            }
             Effect::Custom(name) => {
                 // Handle custom effect
-                Ok(EffectResult::Value(Value::string(format!("Custom effect: {name}"))))
+                Ok(EffectResult::Value(Value::string(format!(
+                    "Custom effect: {name}"
+                ))))
             }
         }
     }
-    
+
     /// Checks if the handler arity matches the number of arguments.
     fn check_handler_arity(&self, arity: &HandlerArity, arg_count: usize) -> Result<()> {
         match arity {
@@ -262,7 +270,7 @@ impl EffectHandlerImplementation {
                 } else {
                     Ok(())
                 }
-            },
+            }
             HandlerArity::Variable(min) => {
                 if arg_count < *min {
                     Err(Box::new(DiagnosticError::runtime_error(
@@ -272,13 +280,16 @@ impl EffectHandlerImplementation {
                 } else {
                     Ok(())
                 }
-            },
+            }
             HandlerArity::WithContinuation(expected) => {
                 // Continuation adds one extra argument
                 if arg_count != expected + 1 {
                     Err(Box::new(DiagnosticError::runtime_error(
-                        format!("Handler with continuation expects {} arguments, got {}", 
-                                expected + 1, arg_count),
+                        format!(
+                            "Handler with continuation expects {} arguments, got {}",
+                            expected + 1,
+                            arg_count
+                        ),
                         None,
                     )))
                 } else {
@@ -298,7 +309,7 @@ impl HandlerFunction {
             resumable: false,
         }
     }
-    
+
     /// Creates a resumable handler function.
     pub fn resumable(procedure: Arc<Procedure>, arity: HandlerArity) -> Self {
         Self {
@@ -307,17 +318,17 @@ impl HandlerFunction {
             resumable: true,
         }
     }
-    
+
     /// Returns true if this handler is resumable.
     pub fn is_resumable(&self) -> bool {
         self.resumable
     }
-    
+
     /// Gets the handler procedure.
     pub fn procedure(&self) -> &Arc<Procedure> {
         &self.procedure
     }
-    
+
     /// Gets the handler arity.
     pub fn arity(&self) -> &HandlerArity {
         &self.arity
@@ -332,22 +343,22 @@ impl EffectHandlerRegistry {
             default_handlers: HashMap::new(),
             handler_stack: Vec::new(),
         };
-        
+
         // Register built-in handlers
         registry.register_builtin_handlers();
         registry
     }
-    
+
     /// Registers a named effect handler.
     pub fn register_handler(&mut self, name: String, handler: EffectHandlerImplementation) {
         self.handlers.insert(name, handler);
     }
-    
+
     /// Sets a default handler for an effect type.
     pub fn set_default_handler(&mut self, effect: Effect, handler: EffectHandlerImplementation) {
         self.default_handlers.insert(effect, handler);
     }
-    
+
     /// Finds a handler for the given effect.
     pub fn find_handler(&self, effect: &Effect) -> Option<&EffectHandlerImplementation> {
         // First check the handler stack (most recent first)
@@ -356,41 +367,41 @@ impl EffectHandlerRegistry {
                 return Some(handler);
             }
         }
-        
+
         // Then check default handlers
         self.default_handlers.get(effect)
     }
-    
+
     /// Pushes a handler onto the stack.
     pub fn push_handler(&mut self, handler: EffectHandlerImplementation) {
         self.handler_stack.push(handler);
     }
-    
+
     /// Pops a handler from the stack.
     pub fn pop_handler(&mut self) -> Option<EffectHandlerImplementation> {
         self.handler_stack.pop()
     }
-    
+
     /// Gets a named handler.
     pub fn get_handler(&self, name: &str) -> Option<&EffectHandlerImplementation> {
         self.handlers.get(name)
     }
-    
+
     /// Lists all registered handler names.
     pub fn handler_names(&self) -> Vec<&String> {
         self.handlers.keys().collect()
     }
-    
+
     /// Registers built-in effect handlers.
     fn register_builtin_handlers(&mut self) {
         // IO handler
         let io_handler = BuiltinHandlers::create_io_handler();
         self.set_default_handler(Effect::IO, io_handler);
-        
+
         // State handler
         let state_handler = BuiltinHandlers::create_state_handler();
         self.set_default_handler(Effect::State, state_handler);
-        
+
         // Error handler
         let error_handler = BuiltinHandlers::create_error_handler();
         self.set_default_handler(Effect::Error, error_handler);
@@ -401,12 +412,9 @@ impl BuiltinHandlers {
     /// Creates the default IO effect handler.
     pub fn create_io_handler() -> EffectHandlerImplementation {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-        let mut handler = EffectHandlerImplementation::new(
-            "builtin-io".to_string(),
-            vec![Effect::IO],
-            env,
-        );
-        
+        let mut handler =
+            EffectHandlerImplementation::new("builtin-io".to_string(), vec![Effect::IO], env);
+
         // Create a simple handler procedure (placeholder)
         // In a full implementation, this would be a proper Scheme procedure
         let proc = Arc::new(Procedure {
@@ -417,25 +425,19 @@ impl BuiltinHandlers {
             metadata: HashMap::new(),
             source: None,
         });
-        
-        let handler_func = HandlerFunction::new(
-            proc,
-            HandlerArity::Variable(1),
-        );
-        
+
+        let handler_func = HandlerFunction::new(proc, HandlerArity::Variable(1));
+
         handler.add_handler(Effect::IO, handler_func);
         handler
     }
-    
+
     /// Creates the default State effect handler.
     pub fn create_state_handler() -> EffectHandlerImplementation {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-        let mut handler = EffectHandlerImplementation::new(
-            "builtin-state".to_string(),
-            vec![Effect::State],
-            env,
-        );
-        
+        let mut handler =
+            EffectHandlerImplementation::new("builtin-state".to_string(), vec![Effect::State], env);
+
         let proc = Arc::new(Procedure {
             formals: crate::ast::Formals::Variable("args".to_string()),
             body: vec![],
@@ -444,25 +446,19 @@ impl BuiltinHandlers {
             metadata: HashMap::new(),
             source: None,
         });
-        
-        let handler_func = HandlerFunction::new(
-            proc,
-            HandlerArity::Variable(1),
-        );
-        
+
+        let handler_func = HandlerFunction::new(proc, HandlerArity::Variable(1));
+
         handler.add_handler(Effect::State, handler_func);
         handler
     }
-    
+
     /// Creates the default Error effect handler.
     pub fn create_error_handler() -> EffectHandlerImplementation {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-        let mut handler = EffectHandlerImplementation::new(
-            "builtin-error".to_string(),
-            vec![Effect::Error],
-            env,
-        );
-        
+        let mut handler =
+            EffectHandlerImplementation::new("builtin-error".to_string(), vec![Effect::Error], env);
+
         let proc = Arc::new(Procedure {
             formals: crate::ast::Formals::Variable("args".to_string()),
             body: vec![],
@@ -471,12 +467,9 @@ impl BuiltinHandlers {
             metadata: HashMap::new(),
             source: None,
         });
-        
-        let handler_func = HandlerFunction::new(
-            proc,
-            HandlerArity::Variable(1),
-        );
-        
+
+        let handler_func = HandlerFunction::new(proc, HandlerArity::Variable(1));
+
         handler.add_handler(Effect::Error, handler_func);
         handler
     }
@@ -490,15 +483,12 @@ impl IOEffectHandler {
             config: IOHandlerConfig::default(),
         }
     }
-    
+
     /// Creates an IO handler with custom configuration.
     pub fn with_config(name: String, config: IOHandlerConfig) -> Self {
-        Self {
-            name,
-            config,
-        }
+        Self { name, config }
     }
-    
+
     /// Handles an IO action.
     pub fn handle_io_action(&self, action: &IOAction) -> Result<Value> {
         match action {
@@ -510,20 +500,18 @@ impl IOEffectHandler {
                     print!("{value}");
                     Ok(Value::Unspecified)
                 }
-            },
+            }
             IOAction::Newline => {
                 if !self.config.buffer_output {
                     println!();
                 }
                 Ok(Value::Unspecified)
-            },
-            IOAction::Return(value) => Ok(value.clone()),
-            _ => {
-                Err(Box::new(DiagnosticError::runtime_error(
-                    "IO action not yet implemented".to_string(),
-                    None,
-                )))
             }
+            IOAction::Return(value) => Ok(value.clone()),
+            _ => Err(Box::new(DiagnosticError::runtime_error(
+                "IO action not yet implemented".to_string(),
+                None,
+            ))),
         }
     }
 }
@@ -536,7 +524,7 @@ impl StateEffectHandler {
             config: StateHandlerConfig::default(),
         }
     }
-    
+
     /// Handles a state action.
     pub fn handle_state_action(&self, action: &StateAction) -> Result<Value> {
         match action {
@@ -547,13 +535,11 @@ impl StateEffectHandler {
                     format!("Variable {name} not found in state"),
                     None,
                 )))
-            },
-            _ => {
-                Err(Box::new(DiagnosticError::runtime_error(
-                    "State action not yet implemented".to_string(),
-                    None,
-                )))
             }
+            _ => Err(Box::new(DiagnosticError::runtime_error(
+                "State action not yet implemented".to_string(),
+                None,
+            ))),
         }
     }
 }
@@ -566,7 +552,7 @@ impl ErrorEffectHandler {
             config: ErrorHandlerConfig::default(),
         }
     }
-    
+
     /// Handles an error action.
     pub fn handle_error_action(&self, action: &ErrorAction) -> Result<Value> {
         match action {
@@ -578,13 +564,11 @@ impl ErrorEffectHandler {
                 } else {
                     Err(Box::new(error.clone()))
                 }
-            },
-            _ => {
-                Err(Box::new(DiagnosticError::runtime_error(
-                    "Error action not yet implemented".to_string(),
-                    None,
-                )))
             }
+            _ => Err(Box::new(DiagnosticError::runtime_error(
+                "Error action not yet implemented".to_string(),
+                None,
+            ))),
         }
     }
 }
@@ -594,8 +578,6 @@ impl Default for EffectHandlerRegistry {
         Self::new()
     }
 }
-
-
 
 impl Default for StateHandlerConfig {
     fn default() -> Self {
@@ -619,7 +601,11 @@ impl Default for ErrorHandlerConfig {
 
 impl fmt::Display for EffectHandlerImplementation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "EffectHandler({}, effects={:?})", self.name, self.handled_effects)
+        write!(
+            f,
+            "EffectHandler({}, effects={:?})",
+            self.name, self.handled_effects
+        )
     }
 }
 
@@ -670,32 +656,28 @@ unsafe impl Sync for IORedirection {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_handler_registry() {
         let registry = EffectHandlerRegistry::new();
-        
+
         // Should have default handlers for built-in effects
         assert!(registry.find_handler(&Effect::IO).is_some());
         assert!(registry.find_handler(&Effect::State).is_some());
         assert!(registry.find_handler(&Effect::Error).is_some());
     }
-    
+
     #[test]
     fn test_handler_arity_checking() {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-        let handler = EffectHandlerImplementation::new(
-            "test".to_string(),
-            vec![Effect::IO],
-            env,
-        );
-        
+        let handler = EffectHandlerImplementation::new("test".to_string(), vec![Effect::IO], env);
+
         // Test fixed arity
         let fixed_arity = HandlerArity::Fixed(2);
         assert!(handler.check_handler_arity(&fixed_arity, 2).is_ok());
         assert!(handler.check_handler_arity(&fixed_arity, 1).is_err());
         assert!(handler.check_handler_arity(&fixed_arity, 3).is_err());
-        
+
         // Test variable arity
         let var_arity = HandlerArity::Variable(1);
         assert!(handler.check_handler_arity(&var_arity, 1).is_ok());

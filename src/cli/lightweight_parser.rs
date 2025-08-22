@@ -61,7 +61,7 @@ pub enum ArgType {
 pub struct ParsedArgs {
     /// Flag arguments (name -> present).
     pub flags: HashMap<String, bool>,
-    /// Value arguments (name -> value).  
+    /// Value arguments (name -> value).
     pub values: HashMap<String, String>,
     /// Multi-value arguments (name -> values).
     pub multi_values: HashMap<String, Vec<String>>,
@@ -77,13 +77,13 @@ pub enum CliError {
     /// Missing required value.
     MissingValue(String),
     /// Invalid value for argument.
-    InvalidValue { 
+    InvalidValue {
         /// Argument name
-        arg: String, 
+        arg: String,
         /// Provided value
-        value: String, 
+        value: String,
         /// Allowed values
-        allowed: Vec<String> 
+        allowed: Vec<String>,
     },
     /// Help requested.
     HelpRequested,
@@ -96,9 +96,18 @@ impl fmt::Display for CliError {
         match self {
             Self::UnknownArg(arg) => write!(f, "Unknown argument: {arg}"),
             Self::MissingValue(arg) => write!(f, "Missing value for argument: {arg}"),
-            Self::InvalidValue { arg, value, allowed } => {
-                write!(f, "Invalid value '{}' for argument '{}'. Allowed values: {}", 
-                    value, arg, allowed.join(", "))
+            Self::InvalidValue {
+                arg,
+                value,
+                allowed,
+            } => {
+                write!(
+                    f,
+                    "Invalid value '{}' for argument '{}'. Allowed values: {}",
+                    value,
+                    arg,
+                    allowed.join(", ")
+                )
             }
             Self::HelpRequested => write!(f, "Help requested"),
             Self::VersionRequested => write!(f, "Version requested"),
@@ -119,31 +128,31 @@ impl LightweightCli {
             args: Vec::new(),
         }
     }
-    
+
     /// Sets the version.
     pub fn version(mut self, version: impl Into<String>) -> Self {
         self.version = version.into();
         self
     }
-    
+
     /// Sets the author.
     pub fn author(mut self, author: impl Into<String>) -> Self {
         self.author = author.into();
         self
     }
-    
+
     /// Sets the about text.
     pub fn about(mut self, about: impl Into<String>) -> Self {
         self.about = about.into();
         self
     }
-    
+
     /// Adds an argument.
     pub fn arg(mut self, arg: ArgDef) -> Self {
         self.args.push(arg);
         self
     }
-    
+
     /// Parses command-line arguments.
     pub fn parse<I, T>(&self, args: I) -> Result<ParsedArgs, CliError>
     where
@@ -153,13 +162,13 @@ impl LightweightCli {
         let args: Vec<String> = args.into_iter().map(|s| s.as_ref().to_string()).collect();
         self.parse_from_vec(args)
     }
-    
+
     /// Parses from environment arguments (skipping program name).
     pub fn parse_env(&self) -> Result<ParsedArgs, CliError> {
         let args: Vec<String> = std::env::args().skip(1).collect();
         self.parse_from_vec(args)
     }
-    
+
     /// Internal parsing implementation.
     fn parse_from_vec(&self, args: Vec<String>) -> Result<ParsedArgs, CliError> {
         let mut parsed = ParsedArgs {
@@ -168,13 +177,13 @@ impl LightweightCli {
             multi_values: HashMap::new(),
             positional: Vec::new(),
         };
-        
+
         let mut i = 0;
         let mut positional_index = 0;
-        
+
         while i < args.len() {
             let arg = &args[i];
-            
+
             // Check for help/version first
             if arg == "--help" || arg == "-h" {
                 return Err(CliError::HelpRequested);
@@ -182,7 +191,7 @@ impl LightweightCli {
             if arg == "--version" || arg == "-V" {
                 return Err(CliError::VersionRequested);
             }
-            
+
             if let Some(name) = arg.strip_prefix("--") {
                 // Long flag
                 if let Some(arg_def) = self.find_arg_by_long(name) {
@@ -206,7 +215,8 @@ impl LightweightCli {
                             }
                             let value = &args[i];
                             self.validate_value(arg_def, value)?;
-                            parsed.multi_values
+                            parsed
+                                .multi_values
                                 .entry(arg_def.name.clone())
                                 .or_default()
                                 .push(value.clone());
@@ -239,7 +249,8 @@ impl LightweightCli {
                             }
                             let value = &args[i];
                             self.validate_value(arg_def, value)?;
-                            parsed.multi_values
+                            parsed
+                                .multi_values
                                 .entry(arg_def.name.clone())
                                 .or_default()
                                 .push(value.clone());
@@ -257,34 +268,32 @@ impl LightweightCli {
                 parsed.positional.push(arg.clone());
                 positional_index += 1;
             }
-            
+
             i += 1;
         }
-        
+
         Ok(parsed)
     }
-    
+
     /// Finds argument definition by long flag.
     fn find_arg_by_long(&self, long: &str) -> Option<&ArgDef> {
-        self.args.iter().find(|arg| {
-            arg.long.as_ref().is_some_and(|l| l == long)
-        })
+        self.args
+            .iter()
+            .find(|arg| arg.long.as_ref().is_some_and(|l| l == long))
     }
-    
+
     /// Finds argument definition by short flag.
     fn find_arg_by_short(&self, short: char) -> Option<&ArgDef> {
-        self.args.iter().find(|arg| {
-            arg.short == Some(short)
-        })
+        self.args.iter().find(|arg| arg.short == Some(short))
     }
-    
+
     /// Finds positional argument by index.
     fn find_positional_arg(&self, index: usize) -> Option<&ArgDef> {
-        self.args.iter().find(|arg| {
-            arg.positional && (arg.index == Some(index))
-        })
+        self.args
+            .iter()
+            .find(|arg| arg.positional && (arg.index == Some(index)))
     }
-    
+
     /// Validates argument value.
     fn validate_value(&self, arg_def: &ArgDef, value: &str) -> Result<(), CliError> {
         if let Some(allowed) = &arg_def.allowed_values {
@@ -298,11 +307,11 @@ impl LightweightCli {
         }
         Ok(())
     }
-    
+
     /// Generates help text.
     pub fn generate_help(&self) -> String {
         let mut help = String::new();
-        
+
         // Header
         help.push_str(&format!("{} {}\n", self.name, self.version));
         if !self.author.is_empty() {
@@ -312,11 +321,11 @@ impl LightweightCli {
             help.push_str(&format!("{}\n", self.about));
         }
         help.push('\n');
-        
+
         // Usage
         help.push_str("USAGE:\n");
         help.push_str(&format!("    {} [OPTIONS]", self.name));
-        
+
         // Add positional args to usage
         for arg in &self.args {
             if arg.positional {
@@ -328,77 +337,75 @@ impl LightweightCli {
             }
         }
         help.push_str("\n\n");
-        
+
         // Arguments
         if self.args.iter().any(|arg| arg.positional) {
             help.push_str("ARGS:\n");
             for arg in &self.args {
                 if arg.positional {
                     let uppercase_name = arg.name.to_uppercase();
-                    let value_name = arg.value_name.as_deref()
-                        .unwrap_or(&uppercase_name);
+                    let value_name = arg.value_name.as_deref().unwrap_or(&uppercase_name);
                     help.push_str(&format!("    <{}>    {}\n", value_name, arg.help));
                 }
             }
             help.push('\n');
         }
-        
+
         // Options
         help.push_str("OPTIONS:\n");
         for arg in &self.args {
             if !arg.positional {
                 let mut line = "    ".to_string();
-                
+
                 if let Some(short) = arg.short {
                     line.push_str(&format!("-{short}"));
                     if arg.long.is_some() {
                         line.push_str(", ");
                     }
                 }
-                
+
                 if let Some(long) = &arg.long {
                     line.push_str(&format!("--{long}"));
                 }
-                
+
                 if arg.arg_type == ArgType::Value {
                     let uppercase_name = arg.name.to_uppercase();
-                    let value_name = arg.value_name.as_deref()
-                        .unwrap_or(&uppercase_name);
+                    let value_name = arg.value_name.as_deref().unwrap_or(&uppercase_name);
                     line.push_str(&format!(" <{value_name}>"));
                 }
-                
+
                 // Pad to align help text
                 while line.len() < 24 {
                     line.push(' ');
                 }
                 line.push_str(&arg.help);
-                
+
                 if let Some(allowed) = &arg.allowed_values {
                     line.push_str(&format!(" [possible values: {}]", allowed.join(", ")));
                 }
-                
+
                 help.push_str(&line);
                 help.push('\n');
             }
         }
-        
+
         // Built-in options
         help.push_str("    -h, --help       Print help information\n");
         help.push_str("    -V, --version    Print version information\n");
-        
+
         help
     }
-    
+
     /// Generates version text.
     pub fn generate_version(&self) -> String {
         format!("{} {}", self.name, self.version)
     }
-    
+
     /// Prints help text to stdout.
     pub fn print_help(&self) {
         println!("{}", self.generate_help());
     }
-    
+
     /// Prints version text to stdout.
     pub fn print_version(&self) {
         println!("{}", self.generate_version());
@@ -420,44 +427,44 @@ impl ArgDef {
             allowed_values: None,
         }
     }
-    
+
     /// Sets the short flag.
     pub fn short(mut self, short: char) -> Self {
         self.short = Some(short);
         self
     }
-    
+
     /// Sets the long flag.
     pub fn long(mut self, long: impl Into<String>) -> Self {
         self.long = Some(long.into());
         self
     }
-    
+
     /// Sets the help text.
     pub fn help(mut self, help: impl Into<String>) -> Self {
         self.help = help.into();
         self
     }
-    
+
     /// Sets the value name.
     pub fn value_name(mut self, value_name: impl Into<String>) -> Self {
         self.value_name = Some(value_name.into());
         self
     }
-    
+
     /// Sets the argument type to value.
     pub fn takes_value(mut self) -> Self {
         self.arg_type = ArgType::Value;
         self
     }
-    
+
     /// Sets the argument as positional with index.
     pub fn index(mut self, index: usize) -> Self {
         self.positional = true;
         self.index = Some(index);
         self
     }
-    
+
     /// Sets allowed values for validation.
     pub fn possible_values(mut self, values: &[&str]) -> Self {
         self.allowed_values = Some(values.iter().map(|s| s.to_string()).collect());
@@ -470,7 +477,7 @@ impl ParsedArgs {
     pub fn get_flag(&self, name: &str) -> bool {
         self.flags.get(name).copied().unwrap_or(false)
     }
-    
+
     /// Gets a value.
     pub fn get_one<T>(&self, name: &str) -> Option<&str>
     where
@@ -478,7 +485,7 @@ impl ParsedArgs {
     {
         self.values.get(name).map(|s| s.as_str())
     }
-    
+
     /// Gets the first positional argument.
     pub fn get_positional(&self, index: usize) -> Option<&str> {
         self.positional.get(index).map(|s| s.as_str())
@@ -491,36 +498,35 @@ mod tests {
 
     #[test]
     fn test_flag_parsing() {
-        let cli = LightweightCli::new("test")
-            .arg(ArgDef::new("verbose").short('v').long("verbose"));
-        
+        let cli =
+            LightweightCli::new("test").arg(ArgDef::new("verbose").short('v').long("verbose"));
+
         let parsed = cli.parse(["--verbose"]).unwrap();
         assert!(parsed.get_flag("verbose"));
-        
+
         let parsed = cli.parse(["-v"]).unwrap();
         assert!(parsed.get_flag("verbose"));
-        
+
         let parsed = cli.parse(&[] as &[&str]).unwrap();
         assert!(!parsed.get_flag("verbose"));
     }
 
-    #[test] 
+    #[test]
     fn test_value_parsing() {
         let cli = LightweightCli::new("test")
             .arg(ArgDef::new("file").short('f').long("file").takes_value());
-        
+
         let parsed = cli.parse(["--file", "test.txt"]).unwrap();
         assert_eq!(parsed.get_one::<String>("file"), Some("test.txt"));
-        
+
         let parsed = cli.parse(["-f", "test.txt"]).unwrap();
         assert_eq!(parsed.get_one::<String>("file"), Some("test.txt"));
     }
 
     #[test]
     fn test_positional_parsing() {
-        let cli = LightweightCli::new("test")
-            .arg(ArgDef::new("input").index(0).value_name("FILE"));
-        
+        let cli = LightweightCli::new("test").arg(ArgDef::new("input").index(0).value_name("FILE"));
+
         let parsed = cli.parse(["input.txt"]).unwrap();
         assert_eq!(parsed.get_one::<String>("input"), Some("input.txt"));
         assert_eq!(parsed.get_positional(0), Some("input.txt"));
@@ -531,8 +537,13 @@ mod tests {
         let cli = LightweightCli::new("test")
             .version("1.0.0")
             .about("Test CLI")
-            .arg(ArgDef::new("verbose").short('v').long("verbose").help("Enable verbose output"));
-        
+            .arg(
+                ArgDef::new("verbose")
+                    .short('v')
+                    .long("verbose")
+                    .help("Enable verbose output"),
+            );
+
         let help = cli.generate_help();
         assert!(help.contains("test 1.0.0"));
         assert!(help.contains("Test CLI"));
@@ -542,12 +553,16 @@ mod tests {
 
     #[test]
     fn test_value_validation() {
-        let cli = LightweightCli::new("test")
-            .arg(ArgDef::new("mode").long("mode").takes_value().possible_values(&["full", "minimal"]));
-        
+        let cli = LightweightCli::new("test").arg(
+            ArgDef::new("mode")
+                .long("mode")
+                .takes_value()
+                .possible_values(&["full", "minimal"]),
+        );
+
         let parsed = cli.parse(["--mode", "full"]).unwrap();
         assert_eq!(parsed.get_one::<String>("mode"), Some("full"));
-        
+
         let result = cli.parse(["--mode", "invalid"]);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), CliError::InvalidValue { .. }));

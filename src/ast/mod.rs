@@ -8,31 +8,30 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
+pub mod binding;
+pub mod case_clause;
+pub mod case_lambda_clause;
+pub mod cond_clause;
+pub mod formals;
+pub mod guard_clause;
 pub mod literal;
 pub mod literal_helpers;
-pub mod visitor;
-pub mod program;
-pub mod formals;
-pub mod binding;
 pub mod parameter_binding;
-pub mod cond_clause;
-pub mod case_clause;
-pub mod guard_clause;
-pub mod case_lambda_clause;
+pub mod program;
 pub mod type_expr;
+pub mod visitor;
 
-pub use literal::*;
-pub use visitor::*;
-pub use program::*;
-pub use formals::*;
 pub use binding::*;
-pub use parameter_binding::*;
-pub use cond_clause::*;
 pub use case_clause::*;
-pub use guard_clause::*;
 pub use case_lambda_clause::*;
+pub use cond_clause::*;
+pub use formals::*;
+pub use guard_clause::*;
+pub use literal::*;
+pub use parameter_binding::*;
+pub use program::*;
 pub use type_expr::*;
-
+pub use visitor::*;
 
 /// The main expression type for Lambdust.
 ///
@@ -41,7 +40,6 @@ pub use type_expr::*;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expr {
     // ============= LITERALS =============
-    
     /// Literal values (numbers, strings, booleans, etc.)
     Literal(Literal),
 
@@ -58,7 +56,6 @@ pub enum Expr {
     List(Vec<Spanned<Expr>>),
 
     // ============= SPECIAL FORMS =============
-    
     /// Quote expression: `(quote datum)` or `'datum`
     Quote(Box<Spanned<Expr>>),
 
@@ -168,14 +165,13 @@ pub enum Expr {
         name: Vec<String>,
         /// Import declarations
         imports: Vec<Spanned<Expr>>,
-        /// Export declarations  
+        /// Export declarations
         exports: Vec<Spanned<Expr>>,
         /// Body including includes, begin blocks, and other declarations
         body: Vec<Spanned<Expr>>,
     },
 
     // ============= COMPOUND EXPRESSIONS =============
-    
     /// Function application: `(procedure arguments*)`
     Application {
         /// The procedure/operator being called
@@ -193,7 +189,6 @@ pub enum Expr {
     },
 
     // ============= DERIVED FORMS (implemented as macros) =============
-    
     /// Begin expression: (begin expressions+)
     Begin(Vec<Spanned<Expr>>),
 
@@ -275,7 +270,6 @@ pub enum Expr {
     },
 
     // ============= CONTRACT SYSTEM =============
-    
     /// Contract definition: (define/contract (name formals) contract body ...)
     DefineContract {
         /// Name of the function being defined with contract
@@ -301,7 +295,6 @@ pub enum Expr {
         expr: Box<Spanned<Expr>>,
     },
 }
-
 
 impl Expr {
     /// Returns true if this expression is a literal.
@@ -344,9 +337,7 @@ impl Expr {
     pub fn is_contract_form(&self) -> bool {
         matches!(
             self,
-            Expr::DefineContract { .. }
-                | Expr::Contract(_)
-                | Expr::ContractApplication { .. }
+            Expr::DefineContract { .. } | Expr::Contract(_) | Expr::ContractApplication { .. }
         )
     }
 
@@ -382,7 +373,9 @@ impl fmt::Display for Expr {
             Expr::List(elements) => {
                 write!(f, "(")?;
                 for (i, element) in elements.iter().enumerate() {
-                    if i > 0 { write!(f, " ")?; }
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
                     write!(f, "{}", element.inner)?;
                 }
                 write!(f, ")")
@@ -391,26 +384,42 @@ impl fmt::Display for Expr {
             Expr::Quasiquote(expr) => write!(f, "`{}", expr.inner),
             Expr::Unquote(expr) => write!(f, ",{}", expr.inner),
             Expr::UnquoteSplicing(expr) => write!(f, ",@{}", expr.inner),
-            Expr::Lambda { formals, return_type, body, .. } => {
+            Expr::Lambda {
+                formals,
+                return_type,
+                body,
+                ..
+            } => {
                 write!(f, "(lambda {formals}")?;
                 if let Some(ret_type) = return_type {
                     write!(f, " : {}", ret_type.inner)?;
                 }
                 write!(f, " ")?;
                 for (i, expr) in body.iter().enumerate() {
-                    if i > 0 { write!(f, " ")?; }
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
                     write!(f, "{}", expr.inner)?;
                 }
                 write!(f, ")")
             }
-            Expr::If { test, consequent, alternative } => {
+            Expr::If {
+                test,
+                consequent,
+                alternative,
+            } => {
                 write!(f, "(if {} {}", test.inner, consequent.inner)?;
                 if let Some(alt) = alternative {
                     write!(f, " {}", alt.inner)?;
                 }
                 write!(f, ")")
             }
-            Expr::Define { name, value, return_type, .. } => {
+            Expr::Define {
+                name,
+                value,
+                return_type,
+                ..
+            } => {
                 write!(f, "(define {name}")?;
                 if let Some(ret_type) = return_type {
                     write!(f, " : {}", ret_type.inner)?;
@@ -430,7 +439,11 @@ impl fmt::Display for Expr {
             Expr::Pair { car, cdr } => {
                 write!(f, "({} . {})", car.inner, cdr.inner)
             }
-            Expr::CaseLambda { clauses, return_type, .. } => {
+            Expr::CaseLambda {
+                clauses,
+                return_type,
+                ..
+            } => {
                 write!(f, "(case-lambda")?;
                 if let Some(ret_type) = return_type {
                     write!(f, " : {}", ret_type.inner)?;
@@ -438,7 +451,9 @@ impl fmt::Display for Expr {
                 for clause in clauses {
                     write!(f, " ({} ", clause.formals)?;
                     for (i, expr) in clause.body.iter().enumerate() {
-                        if i > 0 { write!(f, " ")?; }
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
                         write!(f, "{}", expr.inner)?;
                     }
                     write!(f, ")")?;
@@ -452,7 +467,12 @@ impl fmt::Display for Expr {
                 }
                 write!(f, ")")
             }
-            Expr::DefineLibrary { name, imports, exports, body } => {
+            Expr::DefineLibrary {
+                name,
+                imports,
+                exports,
+                body,
+            } => {
                 write!(f, "(define-library ({}) ", name.join(" "))?;
                 for import in imports {
                     write!(f, " {}", import.inner)?;
@@ -470,7 +490,6 @@ impl fmt::Display for Expr {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -504,7 +523,7 @@ mod tests {
         let span = Span::new(0, 1);
         let expr = Spanned::new(Expr::Identifier("x".to_string()), span);
         program.add_expression(expr);
-        
+
         assert!(!program.is_empty());
         assert_eq!(program.expressions.len(), 1);
     }

@@ -2,7 +2,7 @@
 
 #![allow(dead_code, missing_docs)]
 
-use crate::{Lambdust, Result, Error, eval::Value};
+use crate::{Error, Lambdust, Result, eval::Value};
 use std::collections::{HashMap, HashSet};
 
 /// Debug commands that can be executed during debugging
@@ -51,7 +51,8 @@ impl BreakpointManager {
 
     pub fn add_conditional_breakpoint(&mut self, expression: &str, condition: &str) {
         self.breakpoints.insert(expression.to_string());
-        self.conditional_breakpoints.insert(expression.to_string(), condition.to_string());
+        self.conditional_breakpoints
+            .insert(expression.to_string(), condition.to_string());
     }
 
     pub fn has_breakpoint(&self, expression: &str) -> bool {
@@ -153,7 +154,7 @@ impl Debugger {
         if !self.enabled {
             return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
-        
+
         self.breakpoint_manager.add_breakpoint(expression);
         Ok(())
     }
@@ -162,7 +163,7 @@ impl Debugger {
         if !self.enabled {
             return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
-        
+
         Ok(self.breakpoint_manager.remove_breakpoint(expression))
     }
 
@@ -174,7 +175,7 @@ impl Debugger {
         if !self.enabled {
             return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
-        
+
         self.step_mode = StepMode::StepInto;
         self.execution_paused = false;
         println!("Stepping into next expression...");
@@ -185,7 +186,7 @@ impl Debugger {
         if !self.enabled {
             return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
-        
+
         self.step_mode = StepMode::StepOver;
         self.execution_paused = false;
         println!("Stepping over next expression...");
@@ -196,7 +197,7 @@ impl Debugger {
         if !self.enabled {
             return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
-        
+
         self.step_mode = StepMode::StepOut;
         self.execution_paused = false;
         println!("Stepping out of current function...");
@@ -207,7 +208,7 @@ impl Debugger {
         if !self.enabled {
             return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
-        
+
         self.step_mode = StepMode::Continue;
         self.execution_paused = false;
         println!("Continuing execution...");
@@ -218,11 +219,7 @@ impl Debugger {
         if let Some(ref context) = self.debug_context {
             println!("Call Stack:");
             for (i, frame) in context.call_stack.iter().enumerate() {
-                println!("  {}: {} in {}", 
-                    i, 
-                    frame.function_name, 
-                    frame.expression
-                );
+                println!("  {}: {} in {}", i, frame.function_name, frame.expression);
                 if let Some(line) = frame.line_number {
                     println!("      at line {line}");
                 }
@@ -239,7 +236,7 @@ impl Debugger {
             for (name, value) in &context.variables {
                 println!("  {name} = {value}");
             }
-            
+
             // Show local variables from current call frame
             if let Some(current_frame) = context.call_stack.last() {
                 if !current_frame.local_vars.is_empty() {
@@ -262,14 +259,12 @@ impl Debugger {
 
         // Create a debug context for this evaluation
         let context = DebugContext {
-            call_stack: vec![
-                CallFrame {
-                    function_name: "<repl>".to_string(),
-                    expression: input.to_string(),
-                    local_vars: HashMap::new(),
-                    line_number: None,
-                }
-            ],
+            call_stack: vec![CallFrame {
+                function_name: "<repl>".to_string(),
+                expression: input.to_string(),
+                local_vars: HashMap::new(),
+                line_number: None,
+            }],
             current_expression: input.to_string(),
             variables: HashMap::new(),
             step_mode: self.step_mode.clone(),
@@ -285,7 +280,7 @@ impl Debugger {
 
         // Evaluate with debug instrumentation
         self.debug_context = Some(context);
-        
+
         match lambdust.eval(input, Some("<repl-debug>")) {
             Ok(result) => {
                 println!("🟢 {result}");
@@ -307,7 +302,7 @@ impl Debugger {
             println!("  Expression: {}", context.current_expression);
             println!("  Step Mode: {:?}", context.step_mode);
             println!("  Call Stack Depth: {}", context.call_stack.len());
-            
+
             if let Some(current_frame) = context.call_stack.last() {
                 println!("  Current Function: {}", current_frame.function_name);
             }
@@ -365,12 +360,12 @@ mod tests {
     #[test]
     fn test_breakpoint_manager() {
         let mut manager = BreakpointManager::new();
-        
+
         // Test adding breakpoints
         manager.add_breakpoint("(+ 1 2)");
         assert!(manager.has_breakpoint("(+ 1 2)"));
         assert!(!manager.has_breakpoint("(* 3 4)"));
-        
+
         // Test removing breakpoints
         assert!(manager.remove_breakpoint("(+ 1 2)"));
         assert!(!manager.has_breakpoint("(+ 1 2)"));
@@ -380,15 +375,15 @@ mod tests {
     #[test]
     fn test_debugger_state() {
         let mut debugger = Debugger::new();
-        
+
         // Test initial state
         assert!(!debugger.is_debugging());
         assert!(!debugger.is_paused());
-        
+
         // Test enabling
         debugger.enable();
         assert!(debugger.is_debugging());
-        
+
         // Test disabling
         debugger.disable();
         assert!(!debugger.is_debugging());

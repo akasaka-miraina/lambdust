@@ -7,7 +7,7 @@
 //!
 //! Current Arc usage analysis in Value enum:
 //! - ThreadSafeEnvironment: 1 Arc per procedure/continuation (×30+ variants)
-//! - Container values: 1-2 Arcs per container (×15+ variants)  
+//! - Container values: 1-2 Arcs per container (×15+ variants)
 //! - Total: ~44 Arc instances in complex evaluation scenarios
 //!
 //! Target optimization (90% reduction → ~4 Arc instances):
@@ -20,7 +20,7 @@
 //!
 //! Zero breaking changes through:
 //! - Facade pattern maintaining existing interfaces
-//! - Runtime feature flags for gradual adoption  
+//! - Runtime feature flags for gradual adoption
 //! - Semantic equivalence validation at each phase
 //! - Automatic fallback mechanisms for edge cases
 
@@ -108,16 +108,16 @@ impl Phase1Foundation {
 
         // Step 1: Identify immediate value candidates
         let immediate_candidates = self.identify_immediate_candidates(runtime_values)?;
-        
+
         // Step 2: Optimize immediate values with validation
         let optimized_immediates = self.optimize_immediate_values(&immediate_candidates).await?;
-        
+
         // Step 3: Validate semantic preservation
         self.validate_semantic_preservation(&immediate_candidates, &optimized_immediates).await?;
-        
+
         // Step 4: Measure optimization impact
         let impact_metrics = self.measure_optimization_impact(&optimized_immediates).await?;
-        
+
         Ok(Phase1Result {
             optimized_values: optimized_immediates,
             memory_reduction: impact_metrics.memory_reduction_percent,
@@ -128,13 +128,13 @@ impl Phase1Foundation {
 
     fn identify_immediate_candidates(&self, values: &[Value]) -> DiagnosticResult<Vec<ImmediateCandidate>> {
         let mut candidates = Vec::new();
-        
+
         for (index, value) in values.iter().enumerate() {
             if let Some(candidate) = self.immediate_optimizer.classify_as_immediate(value, index)? {
                 candidates.push(candidate);
             }
         }
-        
+
         Ok(candidates)
     }
 
@@ -143,12 +143,12 @@ impl Phase1Foundation {
         candidates: &[ImmediateCandidate],
     ) -> DiagnosticResult<Vec<OptimizedImmediate>> {
         let mut optimized = Vec::new();
-        
+
         for candidate in candidates {
             let opt = self.immediate_optimizer.optimize_candidate(candidate).await?;
             optimized.push(opt);
         }
-        
+
         Ok(optimized)
     }
 
@@ -188,28 +188,28 @@ impl ImmediateValueOptimizer {
                 candidate_type: ImmediateCandidateType::Nil,
                 memory_saving_estimate: 8, // One pointer elimination
             }),
-            
+
             Value::Unspecified => Some(ImmediateCandidate {
                 index,
                 original_value: value.clone(),
                 candidate_type: ImmediateCandidateType::Unspecified,
                 memory_saving_estimate: 8,
             }),
-            
+
             Value::Literal(Literal::Boolean(b)) => Some(ImmediateCandidate {
                 index,
                 original_value: value.clone(),
                 candidate_type: ImmediateCandidateType::Boolean(*b),
                 memory_saving_estimate: 8,
             }),
-            
+
             Value::Literal(Literal::Character(c)) => Some(ImmediateCandidate {
                 index,
                 original_value: value.clone(),
                 candidate_type: ImmediateCandidateType::Character(*c),
                 memory_saving_estimate: 8,
             }),
-            
+
             Value::Literal(Literal::ExactInteger(n)) if self.integer_fits_inline(*n) => {
                 Some(ImmediateCandidate {
                     index,
@@ -218,7 +218,7 @@ impl ImmediateValueOptimizer {
                     memory_saving_estimate: 24, // Avoid BigInt allocation
                 })
             }
-            
+
             Value::Symbol(id) if self.symbol_fits_inline(*id) => {
                 Some(ImmediateCandidate {
                     index,
@@ -227,10 +227,10 @@ impl ImmediateValueOptimizer {
                     memory_saving_estimate: 16, // Avoid symbol table lookup overhead
                 })
             }
-            
+
             _ => None,
         };
-        
+
         Ok(candidate)
     }
 
@@ -273,7 +273,7 @@ impl ImmediateValueOptimizer {
 }
 
 // ============================================================================
-// PHASE 2: COMPOUND VALUES (Weeks 3-4)  
+// PHASE 2: COMPOUND VALUES (Weeks 3-4)
 // Target: 70% memory reduction through smart pointer consolidation
 // ============================================================================
 
@@ -336,19 +336,19 @@ impl Phase2CompoundValues {
     ) -> DiagnosticResult<Phase2Result> {
         // Step 1: Analyze compound value patterns
         let compound_analysis = self.analyze_compound_patterns(values).await?;
-        
+
         // Step 2: Identify smart pointer consolidation opportunities
         let consolidation_plan = self.create_consolidation_plan(&compound_analysis).await?;
-        
+
         // Step 3: Apply compound value optimizations
         let optimized_compounds = self.optimize_compound_values(values, &consolidation_plan).await?;
-        
+
         // Step 4: Optimize memory layout for cache locality
         let layout_optimized = self.optimize_memory_layout(&optimized_compounds).await?;
-        
+
         // Step 5: Validate optimization results
         self.validate_phase2_results(values, &layout_optimized).await?;
-        
+
         Ok(Phase2Result {
             optimized_compounds: layout_optimized,
             memory_reduction: self.calculate_memory_reduction(values, &optimized_compounds).await?,
@@ -359,14 +359,14 @@ impl Phase2CompoundValues {
 
     async fn analyze_compound_patterns(&self, values: &[Value]) -> DiagnosticResult<CompoundAnalysis> {
         let mut analysis = CompoundAnalysis::new();
-        
+
         for value in values {
             match value {
                 Value::Pair(car, cdr) => {
                     analysis.pair_patterns.record_pair_usage(car, cdr);
                 }
                 Value::Vector(vec) => {
-                    if let Ok(elements) = vec.read() {
+                    if let Ok(elements) = vec.try_read() {
                         analysis.vector_patterns.record_vector_usage(&elements);
                     }
                 }
@@ -376,7 +376,7 @@ impl Phase2CompoundValues {
                 _ => {}
             }
         }
-        
+
         Ok(analysis)
     }
 
@@ -393,14 +393,14 @@ impl Phase2CompoundValues {
         plan: &ConsolidationPlan,
     ) -> DiagnosticResult<Vec<OptimizedCompound>> {
         let mut optimized = Vec::new();
-        
+
         for (index, value) in values.iter().enumerate() {
             if let Some(optimization) = plan.get_optimization_for_index(index) {
                 let opt = self.compound_optimizer.apply_optimization(value, optimization).await?;
                 optimized.push(opt);
             }
         }
-        
+
         Ok(optimized)
     }
 
@@ -453,7 +453,7 @@ impl Phase2CompoundValues {
     ) -> DiagnosticResult<ArcReductionMetrics> {
         let original_arc_count = self.count_arcs_in_values(original);
         let optimized_arc_count = original_arc_count / 3; // Target: 66% Arc reduction
-        
+
         Ok(ArcReductionMetrics {
             original_arc_count,
             optimized_arc_count,
@@ -528,19 +528,19 @@ impl Phase3AdvancedContainers {
     ) -> DiagnosticResult<Phase3Result> {
         // Step 1: Analyze container usage patterns and concurrency requirements
         let container_analysis = self.analyze_container_usage(values).await?;
-        
+
         // Step 2: Determine selective Arc usage strategy
         let arc_strategy = self.determine_arc_strategy(&container_analysis).await?;
-        
+
         // Step 3: Optimize containers with selective Arc elimination
         let optimized_containers = self.optimize_containers(values, &arc_strategy).await?;
-        
+
         // Step 4: Validate thread safety preservation
         self.validate_thread_safety(&optimized_containers).await?;
-        
+
         // Step 5: Measure final optimization impact
         let final_metrics = self.measure_final_impact(values, &optimized_containers).await?;
-        
+
         Ok(Phase3Result {
             optimized_containers,
             total_memory_reduction: final_metrics.total_memory_reduction,
@@ -552,7 +552,7 @@ impl Phase3AdvancedContainers {
 
     async fn analyze_container_usage(&self, values: &[Value]) -> DiagnosticResult<ContainerUsageAnalysis> {
         let mut analysis = ContainerUsageAnalysis::new();
-        
+
         for value in values {
             match value {
                 Value::Vector(vec) => {
@@ -573,7 +573,7 @@ impl Phase3AdvancedContainers {
                 _ => {}
             }
         }
-        
+
         Ok(analysis)
     }
 
@@ -590,14 +590,14 @@ impl Phase3AdvancedContainers {
         strategy: &SelectiveArcStrategy,
     ) -> DiagnosticResult<Vec<OptimizedContainer>> {
         let mut optimized = Vec::new();
-        
+
         for value in values {
             if let Some(optimization) = strategy.get_optimization_for_value(value) {
                 let opt = self.container_optimizer.apply_container_optimization(value, optimization).await?;
                 optimized.push(opt);
             }
         }
-        
+
         Ok(optimized)
     }
 
@@ -615,7 +615,7 @@ impl Phase3AdvancedContainers {
     ) -> DiagnosticResult<FinalOptimizationMetrics> {
         let total_memory_reduction = self.calculate_total_memory_reduction(original, optimized).await?;
         let arc_reduction_final = self.calculate_final_arc_reduction(original, optimized).await?;
-        
+
         Ok(FinalOptimizationMetrics {
             total_memory_reduction,
             arc_reduction_final,
@@ -640,7 +640,7 @@ impl Phase3AdvancedContainers {
     ) -> DiagnosticResult<f64> {
         let original_arc_count = self.count_total_arcs(original);
         let target_arc_count = (original_arc_count as f64 * 0.1) as usize; // 90% reduction target
-        
+
         Ok(0.9) // 90% Arc reduction achieved
     }
 
@@ -653,7 +653,7 @@ impl Phase3AdvancedContainers {
         match value {
             Value::Pair(car, cdr) => 2 + self.count_arcs_recursive(car) + self.count_arcs_recursive(cdr),
             Value::Vector(vec) => {
-                1 + if let Ok(elements) = vec.read() {
+                1 + if let Ok(elements) = vec.try_read() {
                     elements.iter().map(|v| self.count_arcs_recursive(v)).sum()
                 } else { 0 }
             }
@@ -1442,7 +1442,7 @@ mod tests {
     #[test]
     fn test_phase1_immediate_optimization() {
         let mut phase1 = Phase1Foundation::new();
-        
+
         let test_values = vec![
             Value::Nil,
             Value::boolean(true),
@@ -1453,7 +1453,7 @@ mod tests {
         let result = futures::executor::block_on(
             phase1.execute_phase1_migration(&test_values)
         );
-        
+
         assert!(result.is_ok());
         let phase1_result = result.unwrap();
         assert!(phase1_result.memory_reduction > 0.3); // At least 30% reduction
@@ -1463,7 +1463,7 @@ mod tests {
     #[test]
     fn test_phase2_compound_optimization() {
         let mut phase2 = Phase2CompoundValues::new();
-        
+
         let test_values = vec![
             Value::pair(Value::Nil, Value::boolean(true)),
             Value::vector(vec![Value::Nil, Value::boolean(false)]),
@@ -1479,7 +1479,7 @@ mod tests {
         let result = futures::executor::block_on(
             phase2.execute_phase2_migration(&test_values, &phase1_result)
         );
-        
+
         assert!(result.is_ok());
         let phase2_result = result.unwrap();
         assert!(phase2_result.memory_reduction > 0.6); // At least 60% reduction
@@ -1488,7 +1488,7 @@ mod tests {
     #[test]
     fn test_phase3_container_optimization() {
         let mut phase3 = Phase3AdvancedContainers::new();
-        
+
         let test_values = vec![
             Value::vector(vec![Value::Nil]),
             Value::advanced_hash_table(),
@@ -1504,7 +1504,7 @@ mod tests {
         let result = futures::executor::block_on(
             phase3.execute_phase3_migration(&test_values, &phase2_result)
         );
-        
+
         assert!(result.is_ok());
         let phase3_result = result.unwrap();
         assert!(phase3_result.total_memory_reduction > 0.9); // 90% reduction target
@@ -1514,7 +1514,7 @@ mod tests {
     #[test]
     fn test_api_facade_compatibility() {
         let facade = ValueAPIFacade::new();
-        
+
         let legacy_value = Value::boolean(true);
         let optimized_value = OptimizedValue::boolean(true);
 
@@ -1528,7 +1528,7 @@ mod tests {
     #[test]
     fn test_memory_reduction_calculation() {
         let phase2 = Phase2CompoundValues::new();
-        
+
         let original_values = vec![
             Value::pair(Value::Nil, Value::boolean(true)),
             Value::vector(vec![Value::Nil]),
@@ -1545,11 +1545,11 @@ mod tests {
     #[test]
     fn test_inline_threshold_configuration() {
         let threshold = InlineThreshold::default();
-        
+
         // Test integer inline threshold
         assert!(threshold.max_inline_integer > 0);
         assert!(threshold.max_inline_symbol_id > 0);
-        
+
         let optimizer = ImmediateValueOptimizer::new();
         assert!(optimizer.integer_fits_inline(42));
         assert!(optimizer.integer_fits_inline(-42));

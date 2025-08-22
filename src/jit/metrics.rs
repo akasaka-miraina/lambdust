@@ -6,8 +6,8 @@
 
 use crate::jit::compilation_tiers::CompilationTier;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 
 /// Main JIT performance metrics collector
 #[derive(Debug)]
@@ -57,7 +57,8 @@ impl JitMetrics {
     /// Records execution of a function
     pub fn record_execution(&mut self, execution_time: Duration) {
         self.execution_stats.record_execution(execution_time);
-        self.timing_measurements.record_execution_time(execution_time);
+        self.timing_measurements
+            .record_execution_time(execution_time);
     }
 
     /// Records a compilation event
@@ -65,7 +66,8 @@ impl JitMetrics {
         if let Some(stats) = self.compilation_stats.get_mut(&tier) {
             stats.record_compilation(compilation_time);
         }
-        self.timing_measurements.record_compilation_time(tier, compilation_time);
+        self.timing_measurements
+            .record_compilation_time(tier, compilation_time);
         self.performance_counters.increment_compilations();
     }
 
@@ -152,7 +154,7 @@ impl JitMetrics {
         let uptime = self.uptime();
         let total_executions = self.total_executions();
         let total_compilation_time = self.total_compilation_time();
-        
+
         let executions_per_second = if uptime.as_secs() > 0 {
             total_executions as f64 / uptime.as_secs_f64()
         } else {
@@ -181,22 +183,33 @@ impl JitMetrics {
     /// Generates performance report
     pub fn generate_report(&self) -> String {
         let summary = self.performance_summary();
-        
+
         let mut report = String::new();
         report.push_str("=== JIT Performance Report ===\n");
         report.push_str(&format!("Uptime: {:.2}s\n", summary.uptime.as_secs_f64()));
         report.push_str(&format!("Total Executions: {}\n", summary.total_executions));
-        report.push_str(&format!("Executions/sec: {:.2}\n", summary.executions_per_second));
-        report.push_str(&format!("Avg Execution Time: {:.2}μs\n", 
-            summary.average_execution_time.as_micros()));
-        report.push_str(&format!("Total Compilation Time: {:.2}ms\n", 
-            summary.total_compilation_time.as_millis()));
-        report.push_str(&format!("Cache Hit Rate: {:.2}%\n", summary.cache_hit_rate * 100.0));
+        report.push_str(&format!(
+            "Executions/sec: {:.2}\n",
+            summary.executions_per_second
+        ));
+        report.push_str(&format!(
+            "Avg Execution Time: {:.2}μs\n",
+            summary.average_execution_time.as_micros()
+        ));
+        report.push_str(&format!(
+            "Total Compilation Time: {:.2}ms\n",
+            summary.total_compilation_time.as_millis()
+        ));
+        report.push_str(&format!(
+            "Cache Hit Rate: {:.2}%\n",
+            summary.cache_hit_rate * 100.0
+        ));
         report.push_str(&format!("Memory Usage: {} bytes\n", summary.memory_usage));
-        
+
         report.push_str("\n=== Compilation Stats by Tier ===\n");
         for (tier, stats) in &self.compilation_stats {
-            report.push_str(&format!("{}: {} compilations, {:.2}ms avg, {:.2}% success\n",
+            report.push_str(&format!(
+                "{}: {} compilations, {:.2}ms avg, {:.2}% success\n",
                 tier.name(),
                 stats.total_compilations,
                 stats.average_compilation_time().as_millis(),
@@ -206,10 +219,22 @@ impl JitMetrics {
 
         report.push_str("\n=== Performance Counters ===\n");
         let counters = &self.performance_counters;
-        report.push_str(&format!("Hotspots Detected: {}\n", counters.hotspots_detected()));
-        report.push_str(&format!("Tier Promotions: {}\n", counters.tier_promotions()));
-        report.push_str(&format!("Deoptimizations: {}\n", counters.deoptimizations()));
-        report.push_str(&format!("Code Cache Evictions: {}\n", counters.cache_evictions()));
+        report.push_str(&format!(
+            "Hotspots Detected: {}\n",
+            counters.hotspots_detected()
+        ));
+        report.push_str(&format!(
+            "Tier Promotions: {}\n",
+            counters.tier_promotions()
+        ));
+        report.push_str(&format!(
+            "Deoptimizations: {}\n",
+            counters.deoptimizations()
+        ));
+        report.push_str(&format!(
+            "Code Cache Evictions: {}\n",
+            counters.cache_evictions()
+        ));
 
         report
     }
@@ -224,7 +249,7 @@ impl Clone for JitMetrics {
     fn clone(&self) -> Self {
         // Create a new instance with current values
         let mut new_metrics = JitMetrics::new();
-        
+
         // Copy over the statistics (atomic values will be read at current state)
         new_metrics.execution_stats = self.execution_stats.clone();
         new_metrics.compilation_stats = self.compilation_stats.clone();
@@ -232,10 +257,10 @@ impl Clone for JitMetrics {
         new_metrics.memory_stats = self.memory_stats.clone();
         new_metrics.cache_stats = self.cache_stats.clone();
         new_metrics.start_time = self.start_time;
-        
+
         // Performance counters are atomic, so we need to read and create new ones
         new_metrics.performance_counters = PerformanceCounters::new();
-        
+
         new_metrics
     }
 }
@@ -272,14 +297,14 @@ impl ExecutionStats {
     fn record_execution(&mut self, execution_time: Duration) {
         self.total_executions += 1;
         self.total_execution_time += execution_time;
-        
+
         if execution_time < self.min_execution_time {
             self.min_execution_time = execution_time;
         }
         if execution_time > self.max_execution_time {
             self.max_execution_time = execution_time;
         }
-        
+
         self.recent_execution_times.push(execution_time);
         if self.recent_execution_times.len() > self.recent_times_buffer_size {
             self.recent_execution_times.remove(0);
@@ -302,13 +327,15 @@ impl ExecutionStats {
         }
 
         let mean = self.average_execution_time().as_nanos() as f64;
-        let variance: f64 = self.recent_execution_times
+        let variance: f64 = self
+            .recent_execution_times
             .iter()
             .map(|t| {
                 let diff = t.as_nanos() as f64 - mean;
                 diff * diff
             })
-            .sum::<f64>() / self.recent_execution_times.len() as f64;
+            .sum::<f64>()
+            / self.recent_execution_times.len() as f64;
 
         variance
     }
@@ -343,7 +370,7 @@ impl CompilationStats {
     fn record_compilation(&mut self, compilation_time: Duration) {
         self.total_compilations += 1;
         self.total_compilation_time += compilation_time;
-        
+
         if compilation_time < self.min_compilation_time {
             self.min_compilation_time = compilation_time;
         }
@@ -369,7 +396,8 @@ impl CompilationStats {
     /// Gets compilation success rate
     pub fn success_rate(&self) -> f64 {
         if self.total_compilations > 0 {
-            (self.total_compilations - self.compilation_failures) as f64 / self.total_compilations as f64
+            (self.total_compilations - self.compilation_failures) as f64
+                / self.total_compilations as f64
         } else {
             1.0
         }
@@ -484,7 +512,7 @@ impl PerformanceCounters {
         let hits = self.cache_hits();
         let misses = self.cache_misses();
         let total = hits + misses;
-        
+
         if total > 0 {
             hits as f64 / total as f64
         } else {
@@ -536,9 +564,9 @@ impl TimingMeasurements {
 
     /// Gets compilation time percentiles for a tier
     pub fn compilation_time_percentiles(&self, tier: CompilationTier) -> Option<Percentiles> {
-        self.compilation_times.get(&tier).map(|times| {
-            calculate_percentiles(times)
-        })
+        self.compilation_times
+            .get(&tier)
+            .map(|times| calculate_percentiles(times))
     }
 
     /// Gets execution time percentiles
@@ -584,12 +612,15 @@ impl MemoryStats {
     fn record_allocation(&self, size: usize) {
         self.total_allocations.fetch_add(1, Ordering::Relaxed);
         let new_current = self.current_allocated.fetch_add(size, Ordering::Relaxed) + size;
-        
+
         // Update peak if necessary
         let mut current_peak = self.peak_allocated.load(Ordering::Relaxed);
         while new_current > current_peak {
             match self.peak_allocated.compare_exchange_weak(
-                current_peak, new_current, Ordering::Relaxed, Ordering::Relaxed
+                current_peak,
+                new_current,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
             ) {
                 Ok(_) => break,
                 Err(actual) => current_peak = actual,
@@ -599,7 +630,8 @@ impl MemoryStats {
 
     fn record_deallocation(&self, size: usize) {
         self.total_deallocations.fetch_add(1, Ordering::Relaxed);
-        self.current_allocated.fetch_sub(size.min(self.current_usage()), Ordering::Relaxed);
+        self.current_allocated
+            .fetch_sub(size.min(self.current_usage()), Ordering::Relaxed);
     }
 
     /// Gets current memory usage
@@ -671,7 +703,7 @@ impl CacheStats {
         let hits = self.hits.load(Ordering::Relaxed);
         let misses = self.misses.load(Ordering::Relaxed);
         let total = hits + misses;
-        
+
         if total > 0 {
             hits as f64 / total as f64
         } else {
@@ -773,17 +805,22 @@ mod tests {
     fn test_execution_recording() {
         let mut metrics = JitMetrics::new();
         metrics.record_execution(Duration::from_micros(100));
-        
+
         assert_eq!(metrics.total_executions(), 1);
-        assert_eq!(metrics.execution_stats().average_execution_time(), Duration::from_micros(100));
+        assert_eq!(
+            metrics.execution_stats().average_execution_time(),
+            Duration::from_micros(100)
+        );
     }
 
     #[test]
     fn test_compilation_recording() {
         let mut metrics = JitMetrics::new();
         metrics.record_compilation(Duration::from_millis(5), CompilationTier::JitBasic);
-        
-        let stats = metrics.compilation_stats(CompilationTier::JitBasic).unwrap();
+
+        let stats = metrics
+            .compilation_stats(CompilationTier::JitBasic)
+            .unwrap();
         assert_eq!(stats.total_compilations, 1);
         assert_eq!(stats.average_compilation_time(), Duration::from_millis(5));
     }
@@ -794,7 +831,7 @@ mod tests {
         metrics.record_cache_hit();
         metrics.record_cache_hit();
         metrics.record_cache_miss();
-        
+
         assert_eq!(metrics.cache_stats().hit_rate(), 2.0 / 3.0);
         assert_eq!(metrics.cache_stats().total_accesses(), 3);
     }
@@ -802,12 +839,12 @@ mod tests {
     #[test]
     fn test_performance_counters_thread_safety() {
         let counters = PerformanceCounters::new();
-        
+
         // Test atomic operations
         assert_eq!(counters.increment_compilations(), 1);
         assert_eq!(counters.increment_compilations(), 2);
         assert_eq!(counters.compilations(), 2);
-        
+
         assert_eq!(counters.increment_cache_hits(), 1);
         assert_eq!(counters.cache_hits(), 1);
     }
@@ -815,15 +852,15 @@ mod tests {
     #[test]
     fn test_memory_stats() {
         let stats = MemoryStats::new();
-        
+
         stats.record_allocation(1000);
         assert_eq!(stats.current_usage(), 1000);
         assert_eq!(stats.peak_usage(), 1000);
-        
+
         stats.record_allocation(2000);
         assert_eq!(stats.current_usage(), 3000);
         assert_eq!(stats.peak_usage(), 3000);
-        
+
         stats.record_deallocation(1000);
         assert_eq!(stats.current_usage(), 2000);
         assert_eq!(stats.peak_usage(), 3000); // Peak should remain
@@ -838,7 +875,7 @@ mod tests {
             Duration::from_micros(400),
             Duration::from_micros(500),
         ];
-        
+
         let percentiles = calculate_percentiles(&samples);
         assert_eq!(percentiles.min, Duration::from_micros(100));
         assert_eq!(percentiles.max, Duration::from_micros(500));
@@ -852,7 +889,7 @@ mod tests {
         metrics.record_execution(Duration::from_micros(200));
         metrics.record_cache_hit();
         metrics.record_cache_miss();
-        
+
         let summary = metrics.performance_summary();
         assert_eq!(summary.total_executions, 2);
         assert_eq!(summary.average_execution_time, Duration::from_micros(150));
@@ -864,7 +901,7 @@ mod tests {
         let mut metrics = JitMetrics::new();
         metrics.record_execution(Duration::from_micros(100));
         metrics.record_compilation(Duration::from_millis(5), CompilationTier::JitBasic);
-        
+
         let report = metrics.generate_report();
         assert!(report.contains("JIT Performance Report"));
         assert!(report.contains("Total Executions: 1"));

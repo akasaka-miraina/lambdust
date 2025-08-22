@@ -9,8 +9,8 @@
 //!
 //! This implementation follows R6RS specifications for syntax templates.
 
-use super::syntax_case::{SyntaxTemplate, SyntaxBindings};
-use super::syntax_objects::{SyntaxObject, LexicalContext};
+use super::syntax_case::{SyntaxBindings, SyntaxTemplate};
+use super::syntax_objects::{LexicalContext, SyntaxObject};
 use crate::ast::{Expr, Literal};
 use crate::diagnostics::{Error, Result, Span, Spanned};
 use std::collections::VecDeque;
@@ -76,10 +76,7 @@ pub struct QuasisyntaxContext {
 
 impl QuasisyntaxContext {
     /// Creates a new quasisyntax context
-    pub fn new(
-        bindings: SyntaxBindings,
-        lexical_context: LexicalContext,
-    ) -> Self {
+    pub fn new(bindings: SyntaxBindings, lexical_context: LexicalContext) -> Self {
         Self {
             depth: 0,
             bindings,
@@ -139,24 +136,20 @@ impl QuasisyntaxTemplate {
                     .collect();
                 QuasisyntaxTemplate::List(templates)
             }
-            Expr::Pair { car, cdr } => {
-                QuasisyntaxTemplate::ImproperList {
-                    templates: vec![Self::from_expr(&car.inner)],
-                    tail: Box::new(Self::from_expr(&cdr.inner)),
-                }
-            }
+            Expr::Pair { car, cdr } => QuasisyntaxTemplate::ImproperList {
+                templates: vec![Self::from_expr(&car.inner)],
+                tail: Box::new(Self::from_expr(&cdr.inner)),
+            },
             Expr::Unquote(inner) => {
                 QuasisyntaxTemplate::Unquote(Box::new(Self::from_expr(&inner.inner)))
             }
             Expr::UnquoteSplicing(inner) => {
                 QuasisyntaxTemplate::UnquoteSplicing(Box::new(Self::from_expr(&inner.inner)))
             }
-            Expr::Quasiquote(inner) => {
-                QuasisyntaxTemplate::Nested {
-                    template: Box::new(Self::from_expr(&inner.inner)),
-                    depth: 1,
-                }
-            }
+            Expr::Quasiquote(inner) => QuasisyntaxTemplate::Nested {
+                template: Box::new(Self::from_expr(&inner.inner)),
+                depth: 1,
+            },
             _ => {
                 // For other forms, represent as identifier with special encoding
                 QuasisyntaxTemplate::Identifier(format!("<expr:{expr:?}>"))
@@ -198,9 +191,7 @@ impl QuasisyntaxTemplate {
                 Ok(QuasisyntaxExpansionResult::Single(Box::new(syntax)))
             }
 
-            QuasisyntaxTemplate::List(templates) => {
-                self.expand_list(templates, context, span)
-            }
+            QuasisyntaxTemplate::List(templates) => self.expand_list(templates, context, span),
 
             QuasisyntaxTemplate::ImproperList { templates, tail } => {
                 self.expand_improper_list(templates, tail, context, span)
@@ -220,7 +211,7 @@ impl QuasisyntaxTemplate {
                     let mut inner_context = context.clone();
                     inner_context.exit_level();
                     let result = inner.expand(&mut inner_context, span)?;
-                    
+
                     // Wrap in unquote form
                     match result {
                         QuasisyntaxExpansionResult::Single(syntax) => {
@@ -250,7 +241,7 @@ impl QuasisyntaxTemplate {
                     let mut inner_context = context.clone();
                     inner_context.exit_level();
                     let result = inner.expand(&mut inner_context, span)?;
-                    
+
                     // Wrap in unquote-splicing form
                     match result {
                         QuasisyntaxExpansionResult::Single(syntax) => {
@@ -299,17 +290,19 @@ impl QuasisyntaxTemplate {
                 inner.expand(context, span)
             }
 
-            QuasisyntaxTemplate::Conditional { condition, then_template, else_template } => {
+            QuasisyntaxTemplate::Conditional {
+                condition,
+                then_template,
+                else_template,
+            } => {
                 // Evaluate condition
                 let condition_result = condition.expand(context, span)?;
-                
+
                 let use_then = match condition_result {
                     QuasisyntaxExpansionResult::Single(syntax) => {
                         !matches!(syntax.expr, Expr::Literal(Literal::Nil))
                     }
-                    QuasisyntaxExpansionResult::Multiple(syntaxes) => {
-                        !syntaxes.is_empty()
-                    }
+                    QuasisyntaxExpansionResult::Multiple(syntaxes) => !syntaxes.is_empty(),
                 };
 
                 if use_then {
@@ -350,11 +343,8 @@ impl QuasisyntaxTemplate {
             }
         }
 
-        let list_syntax = SyntaxObject::new(
-            Expr::List(elements),
-            span,
-            context.lexical_context.clone(),
-        );
+        let list_syntax =
+            SyntaxObject::new(Expr::List(elements), span, context.lexical_context.clone());
         Ok(QuasisyntaxExpansionResult::Single(Box::new(list_syntax)))
     }
 
@@ -426,7 +416,7 @@ impl QuasisyntaxTemplate {
         span: Span,
     ) -> Result<QuasisyntaxExpansionResult> {
         let result = inner.expand(context, span)?;
-        
+
         match result {
             QuasisyntaxExpansionResult::Single(syntax) => {
                 // Convert single value to list for splicing
@@ -434,10 +424,12 @@ impl QuasisyntaxTemplate {
                     Expr::List(elements) => {
                         let syntaxes: Vec<_> = elements
                             .iter()
-                            .map(|elem| SyntaxObject::from_spanned(
-                                elem.clone(),
-                                context.lexical_context.clone(),
-                            ))
+                            .map(|elem| {
+                                SyntaxObject::from_spanned(
+                                    elem.clone(),
+                                    context.lexical_context.clone(),
+                                )
+                            })
                             .collect();
                         Ok(QuasisyntaxExpansionResult::Multiple(syntaxes))
                     }
@@ -469,12 +461,10 @@ impl QuasisyntaxExpansionResult {
     pub fn into_single(self) -> Result<SyntaxObject> {
         match self {
             QuasisyntaxExpansionResult::Single(syntax) => Ok(*syntax),
-            QuasisyntaxExpansionResult::Multiple(_) => {
-                Err(Box::new(Error::macro_error(
-                    "Expected single value, got multiple".to_string(),
-                    Span::new(0, 0),
-                )))
-            }
+            QuasisyntaxExpansionResult::Multiple(_) => Err(Box::new(Error::macro_error(
+                "Expected single value, got multiple".to_string(),
+                Span::new(0, 0),
+            ))),
         }
     }
 
@@ -503,7 +493,7 @@ impl QuasisyntaxParser {
     pub fn parse(&mut self, expr: &Expr) -> Result<QuasisyntaxTemplate> {
         match expr {
             Expr::Literal(lit) => Ok(QuasisyntaxTemplate::Literal(lit.clone())),
-            
+
             Expr::Identifier(name) | Expr::Symbol(name) => {
                 Ok(QuasisyntaxTemplate::Identifier(name.clone()))
             }
@@ -530,7 +520,8 @@ impl QuasisyntaxParser {
                             "unsyntax-splicing" | "unquote-splicing" => {
                                 if elements.len() != 2 {
                                     return Err(Box::new(Error::macro_error(
-                                        "unsyntax-splicing requires exactly one argument".to_string(),
+                                        "unsyntax-splicing requires exactly one argument"
+                                            .to_string(),
                                         first.span,
                                     )));
                                 }
@@ -581,7 +572,9 @@ impl QuasisyntaxParser {
 
             Expr::UnquoteSplicing(inner) => {
                 let inner_template = self.parse(&inner.inner)?;
-                Ok(QuasisyntaxTemplate::UnquoteSplicing(Box::new(inner_template)))
+                Ok(QuasisyntaxTemplate::UnquoteSplicing(Box::new(
+                    inner_template,
+                )))
             }
 
             Expr::Quasiquote(inner) => {
@@ -614,11 +607,7 @@ pub mod quasisyntax_interface {
     use super::*;
 
     /// Creates a syntax object using the #' (syntax) form
-    pub fn syntax(
-        expr: &Expr,
-        context: &LexicalContext,
-        span: Span,
-    ) -> Result<SyntaxObject> {
+    pub fn syntax(expr: &Expr, context: &LexicalContext, span: Span) -> Result<SyntaxObject> {
         // Direct syntax construction - no template expansion
         Ok(SyntaxObject::new(expr.clone(), span, context.clone()))
     }
@@ -632,10 +621,10 @@ pub mod quasisyntax_interface {
     ) -> Result<SyntaxObject> {
         let mut parser = QuasisyntaxParser::new();
         let template = parser.parse(expr)?;
-        
+
         let mut expansion_context = QuasisyntaxContext::new(bindings, context.clone());
         let result = template.expand(&mut expansion_context, span)?;
-        
+
         result.into_single()
     }
 
@@ -660,12 +649,10 @@ pub mod quasisyntax_interface {
     ) -> Result<Vec<SyntaxObject>> {
         // For unquote-splicing, we evaluate and expect a list
         match expr {
-            Expr::List(elements) => {
-                Ok(elements
-                    .iter()
-                    .map(|elem| SyntaxObject::from_spanned(elem.clone(), context.clone()))
-                    .collect())
-            }
+            Expr::List(elements) => Ok(elements
+                .iter()
+                .map(|elem| SyntaxObject::from_spanned(elem.clone(), context.clone()))
+                .collect()),
             _ => {
                 // Non-list becomes single element
                 Ok(vec![SyntaxObject::new(expr.clone(), span, context.clone())])
@@ -683,7 +670,7 @@ mod tests {
     #[test]
     fn test_quasisyntax_parser() {
         let mut parser = QuasisyntaxParser::new();
-        
+
         // Test literal
         let expr = Expr::Literal(Literal::Number(42.0));
         let template = parser.parse(&expr).unwrap();
@@ -694,7 +681,7 @@ mod tests {
     fn test_quasisyntax_expansion() {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
         let mut bindings = SyntaxBindings::new();
-        
+
         // Add a binding
         let bound_syntax = SyntaxObject::new(
             Expr::Identifier("foo".to_string()),
@@ -712,7 +699,9 @@ mod tests {
 
         // Expand
         let mut expansion_context = QuasisyntaxContext::new(bindings, context);
-        let result = template.expand(&mut expansion_context, Span::new(0, 10)).unwrap();
+        let result = template
+            .expand(&mut expansion_context, Span::new(0, 10))
+            .unwrap();
 
         match result {
             QuasisyntaxExpansionResult::Single(syntax) => {
@@ -731,8 +720,10 @@ mod tests {
         let bindings = SyntaxBindings::new();
         let mut expansion_context = QuasisyntaxContext::new(bindings, context);
 
-        let result = unquote_template.expand(&mut expansion_context, Span::new(0, 4)).unwrap();
-        
+        let result = unquote_template
+            .expand(&mut expansion_context, Span::new(0, 4))
+            .unwrap();
+
         match result {
             QuasisyntaxExpansionResult::Single(syntax) => {
                 assert_eq!(syntax.identifier_name(), Some("test"));
@@ -748,7 +739,7 @@ mod tests {
         let span = Span::new(0, 4);
 
         let syntax = quasisyntax_interface::syntax(&expr, &context, span).unwrap();
-        
+
         assert_eq!(syntax.expr, expr);
         assert_eq!(syntax.span, span);
         assert_eq!(syntax.context.context_id, context.context_id);
@@ -758,15 +749,16 @@ mod tests {
     fn test_quasisyntax_interface() {
         let context = LexicalContext::new(1, vec!["test".to_string()]);
         let mut bindings = SyntaxBindings::new();
-        
+
         // Simple expression without unquotes
         let expr = Expr::List(vec![
             Spanned::new(Expr::Identifier("lambda".to_string()), Span::new(1, 7)),
             Spanned::new(Expr::List(vec![]), Span::new(8, 10)),
             Spanned::new(Expr::Identifier("body".to_string()), Span::new(11, 15)),
         ]);
-        
-        let result = quasisyntax_interface::quasisyntax(&expr, bindings, &context, Span::new(0, 16));
+
+        let result =
+            quasisyntax_interface::quasisyntax(&expr, bindings, &context, Span::new(0, 16));
         assert!(result.is_ok());
     }
 }

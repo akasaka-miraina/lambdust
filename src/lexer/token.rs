@@ -21,19 +21,19 @@ impl Token {
     pub fn integer(text: &str, span: Span) -> Self {
         Self::new(TokenKind::IntegerNumber, span, text.to_string())
     }
-    
+
     /// Creates a simple real number token for testing.
     #[cfg(test)]
     pub fn real(text: &str, span: Span) -> Self {
         Self::new(TokenKind::RealNumber, span, text.to_string())
     }
-    
+
     /// Creates a simple rational token for testing.
     #[cfg(test)]
     pub fn rational(text: &str, span: Span) -> Self {
         Self::new(TokenKind::RationalNumber, span, text.to_string())
     }
-    
+
     /// Creates a simple complex token for testing.
     #[cfg(test)]
     pub fn complex(text: &str, span: Span) -> Self {
@@ -45,13 +45,13 @@ impl Token {
     pub fn string(text: &str, span: Span) -> Self {
         Self::new(TokenKind::String, span, text.to_string())
     }
-    
+
     /// Creates a simple character token for testing.
     #[cfg(test)]
     pub fn character(text: &str, span: Span) -> Self {
         Self::new(TokenKind::Character, span, text.to_string())
     }
-    
+
     /// Creates a simple keyword token for testing.
     #[cfg(test)]
     pub fn keyword(text: &str, span: Span) -> Self {
@@ -68,23 +68,23 @@ impl Token {
         match self.text() {
             // Highest precedence (tightest binding)
             "^" | "expt" => Some(7),
-            
+
             // Multiplicative
             "*" | "/" | "%" | "quotient" | "remainder" | "modulo" | "div" | "mod" => Some(6),
-            
+
             // Additive
             "+" | "-" => Some(5),
-            
+
             // Relational
-            "<" | "<=" | ">" | ">=" | "=" | "eq?" | "eqv?" | "equal?" |
-            "string<?" | "string<=?" | "string>?" | "string>=?" | "string=?" => Some(4),
-            
+            "<" | "<=" | ">" | ">=" | "=" | "eq?" | "eqv?" | "equal?" | "string<?"
+            | "string<=?" | "string>?" | "string>=?" | "string=?" => Some(4),
+
             // Logical AND
             "and" => Some(3),
-            
+
             // Logical OR
             "or" => Some(2),
-            
+
             // No precedence for other identifiers (they are not operators)
             _ => None,
         }
@@ -108,12 +108,15 @@ impl Token {
     pub fn is_delimiter(&self) -> bool {
         matches!(
             self.kind,
-            TokenKind::LeftParen | TokenKind::RightParen |
-            TokenKind::LeftBracket | TokenKind::RightBracket |
-            TokenKind::LeftBrace | TokenKind::RightBrace
+            TokenKind::LeftParen
+                | TokenKind::RightParen
+                | TokenKind::LeftBracket
+                | TokenKind::RightBracket
+                | TokenKind::LeftBrace
+                | TokenKind::RightBrace
         )
     }
-    
+
     /// Returns true if this token is an opening delimiter.
     pub fn is_opening_delimiter(&self) -> bool {
         matches!(
@@ -121,7 +124,7 @@ impl Token {
             TokenKind::LeftParen | TokenKind::LeftBracket | TokenKind::LeftBrace
         )
     }
-    
+
     /// Returns true if this token is a closing delimiter.
     pub fn is_closing_delimiter(&self) -> bool {
         matches!(
@@ -129,7 +132,7 @@ impl Token {
             TokenKind::RightParen | TokenKind::RightBracket | TokenKind::RightBrace
         )
     }
-    
+
     /// Returns the matching closing delimiter for an opening delimiter.
     pub fn matching_delimiter(&self) -> Option<TokenKind> {
         match self.kind {
@@ -142,57 +145,53 @@ impl Token {
             _ => None,
         }
     }
-    
+
     /// Returns true if this token represents a quote-like form.
     pub fn is_quote_like(&self) -> bool {
         matches!(
             self.kind,
-            TokenKind::Quote | TokenKind::Quasiquote | 
-            TokenKind::Unquote | TokenKind::UnquoteSplicing
+            TokenKind::Quote
+                | TokenKind::Quasiquote
+                | TokenKind::Unquote
+                | TokenKind::UnquoteSplicing
         )
     }
-    
+
     /// Attempts to parse this token as a numeric value if it's a number token.
     pub fn parse_number(&self) -> Option<NumericValue> {
         match self.kind {
-            TokenKind::IntegerNumber => {
-                parse_integer(self.text()).map(NumericValue::Integer)
-            }
-            TokenKind::RealNumber => {
-                parse_real(self.text()).map(NumericValue::Real)
-            }
-            TokenKind::RationalNumber => {
-                parse_rational(self.text()).map(NumericValue::Rational)
-            }
-            TokenKind::ComplexNumber => {
-                parse_complex(self.text()).map(NumericValue::Complex)
-            }
+            TokenKind::IntegerNumber => parse_integer(self.text()).map(NumericValue::Integer),
+            TokenKind::RealNumber => parse_real(self.text()).map(NumericValue::Real),
+            TokenKind::RationalNumber => parse_rational(self.text()).map(NumericValue::Rational),
+            TokenKind::ComplexNumber => parse_complex(self.text()).map(NumericValue::Complex),
             _ => None,
         }
     }
-    
+
     /// Attempts to parse this token as a string value if it's a string token.
     pub fn parse_string(&self) -> crate::diagnostics::Result<String> {
         if self.kind != TokenKind::String {
             return Err(crate::diagnostics::Error::internal_error(
-                "Attempted to parse non-string token as string"
-            ).into())
+                "Attempted to parse non-string token as string",
+            )
+            .into());
         }
-        
+
         // Remove surrounding quotes
         let text = self.text();
-        let content = &text[1..text.len()-1];
+        let content = &text[1..text.len() - 1];
         unescape_string(content)
     }
-    
+
     /// Attempts to parse this token as a character value if it's a character token.
     pub fn parse_character(&self) -> crate::diagnostics::Result<char> {
         if self.kind != TokenKind::Character {
             return Err(crate::diagnostics::Error::internal_error(
-                "Attempted to parse non-character token as character"
-            ).into())
+                "Attempted to parse non-character token as character",
+            )
+            .into());
         }
-        
+
         // Remove #\ prefix
         let text = self.text();
         let content = &text[2..];
@@ -210,19 +209,21 @@ impl Token {
             // Arithmetic - variable arity
             "+" | "*" => Some(Arity::Variable(0)),
             "-" | "/" => Some(Arity::Variable(1)),
-            "abs" | "floor" | "ceiling" | "truncate" | "round" | "sqrt" | "exp" | "log" |
-            "sin" | "cos" | "tan" | "asin" | "acos" => Some(Arity::Exact(1)),
+            "abs" | "floor" | "ceiling" | "truncate" | "round" | "sqrt" | "exp" | "log" | "sin"
+            | "cos" | "tan" | "asin" | "acos" => Some(Arity::Exact(1)),
             "atan" => Some(Arity::Range(1, 2)),
-            "expt" | "remainder" | "quotient" | "modulo" | "gcd" | "lcm" => Some(Arity::Variable(1)),
+            "expt" | "remainder" | "quotient" | "modulo" | "gcd" | "lcm" => {
+                Some(Arity::Variable(1))
+            }
             "max" | "min" => Some(Arity::Variable(1)),
-            
+
             // Comparison - variable arity
             "=" | "<" | "<=" | ">" | ">=" => Some(Arity::Variable(2)),
-            
+
             // Logical
             "and" | "or" => Some(Arity::Variable(0)),
             "not" => Some(Arity::Exact(1)),
-            
+
             // List operations
             "cons" => Some(Arity::Exact(2)),
             "car" | "cdr" | "null?" | "pair?" | "list?" | "length" => Some(Arity::Exact(1)),
@@ -230,41 +231,43 @@ impl Token {
             "reverse" => Some(Arity::Exact(1)),
             "list-ref" | "list-set!" => Some(Arity::Exact(2)),
             "member" | "assoc" => Some(Arity::Exact(2)),
-            
+
             // String operations
             "string" => Some(Arity::Variable(0)),
             "string-length" | "string->symbol" | "symbol->string" => Some(Arity::Exact(1)),
             "string-ref" | "string-set!" | "string-append" => Some(Arity::Variable(1)),
             "substring" => Some(Arity::Range(2, 3)),
-            "string=?" | "string<?" | "string<=?" | "string>?" | "string>=?" => Some(Arity::Variable(2)),
-            
+            "string=?" | "string<?" | "string<=?" | "string>?" | "string>=?" => {
+                Some(Arity::Variable(2))
+            }
+
             // Type predicates
-            "number?" | "complex?" | "real?" | "rational?" | "integer?" | "exact?" | "inexact?" |
-            "string?" | "char?" | "symbol?" | "boolean?" | "procedure?" | "vector?" | "port?" |
-            "input-port?" | "output-port?" | "eof-object?" => Some(Arity::Exact(1)),
-            
+            "number?" | "complex?" | "real?" | "rational?" | "integer?" | "exact?" | "inexact?"
+            | "string?" | "char?" | "symbol?" | "boolean?" | "procedure?" | "vector?" | "port?"
+            | "input-port?" | "output-port?" | "eof-object?" => Some(Arity::Exact(1)),
+
             // Vector operations
             "vector" => Some(Arity::Variable(0)),
             "vector-length" => Some(Arity::Exact(1)),
             "vector-ref" | "vector-set!" => Some(Arity::Exact(2)),
             "make-vector" => Some(Arity::Range(1, 2)),
-            
+
             // I/O
             "display" | "write" | "write-char" | "newline" => Some(Arity::Range(0, 1)),
             "read" | "read-char" | "peek-char" => Some(Arity::Range(0, 1)),
             "open-input-file" | "open-output-file" => Some(Arity::Exact(1)),
             "close-input-port" | "close-output-port" => Some(Arity::Exact(1)),
-            
+
             // Control flow
             "if" => Some(Arity::Range(2, 3)),
             "cond" => Some(Arity::Variable(1)),
             "case" => Some(Arity::Variable(2)),
-            
+
             // Conversion functions
             "char->integer" | "integer->char" => Some(Arity::Exact(1)),
             "string->number" => Some(Arity::Range(1, 2)),
             "number->string" => Some(Arity::Range(1, 2)),
-            
+
             _ => None,
         }
     }
@@ -340,17 +343,17 @@ impl NumericValue {
             NumericValue::Complex(c) => c.real, // Real part only
         }
     }
-    
+
     /// Returns true if this numeric value is exact (integer or rational).
     pub fn is_exact(&self) -> bool {
         matches!(self, NumericValue::Integer(_) | NumericValue::Rational(_))
     }
-    
+
     /// Returns true if this numeric value is inexact (real or complex).
     pub fn is_inexact(&self) -> bool {
         !self.is_exact()
     }
-    
+
     /// Returns true if this numeric value represents a real number.
     pub fn is_real(&self) -> bool {
         match self {
@@ -358,14 +361,16 @@ impl NumericValue {
             _ => true,
         }
     }
-    
+
     /// Returns true if this numeric value is an integer.
     pub fn is_integer(&self) -> bool {
         match self {
             NumericValue::Integer(_) => true,
             NumericValue::Real(r) => r.fract() == 0.0 && r.is_finite(),
             NumericValue::Rational(rat) => rat.denominator == 1,
-            NumericValue::Complex(c) => c.imag == 0.0 && c.real.fract() == 0.0 && c.real.is_finite(),
+            NumericValue::Complex(c) => {
+                c.imag == 0.0 && c.real.fract() == 0.0 && c.real.is_finite()
+            }
         }
     }
 }
@@ -377,11 +382,11 @@ mod tests {
     #[test]
     fn test_precedence() {
         let span = Span::new(0, 1);
-        
+
         let plus = Token::identifier("+", span);
         let mult = Token::identifier("*", span);
         let exp = Token::identifier("^", span);
-        
+
         assert!(plus.precedence() < mult.precedence());
         assert!(mult.precedence() < exp.precedence());
     }
@@ -409,10 +414,10 @@ mod tests {
     #[test]
     fn test_binary_operators() {
         let span = Span::new(0, 1);
-        
+
         let plus = Token::identifier("+", span);
         let ident = Token::identifier("foo", span);
-        
+
         assert!(plus.is_binary_operator());
         assert!(!ident.is_binary_operator());
     }
@@ -420,88 +425,88 @@ mod tests {
     #[test]
     fn test_right_associative() {
         let span = Span::new(0, 1);
-        
+
         let exp = Token::identifier("^", span);
         let plus = Token::identifier("+", span);
-        
+
         assert!(exp.is_right_associative());
         assert!(!plus.is_right_associative());
     }
-    
+
     #[test]
     fn test_delimiter_checking() {
         let span = Span::new(0, 1);
-        
+
         let left_paren = Token::new(TokenKind::LeftParen, span, "(".to_string());
         let right_paren = Token::new(TokenKind::RightParen, span, ")".to_string());
         let ident = Token::identifier("foo", span);
-        
+
         assert!(left_paren.is_delimiter());
         assert!(left_paren.is_opening_delimiter());
         assert!(!left_paren.is_closing_delimiter());
-        
+
         assert!(right_paren.is_delimiter());
         assert!(!right_paren.is_opening_delimiter());
         assert!(right_paren.is_closing_delimiter());
-        
+
         assert!(!ident.is_delimiter());
-        
+
         assert_eq!(left_paren.matching_delimiter(), Some(TokenKind::RightParen));
         assert_eq!(right_paren.matching_delimiter(), Some(TokenKind::LeftParen));
         assert_eq!(ident.matching_delimiter(), None);
     }
-    
+
     #[test]
     fn test_quote_like_checking() {
         let span = Span::new(0, 1);
-        
+
         let quote = Token::new(TokenKind::Quote, span, "'".to_string());
         let quasiquote = Token::new(TokenKind::Quasiquote, span, "`".to_string());
         let ident = Token::identifier("foo", span);
-        
+
         assert!(quote.is_quote_like());
         assert!(quasiquote.is_quote_like());
         assert!(!ident.is_quote_like());
     }
-    
+
     #[test]
     fn test_number_parsing() {
         let span = Span::new(0, 3);
-        
+
         let int_token = Token::integer("42", span);
         let real_token = Token::real("3.14", span);
         let rational_token = Token::rational("1/2", span);
         let complex_token = Token::complex("3+4i", span);
-        
+
         assert!(int_token.parse_number().is_some());
         assert!(real_token.parse_number().is_some());
         assert!(rational_token.parse_number().is_some());
         assert!(complex_token.parse_number().is_some());
-        
+
         let ident = Token::identifier("foo", span);
         assert!(ident.parse_number().is_none());
     }
-    
+
     #[test]
     fn test_numeric_value_properties() {
         let int_val = NumericValue::Integer(42);
         let real_val = NumericValue::Real(3.05);
         let rat_val = NumericValue::Rational(Rational::new(1, 2).unwrap());
         let complex_val = NumericValue::Complex(Complex::new(3.0, 4.0));
-        
+
         assert!(int_val.is_exact());
         assert!(int_val.is_integer());
         assert!(int_val.is_real());
-        
+
         assert!(!real_val.is_exact());
         assert!(real_val.is_inexact());
         assert!(!real_val.is_integer());
         assert!(real_val.is_real());
-        
+
         assert!(rat_val.is_exact());
         assert!(!rat_val.is_integer());
         assert!(rat_val.is_real());
-        
+
         assert!(!complex_val.is_real());
         assert!(complex_val.is_inexact());
     }

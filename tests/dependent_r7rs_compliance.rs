@@ -9,8 +9,7 @@
 use lambdust::ast::Literal;
 use lambdust::eval::Value;
 use lambdust::types::dependent::{
-    DependentType, MartinLofTypeSystem,
-    SchemeIntegration, GradualTypingSystem, TypingLevel
+    DependentType, GradualTypingSystem, MartinLofTypeSystem, SchemeIntegration, TypingLevel,
 };
 
 /// Basic R7RS compliance test suite
@@ -31,7 +30,7 @@ impl R7RSComplianceTestSuite {
     /// Create a Scheme value for testing
     fn create_value(&self, expr: &str) -> Value {
         let trimmed = expr.trim();
-        
+
         // Handle specific test cases
         match trimmed {
             "0" => Value::Literal(Literal::ExactInteger(0)),
@@ -45,7 +44,9 @@ impl R7RSComplianceTestSuite {
             "#f" => Value::Literal(Literal::Boolean(false)),
             "\"hello\"" => Value::Literal(Literal::String(Box::new("hello".to_string()))),
             "\"\"" => Value::Literal(Literal::String(Box::new("".to_string()))),
-            "\"unicode: λ∀∃\"" => Value::Literal(Literal::String(Box::new("unicode: λ∀∃".to_string()))),
+            "\"unicode: λ∀∃\"" => {
+                Value::Literal(Literal::String(Box::new("unicode: λ∀∃".to_string())))
+            }
             "\"test\"" => Value::Literal(Literal::String(Box::new("test".to_string()))),
             "'()" => Value::Nil,
             _ if trimmed.starts_with("'") => {
@@ -63,8 +64,8 @@ impl R7RSComplianceTestSuite {
                 }
                 // Try to parse as string
                 else if trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2 {
-                    let content = &trimmed[1..trimmed.len()-1];
-                    Value::Literal(Literal::String(content.to_string()))
+                    let content = &trimmed[1..trimmed.len() - 1];
+                    Value::Literal(Literal::String(Box::new(content.to_string())))
                 }
                 // Default to symbol
                 else {
@@ -80,15 +81,10 @@ impl R7RSComplianceTestSuite {
 #[test]
 fn test_r7rs_exact_integers() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
-    
+
     // Test exact integer values
-    let test_cases = vec![
-        ("0", 0),
-        ("42", 42),
-        ("-17", -17),
-        ("1000000", 1000000),
-    ];
-    
+    let test_cases = vec![("0", 0), ("42", 42), ("-17", -17), ("1000000", 1000000)];
+
     for (expr, expected) in test_cases {
         let result = suite.create_value(expr);
         match result {
@@ -97,19 +93,25 @@ fn test_r7rs_exact_integers() {
             }
             _ => panic!("Expected exact integer for {}, got {:?}", expr, result),
         }
-        
+
         // Test that we can create a scheme integration for this value
         let mut integration = SchemeIntegration::new().unwrap();
         let dep_type_result = integration.value_to_type(&result);
         match dep_type_result {
             Ok(dep_type) => {
-                println!("Integer {} converted to dependent type: {:?}", expr, dep_type);
+                println!(
+                    "Integer {} converted to dependent type: {:?}",
+                    expr, dep_type
+                );
                 match dep_type {
                     DependentType::Inductive { name, .. } => {
-                        assert!(name.contains("Integer") || name.contains("Exact"), 
-                               "Should infer integer-related type for {}", expr);
+                        assert!(
+                            name.contains("Integer") || name.contains("Exact"),
+                            "Should infer integer-related type for {}",
+                            expr
+                        );
                     }
-                    _ => {}, // Other type inferences are acceptable
+                    _ => {} // Other type inferences are acceptable
                 }
             }
             Err(e) => println!("Type conversion failed for {}: {:?}", expr, e),
@@ -120,22 +122,22 @@ fn test_r7rs_exact_integers() {
 #[test]
 fn test_r7rs_real_numbers() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
-    
-    let test_cases = vec![
-        ("3.14", 3.14),
-        ("-2.5", -2.5),
-        ("0.0", 0.0),
-    ];
-    
+
+    let test_cases = vec![("3.14", 3.14), ("-2.5", -2.5), ("0.0", 0.0)];
+
     for (expr, expected) in test_cases {
         let result = suite.create_value(expr);
         match result {
             Value::Literal(Literal::InexactReal(r)) => {
-                assert!((r - expected).abs() < 1e-10, "Real number test failed for {}", expr);
+                assert!(
+                    (r - expected).abs() < 1e-10,
+                    "Real number test failed for {}",
+                    expr
+                );
             }
             _ => panic!("Expected real number for {}, got {:?}", expr, result),
         }
-        
+
         // Test dependent type conversion
         let mut integration = SchemeIntegration::new().unwrap();
         let dep_type_result = integration.value_to_type(&result);
@@ -151,12 +153,9 @@ fn test_r7rs_real_numbers() {
 #[test]
 fn test_r7rs_booleans() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
-    
-    let test_cases = vec![
-        ("#t", true),
-        ("#f", false),
-    ];
-    
+
+    let test_cases = vec![("#t", true), ("#f", false)];
+
     for (expr, expected) in test_cases {
         let result = suite.create_value(expr);
         match result {
@@ -165,7 +164,7 @@ fn test_r7rs_booleans() {
             }
             _ => panic!("Expected boolean for {}, got {:?}", expr, result),
         }
-        
+
         // Test conversion to dependent boolean type
         let mut integration = SchemeIntegration::new().unwrap();
         let dep_type_result = integration.value_to_type(&result);
@@ -174,9 +173,13 @@ fn test_r7rs_booleans() {
                 println!("Boolean {} converted to type: {:?}", expr, dep_type);
                 match dep_type {
                     DependentType::Inductive { name, .. } => {
-                        assert!(name.contains("Bool"), "Should infer boolean type for {}", expr);
+                        assert!(
+                            name.contains("Bool"),
+                            "Should infer boolean type for {}",
+                            expr
+                        );
                     }
-                    _ => {}, // Other inferences acceptable
+                    _ => {} // Other inferences acceptable
                 }
             }
             Err(e) => println!("Type conversion failed for {}: {:?}", expr, e),
@@ -187,22 +190,22 @@ fn test_r7rs_booleans() {
 #[test]
 fn test_r7rs_strings() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
-    
+
     let test_cases = vec![
         ("\"hello\"", "hello"),
         ("\"\"", ""),
         ("\"unicode: λ∀∃\"", "unicode: λ∀∃"),
     ];
-    
+
     for (expr, expected) in test_cases {
         let result = suite.create_value(expr);
         match &result {
             Value::Literal(Literal::String(s)) => {
-                assert_eq!(s, expected, "String test failed for {}", expr);
+                assert_eq!(s.as_str(), expected, "String test failed for {}", expr);
             }
             _ => panic!("Expected string for {}, got {:?}", expr, result),
         }
-        
+
         // Test string type inference
         let mut integration = SchemeIntegration::new().unwrap();
         let dep_type_result = integration.value_to_type(&result);
@@ -218,14 +221,9 @@ fn test_r7rs_strings() {
 #[test]
 fn test_r7rs_symbols() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
-    
-    let test_cases = vec![
-        "'hello",
-        "'x",
-        "'lambda",
-        "'test-symbol",
-    ];
-    
+
+    let test_cases = vec!["'hello", "'x", "'lambda", "'test-symbol"];
+
     for expr in test_cases {
         let result = suite.create_value(expr);
         match result {
@@ -236,7 +234,7 @@ fn test_r7rs_symbols() {
             }
             _ => panic!("Expected symbol for {}, got {:?}", expr, result),
         }
-        
+
         // Test symbol type inference
         let mut integration = SchemeIntegration::new().unwrap();
         let dep_type_result = integration.value_to_type(&result);
@@ -252,14 +250,14 @@ fn test_r7rs_symbols() {
 #[test]
 fn test_r7rs_null() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
-    
+
     // Test empty list
     let null_result = suite.create_value("'()");
     match null_result {
-        Value::Nil => {},
+        Value::Nil => {}
         _ => panic!("Expected nil, got {:?}", null_result),
     }
-    
+
     // Test dependent type conversion for null
     let mut integration = SchemeIntegration::new().unwrap();
     let dep_type_result = integration.value_to_type(&null_result);
@@ -276,31 +274,34 @@ fn test_r7rs_null() {
 #[test]
 fn test_scheme_to_dependent_type_conversion() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
-    
+
     // Test comprehensive conversion from Scheme values to dependent types
     let conversion_tests = vec![
         ("42", "Integer-like"),
-        ("3.14", "Real-like"), 
+        ("3.14", "Real-like"),
         ("#t", "Boolean-like"),
         ("\"hello\"", "String-like"),
         ("'symbol", "Symbol-like"),
         ("'()", "Null-like"),
     ];
-    
+
     for (expr, type_category) in conversion_tests {
         let scheme_value = suite.create_value(expr);
         let mut integration = SchemeIntegration::new().unwrap();
-        
+
         let dep_type_result = integration.value_to_type(&scheme_value);
         match dep_type_result {
             Ok(dep_type) => {
                 println!("Scheme value {} -> Dependent type: {:?}", expr, dep_type);
-                
+
                 // Verify round-trip conversion where possible
                 let value_result = integration.type_to_value(&dep_type);
                 match value_result {
                     Ok(converted_back) => {
-                        println!("Round-trip successful: {:?} -> {:?}", scheme_value, converted_back);
+                        println!(
+                            "Round-trip successful: {:?} -> {:?}",
+                            scheme_value, converted_back
+                        );
                     }
                     Err(_) => {
                         println!("No direct round-trip for {} (acceptable)", type_category);
@@ -317,28 +318,52 @@ fn test_scheme_to_dependent_type_conversion() {
 #[test]
 fn test_gradual_typing_integration_with_r7rs() {
     let mut suite = R7RSComplianceTestSuite::new().unwrap();
-    
+
     // Test R7RS values in different typing levels
     let test_expr = "42";
     let _scheme_value = suite.create_value(test_expr);
-    
+
     // Test current typing level (should start as Dynamic)
-    println!("Initial typing level: {:?}", suite.gradual_system.current_level());
-    
+    println!(
+        "Initial typing level: {:?}",
+        suite.gradual_system.current_level()
+    );
+
     // Test in Contract mode
-    suite.gradual_system.set_typing_level(TypingLevel::Contracts).unwrap();
-    println!("Current typing level: {:?}", suite.gradual_system.current_level());
-    
+    suite
+        .gradual_system
+        .set_typing_level(TypingLevel::Contracts)
+        .unwrap();
+    println!(
+        "Current typing level: {:?}",
+        suite.gradual_system.current_level()
+    );
+
     // Test in Static mode
-    suite.gradual_system.set_typing_level(TypingLevel::Static).unwrap();
-    println!("Current typing level: {:?}", suite.gradual_system.current_level());
-    
+    suite
+        .gradual_system
+        .set_typing_level(TypingLevel::Static)
+        .unwrap();
+    println!(
+        "Current typing level: {:?}",
+        suite.gradual_system.current_level()
+    );
+
     // Test in Dependent mode
-    suite.gradual_system.set_typing_level(TypingLevel::Dependent).unwrap();
-    println!("Current typing level: {:?}", suite.gradual_system.current_level());
-    
+    suite
+        .gradual_system
+        .set_typing_level(TypingLevel::Dependent)
+        .unwrap();
+    println!(
+        "Current typing level: {:?}",
+        suite.gradual_system.current_level()
+    );
+
     // Verify that R7RS semantics are preserved across all levels
-    assert!(true, "R7RS semantics should be preserved in all typing levels");
+    assert!(
+        true,
+        "R7RS semantics should be preserved in all typing levels"
+    );
 }
 
 // ============= PERFORMANCE TESTS =============
@@ -346,48 +371,54 @@ fn test_gradual_typing_integration_with_r7rs() {
 #[test]
 fn test_r7rs_performance_with_dependent_types() {
     let _suite = R7RSComplianceTestSuite::new().unwrap();
-    
+
     // Test that R7RS operations maintain performance with dependent type integration
     let start_time = std::time::Instant::now();
-    
+
     // Perform many conversions
     for i in 0..100 {
         let value = Value::Literal(Literal::ExactInteger(i));
         let mut integration = SchemeIntegration::new().unwrap();
         let _dep_type_result = integration.value_to_type(&value);
     }
-    
+
     let duration = start_time.elapsed();
     println!("100 R7RS->Dependent type conversions took: {:?}", duration);
-    
+
     // Should be reasonably fast (less than 100ms for 100 conversions)
-    assert!(duration.as_millis() < 100, "Type conversions should be fast");
+    assert!(
+        duration.as_millis() < 100,
+        "Type conversions should be fast"
+    );
 }
 
 #[test]
 fn test_r7rs_memory_usage() {
     let _suite = R7RSComplianceTestSuite::new().unwrap();
-    
+
     // Test memory efficiency of R7RS integration
     let mut values = Vec::new();
     let mut integrations = Vec::new();
-    
+
     // Create many values and their dependent type representations
     for i in 0..10 {
         let value = Value::Literal(Literal::ExactInteger(i));
         let integration = SchemeIntegration::new().unwrap();
-        
+
         values.push(value);
         integrations.push(integration);
     }
-    
+
     // Check that we can access all values
     assert_eq!(values.len(), 10);
     assert_eq!(integrations.len(), 10);
-    
+
     // Test cache efficiency
     let (cache_size, cache_capacity) = integrations[0].cache_stats();
-    println!("Scheme integration cache stats: size={}, capacity={}", cache_size, cache_capacity);
+    println!(
+        "Scheme integration cache stats: size={}, capacity={}",
+        cache_size, cache_capacity
+    );
 }
 
 // ============= REGRESSION TESTS =============
@@ -395,55 +426,55 @@ fn test_r7rs_memory_usage() {
 #[test]
 fn test_r7rs_regression_basic_values() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
-    
+
     // Regression test: ensure basic R7RS values continue to work
     let regression_cases = vec![
         ("42", "integer"),
-        ("3.14", "real"),  
+        ("3.14", "real"),
         ("#t", "boolean"),
         ("#f", "boolean"),
         ("\"test\"", "string"),
         ("'symbol", "symbol"),
         ("'()", "null"),
     ];
-    
+
     for (expr, expected_category) in regression_cases {
         let result = suite.create_value(expr);
-        
+
         // Verify basic evaluation still works
         match expected_category {
             "integer" => match result {
-                Value::Literal(Literal::ExactInteger(_)) => {},
+                Value::Literal(Literal::ExactInteger(_)) => {}
                 _ => panic!("Expected integer for {}", expr),
             },
             "real" => match result {
-                Value::Literal(Literal::InexactReal(_)) => {},
+                Value::Literal(Literal::InexactReal(_)) => {}
                 _ => panic!("Expected real for {}", expr),
             },
             "boolean" => match result {
-                Value::Literal(Literal::Boolean(_)) => {},
+                Value::Literal(Literal::Boolean(_)) => {}
                 _ => panic!("Expected boolean for {}", expr),
             },
             "string" => match result {
-                Value::Literal(Literal::String(_)) => {},
+                Value::Literal(Literal::String(_)) => {}
                 _ => panic!("Expected string for {}", expr),
             },
             "symbol" => match result {
-                Value::Symbol(_) => {},
+                Value::Symbol(_) => {}
                 _ => panic!("Expected symbol for {}", expr),
             },
             "null" => match result {
-                Value::Nil => {},
+                Value::Nil => {}
                 _ => panic!("Expected null for {}", expr),
             },
             _ => panic!("Unknown category: {}", expected_category),
         }
-        
+
         // Verify dependent type conversion still works
         let mut integration = SchemeIntegration::new().unwrap();
         let _dep_type_result = integration.value_to_type(&result);
     }
-    
+
     println!("All R7RS regression tests passed");
 }
 
@@ -467,8 +498,14 @@ fn check_r7rs_compliance(value: &Value) -> bool {
 #[test]
 fn test_helper_functions() {
     // Test that our helper functions work correctly
-    assert!(check_r7rs_compliance(&Value::Literal(Literal::ExactInteger(42))));
-    assert!(check_r7rs_compliance(&Value::Literal(Literal::Boolean(true))));
-    assert!(check_r7rs_compliance(&Value::Literal(Literal::String(Box::new("test".to_string())))));
+    assert!(check_r7rs_compliance(&Value::Literal(
+        Literal::ExactInteger(42)
+    )));
+    assert!(check_r7rs_compliance(&Value::Literal(Literal::Boolean(
+        true
+    ))));
+    assert!(check_r7rs_compliance(&Value::Literal(Literal::String(
+        Box::new("test".to_string())
+    ))));
     assert!(check_r7rs_compliance(&Value::Nil));
 }

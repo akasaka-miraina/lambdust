@@ -25,6 +25,7 @@ pub struct CodeSignature {
 pub struct ExecutionSandbox;
 
 /// Security manager for JIT system
+#[derive(Debug, Clone)]
 pub struct SecurityManager {
     config: SecurityConfig,
 }
@@ -33,7 +34,7 @@ impl SecurityManager {
     pub fn new(config: SecurityConfig) -> Result<Self> {
         Ok(Self { config })
     }
-    
+
     pub fn validate_code(&self, _code: &NativeCode) -> Result<()> {
         // Placeholder for code validation
         Ok(())
@@ -63,6 +64,44 @@ impl JitSecurityFramework {
             Ok(SecurityVerificationResult::Skipped)
         }
     }
+
+    pub fn verify_specialized_code(
+        &self,
+        code: &NativeCode,
+        _proofs: &[Vec<u8>],
+    ) -> Result<SecurityVerificationResult> {
+        // Verify specialized JIT code with security proofs
+        if self.verification_enabled {
+            self.security_manager.validate_code(code)?;
+            Ok(SecurityVerificationResult::Approved {
+                permissions: ExecutionPermissions::memory_access(),
+            })
+        } else {
+            Ok(SecurityVerificationResult::Skipped)
+        }
+    }
+
+    pub fn create_secure_execution_context(
+        &self,
+        _code: &NativeCode,
+        permissions: ExecutionPermissions,
+    ) -> Result<SecureExecutionContext> {
+        Ok(SecureExecutionContext {
+            permissions,
+            context_id: "default".to_string(),
+        })
+    }
+
+    pub fn execute_secure(
+        &self,
+        _context: &mut SecureExecutionContext,
+        _args: &[crate::eval::Value],
+    ) -> Result<crate::eval::Value> {
+        // Placeholder for secure execution
+        Ok(crate::eval::Value::Literal(crate::ast::Literal::Boolean(
+            true,
+        )))
+    }
 }
 
 impl Default for JitSecurityFramework {
@@ -76,18 +115,29 @@ impl Default for JitSecurityFramework {
 pub enum SecurityVerificationResult {
     /// Code passed all security checks
     Verified,
+    /// Code was approved for execution with specific permissions
+    Approved { permissions: ExecutionPermissions },
     /// Security verification was skipped
     Skipped,
-    /// Security verification failed
+    /// Security verification failed/rejected
     Failed { reason: String },
+    /// Code was explicitly rejected
+    Rejected { reason: String },
 }
 
 /// Execution permissions for JIT code
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExecutionPermissions {
     pub memory_access: bool,
     pub file_system_access: bool,
     pub network_access: bool,
+}
+
+/// Secure execution context for JIT code
+#[derive(Debug, Clone)]
+pub struct SecureExecutionContext {
+    pub permissions: ExecutionPermissions,
+    pub context_id: String,
 }
 
 impl ExecutionPermissions {
@@ -102,5 +152,7 @@ impl ExecutionPermissions {
 
 /// Security verification module
 pub mod security_verification {
-    pub use super::{SecurityConfig, JitSecurityFramework, SecurityVerificationResult, ExecutionPermissions};
+    pub use super::{
+        ExecutionPermissions, JitSecurityFramework, SecurityConfig, SecurityVerificationResult,
+    };
 }

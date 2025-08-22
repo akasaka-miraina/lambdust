@@ -122,10 +122,10 @@ impl ValueConstructorService {
     pub fn construct_optimized(&self, value: &Value) -> DiagnosticResult<OptimizedValue> {
         // Classify the value for optimization
         let class = self.classify_value(value)?;
-        
+
         // Apply domain rules for construction
         self.validate_construction_rules(value, &class)?;
-        
+
         // Create optimized representation based on classification
         let optimized = match class {
             ValueClass::Immediate => self.construct_immediate(value)?,
@@ -144,33 +144,33 @@ impl ValueConstructorService {
     fn classify_value(&self, value: &Value) -> DiagnosticResult<ValueClass> {
         match value {
             // Immediate values (no allocation needed)
-            Value::Nil | 
+            Value::Nil |
             Value::Unspecified |
             Value::Literal(Literal::Boolean(_)) |
             Value::Literal(Literal::Character(_)) => Ok(ValueClass::Immediate),
-            
+
             // Small integers that fit in immediate storage
             Value::Literal(Literal::ExactInteger(n)) if self.fits_in_immediate(*n) => {
                 Ok(ValueClass::Immediate)
             }
-            
+
             // Small symbols with compact IDs
             Value::Symbol(id) if self.symbol_fits_immediate(*id) => {
                 Ok(ValueClass::Immediate)
             }
-            
+
             // Small boxed values (pairs, small strings)
             Value::Pair(_, _) |
             Value::Literal(Literal::String(s)) if s.len() <= 64 => {
                 Ok(ValueClass::SmallBoxed)
             }
-            
+
             // Mutable values requiring interior mutability
             Value::Vector(_) |
             Value::Hashtable(_) |
             Value::MutablePair(_, _) |
             Value::MutableString(_) => Ok(ValueClass::Mutable),
-            
+
             // Large shared values
             _ => Ok(ValueClass::LargeShared),
         }
@@ -223,7 +223,7 @@ impl ValueConstructorService {
     fn construct_mutable(&self, value: &Value) -> DiagnosticResult<OptimizedValue> {
         match value {
             Value::Vector(vec) => {
-                if let Ok(elements) = vec.read() {
+                if let Ok(elements) = vec.try_read() {
                     let opt_elements = elements.iter()
                         .map(|v| self.construct_optimized(v))
                         .collect::<DiagnosticResult<Vec<_>>>()?;
@@ -304,15 +304,15 @@ impl ValueEqualityService {
         // Check cache first
         let hash_a = self.compute_hash(a);
         let hash_b = self.compute_hash(b);
-        
-        if let Ok(cache) = self.comparison_cache.read() {
+
+        if let Ok(cache) = self.comparison_cache.try_read() {
             if let Some(&result) = cache.get(&(hash_a.clone(), hash_b.clone())) {
                 return result;
             }
         }
 
         let result = self.compute_eqv(a, b);
-        
+
         // Cache the result
         if let Ok(mut cache) = self.comparison_cache.write() {
             cache.insert((hash_a, hash_b), result);
@@ -356,7 +356,7 @@ impl ValueEqualityService {
                 self.equal(a1, b1) && self.equal(a2, b2)
             }
             (OptimizedValue::Vector(a_vec), OptimizedValue::Vector(b_vec)) => {
-                if let (Ok(a_elems), Ok(b_elems)) = (a_vec.read(), b_vec.read()) {
+                if let (Ok(a_elems), Ok(b_elems)) = (a_vec.try_read(), b_vec.try_read()) {
                     a_elems.len() == b_elems.len() &&
                         a_elems.iter().zip(b_elems.iter()).all(|(a, b)| self.equal(a, b))
                 } else {
@@ -373,7 +373,7 @@ impl ValueEqualityService {
 }
 
 // ============================================================================
-// APPLICATION LAYER: Orchestration and Migration Coordination  
+// APPLICATION LAYER: Orchestration and Migration Coordination
 // ============================================================================
 
 /// Application service orchestrating the complete optimization process
@@ -460,17 +460,17 @@ impl ValueOptimizationOrchestrator {
     ) -> DiagnosticResult<Vec<OptimizedValue>> {
         // Phase 1: Analyze current system
         let usage_patterns = self.memory_service.analyze_usage_patterns(current_values).await?;
-        
+
         // Phase 2: Create migration plan
         let migration_plan = self.create_migration_plan(&usage_patterns)?;
-        
+
         // Phase 3: Execute migration with rollback capability
         let optimized_values = self.migration_coordinator
             .execute_migration_plan(migration_plan, current_values).await?;
-        
+
         // Phase 4: Validate semantic equivalence
         self.validate_migration_success(current_values, &optimized_values).await?;
-        
+
         Ok(optimized_values)
     }
 
@@ -480,24 +480,24 @@ impl ValueOptimizationOrchestrator {
         usage_patterns: &UsagePatterns,
     ) -> DiagnosticResult<MigrationPlan> {
         let mut plan = MigrationPlan::new();
-        
+
         // Prioritize immediate values (highest impact, lowest risk)
         if usage_patterns.immediate_value_frequency > 0.3 {
             plan.add_phase(MigrationPhase::ImmediateValues, Priority::High);
         }
-        
+
         // Add compound values if memory pressure is high
         if usage_patterns.memory_pressure > 0.7 {
             plan.add_phase(MigrationPhase::CompoundValues, Priority::High);
         } else {
             plan.add_phase(MigrationPhase::CompoundValues, Priority::Medium);
         }
-        
+
         // Advanced containers for performance-critical applications
         if usage_patterns.container_usage > 0.4 {
             plan.add_phase(MigrationPhase::AdvancedContainers, Priority::Medium);
         }
-        
+
         Ok(plan)
     }
 
@@ -575,11 +575,11 @@ impl MigrationCoordinator {
         values: &[Value],
     ) -> DiagnosticResult<Vec<OptimizedValue>> {
         let mut optimized_values = Vec::new();
-        
+
         for phase in plan.phases() {
             // Create checkpoint before each phase
             let checkpoint = self.rollback_manager.create_checkpoint(phase.clone())?;
-            
+
             match self.execute_migration_phase(phase, values).await {
                 Ok(phase_result) => {
                     optimized_values.extend(phase_result);
@@ -611,47 +611,47 @@ impl MigrationCoordinator {
 
     async fn migrate_immediate_values(&self, values: &[Value]) -> DiagnosticResult<Vec<OptimizedValue>> {
         let mut optimized = Vec::new();
-        
+
         for value in values {
             if self.is_immediate_value(value) {
                 let opt = self.convert_to_immediate(value)?;
                 optimized.push(opt);
             }
         }
-        
+
         Ok(optimized)
     }
 
     async fn migrate_compound_values(&self, values: &[Value]) -> DiagnosticResult<Vec<OptimizedValue>> {
         let mut optimized = Vec::new();
-        
+
         for value in values {
             if self.is_compound_value(value) {
                 let opt = self.convert_to_compound(value)?;
                 optimized.push(opt);
             }
         }
-        
+
         Ok(optimized)
     }
 
     async fn migrate_advanced_containers(&self, values: &[Value]) -> DiagnosticResult<Vec<OptimizedValue>> {
         let mut optimized = Vec::new();
-        
+
         for value in values {
             if self.is_advanced_container(value) {
                 let opt = self.convert_to_advanced_container(value)?;
                 optimized.push(opt);
             }
         }
-        
+
         Ok(optimized)
     }
 
     fn is_immediate_value(&self, value: &Value) -> bool {
         matches!(
             value,
-            Value::Nil | 
+            Value::Nil |
             Value::Unspecified |
             Value::Literal(Literal::Boolean(_)) |
             Value::Literal(Literal::Character(_)) |
@@ -738,13 +738,13 @@ impl LegacyValueBridge {
     pub fn migrate_to_optimized(&self, legacy: &Value) -> DiagnosticResult<OptimizedValue> {
         // Apply semantic mapping
         let mapped = self.semantic_mapper.map_value(legacy)?;
-        
+
         // Construct optimized representation
         let optimized = self.constructor_service.construct_optimized(&mapped)?;
-        
+
         // Verify behavioral equivalence
         self.compatibility_checker.verify_equivalence(legacy, &optimized)?;
-        
+
         Ok(optimized)
     }
 
@@ -819,22 +819,22 @@ impl MemoryOptimizationService {
     /// Analyzes usage patterns for optimization decisions
     pub async fn analyze_usage_patterns(&self, values: &[Value]) -> DiagnosticResult<UsagePatterns> {
         let mut patterns = UsagePatterns::new();
-        
+
         // Analyze immediate value frequency
         patterns.immediate_value_frequency = self.calculate_immediate_frequency(values).await?;
-        
+
         // Analyze memory pressure
         patterns.memory_pressure = self.calculate_memory_pressure().await?;
-        
+
         // Analyze container usage
         patterns.container_usage = self.calculate_container_usage(values).await?;
-        
+
         Ok(patterns)
     }
 
     /// Determines optimal boxing strategy based on access patterns
     pub fn determine_boxing_strategy(&self, value_id: ValueId) -> BoxingStrategy {
-        if let Ok(patterns) = self.usage_analyzer.access_patterns.read() {
+        if let Ok(patterns) = self.usage_analyzer.access_patterns.try_read() {
             if let Some(pattern) = patterns.get(&value_id) {
                 if pattern.access_frequency > 1000.0 {
                     return BoxingStrategy::KeepUnboxed;
@@ -1180,7 +1180,7 @@ mod tests {
     #[test]
     fn test_equality_service_eq_semantics() {
         let service = ValueEqualityService::new();
-        
+
         let val1 = OptimizedValue::boolean(true);
         let val2 = OptimizedValue::boolean(true);
         let val3 = OptimizedValue::boolean(false);
@@ -1192,7 +1192,7 @@ mod tests {
     #[test]
     fn test_migration_coordinator_immediate_phase() {
         let coordinator = MigrationCoordinator::new();
-        
+
         let values = vec![
             Value::Nil,
             Value::boolean(true),
@@ -1208,7 +1208,7 @@ mod tests {
     #[test]
     fn test_memory_optimization_service_usage_analysis() {
         let service = MemoryOptimizationService::new();
-        
+
         let values = vec![
             Value::Nil,
             Value::boolean(true),
@@ -1219,17 +1219,17 @@ mod tests {
         let immediate_freq = futures::executor::block_on(
             service.calculate_immediate_frequency(&values)
         ).unwrap();
-        
+
         assert_eq!(immediate_freq, 2.0 / 3.0); // 2 immediate out of 3 total
     }
 
     #[test]
     fn test_legacy_value_bridge_migration() {
         let bridge = LegacyValueBridge::new();
-        
+
         let legacy_value = Value::boolean(true);
         let optimized = bridge.migrate_to_optimized(&legacy_value).unwrap();
-        
+
         // Verify semantic preservation
         assert_eq!(legacy_value.is_truthy(), optimized.is_truthy());
     }

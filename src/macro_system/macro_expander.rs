@@ -1,12 +1,12 @@
 //! The main macro expander.
 
+use super::{
+    HygieneContext, MacroEnvironment, MacroTransformer, PatternBindings, install_builtin_macros,
+    next_hygiene_id, parse_syntax_rules, syntax_rules_to_macro_transformer,
+};
 use crate::ast::{Expr, Spanned};
 use crate::diagnostics::{Error, Result, Span};
 use crate::eval::Environment;
-use super::{
-    MacroTransformer, MacroEnvironment, HygieneContext, PatternBindings,
-    install_builtin_macros, next_hygiene_id, parse_syntax_rules, syntax_rules_to_macro_transformer
-};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -41,15 +41,15 @@ impl MacroExpander {
             hygiene_context: HygieneContext::new(),
         }
     }
-    
+
     /// Ensures that the macro expander can access global syntax elements.
     /// This is crucial for macros that expand to basic special forms like 'lambda', 'if', etc.
     fn ensure_global_syntax_access(&mut self) {
         // Currently, we rely on the global environment binding special forms as symbols
         // This allows macro templates to reference them properly during expansion
-        // The actual binding happens in create_global_environment() 
+        // The actual binding happens in create_global_environment()
         // where bind_special_forms_as_identifiers() is called
-        
+
         // For now, we just ensure the macro environment is properly initialized
         // Future enhancement: could create a dedicated macro-time environment
         // that has explicit mappings for special forms
@@ -58,11 +58,11 @@ impl MacroExpander {
     /// Creates a new macro expander with built-in macros.
     pub fn with_builtins() -> Self {
         let mut expander = Self::new();
-        
+
         // Initialize macro environment with access to global environment
         // This ensures macros can reference basic syntax like 'lambda', 'if', etc.
         expander.ensure_global_syntax_access();
-        
+
         install_builtin_macros(&mut expander);
         expander
     }
@@ -71,7 +71,7 @@ impl MacroExpander {
     pub fn expand(&mut self, expr: &Spanned<Expr>) -> Result<Spanned<Expr>> {
         self.expand_inner(expr, &mut Vec::new())
     }
-    
+
     /// Expands all expressions in a program.
     pub fn expand_program(&mut self, program: &crate::ast::Program) -> Result<crate::ast::Program> {
         let mut expanded_expressions = Vec::new();
@@ -132,7 +132,12 @@ impl MacroExpander {
                 }
             }
             // Special forms that contain expressions to expand
-            Expr::Lambda { formals, metadata, body, .. } => {
+            Expr::Lambda {
+                formals,
+                metadata,
+                body,
+                ..
+            } => {
                 let expanded_body = self.expand_body(body)?;
                 let expanded_metadata = self.expand_metadata(metadata)?;
                 Ok(Spanned::new(
@@ -145,7 +150,11 @@ impl MacroExpander {
                     expr.span,
                 ))
             }
-            Expr::If { test, consequent, alternative } => {
+            Expr::If {
+                test,
+                consequent,
+                alternative,
+            } => {
                 let expanded_test = self.expand_inner(test, expansion_trail)?;
                 let expanded_consequent = self.expand_inner(consequent, expansion_trail)?;
                 let expanded_alternative = if let Some(alt) = alternative {
@@ -162,7 +171,12 @@ impl MacroExpander {
                     expr.span,
                 ))
             }
-            Expr::Define { name, value, metadata, .. } => {
+            Expr::Define {
+                name,
+                value,
+                metadata,
+                ..
+            } => {
                 let expanded_value = self.expand_inner(value, expansion_trail)?;
                 let expanded_metadata = self.expand_metadata(metadata)?;
                 Ok(Spanned::new(
@@ -175,7 +189,10 @@ impl MacroExpander {
                     expr.span,
                 ))
             }
-            Expr::DefineSyntax { name: _, transformer: _ } => {
+            Expr::DefineSyntax {
+                name: _,
+                transformer: _,
+            } => {
                 // Define-syntax should not be expanded by the macro expander
                 // It should be handled directly by the evaluator
                 Ok(expr.clone())
@@ -183,9 +200,11 @@ impl MacroExpander {
             Expr::SyntaxRules { literals, rules } => {
                 // syntax-rules should not appear at top level normally, but handle it
                 // Convert to macro transformer representation
-                let syntax_rules_transformer = super::parse_syntax_rules(expr, Rc::new(Environment::new(None, 0)))?;
-                let macro_transformer = super::syntax_rules_to_macro_transformer(syntax_rules_transformer);
-                
+                let syntax_rules_transformer =
+                    super::parse_syntax_rules(expr, Rc::new(Environment::new(None, 0)))?;
+                let macro_transformer =
+                    super::syntax_rules_to_macro_transformer(syntax_rules_transformer);
+
                 // For demonstration, create a temporary identifier
                 let temp_name = format!("temp-syntax-{}", next_hygiene_id());
                 self.macro_env.define(temp_name, macro_transformer);
@@ -207,7 +226,12 @@ impl MacroExpander {
         let input_expr = Spanned::new(
             Expr::Application {
                 operator: Box::new(Spanned::new(
-                    Expr::Identifier(transformer.name.clone().unwrap_or_else(|| "anonymous-macro".to_string())),
+                    Expr::Identifier(
+                        transformer
+                            .name
+                            .clone()
+                            .unwrap_or_else(|| "anonymous-macro".to_string()),
+                    ),
                     span,
                 )),
                 operands: operands.to_vec(),
@@ -268,8 +292,11 @@ impl MacroExpander {
     }
 
     /// Evaluates a macro transformer expression.
-    fn evaluate_transformer(&self, transformer_expr: &Spanned<Expr>, _expansion_trail: Vec<String>) -> Result<MacroTransformer> {
-        
+    fn evaluate_transformer(
+        &self,
+        transformer_expr: &Spanned<Expr>,
+        _expansion_trail: Vec<String>,
+    ) -> Result<MacroTransformer> {
         // Check if this is a syntax-rules form (as application)
         if let Expr::Application { operator, .. } = &transformer_expr.inner {
             if let Expr::Identifier(name) = &operator.inner {
@@ -278,34 +305,29 @@ impl MacroExpander {
                     // For now, create a basic environment - this will be improved when
                     // macro/evaluator integration is complete
                     let empty_env = Rc::new(Environment::new(None, 0));
-                    let syntax_rules = parse_syntax_rules(
-                        transformer_expr,
-                        empty_env,
-                    )?;
+                    let syntax_rules = parse_syntax_rules(transformer_expr, empty_env)?;
                     return Ok(syntax_rules_to_macro_transformer(syntax_rules));
                 }
             }
         }
-        
+
         // Check if this is a direct SyntaxRules expression
         if let Expr::SyntaxRules { literals, rules } = &transformer_expr.inner {
             // Handle SyntaxRules directly without going through parse_syntax_rules
             // Create the transformer directly from the parsed structure
             let definition_env = Rc::new(Environment::new(None, 0));
-            
+
             // Convert the parsed rules to SyntaxRule structures
             let mut syntax_rules = Vec::new();
             for (pattern_expr, template_expr) in rules {
                 // Each rule is a (pattern, template) pair
                 let pattern = Self::expr_to_pattern(pattern_expr)?;
                 let template = Self::expr_to_template(template_expr)?;
-                
-                syntax_rules.push(crate::macro_system::syntax_rules::SyntaxRule {
-                    pattern,
-                    template,
-                });
+
+                syntax_rules
+                    .push(crate::macro_system::syntax_rules::SyntaxRule { pattern, template });
             }
-            
+
             let transformer = crate::macro_system::SyntaxRulesTransformer {
                 literals: literals.clone(),
                 rules: syntax_rules,
@@ -314,17 +336,19 @@ impl MacroExpander {
                 custom_ellipsis: None,
                 srfi_149_mode: true, // Enable SRFI-149 by default
             };
-            
+
             return Ok(syntax_rules_to_macro_transformer(transformer));
         }
-        
+
         Err(Box::new(Error::macro_error(
-            format!("Expected syntax-rules transformer, got {:?}", transformer_expr.inner),
+            format!(
+                "Expected syntax-rules transformer, got {:?}",
+                transformer_expr.inner
+            ),
             transformer_expr.span,
         )))
     }
 
-    
     /// Converts an expression to a pattern.
     fn expr_to_pattern(expr: &Spanned<Expr>) -> Result<crate::macro_system::Pattern> {
         match &expr.inner {
@@ -346,7 +370,7 @@ impl MacroExpander {
             }
         }
     }
-    
+
     /// Converts an expression to a template.
     fn expr_to_template(expr: &Spanned<Expr>) -> Result<crate::macro_system::Template> {
         match &expr.inner {
@@ -394,16 +418,21 @@ impl MacroExpander {
         expr: Spanned<Expr>,
         definition_env: &Environment,
     ) -> Result<Spanned<Expr>> {
-        self.hygiene_context.rename_identifiers(expr, definition_env)
+        self.hygiene_context
+            .rename_identifiers(expr, definition_env)
     }
 
     /// Defines a new macro.
     pub fn define_macro(&mut self, name: String, transformer: MacroTransformer) {
         self.macro_env.define(name, transformer);
     }
-    
+
     /// Defines a syntax-rules macro directly.
-    pub fn define_syntax_rules_macro(&mut self, name: String, syntax_rules: crate::macro_system::SyntaxRulesTransformer) {
+    pub fn define_syntax_rules_macro(
+        &mut self,
+        name: String,
+        syntax_rules: crate::macro_system::SyntaxRulesTransformer,
+    ) {
         let transformer = crate::macro_system::syntax_rules_to_macro_transformer(syntax_rules);
         self.macro_env.define(name, transformer);
     }
@@ -412,7 +441,6 @@ impl MacroExpander {
     pub fn macro_env(&self) -> &MacroEnvironment {
         &self.macro_env
     }
-
 }
 
 impl Default for MacroExpander {

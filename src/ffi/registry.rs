@@ -12,14 +12,14 @@ macro_rules! define_ffi_function {
     (
         $(#[doc = $doc:literal])*
         pub struct $name:ident;
-        
+
         fn $fn_name:ident($($arg:ident: $arg_type:ty),*) -> $ret_type:ty {
             $($body:tt)*
         }
     ) => {
         $(#[doc = $doc])*
         pub struct $name;
-        
+
         impl $crate::ffi::FfiFunction for $name {
             fn signature(&self) -> &$crate::ffi::FfiSignature {
                 static SIGNATURE: std::sync::OnceLock<$crate::ffi::FfiSignature> = std::sync::OnceLock::new();
@@ -40,14 +40,14 @@ macro_rules! define_ffi_function {
                     }
                 })
             }
-            
+
             fn call(&self, args: &[$crate::eval::Value]) -> std::result::Result<$crate::eval::Value, $crate::ffi::FfiError> {
                 let expected_count = {
                     #[allow(unused)]
                     let args: &[&str] = &[$(stringify!($arg),)*];
                     args.len()
                 };
-                
+
                 if args.len() != expected_count {
                     return Err($crate::ffi::FfiError::ArityMismatch {
                         function: self.signature().name.clone(),
@@ -55,7 +55,7 @@ macro_rules! define_ffi_function {
                         actual: args.len(),
                     });
                 }
-                
+
                 let mut arg_iter = args.iter();
                 $(
                     let $arg = <$arg_type as $crate::ffi::FromLambdust>::from_lambdust(
@@ -67,11 +67,11 @@ macro_rules! define_ffi_function {
                         actual: format!("{:?}", arg_iter.next().unwrap()),
                     })?;
                 )*
-                
+
                 let result: $ret_type = {
                     $($body)*
                 };
-                
+
                 Ok($crate::ffi::ToLambdust::to_lambdust(result))
             }
         }
@@ -84,14 +84,14 @@ macro_rules! define_variadic_ffi_function {
     (
         $(#[doc = $doc:literal])*
         pub struct $name:ident;
-        
+
         fn $fn_name:ident($args:ident: &[Value]) -> $ret_type:ty {
             $($body:tt)*
         }
     ) => {
         $(#[doc = $doc])*
         pub struct $name;
-        
+
         impl $crate::ffi::FfiFunction for $name {
             fn signature(&self) -> &$crate::ffi::FfiSignature {
                 static SIGNATURE: std::sync::OnceLock<$crate::ffi::FfiSignature> = std::sync::OnceLock::new();
@@ -106,12 +106,12 @@ macro_rules! define_variadic_ffi_function {
                     }
                 })
             }
-            
+
             fn call(&self, $args: &[$crate::eval::Value]) -> std::result::Result<$crate::eval::Value, $crate::ffi::FfiError> {
                 let result: $ret_type = {
                     $($body)*
                 };
-                
+
                 Ok($crate::ffi::ToLambdust::to_lambdust(result))
             }
         }
@@ -128,7 +128,7 @@ impl RegistrationBuilder {
     pub fn new(registry: std::sync::Arc<FfiRegistry>) -> Self {
         Self { registry }
     }
-    
+
     /// Register a function.
     pub fn register<F>(self, function: F) -> Self
     where
@@ -139,7 +139,7 @@ impl RegistrationBuilder {
         }
         self
     }
-    
+
     /// Finish registration and return the registry.
     pub fn build(self) -> std::sync::Arc<FfiRegistry> {
         self.registry
@@ -172,7 +172,7 @@ mod tests {
     define_ffi_function! {
         /// Test function that adds two numbers.
         pub struct TestAddFunction;
-        
+
         fn test_add(a: f64, b: f64) -> f64 {
             a + b
         }
@@ -182,20 +182,20 @@ mod tests {
     fn test_function_definition() {
         let func = TestAddFunction;
         let sig = func.signature();
-        
+
         assert_eq!(sig.name, "test-add");
         assert_eq!(sig.arity, AritySpec::Exact(2));
-        
+
         let args = vec![Value::number(2.0), Value::number(3.0)];
         let result = func.call(&args).unwrap();
-        
+
         assert_eq!(result.as_number().unwrap(), 5.0);
     }
 
     define_variadic_ffi_function! {
         /// Test variadic function that sums all arguments.
         pub struct TestSumFunction;
-        
+
         fn test_sum(args: &[Value]) -> f64 {
             args.iter()
                 .filter_map(|v| v.as_number())
@@ -207,13 +207,13 @@ mod tests {
     fn test_variadic_function() {
         let func = TestSumFunction;
         let sig = func.signature();
-        
+
         assert_eq!(sig.name, "test-sum");
         assert_eq!(sig.arity, AritySpec::AtLeast(0));
-        
+
         let args = vec![Value::number(1.0), Value::number(2.0), Value::number(3.0)];
         let result = func.call(&args).unwrap();
-        
+
         assert_eq!(result.as_number().unwrap(), 6.0);
     }
 
@@ -225,7 +225,7 @@ mod tests {
             .register(TestAddFunction)
             .register(TestSumFunction)
             .build();
-        
+
         let functions = registry.list_functions();
         assert!(functions.contains(&"test-add".to_string()));
         assert!(functions.contains(&"test-sum".to_string()));

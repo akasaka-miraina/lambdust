@@ -10,8 +10,10 @@
 //! This implementation follows R6RS and R7RS specifications for syntax-case.
 
 use super::advanced_hygiene::{HygieneResolver, Mark, MarkSet};
-use super::syntax_objects::{SyntaxObject, LexicalContext, BindingInfo, syntax_utils};
-use super::identifier_transformers::{VariableTransformer, IdentifierContext, VariableTransformerRegistry};
+use super::identifier_transformers::{
+    IdentifierContext, VariableTransformer, VariableTransformerRegistry,
+};
+use super::syntax_objects::{BindingInfo, LexicalContext, SyntaxObject, syntax_utils};
 use crate::ast::{Expr, Literal};
 use crate::diagnostics::{Error, Result, Span, Spanned};
 use serde::{Deserialize, Serialize};
@@ -75,23 +77,48 @@ impl std::fmt::Debug for SyntaxPattern {
         match self {
             SyntaxPattern::PatternVariable(name) => write!(f, "PatternVariable({name})"),
             SyntaxPattern::Literal(lit) => write!(f, "Literal({lit:?})"),
-            SyntaxPattern::Identifier { name, binding_level } => {
-                write!(f, "Identifier {{ name: {name}, binding_level: {binding_level:?} }}")
+            SyntaxPattern::Identifier {
+                name,
+                binding_level,
+            } => {
+                write!(
+                    f,
+                    "Identifier {{ name: {name}, binding_level: {binding_level:?} }}"
+                )
             }
             SyntaxPattern::Nil => write!(f, "Nil"),
             SyntaxPattern::List(patterns) => write!(f, "List({patterns:?})"),
             SyntaxPattern::ImproperList { patterns, tail } => {
-                write!(f, "ImproperList {{ patterns: {patterns:?}, tail: {tail:?} }}")
+                write!(
+                    f,
+                    "ImproperList {{ patterns: {patterns:?}, tail: {tail:?} }}"
+                )
             }
-            SyntaxPattern::Ellipsis { pattern, min_count, max_count } => {
-                write!(f, "Ellipsis {{ pattern: {pattern:?}, min_count: {min_count}, max_count: {max_count:?} }}")
+            SyntaxPattern::Ellipsis {
+                pattern,
+                min_count,
+                max_count,
+            } => {
+                write!(
+                    f,
+                    "Ellipsis {{ pattern: {pattern:?}, min_count: {min_count}, max_count: {max_count:?} }}"
+                )
             }
             SyntaxPattern::Alternative(patterns) => write!(f, "Alternative({patterns:?})"),
-            SyntaxPattern::Guard { pattern, predicate: _ } => {
+            SyntaxPattern::Guard {
+                pattern,
+                predicate: _,
+            } => {
                 write!(f, "Guard {{ pattern: {pattern:?}, predicate: <fn> }}")
             }
-            SyntaxPattern::WithProperties { pattern, required_properties } => {
-                write!(f, "WithProperties {{ pattern: {pattern:?}, required_properties: {required_properties:?} }}")
+            SyntaxPattern::WithProperties {
+                pattern,
+                required_properties,
+            } => {
+                write!(
+                    f,
+                    "WithProperties {{ pattern: {pattern:?}, required_properties: {required_properties:?} }}"
+                )
             }
             SyntaxPattern::Vector(patterns) => write!(f, "Vector({patterns:?})"),
         }
@@ -103,29 +130,33 @@ impl Clone for SyntaxPattern {
         match self {
             SyntaxPattern::PatternVariable(name) => SyntaxPattern::PatternVariable(name.clone()),
             SyntaxPattern::Literal(lit) => SyntaxPattern::Literal(lit.clone()),
-            SyntaxPattern::Identifier { name, binding_level } => {
-                SyntaxPattern::Identifier {
-                    name: name.clone(),
-                    binding_level: *binding_level,
-                }
-            }
+            SyntaxPattern::Identifier {
+                name,
+                binding_level,
+            } => SyntaxPattern::Identifier {
+                name: name.clone(),
+                binding_level: *binding_level,
+            },
             SyntaxPattern::Nil => SyntaxPattern::Nil,
             SyntaxPattern::List(patterns) => SyntaxPattern::List(patterns.clone()),
-            SyntaxPattern::ImproperList { patterns, tail } => {
-                SyntaxPattern::ImproperList {
-                    patterns: patterns.clone(),
-                    tail: tail.clone(),
-                }
-            }
-            SyntaxPattern::Ellipsis { pattern, min_count, max_count } => {
-                SyntaxPattern::Ellipsis {
-                    pattern: pattern.clone(),
-                    min_count: *min_count,
-                    max_count: *max_count,
-                }
-            }
+            SyntaxPattern::ImproperList { patterns, tail } => SyntaxPattern::ImproperList {
+                patterns: patterns.clone(),
+                tail: tail.clone(),
+            },
+            SyntaxPattern::Ellipsis {
+                pattern,
+                min_count,
+                max_count,
+            } => SyntaxPattern::Ellipsis {
+                pattern: pattern.clone(),
+                min_count: *min_count,
+                max_count: *max_count,
+            },
             SyntaxPattern::Alternative(patterns) => SyntaxPattern::Alternative(patterns.clone()),
-            SyntaxPattern::Guard { pattern, predicate: _ } => {
+            SyntaxPattern::Guard {
+                pattern,
+                predicate: _,
+            } => {
                 // Note: We can't clone function pointers, so we create a default guard that always returns true
                 // In a real implementation, this would need to be handled differently
                 SyntaxPattern::Guard {
@@ -133,12 +164,13 @@ impl Clone for SyntaxPattern {
                     predicate: Box::new(|_| true),
                 }
             }
-            SyntaxPattern::WithProperties { pattern, required_properties } => {
-                SyntaxPattern::WithProperties {
-                    pattern: pattern.clone(),
-                    required_properties: required_properties.clone(),
-                }
-            }
+            SyntaxPattern::WithProperties {
+                pattern,
+                required_properties,
+            } => SyntaxPattern::WithProperties {
+                pattern: pattern.clone(),
+                required_properties: required_properties.clone(),
+            },
             SyntaxPattern::Vector(patterns) => SyntaxPattern::Vector(patterns.clone()),
         }
     }
@@ -149,24 +181,64 @@ impl PartialEq for SyntaxPattern {
         match (self, other) {
             (SyntaxPattern::PatternVariable(a), SyntaxPattern::PatternVariable(b)) => a == b,
             (SyntaxPattern::Literal(a), SyntaxPattern::Literal(b)) => a == b,
-            (SyntaxPattern::Identifier { name: a, binding_level: al }, 
-             SyntaxPattern::Identifier { name: b, binding_level: bl }) => a == b && al == bl,
+            (
+                SyntaxPattern::Identifier {
+                    name: a,
+                    binding_level: al,
+                },
+                SyntaxPattern::Identifier {
+                    name: b,
+                    binding_level: bl,
+                },
+            ) => a == b && al == bl,
             (SyntaxPattern::Nil, SyntaxPattern::Nil) => true,
             (SyntaxPattern::List(a), SyntaxPattern::List(b)) => a == b,
-            (SyntaxPattern::ImproperList { patterns: a, tail: at }, 
-             SyntaxPattern::ImproperList { patterns: b, tail: bt }) => a == b && at == bt,
-            (SyntaxPattern::Ellipsis { pattern: a, min_count: ac, max_count: amax }, 
-             SyntaxPattern::Ellipsis { pattern: b, min_count: bc, max_count: bmax }) => {
-                a == b && ac == bc && amax == bmax
-            }
+            (
+                SyntaxPattern::ImproperList {
+                    patterns: a,
+                    tail: at,
+                },
+                SyntaxPattern::ImproperList {
+                    patterns: b,
+                    tail: bt,
+                },
+            ) => a == b && at == bt,
+            (
+                SyntaxPattern::Ellipsis {
+                    pattern: a,
+                    min_count: ac,
+                    max_count: amax,
+                },
+                SyntaxPattern::Ellipsis {
+                    pattern: b,
+                    min_count: bc,
+                    max_count: bmax,
+                },
+            ) => a == b && ac == bc && amax == bmax,
             (SyntaxPattern::Alternative(a), SyntaxPattern::Alternative(b)) => a == b,
-            (SyntaxPattern::Guard { pattern: a, predicate: _ }, 
-             SyntaxPattern::Guard { pattern: b, predicate: _ }) => {
+            (
+                SyntaxPattern::Guard {
+                    pattern: a,
+                    predicate: _,
+                },
+                SyntaxPattern::Guard {
+                    pattern: b,
+                    predicate: _,
+                },
+            ) => {
                 // Note: We can't compare function pointers, so we only compare the pattern
                 a == b
             }
-            (SyntaxPattern::WithProperties { pattern: a, required_properties: ap }, 
-             SyntaxPattern::WithProperties { pattern: b, required_properties: bp }) => a == b && ap == bp,
+            (
+                SyntaxPattern::WithProperties {
+                    pattern: a,
+                    required_properties: ap,
+                },
+                SyntaxPattern::WithProperties {
+                    pattern: b,
+                    required_properties: bp,
+                },
+            ) => a == b && ap == bp,
             _ => false,
         }
     }
@@ -191,7 +263,10 @@ impl Serialize for SyntaxPattern {
                 state.serialize_field("literal", lit)?;
                 state.end()
             }
-            SyntaxPattern::Identifier { name, binding_level } => {
+            SyntaxPattern::Identifier {
+                name,
+                binding_level,
+            } => {
                 let mut state = serializer.serialize_struct("SyntaxPattern", 3)?;
                 state.serialize_field("type", "Identifier")?;
                 state.serialize_field("name", name)?;
@@ -216,7 +291,11 @@ impl Serialize for SyntaxPattern {
                 state.serialize_field("tail", tail)?;
                 state.end()
             }
-            SyntaxPattern::Ellipsis { pattern, min_count, max_count } => {
+            SyntaxPattern::Ellipsis {
+                pattern,
+                min_count,
+                max_count,
+            } => {
                 let mut state = serializer.serialize_struct("SyntaxPattern", 4)?;
                 state.serialize_field("type", "Ellipsis")?;
                 state.serialize_field("pattern", pattern)?;
@@ -230,14 +309,20 @@ impl Serialize for SyntaxPattern {
                 state.serialize_field("patterns", patterns)?;
                 state.end()
             }
-            SyntaxPattern::Guard { pattern, predicate: _ } => {
+            SyntaxPattern::Guard {
+                pattern,
+                predicate: _,
+            } => {
                 // Note: We can't serialize function pointers, so we just serialize the pattern
                 let mut state = serializer.serialize_struct("SyntaxPattern", 2)?;
                 state.serialize_field("type", "Guard")?;
                 state.serialize_field("pattern", pattern)?;
                 state.end()
             }
-            SyntaxPattern::WithProperties { pattern, required_properties } => {
+            SyntaxPattern::WithProperties {
+                pattern,
+                required_properties,
+            } => {
                 let mut state = serializer.serialize_struct("SyntaxPattern", 3)?;
                 state.serialize_field("type", "WithProperties")?;
                 state.serialize_field("pattern", pattern)?;
@@ -259,25 +344,25 @@ impl<'de> Deserialize<'de> for SyntaxPattern {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde::de::{MapAccess, Visitor};
         use serde::de::Error;
-        
+        use serde::de::{MapAccess, Visitor};
+
         struct SyntaxPatternVisitor;
-        
+
         impl<'de> Visitor<'de> for SyntaxPatternVisitor {
             type Value = SyntaxPattern;
-            
+
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a SyntaxPattern")
             }
-            
+
             fn visit_map<V>(self, mut map: V) -> std::result::Result<SyntaxPattern, V::Error>
             where
                 V: MapAccess<'de>,
             {
                 let mut pattern_type: Option<String> = None;
                 let mut data: Option<serde_json::Value> = None;
-                
+
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
                         "type" => pattern_type = Some(map.next_value()?),
@@ -291,22 +376,26 @@ impl<'de> Deserialize<'de> for SyntaxPattern {
                         }
                     }
                 }
-                
+
                 let pattern_type = pattern_type.ok_or_else(|| Error::missing_field("type"))?;
-                
+
                 match pattern_type.as_str() {
                     "PatternVariable" => {
                         let name: String = serde_json::from_value(
-                            data.and_then(|d| d.get("name").cloned()).unwrap_or(serde_json::Value::Null)
-                        ).map_err(Error::custom)?;
+                            data.and_then(|d| d.get("name").cloned())
+                                .unwrap_or(serde_json::Value::Null),
+                        )
+                        .map_err(Error::custom)?;
                         Ok(SyntaxPattern::PatternVariable(name))
                     }
                     "Nil" => Ok(SyntaxPattern::Nil),
                     "Guard" => {
                         // For Guard patterns, we deserialize the pattern but create a default predicate
                         let pattern: Box<SyntaxPattern> = serde_json::from_value(
-                            data.and_then(|d| d.get("pattern").cloned()).unwrap_or(serde_json::Value::Null)
-                        ).map_err(Error::custom)?;
+                            data.and_then(|d| d.get("pattern").cloned())
+                                .unwrap_or(serde_json::Value::Null),
+                        )
+                        .map_err(Error::custom)?;
                         Ok(SyntaxPattern::Guard {
                             pattern,
                             predicate: Box::new(|_| true), // Default predicate
@@ -315,12 +404,14 @@ impl<'de> Deserialize<'de> for SyntaxPattern {
                     _ => {
                         // For other variants, use serde_json for simplicity in this example
                         // In a real implementation, you'd handle each variant properly
-                        Err(Error::custom(format!("Unsupported pattern type: {pattern_type}")))
+                        Err(Error::custom(format!(
+                            "Unsupported pattern type: {pattern_type}"
+                        )))
                     }
                 }
             }
         }
-        
+
         deserializer.deserialize_map(SyntaxPatternVisitor)
     }
 }
@@ -512,25 +603,25 @@ impl<'de> Deserialize<'de> for SyntaxTemplate {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde::de::{MapAccess, Visitor};
         use serde::de::Error;
-        
+        use serde::de::{MapAccess, Visitor};
+
         struct SyntaxTemplateVisitor;
-        
+
         impl<'de> Visitor<'de> for SyntaxTemplateVisitor {
             type Value = SyntaxTemplate;
-            
+
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a SyntaxTemplate")
             }
-            
+
             fn visit_map<V>(self, mut map: V) -> std::result::Result<SyntaxTemplate, V::Error>
             where
                 V: MapAccess<'de>,
             {
                 let mut template_type: Option<String> = None;
                 let mut data: Option<serde_json::Value> = None;
-                
+
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
                         "type" => template_type = Some(map.next_value()?),
@@ -544,20 +635,24 @@ impl<'de> Deserialize<'de> for SyntaxTemplate {
                         }
                     }
                 }
-                
+
                 let template_type = template_type.ok_or_else(|| Error::missing_field("type"))?;
-                
+
                 match template_type.as_str() {
                     "PatternVariable" => {
                         let name: String = serde_json::from_value(
-                            data.and_then(|d| d.get("name").cloned()).unwrap_or(serde_json::Value::Null)
-                        ).map_err(Error::custom)?;
+                            data.and_then(|d| d.get("name").cloned())
+                                .unwrap_or(serde_json::Value::Null),
+                        )
+                        .map_err(Error::custom)?;
                         Ok(SyntaxTemplate::PatternVariable(name))
                     }
                     "Identifier" => {
                         let name: String = serde_json::from_value(
-                            data.and_then(|d| d.get("name").cloned()).unwrap_or(serde_json::Value::Null)
-                        ).map_err(Error::custom)?;
+                            data.and_then(|d| d.get("name").cloned())
+                                .unwrap_or(serde_json::Value::Null),
+                        )
+                        .map_err(Error::custom)?;
                         Ok(SyntaxTemplate::Identifier(name))
                     }
                     "Nil" => Ok(SyntaxTemplate::Nil),
@@ -568,7 +663,7 @@ impl<'de> Deserialize<'de> for SyntaxTemplate {
                 }
             }
         }
-        
+
         deserializer.deserialize_map(SyntaxTemplateVisitor)
     }
 }
@@ -593,17 +688,23 @@ impl SyntaxTemplate {
                 }
             }
 
-            SyntaxTemplate::Literal(lit) => {
-                Ok(SyntaxObject::new(Expr::Literal(lit.clone()), span, context.clone()))
-            }
+            SyntaxTemplate::Literal(lit) => Ok(SyntaxObject::new(
+                Expr::Literal(lit.clone()),
+                span,
+                context.clone(),
+            )),
 
-            SyntaxTemplate::Identifier(name) => {
-                Ok(SyntaxObject::new(Expr::Identifier(name.clone()), span, context.clone()))
-            }
+            SyntaxTemplate::Identifier(name) => Ok(SyntaxObject::new(
+                Expr::Identifier(name.clone()),
+                span,
+                context.clone(),
+            )),
 
-            SyntaxTemplate::Nil => {
-                Ok(SyntaxObject::new(Expr::Literal(Literal::Nil), span, context.clone()))
-            }
+            SyntaxTemplate::Nil => Ok(SyntaxObject::new(
+                Expr::Literal(Literal::Nil),
+                span,
+                context.clone(),
+            )),
 
             SyntaxTemplate::List(templates) => {
                 let mut elements = Vec::new();
@@ -611,7 +712,11 @@ impl SyntaxTemplate {
                     let syntax = template.expand(bindings, context, span)?;
                     elements.push(syntax.to_spanned());
                 }
-                Ok(SyntaxObject::new(Expr::List(elements), span, context.clone()))
+                Ok(SyntaxObject::new(
+                    Expr::List(elements),
+                    span,
+                    context.clone(),
+                ))
             }
 
             SyntaxTemplate::ImproperList { templates, tail } => {
@@ -620,7 +725,7 @@ impl SyntaxTemplate {
                 }
 
                 let mut result = tail.expand(bindings, context, span)?;
-                
+
                 // Build the improper list from right to left
                 for template in templates.iter().rev() {
                     let car_syntax = template.expand(bindings, context, span)?;
@@ -641,14 +746,23 @@ impl SyntaxTemplate {
                     elements.push(syntax.to_spanned());
                 }
                 // For now, represent vectors as lists - could be extended
-                Ok(SyntaxObject::new(Expr::List(elements), span, context.clone()))
+                Ok(SyntaxObject::new(
+                    Expr::List(elements),
+                    span,
+                    context.clone(),
+                ))
             }
 
-            SyntaxTemplate::Ellipsis { template, separator } => {
-                self.expand_ellipsis(template, separator.as_deref(), bindings, context, span)
-            }
+            SyntaxTemplate::Ellipsis {
+                template,
+                separator,
+            } => self.expand_ellipsis(template, separator.as_deref(), bindings, context, span),
 
-            SyntaxTemplate::Conditional { condition, then_template, else_template } => {
+            SyntaxTemplate::Conditional {
+                condition,
+                then_template,
+                else_template,
+            } => {
                 // Check if the condition pattern variable is bound and non-empty
                 let use_then = if let Some(syntax) = bindings.get(condition) {
                     !matches!(syntax.expr, Expr::Literal(Literal::Nil))
@@ -663,11 +777,18 @@ impl SyntaxTemplate {
                 } else if let Some(else_tmpl) = else_template {
                     else_tmpl.expand(bindings, context, span)
                 } else {
-                    Ok(SyntaxObject::new(Expr::Literal(Literal::Nil), span, context.clone()))
+                    Ok(SyntaxObject::new(
+                        Expr::Literal(Literal::Nil),
+                        span,
+                        context.clone(),
+                    ))
                 }
             }
 
-            SyntaxTemplate::Transform { function_name, argument } => {
+            SyntaxTemplate::Transform {
+                function_name,
+                argument,
+            } => {
                 // For now, just expand the argument
                 // TODO: Implement actual transformation functions
                 argument.expand(bindings, context, span)
@@ -692,7 +813,7 @@ impl SyntaxTemplate {
     ) -> Result<SyntaxObject> {
         // Find ellipsis variables in the template
         let ellipsis_vars = self.find_ellipsis_variables(template);
-        
+
         if ellipsis_vars.is_empty() {
             return Err(Box::new(Error::macro_error(
                 "Ellipsis template contains no ellipsis variables".to_string(),
@@ -713,7 +834,7 @@ impl SyntaxTemplate {
         for i in 0..max_length {
             // Create local bindings for this iteration
             let mut local_bindings = SyntaxBindings::new();
-            
+
             // Copy non-ellipsis bindings
             for (name, syntax) in &bindings.bindings {
                 local_bindings.bind(name.clone(), syntax.clone());
@@ -741,7 +862,11 @@ impl SyntaxTemplate {
             }
         }
 
-        Ok(SyntaxObject::new(Expr::List(expanded_elements), span, context.clone()))
+        Ok(SyntaxObject::new(
+            Expr::List(expanded_elements),
+            span,
+            context.clone(),
+        ))
     }
 
     /// Finds all ellipsis variables referenced in a template
@@ -774,13 +899,20 @@ impl SyntaxTemplate {
                     self.collect_ellipsis_variables(tmpl, vars);
                 }
             }
-            SyntaxTemplate::Ellipsis { template: tmpl, separator } => {
+            SyntaxTemplate::Ellipsis {
+                template: tmpl,
+                separator,
+            } => {
                 self.collect_ellipsis_variables(tmpl, vars);
                 if let Some(sep) = separator {
                     self.collect_ellipsis_variables(sep, vars);
                 }
             }
-            SyntaxTemplate::Conditional { then_template, else_template, .. } => {
+            SyntaxTemplate::Conditional {
+                then_template,
+                else_template,
+                ..
+            } => {
                 self.collect_ellipsis_variables(then_template, vars);
                 if let Some(else_tmpl) = else_template {
                     self.collect_ellipsis_variables(else_tmpl, vars);
@@ -818,17 +950,18 @@ impl SyntaxPattern {
                 Ok(())
             }
 
-            SyntaxPattern::Literal(pattern_lit) => {
-                match &syntax.expr {
-                    Expr::Literal(syntax_lit) if pattern_lit == syntax_lit => Ok(()),
-                    _ => Err(Box::new(Error::macro_error(
-                        format!("Literal pattern mismatch: expected {pattern_lit:?}"),
-                        syntax.span,
-                    ))),
-                }
-            }
+            SyntaxPattern::Literal(pattern_lit) => match &syntax.expr {
+                Expr::Literal(syntax_lit) if pattern_lit == syntax_lit => Ok(()),
+                _ => Err(Box::new(Error::macro_error(
+                    format!("Literal pattern mismatch: expected {pattern_lit:?}"),
+                    syntax.span,
+                ))),
+            },
 
-            SyntaxPattern::Identifier { name, binding_level } => {
+            SyntaxPattern::Identifier {
+                name,
+                binding_level,
+            } => {
                 match &syntax.expr {
                     Expr::Identifier(syntax_name) | Expr::Symbol(syntax_name) => {
                         if name == syntax_name {
@@ -836,7 +969,9 @@ impl SyntaxPattern {
                             Ok(())
                         } else {
                             Err(Box::new(Error::macro_error(
-                                format!("Identifier pattern mismatch: expected {name}, got {syntax_name}"),
+                                format!(
+                                    "Identifier pattern mismatch: expected {name}, got {syntax_name}"
+                                ),
                                 syntax.span,
                             )))
                         }
@@ -848,64 +983,62 @@ impl SyntaxPattern {
                 }
             }
 
-            SyntaxPattern::Nil => {
-                match &syntax.expr {
-                    Expr::Literal(Literal::Nil) => Ok(()),
-                    Expr::List(elements) if elements.is_empty() => Ok(()),
-                    _ => Err(Box::new(Error::macro_error(
-                        "Expected empty list/nil".to_string(),
-                        syntax.span,
-                    ))),
-                }
-            }
+            SyntaxPattern::Nil => match &syntax.expr {
+                Expr::Literal(Literal::Nil) => Ok(()),
+                Expr::List(elements) if elements.is_empty() => Ok(()),
+                _ => Err(Box::new(Error::macro_error(
+                    "Expected empty list/nil".to_string(),
+                    syntax.span,
+                ))),
+            },
 
-            SyntaxPattern::List(patterns) => {
-                match &syntax.expr {
-                    Expr::List(elements) => {
-                        if patterns.len() != elements.len() {
-                            return Err(Box::new(Error::macro_error(
-                                format!("List length mismatch: pattern has {}, syntax has {}",
-                                       patterns.len(), elements.len()),
-                                syntax.span,
-                            )));
-                        }
-
-                        for (pattern, element) in patterns.iter().zip(elements.iter()) {
-                            let element_syntax = SyntaxObject::from_spanned(
-                                element.clone(),
-                                syntax.context.clone(),
-                            );
-                            pattern.match_syntax_with_bindings(&element_syntax, bindings)?;
-                        }
-                        Ok(())
+            SyntaxPattern::List(patterns) => match &syntax.expr {
+                Expr::List(elements) => {
+                    if patterns.len() != elements.len() {
+                        return Err(Box::new(Error::macro_error(
+                            format!(
+                                "List length mismatch: pattern has {}, syntax has {}",
+                                patterns.len(),
+                                elements.len()
+                            ),
+                            syntax.span,
+                        )));
                     }
-                    Expr::Application { operator, operands } => {
-                        let mut all_elements = vec![(**operator).clone()];
-                        all_elements.extend(operands.iter().cloned());
-                        
-                        if patterns.len() != all_elements.len() {
-                            return Err(Box::new(Error::macro_error(
-                                format!("Application length mismatch: pattern has {}, syntax has {}",
-                                       patterns.len(), all_elements.len()),
-                                syntax.span,
-                            )));
-                        }
 
-                        for (pattern, element) in patterns.iter().zip(all_elements.iter()) {
-                            let element_syntax = SyntaxObject::from_spanned(
-                                element.clone(),
-                                syntax.context.clone(),
-                            );
-                            pattern.match_syntax_with_bindings(&element_syntax, bindings)?;
-                        }
-                        Ok(())
+                    for (pattern, element) in patterns.iter().zip(elements.iter()) {
+                        let element_syntax =
+                            SyntaxObject::from_spanned(element.clone(), syntax.context.clone());
+                        pattern.match_syntax_with_bindings(&element_syntax, bindings)?;
                     }
-                    _ => Err(Box::new(Error::macro_error(
-                        "Expected list or application".to_string(),
-                        syntax.span,
-                    ))),
+                    Ok(())
                 }
-            }
+                Expr::Application { operator, operands } => {
+                    let mut all_elements = vec![(**operator).clone()];
+                    all_elements.extend(operands.iter().cloned());
+
+                    if patterns.len() != all_elements.len() {
+                        return Err(Box::new(Error::macro_error(
+                            format!(
+                                "Application length mismatch: pattern has {}, syntax has {}",
+                                patterns.len(),
+                                all_elements.len()
+                            ),
+                            syntax.span,
+                        )));
+                    }
+
+                    for (pattern, element) in patterns.iter().zip(all_elements.iter()) {
+                        let element_syntax =
+                            SyntaxObject::from_spanned(element.clone(), syntax.context.clone());
+                        pattern.match_syntax_with_bindings(&element_syntax, bindings)?;
+                    }
+                    Ok(())
+                }
+                _ => Err(Box::new(Error::macro_error(
+                    "Expected list or application".to_string(),
+                    syntax.span,
+                ))),
+            },
 
             SyntaxPattern::ImproperList { patterns, tail } => {
                 match &syntax.expr {
@@ -931,12 +1064,10 @@ impl SyntaxPattern {
 
                         // Match tail
                         if patterns.len() < elements.len() {
-                            let tail_expr = self.build_tail_from_elements(&elements[patterns.len()..]);
-                            let tail_syntax = SyntaxObject::new(
-                                tail_expr,
-                                syntax.span,
-                                syntax.context.clone(),
-                            );
+                            let tail_expr =
+                                self.build_tail_from_elements(&elements[patterns.len()..]);
+                            let tail_syntax =
+                                SyntaxObject::new(tail_expr, syntax.span, syntax.context.clone());
                             tail.match_syntax_with_bindings(&tail_syntax, bindings)?;
                         }
 
@@ -949,9 +1080,11 @@ impl SyntaxPattern {
                 }
             }
 
-            SyntaxPattern::Ellipsis { pattern, min_count, max_count } => {
-                self.match_ellipsis_pattern(pattern, *min_count, *max_count, syntax, bindings)
-            }
+            SyntaxPattern::Ellipsis {
+                pattern,
+                min_count,
+                max_count,
+            } => self.match_ellipsis_pattern(pattern, *min_count, *max_count, syntax, bindings),
 
             SyntaxPattern::Alternative(alternatives) => {
                 let mut last_error = None;
@@ -976,7 +1109,7 @@ impl SyntaxPattern {
             SyntaxPattern::Guard { pattern, predicate } => {
                 // First match the underlying pattern
                 pattern.match_syntax_with_bindings(syntax, bindings)?;
-                
+
                 // Then check the predicate
                 if predicate(syntax) {
                     Ok(())
@@ -988,7 +1121,10 @@ impl SyntaxPattern {
                 }
             }
 
-            SyntaxPattern::WithProperties { pattern, required_properties } => {
+            SyntaxPattern::WithProperties {
+                pattern,
+                required_properties,
+            } => {
                 // Check that syntax has required properties
                 for prop_name in required_properties {
                     if syntax.get_property(prop_name).is_none() {
@@ -1009,17 +1145,18 @@ impl SyntaxPattern {
                     Expr::List(elements) => {
                         if patterns.len() != elements.len() {
                             return Err(Box::new(Error::macro_error(
-                                format!("Vector length mismatch: pattern has {}, syntax has {}",
-                                       patterns.len(), elements.len()),
+                                format!(
+                                    "Vector length mismatch: pattern has {}, syntax has {}",
+                                    patterns.len(),
+                                    elements.len()
+                                ),
                                 syntax.span,
                             )));
                         }
 
                         for (pattern, element) in patterns.iter().zip(elements.iter()) {
-                            let element_syntax = SyntaxObject::from_spanned(
-                                element.clone(),
-                                syntax.context.clone(),
-                            );
+                            let element_syntax =
+                                SyntaxObject::from_spanned(element.clone(), syntax.context.clone());
                             pattern.match_syntax_with_bindings(&element_syntax, bindings)?;
                         }
                         Ok(())
@@ -1077,11 +1214,9 @@ impl SyntaxPattern {
         // Collect ellipsis bindings
         let mut ellipsis_matches = Vec::new();
         for element in &elements {
-            let element_syntax = SyntaxObject::from_spanned(
-                element.clone(),
-                syntax.context.clone(),
-            );
-            
+            let element_syntax =
+                SyntaxObject::from_spanned(element.clone(), syntax.context.clone());
+
             let mut element_bindings = SyntaxBindings::new();
             pattern.match_syntax_with_bindings(&element_syntax, &mut element_bindings)?;
             ellipsis_matches.push(element_syntax);
@@ -1105,17 +1240,17 @@ impl SyntaxPattern {
     fn collect_improper_list_elements(&self, expr: &Expr) -> Vec<Expr> {
         let mut elements = Vec::new();
         let mut current = expr;
-        
+
         while let Expr::Pair { car, cdr } = current {
             elements.push(car.inner.clone());
             current = &cdr.inner;
         }
-        
+
         // Add the final tail if it's not nil
         if !matches!(current, Expr::Literal(Literal::Nil)) {
             elements.push(current.clone());
         }
-        
+
         elements
     }
 
@@ -1266,11 +1401,7 @@ mod tests {
             Spanned::new(Expr::Identifier("foo".to_string()), Span::new(1, 4)),
             Spanned::new(Expr::Literal(Literal::Number(42.0)), Span::new(5, 7)),
         ];
-        let syntax = SyntaxObject::new(
-            Expr::List(elements),
-            Span::new(0, 8),
-            context,
-        );
+        let syntax = SyntaxObject::new(Expr::List(elements), Span::new(0, 8), context);
 
         let pattern = SyntaxPattern::List(vec![
             SyntaxPattern::PatternVariable("x".to_string()),
@@ -1280,14 +1411,16 @@ mod tests {
         let bindings = pattern.match_syntax(&syntax).unwrap();
 
         assert_eq!(bindings.get("x").unwrap().identifier_name(), Some("foo"));
-        assert!(matches!(bindings.get("y").unwrap().expr, Expr::Literal(Literal::Number(n)) if n == 42.0));
+        assert!(
+            matches!(bindings.get("y").unwrap().expr, Expr::Literal(Literal::Number(n)) if n == 42.0)
+        );
     }
 
     #[test]
     fn test_template_expansion() {
         let mut bindings = SyntaxBindings::new();
         let context = LexicalContext::new(1, vec!["test".to_string()]);
-        
+
         // Add a binding
         let bound_syntax = SyntaxObject::new(
             Expr::Identifier("foo".to_string()),
@@ -1304,7 +1437,9 @@ mod tests {
         ]);
 
         // Expand the template
-        let result = template.expand(&bindings, &context, Span::new(0, 10)).unwrap();
+        let result = template
+            .expand(&bindings, &context, Span::new(0, 10))
+            .unwrap();
 
         // Should produce (lambda (foo) foo)
         assert!(matches!(result.expr, Expr::List(_)));

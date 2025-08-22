@@ -6,12 +6,12 @@
 
 use crate::ast::{Expr, Formals, Literal, Program};
 use crate::diagnostics::{Error, Result, Span, Spanned};
-use crate::eval::{Value, Environment, Procedure};
+use crate::eval::{Environment, Procedure, Value};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::rc::Rc;
+use std::sync::Arc;
 
 /// AST transformation rule.
 #[derive(Debug, Clone)]
@@ -87,11 +87,11 @@ pub enum LiteralPattern {
     /// Match specific boolean
     Boolean(bool),
     /// Match number range
-    NumberRange { 
+    NumberRange {
         /// Minimum value (inclusive, None means no minimum).
-        min: Option<f64>, 
+        min: Option<f64>,
         /// Maximum value (inclusive, None means no maximum).
-        max: Option<f64> 
+        max: Option<f64>,
     },
     /// Match string pattern
     StringPattern(String), // Could be regex
@@ -271,11 +271,7 @@ impl DynamicDefinition {
     }
 
     /// Defines a procedure in the environment.
-    pub fn define_procedure(
-        &mut self,
-        name: &str,
-        procedure: Value,
-    ) -> Result<()> {
+    pub fn define_procedure(&mut self, name: &str, procedure: Value) -> Result<()> {
         if !procedure.is_procedure() {
             return Err(Box::new(Error::runtime_error(
                 "Expected procedure".to_string(),
@@ -367,8 +363,13 @@ impl AstTransformer {
                     expr.span,
                 ))
             }
-            
-            Expr::Lambda { formals, metadata, body, .. } => {
+
+            Expr::Lambda {
+                formals,
+                metadata,
+                body,
+                ..
+            } => {
                 let mut new_body = Vec::new();
                 for expr in body {
                     new_body.push(self.transform(expr)?);
@@ -384,7 +385,7 @@ impl AstTransformer {
                     expr.span,
                 ))
             }
-            
+
             // Other expression types would be handled similarly
             _ => Ok(expr.clone()),
         }
@@ -417,7 +418,7 @@ impl AstTransformer {
     fn pattern_matches(&mut self, pattern: &AstPattern, expr: &Spanned<Expr>) -> Result<bool> {
         match pattern {
             AstPattern::Any => Ok(true),
-            
+
             AstPattern::Literal(lit_pattern) => {
                 if let Expr::Literal(lit) = &expr.inner {
                     self.literal_pattern_matches(lit_pattern, lit)
@@ -425,7 +426,7 @@ impl AstTransformer {
                     Ok(false)
                 }
             }
-            
+
             AstPattern::Identifier(id_pattern) => {
                 if let Expr::Identifier(name) = &expr.inner {
                     self.identifier_pattern_matches(id_pattern, name)
@@ -433,9 +434,13 @@ impl AstTransformer {
                     Ok(false)
                 }
             }
-            
+
             AstPattern::Application { operator, operands } => {
-                if let Expr::Application { operator: expr_op, operands: expr_ops } = &expr.inner {
+                if let Expr::Application {
+                    operator: expr_op,
+                    operands: expr_ops,
+                } = &expr.inner
+                {
                     if !self.pattern_matches(operator, expr_op)? {
                         return Ok(false);
                     }
@@ -452,7 +457,7 @@ impl AstTransformer {
                     Ok(false)
                 }
             }
-            
+
             AstPattern::Variable { name, pattern } => {
                 if self.pattern_matches(pattern, expr)? {
                     self.context.bindings.insert(name.clone(), expr.clone());
@@ -461,7 +466,7 @@ impl AstTransformer {
                     Ok(false)
                 }
             }
-            
+
             AstPattern::Alternative(patterns) => {
                 for pattern in patterns {
                     if self.pattern_matches(pattern, expr)? {
@@ -470,7 +475,7 @@ impl AstTransformer {
                 }
                 Ok(false)
             }
-            
+
             _ => Ok(false), // Other patterns not implemented
         }
     }
@@ -480,7 +485,9 @@ impl AstTransformer {
         match (pattern, literal) {
             (LiteralPattern::Any, _) => Ok(true),
             (LiteralPattern::Boolean(expected), Literal::Boolean(actual)) => Ok(expected == actual),
-            (LiteralPattern::Character(expected), Literal::Character(actual)) => Ok(expected == actual),
+            (LiteralPattern::Character(expected), Literal::Character(actual)) => {
+                Ok(expected == actual)
+            }
             (LiteralPattern::NumberRange { min, max }, Literal::ExactInteger(n)) => {
                 let n = *n as f64;
                 let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
@@ -534,18 +541,21 @@ impl AstTransformer {
     }
 
     /// Applies a template to generate an expression.
-    fn apply_template(&self, template: &AstTemplate, _context_expr: &Spanned<Expr>) -> Result<Spanned<Expr>> {
+    fn apply_template(
+        &self,
+        template: &AstTemplate,
+        _context_expr: &Spanned<Expr>,
+    ) -> Result<Spanned<Expr>> {
         match template {
-            AstTemplate::Literal(lit) => Ok(Spanned::new(
-                Expr::Literal(lit.clone()),
-                Span::default(),
-            )),
-            
+            AstTemplate::Literal(lit) => {
+                Ok(Spanned::new(Expr::Literal(lit.clone()), Span::default()))
+            }
+
             AstTemplate::Identifier(name) => Ok(Spanned::new(
                 Expr::Identifier(name.clone()),
                 Span::default(),
             )),
-            
+
             AstTemplate::Variable(name) => {
                 if let Some(expr) = self.context.bindings.get(name) {
                     Ok(expr.clone())
@@ -556,7 +566,7 @@ impl AstTransformer {
                     )))
                 }
             }
-            
+
             AstTemplate::Application { operator, operands } => {
                 let new_operator = self.apply_template(operator, _context_expr)?;
                 let mut new_operands = Vec::new();
@@ -571,11 +581,11 @@ impl AstTransformer {
                     Span::default(),
                 ))
             }
-            
+
             _ => Err(Box::new(Error::runtime_error(
                 "Template type not implemented".to_string(),
                 None,
-            )))
+            ))),
         }
     }
 }
@@ -601,16 +611,19 @@ impl TemplateSystem {
 
     /// Expands a template with given arguments.
     pub fn expand_template(&self, name: &str, args: &[Value]) -> Result<String> {
-        let template = self.templates.get(name)
-            .ok_or_else(|| Error::runtime_error(
-                format!("Unknown template: {name}"),
-                None,
-            ))?;
+        let template = self
+            .templates
+            .get(name)
+            .ok_or_else(|| Error::runtime_error(format!("Unknown template: {name}"), None))?;
 
         if args.len() != template.parameters.len() {
             return Err(Box::new(Error::runtime_error(
-                format!("Template {} expects {} arguments, got {}",
-                    name, template.parameters.len(), args.len()),
+                format!(
+                    "Template {} expects {} arguments, got {}",
+                    name,
+                    template.parameters.len(),
+                    args.len()
+                ),
                 None,
             )));
         }
@@ -618,14 +631,14 @@ impl TemplateSystem {
         match &template.body {
             TemplateBody::String(s) => {
                 let mut result = s.clone();
-                
+
                 // Simple string substitution
                 for (param, arg) in template.parameters.iter().zip(args.iter()) {
                     let placeholder = format!("{{{param}}}");
                     let replacement = self.value_to_string(arg);
                     result = result.replace(&placeholder, &replacement);
                 }
-                
+
                 Ok(result)
             }
             _ => Err(Box::new(Error::runtime_error(
@@ -641,8 +654,16 @@ impl TemplateSystem {
             Value::Literal(Literal::String(s)) => (**s).clone(),
             Value::Literal(Literal::ExactInteger(n)) => n.to_string(),
             Value::Literal(Literal::InexactReal(n)) => n.to_string(),
-            Value::Literal(Literal::Boolean(b)) => if *b { "#t".to_string() } else { "#f".to_string() },
-            Value::Symbol(sym) => crate::utils::symbol_name(*sym).unwrap_or_else(|| format!("symbol-{}", sym.0)),
+            Value::Literal(Literal::Boolean(b)) => {
+                if *b {
+                    "#t".to_string()
+                } else {
+                    "#f".to_string()
+                }
+            }
+            Value::Symbol(sym) => {
+                crate::utils::symbol_name(*sym).unwrap_or_else(|| format!("symbol-{}", sym.0))
+            }
             _ => format!("{value}"),
         }
     }

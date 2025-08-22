@@ -9,15 +9,15 @@
 
 #![allow(missing_docs)]
 
-use super::{Type, TypeVar, TypeScheme, TypeChecker, TypeLevel};
-use super::algebraic::{Pattern, PatternMatcher};
 use super::advanced_type_classes::AdvancedTypeClassEnv;
+use super::algebraic::{Pattern, PatternMatcher};
 use super::r7rs_integration::R7RSIntegration;
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
+use super::{Type, TypeChecker, TypeLevel, TypeScheme, TypeVar};
 use crate::diagnostics::{Error, Result, Span};
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, RwLock};
 use std::fmt;
+use std::sync::{Arc, RwLock};
 
 /// The main integration bridge for Lambdust's type system.
 pub struct TypeSystemBridge {
@@ -78,7 +78,7 @@ pub struct OptimizedPrimitive {
     pub base: PrimitiveProcedure,
     /// Optimized implementations for specific type combinations
     pub specializations: HashMap<TypeSignature, PrimitiveImpl>,
-    /// Usage statistics for optimization decisions  
+    /// Usage statistics for optimization decisions
     pub stats: PrimitiveStats,
 }
 
@@ -155,49 +155,68 @@ impl TypeSystemBridge {
     }
 
     /// Integrates a primitive procedure with the type system.
-    pub fn integrate_primitive(&mut self, name: String, primitive: PrimitiveProcedure) -> Result<()> {
+    pub fn integrate_primitive(
+        &mut self,
+        name: String,
+        primitive: PrimitiveProcedure,
+    ) -> Result<()> {
         // Infer or specify the type scheme for this primitive
         let type_scheme = self.infer_primitive_type(&name, &primitive)?;
-        
+
         // Add to type environment
-        self.type_checker.env_mut().bind(name.clone(), type_scheme.clone());
-        
+        self.type_checker
+            .env_mut()
+            .bind(name.clone(), type_scheme.clone());
+
         // Create optimized primitive
         let optimized = OptimizedPrimitive {
             base: primitive,
             specializations: HashMap::new(),
             stats: PrimitiveStats::new(),
         };
-        
+
         // Cache the optimized primitive
-        self.primitive_cache.write().unwrap().insert(name, optimized);
-        
+        self.primitive_cache
+            .write()
+            .unwrap()
+            .insert(name, optimized);
+
         Ok(())
     }
 
     /// Infers the type scheme for a primitive procedure.
-    fn infer_primitive_type(&self, name: &str, primitive: &PrimitiveProcedure) -> Result<TypeScheme> {
+    fn infer_primitive_type(
+        &self,
+        name: &str,
+        primitive: &PrimitiveProcedure,
+    ) -> Result<TypeScheme> {
         match name {
             // Arithmetic operations
             "+" | "-" | "*" | "/" => Ok(TypeScheme::polymorphic(
                 vec![TypeVar::with_name("a")],
-                vec![super::Constraint { class: "Num".to_string(), type_: Type::named_var("a") }],
+                vec![super::Constraint {
+                    class: "Num".to_string(),
+                    type_: Type::named_var("a"),
+                }],
                 Type::function(
                     vec![Type::named_var("a"), Type::named_var("a")],
                     Type::named_var("a"),
                 ),
             )),
-            
+
             // Comparison operations
             "=" | "<" | ">" | "<=" | ">=" => Ok(TypeScheme::polymorphic(
                 vec![TypeVar::with_name("a")],
-                vec![super::Constraint { class: "Ord".to_string(), type_: Type::named_var("a") }],
+                vec![super::Constraint {
+                    class: "Ord".to_string(),
+                    type_: Type::named_var("a"),
+                }],
                 Type::function(
                     vec![Type::named_var("a"), Type::named_var("a")],
                     Type::Boolean,
                 ),
             )),
-            
+
             // List operations
             "cons" => Ok(TypeScheme::polymorphic(
                 vec![TypeVar::with_name("a")],
@@ -223,29 +242,31 @@ impl TypeSystemBridge {
                     Type::named_var("b"),
                 ),
             )),
-            
+
             // I/O operations
             "display" | "write" => Ok(TypeScheme::polymorphic(
                 vec![TypeVar::with_name("a")],
-                vec![super::Constraint { class: "Show".to_string(), type_: Type::named_var("a") }],
+                vec![super::Constraint {
+                    class: "Show".to_string(),
+                    type_: Type::named_var("a"),
+                }],
                 Type::Effectful {
                     input: Box::new(Type::named_var("a")),
                     effects: vec![super::Effect::IO],
                     output: Box::new(Type::Unit),
                 },
             )),
-            
+
             // String operations
-            "string-append" => Ok(TypeScheme::monomorphic(
-                Type::function(
-                    vec![Type::String, Type::String],
-                    Type::String,
-                ),
-            )),
-            "string-length" => Ok(TypeScheme::monomorphic(
-                Type::function(vec![Type::String], Type::Number),
-            )),
-            
+            "string-append" => Ok(TypeScheme::monomorphic(Type::function(
+                vec![Type::String, Type::String],
+                Type::String,
+            ))),
+            "string-length" => Ok(TypeScheme::monomorphic(Type::function(
+                vec![Type::String],
+                Type::Number,
+            ))),
+
             // Vector operations
             "vector-ref" => Ok(TypeScheme::polymorphic(
                 vec![TypeVar::with_name("a")],
@@ -264,7 +285,7 @@ impl TypeSystemBridge {
                     output: Box::new(Type::Unit),
                 },
             )),
-            
+
             // Generic fallback
             _ => {
                 // Try to infer from arity information
@@ -272,9 +293,11 @@ impl TypeSystemBridge {
                     .map(|i| Type::named_var(format!("a{i}")))
                     .collect();
                 let return_type = Type::named_var("result");
-                
+
                 Ok(TypeScheme::polymorphic(
-                    (0..=primitive.arity_min).map(|i| TypeVar::with_name(format!("a{i}"))).collect(),
+                    (0..=primitive.arity_min)
+                        .map(|i| TypeVar::with_name(format!("a{i}")))
+                        .collect(),
                     vec![],
                     Type::function(param_types, return_type),
                 ))
@@ -284,9 +307,9 @@ impl TypeSystemBridge {
 
     /// Specializes a primitive for specific type arguments.
     pub fn specialize_primitive(
-        &mut self, 
-        name: &str, 
-        type_args: &[Type]
+        &mut self,
+        name: &str,
+        type_args: &[Type],
     ) -> Result<Option<PrimitiveImpl>> {
         let cache = self.primitive_cache.read().unwrap();
         if let Some(optimized) = cache.get(name) {
@@ -295,22 +318,26 @@ impl TypeSystemBridge {
                 params: type_args.to_vec(),
                 return_type: Type::Dynamic, // Would be inferred
             };
-            
+
             // Check if we have a specialization
             if let Some(specialized) = optimized.specializations.get(&sig) {
                 return Ok(Some(specialized.clone()));
             }
-            
+
             // Generate specialization if needed
             drop(cache); // Release read lock
             return self.generate_specialization(name, &sig);
         }
-        
+
         Ok(None)
     }
 
     /// Generates a specialized implementation for a primitive.
-    fn generate_specialization(&mut self, name: &str, sig: &TypeSignature) -> Result<Option<PrimitiveImpl>> {
+    fn generate_specialization(
+        &mut self,
+        name: &str,
+        sig: &TypeSignature,
+    ) -> Result<Option<PrimitiveImpl>> {
         match name {
             "+" if sig.params.len() == 2 && sig.params.iter().all(|t| *t == Type::Number) => {
                 // Specialized number addition
@@ -318,7 +345,10 @@ impl TypeSystemBridge {
                     if let (Some(n1), Some(n2)) = (args[0].as_number(), args[1].as_number()) {
                         Ok(Value::number(n1 + n2))
                     } else {
-                        Err(Box::new(Error::runtime_error("Type error in specialized +".to_string(), None)))
+                        Err(Box::new(Error::runtime_error(
+                            "Type error in specialized +".to_string(),
+                            None,
+                        )))
                     }
                 })))
             }
@@ -328,7 +358,10 @@ impl TypeSystemBridge {
                     if let (Some(n1), Some(n2)) = (args[0].as_number(), args[1].as_number()) {
                         Ok(Value::number(n1 * n2))
                     } else {
-                        Err(Box::new(Error::runtime_error("Type error in specialized *".to_string(), None)))
+                        Err(Box::new(Error::runtime_error(
+                            "Type error in specialized *".to_string(),
+                            None,
+                        )))
                     }
                 })))
             }
@@ -340,7 +373,10 @@ impl TypeSystemBridge {
                         if let Some(s) = arg.as_string() {
                             result.push_str(s);
                         } else {
-                            return Err(Box::new(Error::runtime_error("Type error in specialized string-append".to_string(), None)));
+                            return Err(Box::new(Error::runtime_error(
+                                "Type error in specialized string-append".to_string(),
+                                None,
+                            )));
                         }
                     }
                     Ok(Value::string(result))
@@ -351,24 +387,30 @@ impl TypeSystemBridge {
     }
 
     /// Checks if a value matches a pattern with type safety.
-    pub fn type_safe_pattern_match(&mut self, pattern: &Pattern, value: &Value, expected_type: &Type) -> Result<bool> {
+    pub fn type_safe_pattern_match(
+        &mut self,
+        pattern: &Pattern,
+        value: &Value,
+        expected_type: &Type,
+    ) -> Result<bool> {
         // First check if the value matches the expected type
         if !self.value_matches_type(value, expected_type)? {
             return Ok(false);
         }
-        
+
         // Then check pattern matching
-        self.pattern_matcher.compile_match(&super::algebraic::MatchExpression {
-            scrutinee: "value".to_string(), // Simplified
-            clauses: vec![super::algebraic::MatchClause {
-                pattern: pattern.clone(),
-                guard: None,
-                body: "true".to_string(),
+        self.pattern_matcher
+            .compile_match(&super::algebraic::MatchExpression {
+                scrutinee: "value".to_string(), // Simplified
+                clauses: vec![super::algebraic::MatchClause {
+                    pattern: pattern.clone(),
+                    guard: None,
+                    body: "true".to_string(),
+                    span: None,
+                }],
                 span: None,
-            }],
-            span: None,
-        })?;
-        
+            })?;
+
         // Simplified: assume pattern matches if we get here
         Ok(true)
     }
@@ -379,7 +421,10 @@ impl TypeSystemBridge {
             Type::Dynamic => Ok(true),
             Type::Number => Ok(value.is_number()),
             Type::String => Ok(value.is_string()),
-            Type::Boolean => Ok(matches!(value, Value::Literal(crate::ast::Literal::Boolean(_)))),
+            Type::Boolean => Ok(matches!(
+                value,
+                Value::Literal(crate::ast::Literal::Boolean(_))
+            )),
             Type::Symbol => Ok(value.is_symbol()),
             Type::List(_) => Ok(value.is_list()),
             Type::Vector(_) => Ok(value.is_vector()),
@@ -395,13 +440,13 @@ impl TypeSystemBridge {
     pub fn migrate_function(&mut self, name: String, type_scheme: TypeScheme) -> Result<()> {
         // Add to migration state
         self.migration_state.static_functions.insert(name.clone());
-        
+
         // Update type environment
         self.type_checker.env_mut().bind(name.clone(), type_scheme);
-        
+
         // Check for potential issues
         self.check_migration_issues(&name)?;
-        
+
         Ok(())
     }
 
@@ -409,8 +454,9 @@ impl TypeSystemBridge {
     fn check_migration_issues(&mut self, name: &str) -> Result<()> {
         // Check if function is called with incompatible types
         // This is simplified - a real implementation would analyze call sites
-        
-        if name.starts_with("string-") && self.migration_state.inferred_functions.contains_key(name) {
+
+        if name.starts_with("string-") && self.migration_state.inferred_functions.contains_key(name)
+        {
             self.migration_state.migration_warnings.push(MigrationWarning {
                 message: format!("Function {name} migrated to static typing - verify all call sites use strings"),
                 span: None,
@@ -418,7 +464,7 @@ impl TypeSystemBridge {
                 severity: WarningSeverity::Warning,
             });
         }
-        
+
         Ok(())
     }
 
@@ -435,7 +481,7 @@ impl TypeSystemBridge {
                 self.analyze_primitive_usage(&name, optimized)?;
             }
         }
-        
+
         Ok(())
     }
 
@@ -443,7 +489,7 @@ impl TypeSystemBridge {
     fn analyze_primitive_usage(&self, name: &str, optimized: &OptimizedPrimitive) -> Result<()> {
         // Find the most common type signatures
         let mut most_common: Option<(TypeSignature, u64)> = None;
-        
+
         for (sig, count) in &optimized.stats.type_calls {
             if let Some((_, current_max)) = &most_common {
                 if count > current_max {
@@ -453,14 +499,16 @@ impl TypeSystemBridge {
                 most_common = Some((sig.clone(), *count));
             }
         }
-        
+
         // Suggest specialization if beneficial
         if let Some((sig, count)) = most_common {
             if count > 100 && !optimized.specializations.contains_key(&sig) {
-                println!("Suggestion: Specialize {name} for signature {sig:?} (used {count} times)");
+                println!(
+                    "Suggestion: Specialize {name} for signature {sig:?} (used {count} times)"
+                );
             }
         }
-        
+
         Ok(())
     }
 
@@ -468,7 +516,7 @@ impl TypeSystemBridge {
     pub fn performance_report(&self) -> PerformanceReport {
         let cache = self.primitive_cache.read().unwrap();
         let mut report = PerformanceReport::new();
-        
+
         for (name, optimized) in cache.iter() {
             let primitive_report = PrimitivePerformanceReport {
                 name: name.clone(),
@@ -479,7 +527,7 @@ impl TypeSystemBridge {
             };
             report.add_primitive(primitive_report);
         }
-        
+
         report
     }
 }
@@ -502,7 +550,9 @@ impl MigrationState {
 
     /// Gets the migration progress as a percentage.
     pub fn progress(&self) -> f64 {
-        let total = self.static_functions.len() + self.annotated_functions.len() + self.inferred_functions.len();
+        let total = self.static_functions.len()
+            + self.annotated_functions.len()
+            + self.inferred_functions.len();
         if total == 0 {
             0.0
         } else {
@@ -526,10 +576,12 @@ impl PrimitiveStats {
     pub fn record_call(&mut self, sig: TypeSignature, execution_time: u64, memory_usage: u64) {
         self.call_count += 1;
         *self.type_calls.entry(sig).or_insert(0) += 1;
-        
+
         // Update running averages
-        self.avg_execution_time = ((self.avg_execution_time * (self.call_count - 1)) + execution_time) / self.call_count;
-        self.avg_memory_usage = ((self.avg_memory_usage * (self.call_count - 1)) + memory_usage) / self.call_count;
+        self.avg_execution_time =
+            ((self.avg_execution_time * (self.call_count - 1)) + execution_time) / self.call_count;
+        self.avg_memory_usage =
+            ((self.avg_memory_usage * (self.call_count - 1)) + memory_usage) / self.call_count;
     }
 }
 
@@ -635,16 +687,24 @@ impl fmt::Display for PerformanceReport {
         writeln!(f, "Total calls: {}", self.total_calls)?;
         writeln!(f, "Total specializations: {}", self.total_specializations)?;
         writeln!(f)?;
-        
+
         for primitive in &self.primitives {
             writeln!(f, "Primitive: {}", primitive.name)?;
             writeln!(f, "  Calls: {}", primitive.total_calls)?;
             writeln!(f, "  Specializations: {}", primitive.specializations)?;
-            writeln!(f, "  Avg execution time: {}ns", primitive.avg_execution_time)?;
-            writeln!(f, "  Avg memory usage: {} bytes", primitive.avg_memory_usage)?;
+            writeln!(
+                f,
+                "  Avg execution time: {}ns",
+                primitive.avg_execution_time
+            )?;
+            writeln!(
+                f,
+                "  Avg memory usage: {} bytes",
+                primitive.avg_memory_usage
+            )?;
             writeln!(f)?;
         }
-        
+
         Ok(())
     }
 }
@@ -664,7 +724,7 @@ mod tests {
     fn test_primitive_integration() {
         let config = IntegrationConfig::default();
         let mut bridge = TypeSystemBridge::new(config);
-        
+
         let add_primitive = PrimitiveProcedure {
             name: "+".to_string(),
             arity_min: 2,
@@ -672,7 +732,7 @@ mod tests {
             implementation: PrimitiveImpl::RustFn(|_| Ok(Value::Unspecified)),
             effects: vec![crate::effects::Effect::Pure],
         };
-        
+
         let result = bridge.integrate_primitive("+".to_string(), add_primitive);
         assert!(result.is_ok());
     }
@@ -681,24 +741,43 @@ mod tests {
     fn test_value_type_matching() {
         let config = IntegrationConfig::default();
         let bridge = TypeSystemBridge::new(config);
-        
+
         let number_val = Value::integer(42);
         let string_val = Value::string("hello");
-        
-        assert!(bridge.value_matches_type(&number_val, &Type::Number).unwrap());
-        assert!(!bridge.value_matches_type(&number_val, &Type::String).unwrap());
-        assert!(bridge.value_matches_type(&string_val, &Type::String).unwrap());
-        assert!(bridge.value_matches_type(&number_val, &Type::Dynamic).unwrap());
+
+        assert!(
+            bridge
+                .value_matches_type(&number_val, &Type::Number)
+                .unwrap()
+        );
+        assert!(
+            !bridge
+                .value_matches_type(&number_val, &Type::String)
+                .unwrap()
+        );
+        assert!(
+            bridge
+                .value_matches_type(&string_val, &Type::String)
+                .unwrap()
+        );
+        assert!(
+            bridge
+                .value_matches_type(&number_val, &Type::Dynamic)
+                .unwrap()
+        );
     }
 
     #[test]
     fn test_migration_state() {
         let mut state = MigrationState::new();
         assert_eq!(state.progress(), 0.0);
-        
+
         state.static_functions.insert("test-func".to_string());
-        state.annotated_functions.insert("other-func".to_string(), TypeScheme::monomorphic(Type::Number));
-        
+        state.annotated_functions.insert(
+            "other-func".to_string(),
+            TypeScheme::monomorphic(Type::Number),
+        );
+
         assert!(state.is_static("test-func"));
         assert!(!state.is_static("other-func"));
         assert_eq!(state.progress(), 50.0);
@@ -707,15 +786,15 @@ mod tests {
     #[test]
     fn test_primitive_stats() {
         let mut stats = PrimitiveStats::new();
-        
+
         let sig = TypeSignature {
             params: vec![Type::Number, Type::Number],
             return_type: Type::Number,
         };
-        
+
         stats.record_call(sig.clone(), 100, 64);
         stats.record_call(sig.clone(), 200, 128);
-        
+
         assert_eq!(stats.call_count, 2);
         assert_eq!(stats.avg_execution_time, 150);
         assert_eq!(stats.avg_memory_usage, 96);
@@ -725,7 +804,7 @@ mod tests {
     #[test]
     fn test_performance_report() {
         let mut report = PerformanceReport::new();
-        
+
         let primitive_report = PrimitivePerformanceReport {
             name: "+".to_string(),
             total_calls: 100,
@@ -733,9 +812,9 @@ mod tests {
             avg_execution_time: 50,
             avg_memory_usage: 32,
         };
-        
+
         report.add_primitive(primitive_report);
-        
+
         assert_eq!(report.total_calls, 100);
         assert_eq!(report.total_specializations, 2);
         assert_eq!(report.primitives.len(), 1);

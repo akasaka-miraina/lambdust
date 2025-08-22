@@ -3,8 +3,8 @@
 //! This module provides comprehensive security controls for dynamic evaluation,
 //! including permission systems, access controls, and resource limits.
 
-use crate::eval::Value;
 use crate::diagnostics::{Error, Result};
+use crate::eval::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -17,45 +17,45 @@ pub enum Permission {
     /// Allow compilation
     Compile,
     /// Allow file system access
-    FileSystem { 
+    FileSystem {
         /// File path for access.
-        path: String, 
+        path: String,
         /// Allow read access.
-        read: bool, 
+        read: bool,
         /// Allow write access.
-        write: bool 
+        write: bool,
     },
     /// Allow network access
-    Network { 
+    Network {
         /// Host name or IP address.
-        host: String, 
+        host: String,
         /// Optional port number.
-        port: Option<u16> 
+        port: Option<u16>,
     },
     /// Allow environment manipulation
-    Environment { 
+    Environment {
         /// Allow reading environment.
-        read: bool, 
+        read: bool,
         /// Allow writing environment.
-        write: bool 
+        write: bool,
     },
     /// Allow reflection operations
     Reflection,
     /// Allow FFI calls
     Ffi,
     /// Allow module operations
-    Module { 
+    Module {
         /// Allow loading modules.
-        load: bool, 
+        load: bool,
         /// Allow unloading modules.
-        unload: bool 
+        unload: bool,
     },
     /// Allow memory management
-    Memory { 
+    Memory {
         /// Allow memory allocation.
-        allocate: bool, 
+        allocate: bool,
         /// Allow garbage collection.
-        gc: bool 
+        gc: bool,
     },
     /// Allow system calls
     System,
@@ -83,8 +83,7 @@ pub struct SecurityPolicy {
 }
 
 /// Resource limits for sandboxed execution.
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ResourceLimits {
     /// Maximum number of allocations
     pub max_allocations: Option<usize>,
@@ -119,25 +118,25 @@ pub struct AccessControlEntry {
 #[derive(Debug, Clone)]
 pub enum AccessCondition {
     /// Time-based condition
-    TimeRange { 
+    TimeRange {
         /// Start time of the valid range.
-        start: Instant, 
+        start: Instant,
         /// End time of the valid range.
-        end: Instant 
+        end: Instant,
     },
     /// Resource-based condition
-    ResourceLimit { 
+    ResourceLimit {
         /// The resource being limited.
-        resource: String, 
+        resource: String,
         /// The limit value for the resource.
-        limit: usize 
+        limit: usize,
     },
     /// Context-based condition
-    Context { 
+    Context {
         /// Context key.
-        key: String, 
+        key: String,
         /// Context value.
-        value: String 
+        value: String,
     },
     /// Custom condition
     Custom(String),
@@ -208,8 +207,11 @@ impl SecurityPolicy {
         permissions.insert(Permission::Eval);
         permissions.insert(Permission::Compile);
         permissions.insert(Permission::Reflection);
-        permissions.insert(Permission::Environment { read: true, write: true });
-        
+        permissions.insert(Permission::Environment {
+            read: true,
+            write: true,
+        });
+
         Self {
             name: "permissive".to_string(),
             allowed_permissions: permissions,
@@ -254,7 +256,7 @@ impl SecurityManager {
                 max_memory: Some(512 * 1024), // 512KB
                 max_execution_time: Some(Duration::from_secs(5)),
                 max_stack_depth: Some(50),
-                max_file_operations: Some(0), // No file access
+                max_file_operations: Some(0),    // No file access
                 max_network_operations: Some(0), // No network access
             },
             time_limit: Some(Duration::from_secs(5)),
@@ -263,9 +265,11 @@ impl SecurityManager {
             custom_restrictions: HashMap::new(),
         };
         sandbox_policy.allowed_permissions.insert(Permission::Eval);
-        sandbox_policy.allowed_permissions.insert(Permission::Reflection);
+        sandbox_policy
+            .allowed_permissions
+            .insert(Permission::Reflection);
 
-        // Permissive policy for trusted code  
+        // Permissive policy for trusted code
         let mut trusted_policy = SecurityPolicy {
             name: "trusted".to_string(),
             allowed_permissions: HashSet::new(),
@@ -276,10 +280,24 @@ impl SecurityManager {
             custom_restrictions: HashMap::new(),
         };
         trusted_policy.allowed_permissions.insert(Permission::Eval);
-        trusted_policy.allowed_permissions.insert(Permission::Compile);
-        trusted_policy.allowed_permissions.insert(Permission::Reflection);
-        trusted_policy.allowed_permissions.insert(Permission::Environment { read: true, write: true });
-        trusted_policy.allowed_permissions.insert(Permission::Module { load: true, unload: true });
+        trusted_policy
+            .allowed_permissions
+            .insert(Permission::Compile);
+        trusted_policy
+            .allowed_permissions
+            .insert(Permission::Reflection);
+        trusted_policy
+            .allowed_permissions
+            .insert(Permission::Environment {
+                read: true,
+                write: true,
+            });
+        trusted_policy
+            .allowed_permissions
+            .insert(Permission::Module {
+                load: true,
+                unload: true,
+            });
 
         self.policies.insert("sandbox".to_string(), sandbox_policy);
         self.policies.insert("trusted".to_string(), trusted_policy);
@@ -287,7 +305,9 @@ impl SecurityManager {
 
     /// Creates a new security context.
     pub fn create_context(&self, principal: String, policy_name: &str) -> Result<SecurityContext> {
-        let policy = self.policies.get(policy_name)
+        let policy = self
+            .policies
+            .get(policy_name)
             .unwrap_or(&self.default_policy)
             .clone();
 
@@ -318,10 +338,13 @@ impl SecurityManager {
     /// Checks access control for a specific operation.
     pub fn check_access(&self, principal: &str, resource: &str, operation: &str) -> Result<bool> {
         for entry in &self.acl {
-            if entry.principal == principal && entry.resource == resource && entry.operation == operation
-                && self.evaluate_conditions(&entry.conditions)? {
-                    return Ok(entry.allowed);
-                }
+            if entry.principal == principal
+                && entry.resource == resource
+                && entry.operation == operation
+                && self.evaluate_conditions(&entry.conditions)?
+            {
+                return Ok(entry.allowed);
+            }
         }
         Ok(false) // Default deny
     }
@@ -347,7 +370,10 @@ impl SecurityManager {
         if let Some(max_allocations) = limits.max_allocations {
             if usage.allocations > max_allocations {
                 return Err(Box::new(Error::runtime_error(
-                    format!("Allocation limit exceeded: {} > {}", usage.allocations, max_allocations),
+                    format!(
+                        "Allocation limit exceeded: {} > {}",
+                        usage.allocations, max_allocations
+                    ),
                     None,
                 )));
             }
@@ -356,7 +382,10 @@ impl SecurityManager {
         if let Some(max_memory) = limits.max_memory {
             if usage.memory_used > max_memory {
                 return Err(Box::new(Error::runtime_error(
-                    format!("Memory limit exceeded: {} > {}", usage.memory_used, max_memory),
+                    format!(
+                        "Memory limit exceeded: {} > {}",
+                        usage.memory_used, max_memory
+                    ),
                     None,
                 )));
             }
@@ -365,7 +394,10 @@ impl SecurityManager {
         if let Some(max_time) = limits.max_execution_time {
             if usage.execution_time > max_time {
                 return Err(Box::new(Error::runtime_error(
-                    format!("Execution time limit exceeded: {:?} > {:?}", usage.execution_time, max_time),
+                    format!(
+                        "Execution time limit exceeded: {:?} > {:?}",
+                        usage.execution_time, max_time
+                    ),
                     None,
                 )));
             }
@@ -374,7 +406,10 @@ impl SecurityManager {
         if let Some(max_stack) = limits.max_stack_depth {
             if usage.stack_depth > max_stack {
                 return Err(Box::new(Error::runtime_error(
-                    format!("Stack depth limit exceeded: {} > {}", usage.stack_depth, max_stack),
+                    format!(
+                        "Stack depth limit exceeded: {} > {}",
+                        usage.stack_depth, max_stack
+                    ),
                     None,
                 )));
             }
@@ -438,7 +473,6 @@ impl Default for SecurityManager {
     }
 }
 
-
 impl Default for ResourceUsage {
     fn default() -> Self {
         Self {
@@ -491,7 +525,7 @@ impl PermissionSystem {
             if permissions.contains(permission) {
                 return true;
             }
-            
+
             // Check permission hierarchy
             for granted in permissions {
                 if self.implies_permission(granted, permission) {
@@ -552,7 +586,8 @@ impl AccessControl {
         }
 
         // Check access control
-        self.security_manager.check_access(principal, resource, operation)
+        self.security_manager
+            .check_access(principal, resource, operation)
     }
 
     /// Gets the security manager.

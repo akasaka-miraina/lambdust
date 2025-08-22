@@ -17,21 +17,20 @@
 //! 3. Runtime system enforces type safety at boundaries
 //! 4. Performance system monitors overhead and optimizes
 
-use super::gradual_inference::{
-    GradualTypeInference, GradualInferenceResult, GradualInferenceConfig,
-    CastInsertion, GeneratedContract, TypeBoundary, CastReason,
-    PerformanceImpact, OptimizationHint, OptimizationType
-};
 use super::gradual::{Cast, consistent, is_gradual, is_static};
-use super::{Type, TypeScheme, TypeEnv};
+use super::gradual_inference::{
+    CastInsertion, CastReason, GeneratedContract, GradualInferenceConfig, GradualInferenceResult,
+    GradualTypeInference, OptimizationHint, OptimizationType, PerformanceImpact, TypeBoundary,
+};
+use super::{Type, TypeEnv, TypeScheme};
 use crate::ast::{Expr, Literal};
-use crate::contracts::{ContractSystem, ContractExpr, BlameInfo, ContractError};
+use crate::contracts::{BlameInfo, ContractError, ContractExpr, ContractSystem};
 use crate::diagnostics::{Error, Result, Span, Spanned};
-use crate::eval::{Value, Environment, Evaluator, EvalStep};
+use crate::eval::{Environment, EvalStep, Evaluator, Value};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::rc::Rc;
-use std::time::{Instant, Duration};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 /// Runtime type information attached to values
 #[derive(Debug, Clone)]
@@ -294,9 +293,9 @@ impl GradualEvaluatorIntegration {
             ..GradualInferenceConfig::default()
         };
 
-        let inference_engine = Arc::new(Mutex::new(
-            GradualTypeInference::with_config(inference_config)
-        ));
+        let inference_engine = Arc::new(Mutex::new(GradualTypeInference::with_config(
+            inference_config,
+        )));
         let contract_system = Arc::new(Mutex::new(ContractSystem::new()));
         let type_cache = Arc::new(Mutex::new(HashMap::new()));
         let performance_monitor = Arc::new(Mutex::new(PerformanceMonitor::default()));
@@ -319,7 +318,7 @@ impl GradualEvaluatorIntegration {
         &mut self,
         expr: &Spanned<Expr>,
         env: &Environment,
-        evaluator: &mut Evaluator
+        evaluator: &mut Evaluator,
     ) -> Result<Value> {
         let start_time = Instant::now();
 
@@ -335,12 +334,7 @@ impl GradualEvaluatorIntegration {
         }
 
         // Evaluate with runtime checking
-        let value = self.evaluate_with_checking(
-            expr,
-            env,
-            evaluator,
-            &inference_result
-        )?;
+        let value = self.evaluate_with_checking(expr, env, evaluator, &inference_result)?;
 
         // Record performance metrics
         if self.config.enable_performance_monitoring {
@@ -358,7 +352,7 @@ impl GradualEvaluatorIntegration {
         expr: &Spanned<Expr>,
         env: &Environment,
         evaluator: &mut Evaluator,
-        inference_result: &GradualInferenceResult
+        inference_result: &GradualInferenceResult,
     ) -> Result<Value> {
         // First evaluate the expression normally
         let mut value = evaluator.eval(expr, std::rc::Rc::new(env.clone()))?;
@@ -385,16 +379,20 @@ impl GradualEvaluatorIntegration {
     fn apply_casts(&mut self, mut value: Value, casts: &[CastInsertion]) -> Result<Value> {
         for cast_insertion in casts {
             let start_time = Instant::now();
-            
-            match self.cast_executor.execute_cast(&value, &cast_insertion.cast) {
+
+            match self
+                .cast_executor
+                .execute_cast(&value, &cast_insertion.cast)
+            {
                 CastResult::Success(new_value) => {
                     value = new_value;
                 }
                 CastResult::Failed(error) => {
                     return Err(Error::type_error(
                         format!("Cast failed: {}", error.message),
-                        cast_insertion.location
-                    ).boxed())
+                        cast_insertion.location,
+                    )
+                    .boxed());
                 }
                 CastResult::Optimized => {
                     // Cast was optimized away, no change needed
@@ -412,19 +410,23 @@ impl GradualEvaluatorIntegration {
     }
 
     /// Enforces contracts on a value
-    fn enforce_contracts(&mut self, value: Value, contracts: &[GeneratedContract]) -> Result<Value> {
+    fn enforce_contracts(
+        &mut self,
+        value: Value,
+        contracts: &[GeneratedContract],
+    ) -> Result<Value> {
         let mut checked_value = value;
 
         for contract in contracts {
             let start_time = Instant::now();
-            
+
             // Compile and check contract
             let contract_system = self.contract_system.clone();
             let mut system = contract_system.lock().unwrap();
-            
+
             // For now, we'll skip actual contract compilation and just return the value
             // In a full implementation, this would compile and check the contract
-            
+
             // Record performance
             if self.config.enable_performance_monitoring {
                 let contract_time = start_time.elapsed();
@@ -440,7 +442,7 @@ impl GradualEvaluatorIntegration {
     fn cache_runtime_type(&mut self, value: &Value, inferred_type: &Type) -> Result<()> {
         let value_id = self.generate_value_id(value);
         let runtime_type = self.extract_runtime_type(value);
-        
+
         let type_info = RuntimeTypeInfo {
             static_type: Some(inferred_type.clone()),
             runtime_type,
@@ -460,7 +462,7 @@ impl GradualEvaluatorIntegration {
         // For now, use a simple hash-based approach
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         format!("{value:?}").hash(&mut hasher);
         ValueId(hasher.finish())
@@ -474,22 +476,26 @@ impl GradualEvaluatorIntegration {
     /// Recursive helper for runtime type extraction (optimized without self parameter)
     fn extract_runtime_type_recursive(value: &Value) -> RuntimeType {
         match value {
-            Value::Literal(Literal::ExactInteger(_)) | Value::Literal(Literal::InexactReal(_)) 
-            | Value::Literal(Literal::Number(_)) | Value::Literal(Literal::Rational(_)) 
+            Value::Literal(Literal::ExactInteger(_))
+            | Value::Literal(Literal::InexactReal(_))
+            | Value::Literal(Literal::Number(_))
+            | Value::Literal(Literal::Rational(_))
             | Value::Literal(Literal::Complex(_)) => RuntimeType::Precise(Type::Number),
-            Value::Literal(Literal::String(_)) | Value::Literal(Literal::InternedString(_)) => RuntimeType::Precise(Type::String),
+            Value::Literal(Literal::String(_)) | Value::Literal(Literal::InternedString(_)) => {
+                RuntimeType::Precise(Type::String)
+            }
             Value::Literal(Literal::Boolean(_)) => RuntimeType::Precise(Type::Boolean),
             Value::Symbol(_) => RuntimeType::Precise(Type::Symbol),
             Value::Literal(Literal::Character(_)) => RuntimeType::Precise(Type::Char),
             Value::Pair(car, cdr) => {
                 let car_type = Self::extract_runtime_type_recursive(car);
                 let cdr_type = Self::extract_runtime_type_recursive(cdr);
-                
+
                 match (car_type, cdr_type) {
                     (RuntimeType::Precise(car_t), RuntimeType::Precise(cdr_t)) => {
                         RuntimeType::Precise(Type::pair(car_t, cdr_t))
                     }
-                    _ => RuntimeType::Approximated(Type::pair(Type::Dynamic, Type::Dynamic))
+                    _ => RuntimeType::Approximated(Type::pair(Type::Dynamic, Type::Dynamic)),
                 }
             }
             Value::Nil => RuntimeType::Precise(Type::list(Type::Dynamic)),
@@ -501,7 +507,7 @@ impl GradualEvaluatorIntegration {
     fn apply_optimizations(&mut self, optimizations: &[OptimizationHint]) -> Result<()> {
         for optimization in optimizations {
             let start_time = Instant::now();
-            
+
             match self.optimization_manager.apply_optimization(optimization) {
                 Ok(improvement) => {
                     let mut monitor = self.performance_monitor.lock().unwrap();
@@ -566,9 +572,7 @@ impl CastExecutor {
                 // Downcasts require runtime checking
                 self.execute_downcast(value, to)
             }
-            Cast::Structural { casts } => {
-                self.execute_structural_cast(value, casts)
-            }
+            Cast::Structural { casts } => self.execute_structural_cast(value, casts),
         }
     }
 
@@ -591,7 +595,7 @@ impl CastExecutor {
     fn execute_structural_cast(&mut self, value: &Value, casts: &[Cast]) -> CastResult {
         // For structural casts, apply each component cast
         let mut result = value.clone();
-        
+
         for cast in casts {
             match self.execute_cast(&result, cast) {
                 CastResult::Success(new_value) => result = new_value,
@@ -599,7 +603,7 @@ impl CastExecutor {
                 CastResult::Optimized => continue,
             }
         }
-        
+
         CastResult::Success(result)
     }
 
@@ -607,7 +611,10 @@ impl CastExecutor {
     fn value_conforms_to_type(&self, value: &Value, type_: &Type) -> bool {
         match (value, type_) {
             (Value::Literal(lit), Type::Number) if lit.is_number() => true,
-            (Value::Literal(Literal::String(_)) | Value::Literal(Literal::InternedString(_)), Type::String) => true,
+            (
+                Value::Literal(Literal::String(_)) | Value::Literal(Literal::InternedString(_)),
+                Type::String,
+            ) => true,
             (Value::Literal(Literal::Boolean(_)), Type::Boolean) => true,
             (Value::Symbol(_), Type::Symbol) => true,
             (Value::Literal(Literal::Character(_)), Type::Char) => true,
@@ -627,7 +634,10 @@ impl OptimizationManager {
     }
 
     /// Applies an optimization
-    pub fn apply_optimization(&mut self, hint: &OptimizationHint) -> Result<PerformanceImprovement> {
+    pub fn apply_optimization(
+        &mut self,
+        hint: &OptimizationHint,
+    ) -> Result<PerformanceImprovement> {
         let start_time = Instant::now();
 
         // Apply the optimization based on type
@@ -650,9 +660,10 @@ impl OptimizationManager {
         }
 
         let optimization_time = start_time.elapsed();
-        
+
         // Record the optimization
-        self.active_optimizations.insert(hint.location, hint.optimization.clone());
+        self.active_optimizations
+            .insert(hint.location, hint.optimization.clone());
         self.stats.optimizations_applied += 1;
 
         Ok(PerformanceImprovement {
@@ -697,7 +708,7 @@ impl TypeCheckStatistics {
         if duration > self.peak_check_time {
             self.peak_check_time = duration;
         }
-        
+
         // Update average (simplified)
         if self.total_checks > 0 {
             let total_time = self.average_check_time * (self.total_checks - 1) as u32 + duration;
@@ -710,7 +721,7 @@ impl CastStatistics {
     /// Records a cast execution
     pub fn record_cast(&mut self, duration: Duration) {
         self.total_casts += 1;
-        
+
         // Update average timing
         if self.total_casts > 0 {
             let total_time = self.average_cast_time * (self.total_casts - 1) as u32 + duration;
@@ -738,7 +749,7 @@ impl ContractStatistics {
     /// Records a contract check
     pub fn record_check(&mut self, duration: Duration) {
         self.total_checks += 1;
-        
+
         // Update average timing
         if self.total_checks > 0 {
             let total_time = self.average_check_time * (self.total_checks - 1) as u32 + duration;
@@ -876,12 +887,12 @@ mod tests {
     #[test]
     fn test_runtime_type_extraction() {
         let integration = GradualEvaluatorIntegration::new();
-        
+
         let number_value = Value::number(42.0);
         let runtime_type = integration.extract_runtime_type(&number_value);
         assert!(matches!(runtime_type, RuntimeType::Precise(Type::Number)));
-        
-        let string_value = Value::String("hello".to_string());
+
+        let string_value = Value::string("hello".to_string());
         let runtime_type = integration.extract_runtime_type(&string_value);
         assert!(matches!(runtime_type, RuntimeType::Precise(Type::String)));
     }
@@ -890,7 +901,7 @@ mod tests {
     fn test_cast_executor() {
         let mut executor = CastExecutor::new();
         let value = Value::number(42.0);
-        
+
         // Test upcast (should succeed)
         let upcast = Cast::Upcast {
             from: Type::Number,
@@ -898,7 +909,7 @@ mod tests {
         };
         let result = executor.execute_cast(&value, &upcast);
         assert!(matches!(result, CastResult::Success(_)));
-        
+
         // Test no cast (should be optimized)
         let no_cast = Cast::None;
         let result = executor.execute_cast(&value, &no_cast);
@@ -908,7 +919,7 @@ mod tests {
     #[test]
     fn test_value_type_conformance() {
         let executor = CastExecutor::new();
-        
+
         let number_value = Value::number(42.0);
         assert!(executor.value_conforms_to_type(&number_value, &Type::Number));
         assert!(executor.value_conforms_to_type(&number_value, &Type::Dynamic));
@@ -918,12 +929,12 @@ mod tests {
     #[test]
     fn test_performance_statistics() {
         let mut stats = TypeCheckStatistics::default();
-        
+
         stats.record_success(Duration::from_millis(10));
         assert_eq!(stats.total_checks, 1);
         assert_eq!(stats.successful_checks, 1);
         assert_eq!(stats.failed_checks, 0);
-        
+
         stats.record_failure(Duration::from_millis(20));
         assert_eq!(stats.total_checks, 2);
         assert_eq!(stats.successful_checks, 1);

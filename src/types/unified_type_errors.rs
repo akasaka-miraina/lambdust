@@ -3,13 +3,12 @@
 //! This module eliminates redundant error handling patterns in type checking,
 //! inference, and constraint solving while providing rich contextual information.
 
-use crate::diagnostics::{UnifiedError, UnifiedResult, TypeError, ErrorSeverity, Span};
-use crate::types::{Type, TypeVar, TypeConstraint, Substitution};
+use crate::diagnostics::{ErrorSeverity, Span, TypeError, UnifiedError, UnifiedResult};
+use crate::types::{Substitution, Type, TypeConstraint, TypeVar};
 use std::collections::HashMap;
 
 // Re-export unified error system for type modules
-pub use crate::{error_convert, propagate_error, handle_result, error_chain};
-
+pub use crate::{error_chain, error_convert, handle_result, propagate_error};
 
 /// Type-specific error categories for granular error handling.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,10 +108,7 @@ pub struct TypeContext {
 
 impl TypeUnifiedError {
     /// Creates a new type-specific unified error.
-    pub fn new(
-        type_kind: TypeErrorKind,
-        message: impl Into<String>,
-    ) -> Self {
+    pub fn new(type_kind: TypeErrorKind, message: impl Into<String>) -> Self {
         let severity = type_kind.default_severity();
         let base = UnifiedError::new(TypeError, message)
             .with_severity(severity)
@@ -132,7 +128,8 @@ impl TypeUnifiedError {
     pub fn with_type_mismatch(mut self, expected: Type, actual: Type) -> Self {
         self.expected_type = Some(expected.clone());
         self.actual_type = Some(actual.clone());
-        self.base = self.base
+        self.base = self
+            .base
             .with_context("expected_type", format!("{expected:?}"))
             .with_context("actual_type", format!("{actual:?}"));
         self
@@ -163,14 +160,18 @@ impl TypeUnifiedError {
     /// Builder pattern: adds failed constraint.
     pub fn with_failed_constraint(mut self, constraint: TypeConstraint) -> Self {
         self.failed_constraint = Some(constraint.clone());
-        self.base = self.base.with_context("constraint", format!("{constraint:?}"));
+        self.base = self
+            .base
+            .with_context("constraint", format!("{constraint:?}"));
         self
     }
 
     /// Builder pattern: adds current substitution context.
     pub fn with_substitution(mut self, substitution: Substitution) -> Self {
         self.type_context.current_substitution = Some(substitution.clone());
-        self.base = self.base.with_context("substitution", format!("{substitution:?}"));
+        self.base = self
+            .base
+            .with_context("substitution", format!("{substitution:?}"));
         self
     }
 
@@ -194,18 +195,24 @@ impl TypeUnifiedError {
     pub fn explanation(&self) -> String {
         match (&self.type_kind, &self.expected_type, &self.actual_type) {
             (TypeErrorKind::UnificationFailure, Some(expected), Some(actual)) => {
-                format!("Cannot unify type '{}' with '{}'", 
-                    self.format_type(expected), 
-                    self.format_type(actual))
+                format!(
+                    "Cannot unify type '{}' with '{}'",
+                    self.format_type(expected),
+                    self.format_type(actual)
+                )
             }
             (TypeErrorKind::ApplicationMismatch, Some(expected), Some(actual)) => {
-                format!("Function expects argument of type '{}', but got '{}'",
+                format!(
+                    "Function expects argument of type '{}', but got '{}'",
                     self.format_type(expected),
-                    self.format_type(actual))
+                    self.format_type(actual)
+                )
             }
             (TypeErrorKind::OccursCheck, Some(ty), _) => {
-                format!("Infinite type detected: type variable occurs in '{}'", 
-                    self.format_type(ty))
+                format!(
+                    "Infinite type detected: type variable occurs in '{}'",
+                    self.format_type(ty)
+                )
             }
             (TypeErrorKind::MissingAnnotation, _, _) => {
                 "Type annotation required for ambiguous expression".to_string()
@@ -223,7 +230,7 @@ impl TypeUnifiedError {
     /// Returns suggested fixes for this error.
     pub fn suggested_fixes(&self) -> Vec<String> {
         let mut fixes = Vec::new();
-        
+
         match self.type_kind {
             TypeErrorKind::MissingAnnotation => {
                 fixes.push("Add a type annotation to disambiguate".to_string());
@@ -243,7 +250,7 @@ impl TypeUnifiedError {
             }
             _ => {}
         }
-        
+
         fixes
     }
 }
@@ -255,27 +262,26 @@ macro_rules! type_error {
     ($kind:expr, $message:expr) => {
         $crate::types::unified_type_errors::TypeUnifiedError::new($kind, $message)
     };
-    
+
     // Type error with mismatch
     ($kind:expr, $message:expr, expected: $expected:expr, actual: $actual:expr) => {
         $crate::types::unified_type_errors::TypeUnifiedError::new($kind, $message)
             .with_type_mismatch($expected, $actual)
     };
-    
+
     // Type error with span
     ($kind:expr, $message:expr, span: $span:expr) => {
-        $crate::types::unified_type_errors::TypeUnifiedError::new($kind, $message)
-            .with_span($span)
+        $crate::types::unified_type_errors::TypeUnifiedError::new($kind, $message).with_span($span)
     };
-    
+
     // Type error with function context
     ($kind:expr, $message:expr, function: $func:expr) => {
         $crate::types::unified_type_errors::TypeUnifiedError::new($kind, $message)
             .with_function_context($func)
     };
-    
+
     // Full type error with all context
-    ($kind:expr, $message:expr, 
+    ($kind:expr, $message:expr,
      expected: $expected:expr, actual: $actual:expr,
      span: $span:expr, function: $func:expr) => {
         $crate::types::unified_type_errors::TypeUnifiedError::new($kind, $message)
@@ -299,7 +305,7 @@ macro_rules! unify_or_error {
             ).into_unified()),
         }
     };
-    
+
     ($unify_result:expr, $expected:expr, $actual:expr, span: $span:expr) => {
         match $unify_result {
             Ok(substitution) => substitution,
@@ -320,31 +326,33 @@ impl TypeUnifiedError {
     pub fn unification_failed(expected: Type, actual: Type, span: Option<Span>) -> Self {
         let mut error = Self::new(
             TypeErrorKind::UnificationFailure,
-            format!("Cannot unify {expected:?} with {actual:?}")
-        ).with_type_mismatch(expected, actual);
-        
+            format!("Cannot unify {expected:?} with {actual:?}"),
+        )
+        .with_type_mismatch(expected, actual);
+
         if let Some(span) = span {
             error = error.with_span(span);
         }
-        
+
         error
     }
 
     /// Creates an application mismatch error.
     pub fn application_mismatch(
-        function_type: Type, 
-        argument_type: Type, 
-        span: Option<Span>
+        function_type: Type,
+        argument_type: Type,
+        span: Option<Span>,
     ) -> Self {
         let mut error = Self::new(
             TypeErrorKind::ApplicationMismatch,
-            "Function application type mismatch"
-        ).with_type_mismatch(function_type, argument_type);
-        
+            "Function application type mismatch",
+        )
+        .with_type_mismatch(function_type, argument_type);
+
         if let Some(span) = span {
             error = error.with_span(span);
         }
-        
+
         error
     }
 
@@ -352,32 +360,31 @@ impl TypeUnifiedError {
     pub fn occurs_check_failed(type_var: TypeVar, ty: Type) -> Self {
         Self::new(
             TypeErrorKind::OccursCheck,
-            format!("Type variable {type_var:?} occurs in type {ty:?}")
-        ).with_type_mismatch(Type::Variable(type_var), ty)
+            format!("Type variable {type_var:?} occurs in type {ty:?}"),
+        )
+        .with_type_mismatch(Type::Variable(type_var), ty)
     }
 
     /// Creates a missing annotation error.
     pub fn missing_annotation(context: impl Into<String>) -> Self {
-        Self::new(
-            TypeErrorKind::MissingAnnotation,
-            "Type annotation required"
-        ).with_expression_context(context)
+        Self::new(TypeErrorKind::MissingAnnotation, "Type annotation required")
+            .with_expression_context(context)
     }
 
     /// Creates an ambiguous type error.
     pub fn ambiguous_type(context: impl Into<String>, candidates: Vec<Type>) -> Self {
         let mut error = Self::new(
             TypeErrorKind::AmbiguousType,
-            format!("Ambiguous type - {} candidates", candidates.len())
-        ).with_expression_context(context);
-        
+            format!("Ambiguous type - {} candidates", candidates.len()),
+        )
+        .with_expression_context(context);
+
         for (i, candidate) in candidates.iter().enumerate() {
-            error.base = error.base.with_context(
-                format!("candidate_{i}"), 
-                format!("{candidate:?}")
-            );
+            error.base = error
+                .base
+                .with_context(format!("candidate_{i}"), format!("{candidate:?}"));
         }
-        
+
         error
     }
 }
@@ -413,16 +420,16 @@ impl std::error::Error for TypeUnifiedError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Type};
+    use crate::types::Type;
 
     #[test]
     fn test_type_error_creation() {
         let error = TypeUnifiedError::unification_failed(
             Type::Number,
             Type::String,
-            Some(Span::new(10, 5))
+            Some(Span::new(10, 5)),
         );
-        
+
         assert_eq!(error.type_kind, TypeErrorKind::UnificationFailure);
         assert_eq!(error.expected_type, Some(Type::Number));
         assert_eq!(error.actual_type, Some(Type::String));
@@ -432,8 +439,11 @@ mod tests {
     #[test]
     fn test_occurs_check_error() {
         let type_var = TypeVar::with_name("a");
-        let error = TypeUnifiedError::occurs_check_failed(type_var.clone(), Type::Variable(type_var.clone()));
-        
+        let error = TypeUnifiedError::occurs_check_failed(
+            type_var.clone(),
+            Type::Variable(type_var.clone()),
+        );
+
         assert_eq!(error.type_kind, TypeErrorKind::OccursCheck);
         assert!(error.explanation().contains("occurs"));
     }
@@ -441,9 +451,12 @@ mod tests {
     #[test]
     fn test_missing_annotation_error() {
         let error = TypeUnifiedError::missing_annotation("lambda expression");
-        
+
         assert_eq!(error.type_kind, TypeErrorKind::MissingAnnotation);
-        assert_eq!(error.type_context.expression_context, Some("lambda expression".to_string()));
+        assert_eq!(
+            error.type_context.expression_context,
+            Some("lambda expression".to_string())
+        );
     }
 
     #[test]
@@ -454,7 +467,7 @@ mod tests {
             expected: Type::Number,
             actual: Type::String
         );
-        
+
         assert_eq!(error.type_kind, TypeErrorKind::ApplicationMismatch);
         assert_eq!(error.expected_type, Some(Type::Number));
         assert_eq!(error.actual_type, Some(Type::String));
@@ -464,7 +477,7 @@ mod tests {
     fn test_suggested_fixes() {
         let error = TypeUnifiedError::missing_annotation("ambiguous expression");
         let fixes = error.suggested_fixes();
-        
+
         assert!(!fixes.is_empty());
         assert!(fixes[0].contains("type annotation"));
     }
