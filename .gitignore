@@ -104,3 +104,13 @@ ehthumbs.db
 
 # Isabelle
 Isabelle2025.app
+
+# Internal development documentation (not for public repository)
+# These contain detailed technical specifications that may be published as academic papers
+docs/architecture/
+docs/development/
+
+# Internal project management documents
+IMPLEMENTATION_ROADMAP.md
+FEATURES.md
+CLAUDE.md
