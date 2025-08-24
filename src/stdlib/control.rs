@@ -9,7 +9,9 @@ use crate::effects::Effect;
 use crate::eval::value::{
     PrimitiveImpl, PrimitiveProcedure, Procedure, Promise, ThreadSafeEnvironment, Value,
 };
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 /// Creates control flow operation bindings for the standard library.
@@ -547,7 +549,7 @@ fn primitive_make_promise(args: &[Value]) -> Result<Value> {
         thunk: thunk.clone(),
     };
 
-    Ok(Value::Promise(Arc::new(RwLock::new(promise))))
+    Ok(Value::Promise(Rc::new(RefCell::new(promise))))
 }
 
 /// force procedure - R7RS compliant implementation with trampoline to prevent stack overflow
@@ -589,7 +591,7 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
 
         match current_value {
             Value::Promise(promise_ref) => {
-                let promise_id = Arc::as_ptr(&promise_ref) as usize;
+                let promise_id = Rc::as_ptr(&promise_ref) as usize;
 
                 // Check for circular references
                 if visited.contains(&promise_id) {
@@ -601,7 +603,7 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
                 visited.insert(promise_id);
 
                 // Try to read first to check if already forced
-                if let Ok(promise_read) = promise_ref.try_read() {
+                if let Ok(promise_read) = promise_ref.try_borrow() {
                     match &*promise_read {
                         Promise::Forced(cached_value) => {
                             // Already evaluated, continue with cached result
@@ -615,7 +617,7 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
                 }
 
                 // Get write lock for evaluation
-                let mut promise = promise_ref.write().map_err(|_| {
+                let mut promise = promise_ref.try_borrow_mut().map_err(|_| {
                     DiagnosticError::runtime_error(
                         "failed to acquire promise lock for writing".to_string(),
                         None,
@@ -746,7 +748,7 @@ fn primitive_delay_force(args: &[Value]) -> Result<Value> {
         thunk: thunk.clone(),
     };
 
-    Ok(Value::Promise(Arc::new(RwLock::new(promise))))
+    Ok(Value::Promise(Rc::new(RefCell::new(promise))))
 }
 
 /// make-promise-value procedure - Create promise from already computed value
@@ -763,7 +765,7 @@ fn primitive_make_promise_value(args: &[Value]) -> Result<Value> {
     // Create a pre-evaluated promise
     let promise = Promise::Forced(value.clone());
 
-    Ok(Value::Promise(Arc::new(RwLock::new(promise))))
+    Ok(Value::Promise(Rc::new(RefCell::new(promise))))
 }
 
 /// make-test-thunk procedure - Create a simple test thunk for debugging

@@ -17,9 +17,6 @@ use lambdust::ast::Literal;
 use lambdust::eval::arc_allocation_tracker::{
     disable_global_tracking, enable_global_tracking, get_global_stats, reset_global_tracking,
 };
-use lambdust::eval::comprehensive_performance_verification::{
-    PerformanceVerificationSuite, VerificationConfig,
-};
 use lambdust::eval::value::Value;
 use lambdust::eval::value_optimization_core::{OptimizationConfig, ValueOptimizer};
 use lambdust::utils::SymbolId;

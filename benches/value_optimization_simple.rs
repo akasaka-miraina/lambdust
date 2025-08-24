@@ -4,7 +4,7 @@
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use lambdust::ast::Literal;
-use lambdust::eval::Value;
+use lambdust::eval::value::Value;
 use std::mem;
 
 /// Benchmark basic Value operations
@@ -35,7 +35,7 @@ fn bench_value_basic(c: &mut Criterion) {
 
     group.bench_function("create_nil", |b| {
         b.iter(|| {
-            let val = black_box(Value::nil());
+            let val = black_box(Value::Nil);
             mem::drop(val);
         })
     });

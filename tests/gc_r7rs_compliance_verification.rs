@@ -44,7 +44,7 @@ fn create_gc_runtime() -> (LambdustRuntime, Arc<GcSystem>) {
     // Initialize GC system
     let mut gc_system_mut = Arc::try_unwrap(gc_system)
         .unwrap_or_else(|_arc| panic!("Failed to get mutable reference to GC system"));
-    gc_system_mut.initialize().unwrap();
+    gc_system_mut.initialize(None).unwrap();
     let gc_system = Arc::new(gc_system_mut);
 
     (runtime, gc_system)

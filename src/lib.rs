@@ -126,6 +126,10 @@ pub mod diagnostics;
 /// Utility functions and data structures.
 pub mod utils;
 
+// Property-based testing framework
+/// Property-based testing framework for comprehensive quality assurance.
+pub mod property_testing;
+
 // REPL system (multiple configurations supported)
 /// REPL implementations: minimal, full, and enhanced.
 #[cfg(any(feature = "minimal-repl", feature = "repl", feature = "enhanced-repl"))]

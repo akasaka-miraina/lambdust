@@ -188,10 +188,8 @@ fn test_vector_generator() {
     let vector = Value::vector(vector_values);
 
     if let Value::Vector(vec_ref) = &vector {
-        // Convert Rc<RefCell<Vec<Value>>> to Arc<RwLock<Vec<Value>>>
-        let values = vec_ref.borrow().clone();
-        let arc_vec = std::sync::Arc::new(std::sync::RwLock::new(values));
-        let generator = Value::generator_from_vector(arc_vec);
+        // Use the Rc<RefCell<Vec<Value>>> directly
+        let generator = Value::generator_from_vector(vec_ref.clone());
 
         if let Value::Generator(gen_ref) = &generator {
             assert_eq!(gen_ref.next().unwrap(), Value::boolean(true));

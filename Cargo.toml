@@ -133,6 +133,7 @@ webpki-roots = { version = "0.26", optional = true } # Root certificates
 # Development and testing
 proptest = { version = "1.4", optional = true }
 rand = "0.8"                                    # For random test data generation
+rand_xorshift = "0.3"                               # Fast PRNG for property testing
 futures = "0.3"                                 # For futures utilities in tests
 
 # Text processing

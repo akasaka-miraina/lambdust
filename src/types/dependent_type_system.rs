@@ -29,48 +29,70 @@ pub enum DepType {
     Universe(UniverseLevel),
     /// Dependent function type (Π x:A. B)
     Pi {
+        /// Parameter name
         param_name: String,
+        /// Parameter type
         param_type: Box<DepType>,
+        /// Body type
         body_type: Box<DepType>,
     },
     /// Dependent sum type (Σ x:A. B)
     Sigma {
+        /// Parameter name
         param_name: String,
+        /// Parameter type
         param_type: Box<DepType>,
+        /// Body type
         body_type: Box<DepType>,
     },
     /// Lambda abstraction (λ x:A. t)
     Lambda {
+        /// Parameter name
         param_name: String,
+        /// Parameter type
         param_type: Box<DepType>,
+        /// Body term
         body_term: Box<DepTerm>,
     },
     /// Application (f a)
     Application {
+        /// Function
         function: Box<DepType>,
+        /// Argument
         argument: Box<DepTerm>,
     },
     /// Variable reference
     Variable {
+        /// Variable name
         name: String,
+        /// De Bruijn index
         de_bruijn_index: usize,
     },
     /// Type annotation (t : T)
     Annotation {
+        /// Term
         term: Box<DepTerm>,
+        /// Type annotation
         type_: Box<DepType>,
     },
     /// Identity type (a =_A b)
     Identity {
+        /// Type
         type_: Box<DepType>,
+        /// Left term
         left: Box<DepTerm>,
+        /// Right term
         right: Box<DepTerm>,
     },
     /// Inductive type definition
     Inductive {
+        /// Type name
         name: String,
+        /// Type parameters
         parameters: Vec<(String, DepType)>,
+        /// Universe level
         universe: UniverseLevel,
+        /// Constructor list
         constructors: Vec<InductiveConstructor>,
     },
     /// Base types for compatibility
@@ -84,23 +106,32 @@ pub enum DepType {
 pub enum DepTerm {
     /// Variable
     Variable {
+        /// Variable name
         name: String,
+        /// De Bruijn index
         de_bruijn_index: usize,
     },
     /// Lambda abstraction
     Lambda {
+        /// Parameter name
         param_name: String,
+        /// Parameter type
         param_type: Box<DepType>,
+        /// Body
         body: Box<DepTerm>,
     },
     /// Application
     Application {
+        /// Function
         function: Box<DepTerm>,
+        /// Argument
         argument: Box<DepTerm>,
     },
     /// Pair construction (a, b)
     Pair {
+        /// First element
         first: Box<DepTerm>,
+        /// Second element
         second: Box<DepTerm>,
     },
     /// First projection (π₁)
@@ -109,26 +140,37 @@ pub enum DepTerm {
     Second(Box<DepTerm>),
     /// Constructor application
     Constructor {
+        /// Constructor name
         name: String,
+        /// Arguments
         arguments: Vec<DepTerm>,
     },
     /// Pattern matching
     Match {
+        /// Scrutinee
         scrutinee: Box<DepTerm>,
+        /// Return type
         return_type: Option<Box<DepType>>,
+        /// Match cases
         cases: Vec<MatchCase>,
     },
     /// Reflexivity proof (refl)
     Refl {
+        /// Type
         type_: Box<DepType>,
+        /// Term
         term: Box<DepTerm>,
     },
     /// Type casting with proof
     Cast {
+        /// Term
         term: Box<DepTerm>,
+        /// From type
         from_type: Box<DepType>,
+        /// To type
         to_type: Box<DepType>,
-        proof: Box<DepTerm>, // Proof that from_type = to_type
+        /// Proof that from_type = to_type
+        proof: Box<DepTerm>,
     },
     /// Literal values
     Literal(LiteralValue),
@@ -158,33 +200,47 @@ pub enum CaTTConstruct {
     Object(String),
     /// Morphism between objects
     Morphism {
+        /// Domain
         domain: Box<DepType>,
+        /// Codomain
         codomain: Box<DepType>,
+        /// Morphism name
         name: String,
     },
     /// Composition of morphisms
     Composition {
+        /// First morphism
         first: Box<DepTerm>,
+        /// Second morphism
         second: Box<DepTerm>,
     },
     /// Identity morphism
     Identity(Box<DepType>),
     /// Functor application
     Functor {
+        /// Functor name
         functor: String,
+        /// Object
         object: Box<DepType>,
     },
     /// Natural transformation
     NaturalTransformation {
+        /// Source functor
         source_functor: String,
+        /// Target functor
         target_functor: String,
+        /// Transformation name
         name: String,
     },
     /// Adjoint functors
     Adjunction {
+        /// Left adjoint
         left_adjoint: String,
+        /// Right adjoint
         right_adjoint: String,
+        /// Unit
         unit: Box<DepTerm>,
+        /// Counit
         counit: Box<DepTerm>,
     },
 }
@@ -192,14 +248,18 @@ pub enum CaTTConstruct {
 /// Inductive type constructor
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InductiveConstructor {
+    /// Constructor name
     pub name: String,
+    /// Constructor type
     pub type_: DepType,
 }
 
 /// Pattern matching case
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchCase {
+    /// Pattern
     pub pattern: Pattern,
+    /// Body
     pub body: DepTerm,
 }
 
@@ -209,7 +269,12 @@ pub enum Pattern {
     /// Variable pattern
     Variable(String),
     /// Constructor pattern
-    Constructor { name: String, args: Vec<Pattern> },
+    Constructor { 
+        /// Constructor name
+        name: String, 
+        /// Pattern arguments
+        args: Vec<Pattern> 
+    },
     /// Wildcard pattern
     Wildcard,
     /// Literal pattern
@@ -315,10 +380,15 @@ pub struct DepContext {
 /// Complete inductive type definition
 #[derive(Debug, Clone)]
 pub struct InductiveDefinition {
+    /// Type name
     pub name: String,
+    /// Type parameters
     pub parameters: Vec<(String, DepType)>,
+    /// Universe level
     pub universe: UniverseLevel,
+    /// Constructor list
     pub constructors: Vec<InductiveConstructor>,
+    /// Elimination rule
     pub elimination_rule: Option<DepTerm>,
 }
 

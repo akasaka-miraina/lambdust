@@ -6,7 +6,8 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use lambdust::ast::{Expr, Formals, Literal};
 use lambdust::diagnostics::Spanned;
-use lambdust::eval::{Environment, Generation, ThreadSafeEnvironment, Value};
+use lambdust::eval::value::Value;
+use lambdust::eval::{Environment, Generation, ThreadSafeEnvironment};
 use lambdust::utils::SymbolId;
 use std::collections::HashMap;
 use std::mem;
@@ -283,7 +284,7 @@ fn bench_pattern_matching(c: &mut Criterion) {
                     Value::Nil => 0,
                     Value::Pair(_, _) => 2,
                     Value::Vector(v) => {
-                        if let Ok(vec) = v.read() {
+                        if let Ok(vec) = v.try_borrow() {
                             vec.len()
                         } else {
                             0

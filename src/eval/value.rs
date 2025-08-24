@@ -359,7 +359,7 @@ pub enum Value {
     Port(Arc<Port>),
 
     /// Promise for lazy evaluation - Thread-safe
-    Promise(Arc<RwLock<Promise>>),
+    Promise(Rc<RefCell<Promise>>),
 
     /// Type value (for gradual typing) - Thread-safe
     Type(Arc<TypeValue>),
@@ -590,15 +590,15 @@ pub struct Port {
     /// Port implementation
     pub implementation: PortImpl,
     /// Whether the port is open
-    pub is_open: Arc<RwLock<bool>>,
+    pub is_open: Rc<RefCell<bool>>,
     /// Port mode (textual or binary)
     pub mode: PortMode,
     /// Port direction
     pub direction: PortDirection,
     /// Buffer for efficient I/O
-    pub buffer: Arc<RwLock<Vec<u8>>>,
+    pub buffer: Rc<RefCell<Vec<u8>>>,
     /// Current position in the port (for seekable ports)
-    pub position: Arc<RwLock<usize>>,
+    pub position: Rc<RefCell<usize>>,
     /// Port metadata
     pub metadata: HashMap<String, Value>,
 }
@@ -609,23 +609,23 @@ pub enum PortImpl {
     /// String-based port
     String {
         /// Content for input ports, accumulator for output ports
-        content: Arc<RwLock<String>>,
+        content: Rc<RefCell<String>>,
         /// Current position for input ports
-        position: Arc<RwLock<usize>>,
+        position: Rc<RefCell<usize>>,
     },
     /// Bytevector-based port
     Bytevector {
         /// Content for input ports, accumulator for output ports
-        content: Arc<RwLock<Vec<u8>>>,
+        content: Rc<RefCell<Vec<u8>>>,
         /// Current position for input ports
-        position: Arc<RwLock<usize>>,
+        position: Rc<RefCell<usize>>,
     },
     /// File-based port
     File {
         /// File path
         path: String,
         /// File handle (buffered)
-        handle: Arc<RwLock<Option<PortFileHandle>>>,
+        handle: Rc<RefCell<Option<PortFileHandle>>>,
     },
     /// Standard I/O port
     Standard(StandardPort),
@@ -695,14 +695,14 @@ impl Port {
     pub fn new_string_input(content: String) -> Self {
         Port {
             implementation: PortImpl::String {
-                content: Arc::new(RwLock::new(content)),
-                position: Arc::new(RwLock::new(0)),
+                content: Rc::new(RefCell::new(content)),
+                position: Rc::new(RefCell::new(0)),
             },
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: PortMode::Textual,
             direction: PortDirection::Input,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
@@ -721,14 +721,14 @@ impl Port {
 
         Port {
             implementation: PortImpl::String {
-                content: Arc::new(RwLock::new(initial_string)),
-                position: Arc::new(RwLock::new(0)),
+                content: Rc::new(RefCell::new(initial_string)),
+                position: Rc::new(RefCell::new(0)),
             },
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: PortMode::Textual,
             direction: PortDirection::Output,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
@@ -737,14 +737,14 @@ impl Port {
     pub fn new_bytevector_input(content: Vec<u8>) -> Self {
         Port {
             implementation: PortImpl::Bytevector {
-                content: Arc::new(RwLock::new(content)),
-                position: Arc::new(RwLock::new(0)),
+                content: Rc::new(RefCell::new(content)),
+                position: Rc::new(RefCell::new(0)),
             },
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: PortMode::Binary,
             direction: PortDirection::Input,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
@@ -763,14 +763,14 @@ impl Port {
 
         Port {
             implementation: PortImpl::Bytevector {
-                content: Arc::new(RwLock::new(initial_vec)),
-                position: Arc::new(RwLock::new(0)),
+                content: Rc::new(RefCell::new(initial_vec)),
+                position: Rc::new(RefCell::new(0)),
             },
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: PortMode::Binary,
             direction: PortDirection::Output,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
@@ -780,17 +780,17 @@ impl Port {
         Port {
             implementation: PortImpl::File {
                 path,
-                handle: Arc::new(RwLock::new(None)),
+                handle: Rc::new(RefCell::new(None)),
             },
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: if binary {
                 PortMode::Binary
             } else {
                 PortMode::Textual
             },
             direction: PortDirection::Input,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
@@ -800,17 +800,17 @@ impl Port {
         Port {
             implementation: PortImpl::File {
                 path,
-                handle: Arc::new(RwLock::new(None)),
+                handle: Rc::new(RefCell::new(None)),
             },
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: if binary {
                 PortMode::Binary
             } else {
                 PortMode::Textual
             },
             direction: PortDirection::Output,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
@@ -824,29 +824,29 @@ impl Port {
 
         Port {
             implementation: PortImpl::Standard(port_type),
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: PortMode::Textual,
             direction,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
 
     /// Checks if the port is open.
     pub fn is_open(&self) -> bool {
-        *self.is_open.try_read().unwrap()
+        *self.is_open.borrow()
     }
 
     /// Closes the port.
     pub fn close(&self) {
-        *self.is_open.write().unwrap() = false;
+        *self.is_open.borrow_mut() = false;
 
         // Perform specific cleanup based on port implementation
         match &self.implementation {
             PortImpl::File { handle, .. } => {
                 // Close file handle if open
-                let mut handle_guard = handle.write().unwrap();
+                let mut handle_guard = handle.borrow_mut();
                 if let Some(file_handle) = handle_guard.take() {
                     // File handles are automatically closed when dropped
                     drop(file_handle);
@@ -855,15 +855,15 @@ impl Port {
             PortImpl::String { content, .. } => {
                 // For output ports, clear content to free memory
                 if self.is_output() {
-                    content.write().unwrap().clear();
-                    content.write().unwrap().shrink_to_fit();
+                    content.borrow_mut().clear();
+                    content.borrow_mut().shrink_to_fit();
                 }
             }
             PortImpl::Bytevector { content, .. } => {
                 // For output ports, clear content to free memory
                 if self.is_output() {
-                    content.write().unwrap().clear();
-                    content.write().unwrap().shrink_to_fit();
+                    content.borrow_mut().clear();
+                    content.borrow_mut().shrink_to_fit();
                 }
             }
             PortImpl::Standard(_) => {
@@ -872,8 +872,8 @@ impl Port {
         }
 
         // Clear buffer to free memory
-        self.buffer.write().unwrap().clear();
-        self.buffer.write().unwrap().shrink_to_fit();
+        self.buffer.borrow_mut().clear();
+        self.buffer.borrow_mut().shrink_to_fit();
     }
 
     /// Checks if the port is textual.
@@ -913,11 +913,11 @@ impl Port {
     /// Gets the current memory usage of the port content.
     pub fn memory_usage(&self) -> usize {
         match &self.implementation {
-            PortImpl::String { content, .. } => content.try_read().unwrap().capacity(),
-            PortImpl::Bytevector { content, .. } => content.try_read().unwrap().capacity(),
+            PortImpl::String { content, .. } => content.borrow().capacity(),
+            PortImpl::Bytevector { content, .. } => content.borrow().capacity(),
             PortImpl::File { .. } => {
                 // File ports don't hold content in memory directly
-                self.buffer.try_read().unwrap().capacity()
+                self.buffer.borrow().capacity()
             }
             PortImpl::Standard(_) => 0,
         }
@@ -992,7 +992,7 @@ pub enum Promise {
 #[derive(Debug, Clone)]
 pub enum PromiseTrampoline {
     /// Continue evaluation with a new promise
-    Continue(Arc<RwLock<Promise>>),
+    Continue(Rc<RefCell<Promise>>),
     /// Evaluation completed with final result
     Done(Value),
     /// Evaluation requires external computation (thunk call)
@@ -1000,7 +1000,7 @@ pub enum PromiseTrampoline {
         /// The thunk value to compute
         thunk: Value,
         /// Reference to the promise for result caching
-        promise_ref: Arc<RwLock<Promise>>,
+        promise_ref: Rc<RefCell<Promise>>,
     },
 }
 
@@ -1082,7 +1082,7 @@ pub struct Record {
     /// Type identifier
     pub type_id: u64,
     /// Field values (stored in order matching the type definition)
-    pub fields: Arc<RwLock<Vec<Value>>>,
+    pub fields: Rc<RefCell<Vec<Value>>>,
 }
 
 /// Thread-safe environment for variable bindings with immutable semantics.
@@ -1683,7 +1683,7 @@ impl Value {
     }
 
     /// Creates a new generator from a vector.
-    pub fn generator_from_vector(vector: Arc<RwLock<Vec<Value>>>) -> Self {
+    pub fn generator_from_vector(vector: Rc<RefCell<Vec<Value>>>) -> Self {
         Value::Generator(Arc::new(crate::containers::Generator::from_vector(vector)))
     }
 
@@ -2034,12 +2034,9 @@ impl PartialEq for Value {
                     false
                 } else {
                     // Compare field values
-                    if let (Ok(a_fields), Ok(b_fields)) = (a.fields.try_read(), b.fields.try_read())
-                    {
-                        *a_fields == *b_fields
-                    } else {
-                        false // Handle lock errors conservatively
-                    }
+                    let a_fields = a.fields.borrow();
+                    let b_fields = b.fields.borrow();
+                    *a_fields == *b_fields
                 }
             }
             // Advanced containers use reference equality for efficiency
@@ -2448,7 +2445,7 @@ impl ThreadSafeEnvironment {
     /// This is thread-safe and immutable.
     pub fn lookup(&self, name: &str) -> Option<Value> {
         // Check local bindings first
-        if let Some(value) = self.bindings.try_read().unwrap().get(name) {
+        if let Some(value) = self.bindings.read().unwrap().get(name) {
             return Some(value.clone());
         }
 
@@ -2469,7 +2466,7 @@ impl ThreadSafeEnvironment {
     /// Creates a new environment with an additional binding (COW semantics).
     /// This preserves immutability by creating a new environment.
     pub fn define_cow(&self, name: String, value: Value) -> Arc<ThreadSafeEnvironment> {
-        let mut new_bindings = self.bindings.try_read().unwrap().clone();
+        let mut new_bindings = self.bindings.read().unwrap().clone();
         new_bindings.insert(name, value);
 
         Arc::new(ThreadSafeEnvironment {
@@ -2484,7 +2481,7 @@ impl ThreadSafeEnvironment {
     /// Returns true if the variable was found and set, false otherwise.
     pub fn set(&self, name: &str, value: Value) -> bool {
         // Check if variable exists in local bindings
-        if self.bindings.try_read().unwrap().contains_key(name) {
+        if self.bindings.read().unwrap().contains_key(name) {
             self.bindings
                 .write()
                 .unwrap()
@@ -2504,8 +2501,8 @@ impl ThreadSafeEnvironment {
     /// Returns None if the variable doesn't exist in the environment chain.
     pub fn set_cow(&self, name: &str, value: Value) -> Option<Arc<ThreadSafeEnvironment>> {
         // Check if variable exists in local bindings
-        if self.bindings.try_read().unwrap().contains_key(name) {
-            let mut new_bindings = self.bindings.try_read().unwrap().clone();
+        if self.bindings.read().unwrap().contains_key(name) {
+            let mut new_bindings = self.bindings.read().unwrap().clone();
             new_bindings.insert(name.to_string(), value);
 
             return Some(Arc::new(ThreadSafeEnvironment {
@@ -2541,7 +2538,7 @@ impl ThreadSafeEnvironment {
 
     /// Gets all variable names in this environment (for debugging).
     pub fn variable_names(&self) -> Vec<String> {
-        self.bindings.try_read().unwrap().keys().cloned().collect()
+        self.bindings.read().unwrap().keys().cloned().collect()
     }
 
     /// Gets all accessible variable names (including from parents).
@@ -2579,7 +2576,7 @@ impl ThreadSafeEnvironment {
 
         Rc::new(Environment {
             bindings: Rc::new(std::cell::RefCell::new(
-                self.bindings.try_read().unwrap().clone(),
+                self.bindings.read().unwrap().clone(),
             )),
             parent: legacy_parent,
             generation: self.generation,
