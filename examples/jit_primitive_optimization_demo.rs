@@ -4,10 +4,14 @@
 //! and performance achieved through the generic primitive system.
 
 #[cfg(feature = "jit")]
+use lambdust::eval::value::Value;
+#[cfg(feature = "jit")]
 use lambdust::jit::{
     core_primitives_generalized::register_all_core_primitives,
     generic_primitives::GenericPrimitiveRegistry,
 };
+#[cfg(feature = "jit")]
+use std::time::Instant;
 
 #[cfg(feature = "jit")]
 fn main() {

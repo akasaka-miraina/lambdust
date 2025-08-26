@@ -67,6 +67,8 @@ tokio-util = { version = "0.7", features = ["codec", "io"], optional = true }
 async-std = { version = "1.12", optional = true }
 rayon = "1.8"
 crossbeam = "0.8" # For channels and concurrent data structures
+crossbeam-utils = "0.8" # For Backoff and other utilities
+fastrand = "2.0" # Fast random number generator
 num_cpus = "1.16" # For detecting CPU count
 
 # Error handling and diagnostics
@@ -171,6 +173,8 @@ uuid = { version = "1.6", features = ["v4", "serde"] } # For unique IDs
 # Serialization and cryptography for fault tolerance
 bincode = "1.3"                                         # High-performance binary serialization
 sha2 = "0.10"                                           # SHA-2 hash functions for integrity
+futures-util = "0.3"                                   # Futures utilities
+regex = "1.10"                                          # Regular expressions
 
 [dev-dependencies]
 pretty_assertions = "1.4"
@@ -222,9 +226,25 @@ property-testing = ["proptest"]
 multithreaded-tests = ["async", "tokio/test-util"]
 ffi = ["libffi", "cc"]                              # FFI support
 jit = ["inkwell", "llvm-sys", "cranelift", "cranelift-codegen", "cranelift-frontend", "cranelift-module", "cranelift-jit"] # JIT compilation support
-simd = []                                           # SIMD optimizations
-simd-avx512 = ["simd"]                             # AVX-512 SIMD support
-simd-neon = ["simd"]                               # ARM NEON SIMD support
+# SIMD optimization features (Phase 3.5 integration strategy)
+simd = []                                           # Basic SIMD framework
+portable_simd = []                                  # Portable SIMD types (nightly feature)
+simd_optimized = ["simd", "portable_simd"]         # Full SIMD optimizations
+simd-avx512 = ["simd_optimized"]                   # AVX-512 SIMD support
+simd-neon = ["simd_optimized"]                     # ARM NEON SIMD support
+
+# Phase 5: Advanced Runtime Optimizations - Stage-based feature activation
+stage1 = ["trait-optimization", "jit-integration"] # Stage 1: JIT integration system
+stage2 = ["stage1", "parallel-execution"]          # Stage 2: Parallel execution system
+stage3 = ["stage2", "distributed-computing"]       # Stage 3: Distributed computing support
+stage4 = ["stage3", "security-integration"]        # Stage 4: Security integration  
+stage5 = ["stage4", "performance-integration"]     # Stage 5: Performance integration
+stage6 = ["stage5", "quality-assurance"]           # Stage 6: Quality assurance
+
+# Legacy Phase 4.1 features (maintained for backwards compatibility)
+legacy-stage3 = ["stage2", "nan-boxing-optimization"]     # Legacy: NaN boxing integration  
+legacy-stage4 = ["legacy-stage3", "arena-optimization"]   # Legacy: Arena allocation
+legacy-stage5 = ["legacy-stage4", "simd-optimization"]    # Legacy: SIMD acceleration
 
 # Type System Features
 hindley-milner = [] # Hindley-Milner type inference
@@ -247,6 +267,24 @@ certified-translation = [
     "event-b",
     "b-method",
 ] # Full formal verification stack
+
+# Phase 4.1 optimization features (gradual integration)
+trait-optimization = []           # Stage 1: Basic trait framework
+# Phase 5: Advanced Runtime Optimization Features
+jit-integration = []              # Stage 1: JIT integration system
+parallel-execution = []           # Stage 2: Parallel execution system
+distributed-computing = []        # Stage 3: Distributed computing support
+security-integration = []         # Stage 4: Security integration
+performance-integration = []      # Stage 5: Performance integration  
+quality-assurance = []            # Stage 6: Quality assurance
+
+# Legacy Phase 4.1 optimization features
+nan-boxing-optimization = []      # Legacy: NaN boxing integration
+arena-optimization = []           # Legacy: Arena allocation
+simd-optimization = []            # Legacy: SIMD acceleration
+vertical-integration = []         # Legacy: Dependency reduction
+
+# The stage features are now defined above in the main features section
 
 # internal-parser = [] # 廃止済み (2025年8月12日) - nom互換レイヤー削除により不要
 
@@ -299,6 +337,13 @@ path = "benches/simd_comprehensive_benchmarks.rs"
 harness = false
 required-features = ["benchmarks", "simd"]
 
+# Phase 3.5 Integration Benchmarks
+[[bench]]
+name = "phase3_5_integration_benchmarks"
+path = "benches/phase3_5_integration_benchmarks.rs"
+harness = false
+required-features = ["benchmarks"]
+
 # Lint configuration for crates.io quality
 [lints.rust]
 # All warnings as errors for crates.io quality
@@ -307,14 +352,3 @@ unused_variables = "warn"
 unused_imports = "warn"
 dead_code = "warn"
 
-# Workspace configuration for potential future crates
-[workspace]
-members = [
-    ".",
-    # Future subcrates:
-    # "lambdust-core",     # Core language implementation
-    # "lambdust-std",      # Standard library
-    # "lambdust-types",    # Type system
-    # "lambdust-macro",    # Macro system
-    # "lambdust-ffi",      # FFI bindings
-]
