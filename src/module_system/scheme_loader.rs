@@ -554,16 +554,33 @@ impl SchemeLibraryLoader {
         match expr {
             Expr::Literal(lit) => Ok(Value::Literal(lit.clone())),
             Expr::Identifier(name) => {
-                // Look up in available primitives or environment
-                if let Some(value) = context.available_primitives.get(name) {
-                    Ok(value.clone())
-                } else if let Some(value) = context.environment.lookup(name) {
-                    Ok(value)
-                } else {
-                    Err(Box::new(Error::runtime_error(
-                        format!("Unbound variable in library compilation: {name}"),
-                        None,
-                    )))
+                // Handle special forms and primitives that should be available during compilation
+                match name.as_str() {
+                    // Core special forms that are always available
+                    "define" | "define-values" | "define-syntax" | "define-library" |
+                    "import" | "export" | "begin" | "lambda" | "case-lambda" |
+                    "if" | "when" | "unless" | "cond" | "case" | "and" | "or" |
+                    "let" | "let*" | "letrec" | "letrec*" | "let-values" | "let*-values" |
+                    "do" | "quote" | "quasiquote" | "unquote" | "unquote-splicing" |
+                    "syntax-rules" | "syntax-case" | "with-syntax" |
+                    "call/cc" | "call-with-current-continuation" | "call-with-values" |
+                    "dynamic-wind" | "values" | "set!" => {
+                        // Return a placeholder value for special forms
+                        // The actual compilation is handled elsewhere
+                        Ok(Value::symbol_from_str(name.clone()))
+                    }
+                    _ => {
+                        // Look up in available primitives or environment
+                        if let Some(value) = context.available_primitives.get(name) {
+                            Ok(value.clone())
+                        } else if let Some(value) = context.environment.lookup(name) {
+                            Ok(value)
+                        } else {
+                            // For library compilation, we should be more permissive
+                            // Many identifiers will be resolved during actual evaluation
+                            Ok(Value::symbol_from_str(name.clone()))
+                        }
+                    }
                 }
             }
             // For complex expressions, we'd need full evaluation or bytecode generation

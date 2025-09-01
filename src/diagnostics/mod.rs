@@ -19,7 +19,7 @@ pub mod suggestions;
 pub mod unified_error;
 
 pub use custom_error::{
-    ErrorLabel, LabelStyle, LambdustError, RuntimeError as CustomRuntimeError, utils as error_utils,
+    ErrorLabel, LabelStyle, EvalUnifiedError, RuntimeError as CustomRuntimeError, utils as error_utils,
 };
 pub use error::*;
 pub use gc_diagnostics::{
@@ -214,8 +214,8 @@ impl std::fmt::Display for Error {
     }
 }
 
-// LambdustError trait implementation
-impl LambdustError for Error {
+// EvalUnifiedError trait implementation
+impl EvalUnifiedError for Error {
     fn error_code(&self) -> &'static str {
         match self {
             Self::LexError { .. } => "lambdust::lexer::error",

@@ -598,6 +598,121 @@ impl HygieneContext {
                 }
             }
 
+            // Additional patterns that don't contain identifiers to rename
+            Expr::ExternalForm { tag, args } => {
+                let renamed_args = args.into_iter()
+                    .map(|arg| self.rename_expr(arg))
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::ExternalForm { 
+                    tag,
+                    args: renamed_args,
+                }
+            }
+            
+            Expr::Delay { expression } => {
+                let renamed_expr = self.rename_expr(*expression)?;
+                Expr::Delay { 
+                    expression: Box::new(renamed_expr) 
+                }
+            }
+            
+            Expr::Lazy { expression } => {
+                let renamed_expr = self.rename_expr(*expression)?;
+                Expr::Lazy { 
+                    expression: Box::new(renamed_expr) 
+                }
+            }
+            
+            Expr::Eager { expression } => {
+                let renamed_expr = self.rename_expr(*expression)?;
+                Expr::Eager { 
+                    expression: Box::new(renamed_expr) 
+                }
+            }
+            
+            Expr::Cut { procedure, arguments } => {
+                let renamed_proc = self.rename_expr(*procedure)?;
+                let renamed_args = arguments.into_iter()
+                    .map(|arg| -> Result<crate::ast::CutArgument> {
+                        match arg {
+                            crate::ast::CutArgument::Slot => Ok(crate::ast::CutArgument::Slot),
+                            crate::ast::CutArgument::RestSlot => Ok(crate::ast::CutArgument::RestSlot),
+                            crate::ast::CutArgument::Expression(e) => {
+                                Ok(crate::ast::CutArgument::Expression(Box::new(self.rename_expr(*e)?)))
+                            }
+                        }
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::Cut {
+                    procedure: Box::new(renamed_proc),
+                    arguments: renamed_args,
+                }
+            }
+            
+            Expr::Cute { procedure, arguments } => {
+                let renamed_proc = self.rename_expr(*procedure)?;
+                let renamed_args = arguments.into_iter()
+                    .map(|arg| -> Result<crate::ast::CutArgument> {
+                        match arg {
+                            crate::ast::CutArgument::Slot => Ok(crate::ast::CutArgument::Slot),
+                            crate::ast::CutArgument::RestSlot => Ok(crate::ast::CutArgument::RestSlot),
+                            crate::ast::CutArgument::Expression(e) => {
+                                Ok(crate::ast::CutArgument::Expression(Box::new(self.rename_expr(*e)?)))
+                            }
+                        }
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::Cute {
+                    procedure: Box::new(renamed_proc),
+                    arguments: renamed_args,
+                }
+            }
+            
+            Expr::AndLetStar { clauses, body } => {
+                let renamed_clauses = clauses.into_iter()
+                    .map(|clause| match clause {
+                        crate::ast::AndLetClause::Binding { variable, expression } => {
+                            Ok(crate::ast::AndLetClause::Binding {
+                                variable: self.rename_identifier(&variable),
+                                expression: self.rename_expr(expression)?,
+                            })
+                        }
+                        crate::ast::AndLetClause::Test { expression } => {
+                            Ok(crate::ast::AndLetClause::Test {
+                                expression: self.rename_expr(expression)?,
+                            })
+                        }
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let renamed_body = body.into_iter()
+                    .map(|e| self.rename_expr(e))
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::AndLetStar {
+                    clauses: renamed_clauses,
+                    body: renamed_body,
+                }
+            }
+            
+            Expr::CondExpand { clauses, else_clause } => {
+                // For cond-expand, we might want to conditionally rename based on feature availability
+                // For now, rename everything
+                let renamed_clauses = clauses.into_iter()
+                    .map(|clause| Ok(crate::ast::CondExpandClause {
+                        feature_requirement: clause.feature_requirement, // Don't rename feature names
+                        body: self.rename_body(clause.body)?,
+                    }))
+                    .collect::<Result<Vec<_>>>()?;
+                let renamed_else = if let Some(else_body) = else_clause {
+                    Some(self.rename_body(else_body)?)
+                } else {
+                    None
+                };
+                Expr::CondExpand {
+                    clauses: renamed_clauses,
+                    else_clause: renamed_else,
+                }
+            }
+
             // These don't contain identifiers to rename
             Expr::Literal(_) | Expr::Keyword(_) => expr.inner,
         };

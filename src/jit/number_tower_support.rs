@@ -1,4 +1,4 @@
-//! R7RS Number Tower Support for JIT Compiled Code
+#![allow(missing_docs)]//! R7RS Number Tower Support for JIT Compiled Code
 //!
 //! This module implements proper R7RS number tower semantics in JIT-compiled code,
 //! ensuring that exact/inexact arithmetic, numeric types, and precision are

@@ -17,7 +17,7 @@ fn test_list_cons_car_cdr() {
             let cdr_result = cons_result.cdr().unwrap_or(Value::Nil);
             
             let tail_elements = if tail_list.is_empty() {
-                vec![]
+                &[]
             } else {
                 tail_list.clone()
             };

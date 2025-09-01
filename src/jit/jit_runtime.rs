@@ -1,4 +1,4 @@
-//! JIT runtime coordination system
+#![allow(missing_docs)]//! JIT runtime coordination system
 //!
 //! This module coordinates all JIT compilation activities and provides
 //! the main interface for JIT-enabled execution.

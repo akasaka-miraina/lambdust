@@ -16,16 +16,38 @@ pub mod optimized_value;
 pub mod parameter;
 pub mod unified_eval_errors;
 pub mod value;
+pub mod stream;
+
+// SRFI-31 optimization framework
+pub mod rec_optimization_framework;
+pub mod rec_optimization_monitoring;
 
 // Arena allocation modules
 pub mod arena_integration;
 pub mod value_arena;
+
+// SRFI-1 optimization modules
+pub mod list_optimization;
+pub mod list_arena;
+
+// NaN-boxing value representation modules
+pub mod nan_boxed_value;
+
+// High-performance SRFI-9 record system modules
+pub mod record_access;
+pub mod record_arena;
+pub mod record_instance;
+pub mod record_type;
 
 // Value optimization modules
 pub mod memory_measurement;
 pub mod semantic_tests;
 pub mod value_bridge;
 pub mod value_optimization_core;
+
+// Phase 8 optimization infrastructure
+pub mod unified_value_system;
+pub mod string_interning_system;
 
 // Performance verification modules
 pub mod arc_allocation_tracker;
@@ -40,6 +62,8 @@ pub mod operational_semantics;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+// pub mod letrec_test;
 // Re-export public types and functions
 pub use cached_environment::{CacheStatistics, CachedEnvironment};
 pub use environment::{EnvironmentBuilder, global_environment};

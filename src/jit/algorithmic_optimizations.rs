@@ -1,4 +1,4 @@
-//! Advanced algorithmic optimizations for JIT compilation
+#![allow(missing_docs)]//! Advanced algorithmic optimizations for JIT compilation
 //!
 //! This module implements sophisticated computer science algorithms and mathematical
 //! models for optimizing JIT compilation decisions, including:

@@ -1,4 +1,4 @@
-//! Multi-tier compilation strategy for progressive optimization
+#![allow(missing_docs)]//! Multi-tier compilation strategy for progressive optimization
 //!
 //! This module implements a sophisticated compilation pipeline that progressively
 //! optimizes code through multiple tiers: interpreter → bytecode → native JIT.

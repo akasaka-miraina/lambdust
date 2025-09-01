@@ -179,6 +179,7 @@ pub trait Visitor {
             Expr::Quasiquote(expr) => self.visit_quasiquote(expr),
             Expr::Unquote(expr) => self.visit_unquote(expr),
             Expr::UnquoteSplicing(expr) => self.visit_unquote_splicing(expr),
+            Expr::ExternalForm { tag, args } => self.visit_external_form(tag, args),
             Expr::Lambda {
                 formals,
                 metadata,
@@ -207,6 +208,7 @@ pub trait Visitor {
             Expr::DefineSyntax { name, transformer } => self.visit_define_syntax(name, transformer),
             Expr::SyntaxRules { literals, rules } => self.visit_syntax_rules(literals, rules),
             Expr::CallCC(expr) => self.visit_call_cc(expr),
+            Expr::Delay { expression } => self.visit_delay(expression),
             Expr::Primitive { name, args } => self.visit_primitive(name, args),
             Expr::TypeAnnotation { expr, type_expr } => self.visit_type_annotation(expr, type_expr),
             Expr::Application { operator, operands } => self.visit_application(operator, operands),
@@ -241,6 +243,21 @@ pub trait Visitor {
             Expr::ContractApplication { contract, expr } => {
                 self.visit_contract_application(contract, expr)
             }
+            Expr::CondExpand {
+                clauses,
+                else_clause,
+            } => self.visit_cond_expand(clauses, else_clause),
+            Expr::Cut {
+                procedure,
+                arguments,
+            } => self.visit_cut(procedure, arguments),
+            Expr::Cute {
+                procedure,
+                arguments,
+            } => self.visit_cute(procedure, arguments),
+            Expr::Lazy { expression } => self.visit_expr(expression),
+            Expr::Eager { expression } => self.visit_expr(expression),
+            Expr::AndLetStar { clauses, body } => self.visit_and_let_star(clauses, body),
         }
     }
 
@@ -356,6 +373,8 @@ pub trait Visitor {
     ///
     /// - `expr`: The expression to unquote and splice
     fn visit_unquote_splicing(&mut self, expr: &Spanned<Expr>) -> Self::Output;
+    /// Visit an external form (SRFI-10).
+    fn visit_external_form(&mut self, tag: &str, args: &[Spanned<Expr>]) -> Self::Output;
 
     // =========================================================================
     // LAMBDA EXPRESSIONS - R7RS Section 4.1.4
@@ -532,6 +551,16 @@ pub trait Visitor {
     /// - `expr`: The procedure to call with the current continuation
     fn visit_call_cc(&mut self, expr: &Spanned<Expr>) -> Self::Output;
 
+    /// Visit a delay form.
+    ///
+    /// Delay creates a promise that defers evaluation of its expression until forced.
+    /// This enables lazy evaluation and lazy data structures.
+    ///
+    /// # Arguments
+    ///
+    /// - `expression`: The expression to defer evaluation for
+    fn visit_delay(&mut self, expression: &Spanned<Expr>) -> Self::Output;
+
     // =========================================================================
     // PRIMITIVE OPERATIONS
     // =========================================================================
@@ -662,6 +691,27 @@ pub trait Visitor {
     /// - `bindings`: List of (variable, expression) bindings (all mutually visible)
     /// - `body`: Sequence of expressions forming the letrec body
     fn visit_let_rec(&mut self, bindings: &[Binding], body: &[Spanned<Expr>]) -> Self::Output;
+
+    /// Visit an and-let* expression: `(and-let* <clauses> <body>...)`.
+    ///
+    /// SRFI-2 conditional binding with short-circuit evaluation.
+    /// Each clause can bind a variable or test a condition; evaluation stops
+    /// at the first clause that evaluates to #f.
+    ///
+    /// # SRFI-2 Reference
+    ///
+    /// SRFI-2: "and-let*: an AND with local bindings, a guarded LET* special form"
+    /// Provides conditional binding with early termination on false values.
+    ///
+    /// # Arguments
+    ///
+    /// - `clauses`: The and-let* clauses (bindings and tests)
+    /// - `body`: The body expressions to evaluate if all clauses succeed
+    fn visit_and_let_star(
+        &mut self,
+        clauses: &[AndLetClause],
+        body: &[Spanned<Expr>],
+    ) -> Self::Output;
 
     /// Visit a cond expression: `(cond <clause>...)`.
     ///
@@ -937,6 +987,51 @@ pub trait Visitor {
         contract: &Spanned<crate::contracts::ast::ContractExpr>,
         expr: &Spanned<Expr>,
     ) -> Self::Output;
+
+    /// Visits a cond-expand expression (SRFI-0).
+    ///
+    /// This method processes conditional expansion forms that enable
+    /// feature-based inclusion of code at compile time.
+    ///
+    /// # Arguments
+    ///
+    /// - `clauses`: Feature-condition clauses to evaluate
+    /// - `else_clause`: Optional else clause for fallback
+    fn visit_cond_expand(
+        &mut self,
+        clauses: &[CondExpandClause],
+        else_clause: &Option<Vec<Spanned<Expr>>>,
+    ) -> Self::Output;
+
+    /// Visit a cut expression (SRFI-26).
+    ///
+    /// Processes cut expressions which create specialized procedures
+    /// with some arguments fixed and others represented by slots.
+    ///
+    /// # Arguments
+    ///
+    /// - `procedure`: The procedure being specialized
+    /// - `arguments`: Arguments containing slots and expressions
+    fn visit_cut(
+        &mut self,
+        procedure: &Spanned<Expr>,
+        arguments: &[crate::ast::CutArgument],
+    ) -> Self::Output;
+
+    /// Visit a cute expression (SRFI-26).
+    ///
+    /// Processes cute expressions which create specialized procedures
+    /// with eager evaluation of non-slot expressions.
+    ///
+    /// # Arguments
+    ///
+    /// - `procedure`: The procedure being specialized
+    /// - `arguments`: Arguments containing slots and expressions
+    fn visit_cute(
+        &mut self,
+        procedure: &Spanned<Expr>,
+        arguments: &[crate::ast::CutArgument],
+    ) -> Self::Output;
 }
 
 /// Mutable visitor trait for transforming AST nodes.
@@ -1148,6 +1243,13 @@ impl Visitor for NodeCounter {
         self.visit_expr(expr);
     }
 
+    fn visit_external_form(&mut self, _tag: &str, args: &[Spanned<Expr>]) {
+        self.total += 1;
+        for arg in args {
+            self.visit_expr(arg);
+        }
+    }
+
     fn visit_lambda(
         &mut self,
         _formals: &Formals,
@@ -1239,6 +1341,11 @@ impl Visitor for NodeCounter {
         self.visit_expr(expr);
     }
 
+    fn visit_delay(&mut self, expression: &Spanned<Expr>) {
+        self.total += 1;
+        self.visit_expr(expression);
+    }
+
     fn visit_primitive(&mut self, _name: &str, args: &[Spanned<Expr>]) {
         self.total += 1;
         self.visit_expressions(args);
@@ -1283,6 +1390,14 @@ impl Visitor for NodeCounter {
         self.total += 1;
         for binding in bindings {
             self.visit_expr(&binding.value);
+        }
+        self.visit_expressions(body);
+    }
+
+    fn visit_and_let_star(&mut self, clauses: &[AndLetClause], body: &[Spanned<Expr>]) {
+        self.total += 1;
+        for clause in clauses {
+            self.visit_expr(clause.expression());
         }
         self.visit_expressions(body);
     }
@@ -1395,6 +1510,48 @@ impl Visitor for NodeCounter {
     ) {
         self.total += 1;
         self.visit_expr(expr);
+    }
+
+    fn visit_cond_expand(
+        &mut self,
+        clauses: &[CondExpandClause],
+        else_clause: &Option<Vec<Spanned<Expr>>>,
+    ) {
+        self.total += 1;
+
+        // Count expressions in clauses
+        for clause in clauses {
+            self.visit_expressions(&clause.body);
+        }
+
+        // Count expressions in else clause if present
+        if let Some(else_body) = else_clause {
+            self.visit_expressions(else_body);
+        }
+    }
+
+    fn visit_cut(&mut self, procedure: &Spanned<Expr>, arguments: &[crate::ast::CutArgument]) {
+        self.total += 1;
+        self.visit_expr(procedure);
+
+        // Visit expressions in arguments
+        for arg in arguments {
+            if let crate::ast::CutArgument::Expression(expr) = arg {
+                self.visit_expr(expr);
+            }
+        }
+    }
+
+    fn visit_cute(&mut self, procedure: &Spanned<Expr>, arguments: &[crate::ast::CutArgument]) {
+        self.total += 1;
+        self.visit_expr(procedure);
+
+        // Visit expressions in arguments
+        for arg in arguments {
+            if let crate::ast::CutArgument::Expression(expr) = arg {
+                self.visit_expr(expr);
+            }
+        }
     }
 }
 

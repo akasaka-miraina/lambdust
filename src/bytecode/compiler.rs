@@ -354,6 +354,12 @@ impl BytecodeCompiler {
                 // Unspecified values are typically not literals but we handle them anyway
                 ConstantValue::String("#<unspecified>".to_string())
             }
+            Literal::HomogeneousVector(_vec) => {
+                // HomogeneousVector not yet supported in bytecode
+                return Err(Box::new(Error::compilation_error(
+                    "HomogeneousVector literals not yet supported in bytecode".to_string(),
+                )));
+            }
         };
 
         let const_index = constant_pool.add_constant(constant_value);

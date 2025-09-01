@@ -1,4 +1,4 @@
-//! Simplified primitive registration without complex macros.
+#![allow(missing_docs)]//! Simplified primitive registration without complex macros.
 //! This provides a direct implementation approach for JIT primitives.
 
 use crate::diagnostics::{Result, UnifiedResult};

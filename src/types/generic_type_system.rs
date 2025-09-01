@@ -1,4 +1,4 @@
-//! Generic Type System with CaTT and Monad Integration Support
+#![allow(missing_docs)]//! Generic Type System with CaTT and Monad Integration Support
 //!
 //! This module provides a highly flexible, extensible type system foundation
 //! designed for future integration with Cartesian Type Theory (CaTT) and

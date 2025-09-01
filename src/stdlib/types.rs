@@ -471,7 +471,7 @@ fn primitive_function_return_type(_args: &[Value]) -> Result<Value> {
 // ============= HELPER FUNCTIONS =============
 
 /// Gets the type name of a value.
-fn get_value_type_name(value: &Value) -> String {
+pub fn get_value_type_name(value: &Value) -> String {
     match value {
         Value::Literal(lit) => match lit {
             crate::ast::Literal::ExactInteger(_) | crate::ast::Literal::Integer(_) => {
@@ -489,6 +489,7 @@ fn get_value_type_name(value: &Value) -> String {
             crate::ast::Literal::Bytevector(_) => "bytevector".to_string(),
             crate::ast::Literal::Nil => "null".to_string(),
             crate::ast::Literal::Unspecified => "unspecified".to_string(),
+            crate::ast::Literal::HomogeneousVector(hv) => hv.type_name().to_string(),
         },
         Value::Symbol(_) => "symbol".to_string(),
         Value::Keyword(_) => "keyword".to_string(),
@@ -538,6 +539,24 @@ fn get_value_type_name(value: &Value) -> String {
         Value::Opaque(_) => "opaque".to_string(),
         Value::Environment(_) => "environment".to_string(),
         Value::Box(_) => "box".to_string(),
+        
+        // SRFI-specific types
+        Value::Ephemeron(_) => "ephemeron".to_string(),
+        Value::Time(_) => "time".to_string(),
+        Value::Date(_) => "date".to_string(),
+        Value::Thread(_) => "thread".to_string(),
+        Value::Mutex(_) => "mutex".to_string(),
+        Value::ConditionVariable(_) => "condition-variable".to_string(),
+        Value::Time21(_) => "srfi21-time".to_string(),
+        Value::MultipleValues(_) => "values".to_string(),
+        Value::HomogeneousVector(_) => "homogeneous-vector".to_string(),
+        Value::Mapping(_) => "mapping".to_string(),
+        Value::Comparator(_) => "comparator".to_string(),
+        Value::Condition(_) => "condition".to_string(),
+        Value::ConditionType(_) => "condition-type".to_string(),
+        Value::Stream(_) => "stream".to_string(),
+        #[cfg(feature = "async-runtime")]
+        Value::AsyncMutex(_) => "async-mutex".to_string(),
     }
 }
 

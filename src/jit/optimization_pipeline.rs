@@ -1,4 +1,4 @@
-//! Scheme-specific optimization pipeline for JIT compilation
+#![allow(missing_docs)]//! Scheme-specific optimization pipeline for JIT compilation
 //!
 //! This module implements a comprehensive optimization pipeline that applies
 //! Scheme-specific optimizations including tail call optimization, closure

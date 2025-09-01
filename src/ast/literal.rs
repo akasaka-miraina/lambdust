@@ -56,6 +56,9 @@ pub enum Literal {
     /// Legacy integer alias for compatibility
     #[deprecated(note = "Use ExactInteger instead")]
     Integer(i64),
+
+    /// SRFI-4: Homogeneous numeric vector datatypes - boxed for size optimization
+    HomogeneousVector(Box<HomogeneousVectorLiteral>),
 }
 
 /// Rational number representation.
@@ -65,6 +68,73 @@ pub struct RationalLiteral {
     pub numerator: i64,
     /// Denominator of the rational number (always positive and non-zero)
     pub denominator: i64,
+}
+
+/// SRFI-4: Homogeneous numeric vector literal representation.
+///
+/// This represents homogeneous vectors at the AST level, before they are
+/// converted to efficient runtime representations in the evaluator.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum HomogeneousVectorLiteral {
+    /// 8-bit unsigned integer vector: #u8(...)
+    U8Vector(Vec<u8>),
+    /// 8-bit signed integer vector: #s8(...)
+    S8Vector(Vec<i8>),
+    /// 16-bit unsigned integer vector: #u16(...)
+    U16Vector(Vec<u16>),
+    /// 16-bit signed integer vector: #s16(...)
+    S16Vector(Vec<i16>),
+    /// 32-bit unsigned integer vector: #u32(...)
+    U32Vector(Vec<u32>),
+    /// 32-bit signed integer vector: #s32(...)
+    S32Vector(Vec<i32>),
+    /// 32-bit floating point vector: #f32(...)
+    F32Vector(Vec<f32>),
+    /// 64-bit floating point vector: #f64(...)
+    F64Vector(Vec<f64>),
+}
+
+impl std::hash::Hash for HomogeneousVectorLiteral {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            HomogeneousVectorLiteral::U8Vector(vec) => {
+                0u8.hash(state);
+                vec.hash(state);
+            }
+            HomogeneousVectorLiteral::S8Vector(vec) => {
+                1u8.hash(state);
+                vec.hash(state);
+            }
+            HomogeneousVectorLiteral::U16Vector(vec) => {
+                2u8.hash(state);
+                vec.hash(state);
+            }
+            HomogeneousVectorLiteral::S16Vector(vec) => {
+                3u8.hash(state);
+                vec.hash(state);
+            }
+            HomogeneousVectorLiteral::U32Vector(vec) => {
+                4u8.hash(state);
+                vec.hash(state);
+            }
+            HomogeneousVectorLiteral::S32Vector(vec) => {
+                5u8.hash(state);
+                vec.hash(state);
+            }
+            HomogeneousVectorLiteral::F32Vector(vec) => {
+                6u8.hash(state);
+                for &f in vec {
+                    f.to_bits().hash(state);
+                }
+            }
+            HomogeneousVectorLiteral::F64Vector(vec) => {
+                7u8.hash(state);
+                for &f in vec {
+                    f.to_bits().hash(state);
+                }
+            }
+        }
+    }
 }
 
 impl RationalLiteral {
@@ -271,7 +341,8 @@ impl Literal {
             | Literal::Boolean(_)
             | Literal::Bytevector(_)
             | Literal::Nil
-            | Literal::Unspecified => false,
+            | Literal::Unspecified
+            | Literal::HomogeneousVector(_) => false,
         }
     }
 
@@ -283,6 +354,7 @@ impl Literal {
             Literal::Number(n) => Some(*n),
             Literal::Rational(r) => Some(r.to_f64()),
             Literal::Complex(c) if c.is_real() => Some(c.real),
+            Literal::HomogeneousVector(_) => None, // Vectors are not single numbers
             _ => None,
         }
     }
@@ -300,6 +372,7 @@ impl Literal {
                 if i as f64 == *n { Some(i) } else { None }
             }
             Literal::Rational(r) if r.is_integer() => Some(r.numerator),
+            Literal::HomogeneousVector(_) => None, // Vectors are not single numbers
             _ => None,
         }
     }
@@ -461,6 +534,74 @@ impl fmt::Display for Literal {
             }
             Literal::Nil => write!(f, "()"),
             Literal::Unspecified => write!(f, "#<unspecified>"),
+            Literal::HomogeneousVector(hv) => {
+                match hv.as_ref() {
+                    HomogeneousVectorLiteral::U8Vector(v) => {
+                        write!(f, "#u8(")?;
+                        for (i, val) in v.iter().enumerate() {
+                            if i > 0 { write!(f, " ")?; }
+                            write!(f, "{val}")?;
+                        }
+                        write!(f, ")")
+                    }
+                    HomogeneousVectorLiteral::S8Vector(v) => {
+                        write!(f, "#s8(")?;
+                        for (i, val) in v.iter().enumerate() {
+                            if i > 0 { write!(f, " ")?; }
+                            write!(f, "{val}")?;
+                        }
+                        write!(f, ")")
+                    }
+                    HomogeneousVectorLiteral::U16Vector(v) => {
+                        write!(f, "#u16(")?;
+                        for (i, val) in v.iter().enumerate() {
+                            if i > 0 { write!(f, " ")?; }
+                            write!(f, "{val}")?;
+                        }
+                        write!(f, ")")
+                    }
+                    HomogeneousVectorLiteral::S16Vector(v) => {
+                        write!(f, "#s16(")?;
+                        for (i, val) in v.iter().enumerate() {
+                            if i > 0 { write!(f, " ")?; }
+                            write!(f, "{val}")?;
+                        }
+                        write!(f, ")")
+                    }
+                    HomogeneousVectorLiteral::U32Vector(v) => {
+                        write!(f, "#u32(")?;
+                        for (i, val) in v.iter().enumerate() {
+                            if i > 0 { write!(f, " ")?; }
+                            write!(f, "{val}")?;
+                        }
+                        write!(f, ")")
+                    }
+                    HomogeneousVectorLiteral::S32Vector(v) => {
+                        write!(f, "#s32(")?;
+                        for (i, val) in v.iter().enumerate() {
+                            if i > 0 { write!(f, " ")?; }
+                            write!(f, "{val}")?;
+                        }
+                        write!(f, ")")
+                    }
+                    HomogeneousVectorLiteral::F32Vector(v) => {
+                        write!(f, "#f32(")?;
+                        for (i, val) in v.iter().enumerate() {
+                            if i > 0 { write!(f, " ")?; }
+                            write!(f, "{val}")?;
+                        }
+                        write!(f, ")")
+                    }
+                    HomogeneousVectorLiteral::F64Vector(v) => {
+                        write!(f, "#f64(")?;
+                        for (i, val) in v.iter().enumerate() {
+                            if i > 0 { write!(f, " ")?; }
+                            write!(f, "{val}")?;
+                        }
+                        write!(f, ")")
+                    }
+                }
+            }
         }
     }
 }
@@ -534,9 +675,58 @@ impl Hash for Literal {
             Literal::Unspecified => {
                 9u8.hash(state);
             }
+            Literal::HomogeneousVector(hv) => {
+                10u8.hash(state);
+                match hv.as_ref() {
+                    HomogeneousVectorLiteral::U8Vector(vec) => vec.hash(state),
+                    HomogeneousVectorLiteral::S8Vector(vec) => vec.hash(state),
+                    HomogeneousVectorLiteral::U16Vector(vec) => vec.hash(state),
+                    HomogeneousVectorLiteral::S16Vector(vec) => vec.hash(state),
+                    HomogeneousVectorLiteral::U32Vector(vec) => vec.hash(state),
+                    HomogeneousVectorLiteral::S32Vector(vec) => vec.hash(state),
+                    HomogeneousVectorLiteral::F32Vector(vec) => {
+                        for &f in vec {
+                            f.to_bits().hash(state);
+                        }
+                    }
+                    HomogeneousVectorLiteral::F64Vector(vec) => {
+                        for &f in vec {
+                            f.to_bits().hash(state);
+                        }
+                    }
+                }
+            }
         }
     }
 }
+
+impl PartialEq for Literal {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Literal::ExactInteger(a), Literal::ExactInteger(b)) => a == b,
+            (Literal::InexactReal(a), Literal::InexactReal(b)) => a == b,
+            (Literal::Number(a), Literal::Number(b)) => a == b,
+            (Literal::Rational(r1), Literal::Rational(r2)) => r1 == r2,
+            (Literal::Complex(c1), Literal::Complex(c2)) => c1 == c2,
+
+            // String comparison handles both regular and interned strings
+            (Literal::String(s1), Literal::String(s2)) => s1 == s2,
+            (Literal::InternedString(s1), Literal::InternedString(s2)) => s1 == s2,
+            (Literal::String(s1), Literal::InternedString(s2)) => s1.as_str() == s2.as_str(),
+            (Literal::InternedString(s1), Literal::String(s2)) => s1.as_str() == s2.as_str(),
+
+            (Literal::Character(a), Literal::Character(b)) => a == b,
+            (Literal::Boolean(a), Literal::Boolean(b)) => a == b,
+            (Literal::Bytevector(a), Literal::Bytevector(b)) => a == b,
+            (Literal::Nil, Literal::Nil) => true,
+            (Literal::Unspecified, Literal::Unspecified) => true,
+            (Literal::HomogeneousVector(a), Literal::HomogeneousVector(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Literal {}
 
 #[cfg(test)]
 mod tests {
@@ -678,29 +868,53 @@ mod tests {
     }
 }
 
-impl PartialEq for Literal {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Literal::ExactInteger(a), Literal::ExactInteger(b)) => a == b,
-            (Literal::InexactReal(a), Literal::InexactReal(b)) => a == b,
-            (Literal::Number(a), Literal::Number(b)) => a == b,
-            (Literal::Rational(r1), Literal::Rational(r2)) => r1 == r2,
-            (Literal::Complex(c1), Literal::Complex(c2)) => c1 == c2,
-
-            // String comparison handles both regular and interned strings
-            (Literal::String(s1), Literal::String(s2)) => s1 == s2,
-            (Literal::InternedString(s1), Literal::InternedString(s2)) => s1 == s2,
-            (Literal::String(s1), Literal::InternedString(s2)) => s1.as_str() == s2.as_str(),
-            (Literal::InternedString(s1), Literal::String(s2)) => s1.as_str() == s2.as_str(),
-
-            (Literal::Character(a), Literal::Character(b)) => a == b,
-            (Literal::Boolean(a), Literal::Boolean(b)) => a == b,
-            (Literal::Bytevector(a), Literal::Bytevector(b)) => a == b,
-            (Literal::Nil, Literal::Nil) => true,
-            (Literal::Unspecified, Literal::Unspecified) => true,
-            _ => false,
+impl HomogeneousVectorLiteral {
+    /// Returns the length of the homogeneous vector.
+    pub fn len(&self) -> usize {
+        match self {
+            HomogeneousVectorLiteral::U8Vector(v) => v.len(),
+            HomogeneousVectorLiteral::S8Vector(v) => v.len(),
+            HomogeneousVectorLiteral::U16Vector(v) => v.len(),
+            HomogeneousVectorLiteral::S16Vector(v) => v.len(),
+            HomogeneousVectorLiteral::U32Vector(v) => v.len(),
+            HomogeneousVectorLiteral::S32Vector(v) => v.len(),
+            HomogeneousVectorLiteral::F32Vector(v) => v.len(),
+            HomogeneousVectorLiteral::F64Vector(v) => v.len(),
         }
     }
-}
 
-impl Eq for Literal {}
+    /// Returns true if the homogeneous vector is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns the type name as a string for diagnostics.
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            HomogeneousVectorLiteral::U8Vector(_) => "u8vector",
+            HomogeneousVectorLiteral::S8Vector(_) => "s8vector", 
+            HomogeneousVectorLiteral::U16Vector(_) => "u16vector",
+            HomogeneousVectorLiteral::S16Vector(_) => "s16vector",
+            HomogeneousVectorLiteral::U32Vector(_) => "u32vector",
+            HomogeneousVectorLiteral::S32Vector(_) => "s32vector",
+            HomogeneousVectorLiteral::F32Vector(_) => "f32vector",
+            HomogeneousVectorLiteral::F64Vector(_) => "f64vector",
+        }
+    }
+
+    /// Returns the byte size per element.
+    pub fn element_size(&self) -> usize {
+        match self {
+            HomogeneousVectorLiteral::U8Vector(_) | HomogeneousVectorLiteral::S8Vector(_) => 1,
+            HomogeneousVectorLiteral::U16Vector(_) | HomogeneousVectorLiteral::S16Vector(_) => 2,
+            HomogeneousVectorLiteral::U32Vector(_) | HomogeneousVectorLiteral::S32Vector(_) |
+            HomogeneousVectorLiteral::F32Vector(_) => 4,
+            HomogeneousVectorLiteral::F64Vector(_) => 8,
+        }
+    }
+
+    /// Returns the total byte size of the vector.
+    pub fn byte_size(&self) -> usize {
+        self.len() * self.element_size()
+    }
+}

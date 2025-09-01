@@ -1,4 +1,4 @@
-//! Hindley-Milner Type System Implementation
+#![allow(missing_docs)]//! Hindley-Milner Type System Implementation
 //!
 //! This module provides a concrete implementation of the Hindley-Milner type system
 //! using the generic type system framework. This serves as the foundational type

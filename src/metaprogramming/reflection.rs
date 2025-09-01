@@ -174,6 +174,36 @@ pub enum TypeInfo {
     },
     /// Environment type for dynamic evaluation
     Environment,
+    /// SRFI-124 Ephemeron type
+    Ephemeron,
+    /// SRFI-19 Time type
+    Time,
+    /// SRFI-19 Date type
+    Date,
+    /// SRFI-21 Thread type
+    Thread,
+    /// SRFI-21 Mutex type (threading)
+    ThreadMutex,
+    /// SRFI-21 Condition Variable type
+    CondVar,
+    /// SRFI-21 High-precision time type
+    Time21,
+    /// SRFI-4 Homogeneous vector type
+    HomogeneousVector,
+    /// Multiple return values type
+    MultipleValues,
+    /// SRFI-146 Mapping type
+    Mapping,
+    /// SRFI-128 Comparator type
+    Comparator,
+    /// SRFI-35 Condition type
+    Condition,
+    /// Concurrency mutex type
+    ConcurrencyMutex,
+    /// SRFI-35 Condition type identifier
+    ConditionType,
+    /// SRFI-41 Stream
+    Stream,
 }
 
 /// Arity information for procedures.
@@ -304,6 +334,7 @@ impl ObjectInspector {
             Value::Literal(Literal::Bytevector(_)) => TypeInfo::Bytevector,
             Value::Literal(Literal::Nil) => TypeInfo::Nil,
             Value::Literal(Literal::Unspecified) => TypeInfo::Unspecified,
+            Value::Literal(Literal::HomogeneousVector(_)) => TypeInfo::Vector,
             Value::Symbol(_) => TypeInfo::Symbol,
             Value::Keyword(_) => TypeInfo::Keyword,
             Value::Nil => TypeInfo::Nil,
@@ -455,6 +486,24 @@ impl ObjectInspector {
 
             Value::Environment(_env) => TypeInfo::Environment,
             Value::Box(_) => TypeInfo::Box,
+            // SRFI extensions
+            Value::Ephemeron(_) => TypeInfo::Ephemeron,
+            Value::Time(_) => TypeInfo::Time,
+            Value::Date(_) => TypeInfo::Date,
+            Value::Thread(_) => TypeInfo::Thread,
+            Value::Mutex(_) => TypeInfo::ThreadMutex,
+            Value::ConditionVariable(_) => TypeInfo::CondVar,
+            Value::Time21(_) => TypeInfo::Time21,
+            // Additional types
+            Value::HomogeneousVector(_) => TypeInfo::HomogeneousVector,
+            Value::MultipleValues(_) => TypeInfo::MultipleValues,
+            Value::Mapping(_) => TypeInfo::Mapping,
+            Value::Comparator(_) => TypeInfo::Comparator,
+            Value::Condition(_) => TypeInfo::Condition,
+            #[cfg(feature = "async-runtime")]
+            Value::AsyncMutex(_) => TypeInfo::ConcurrencyMutex,
+            Value::ConditionType(_) => TypeInfo::ConditionType,
+            Value::Stream(_) => TypeInfo::Stream,
         };
 
         // Cache the result

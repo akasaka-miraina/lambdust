@@ -1,4 +1,4 @@
-//! Profile-guided optimization for adaptive JIT compilation
+#![allow(missing_docs)]//! Profile-guided optimization for adaptive JIT compilation
 //!
 //! This module implements a sophisticated profile-guided optimization system that
 //! uses runtime profiling data to make intelligent optimization decisions. The system

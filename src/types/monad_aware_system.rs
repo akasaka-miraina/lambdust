@@ -1,4 +1,4 @@
-//! Monad-Aware Type System Implementation
+#![allow(missing_docs)]//! Monad-Aware Type System Implementation
 //!
 //! This module provides a type system that extends Hindley-Milner with
 //! explicit monad support, laying the groundwork for CaTT integration

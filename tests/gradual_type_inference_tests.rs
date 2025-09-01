@@ -135,7 +135,7 @@ mod gradual_type_system_tests {
         let mut system = GradualTypeSystem::new();
 
         // Test identity function: (lambda (x) x)
-        let identity = lambda(vec!["x".to_string()], vec![identifier("x")]);
+        let identity = lambda(&["x".to_string()], &[identifier("x")]);
 
         let result = system.infer_type_only(&identity).unwrap();
 
@@ -157,8 +157,8 @@ mod gradual_type_system_tests {
         let mut system = GradualTypeSystem::new();
 
         // Test application: ((lambda (x) x) 42)
-        let identity = lambda(vec!["x".to_string()], vec![identifier("x")]);
-        let app = application(identity, vec![number_literal(42.0)]);
+        let identity = lambda(&["x".to_string()], &[identifier("x")]);
+        let app = application(identity, &[number_literal(42.0)]);
 
         let result = system.infer_type_only(&app).unwrap();
 
@@ -554,8 +554,8 @@ mod integration_tests {
         let mut evaluator = Evaluator::new();
 
         // Test: ((lambda (x) x) 42)
-        let identity = lambda(vec!["x".to_string()], vec![identifier("x")]);
-        let app = application(identity, vec![number_literal(42.0)]);
+        let identity = lambda(&["x".to_string()], &[identifier("x")]);
+        let app = application(identity, &[number_literal(42.0)]);
 
         let result = system.infer_and_evaluate(&app, &env, &mut evaluator);
 

@@ -288,7 +288,6 @@ enum JitFallbackReason {
 /// - Shared environments through `Rc<Environment>`
 /// - Boxed expressions to prevent large stack values
 /// - Reference-counted continuations for sharing
-#[derive(Debug, Clone)]
 pub enum EvalStep {
     /// Evaluation completed successfully with a final value.
     ///
@@ -380,8 +379,194 @@ pub enum EvalStep {
         target_stack_depth: usize,
     },
 
+    /// Execute body with parameter bindings established
+    ///
+    /// This represents parameterize evaluation where parameter bindings
+    /// are established for the duration of the body evaluation. The
+    /// trampoline will set up the parameter bindings and evaluate the body.
+    ///
+    /// ## Parameter Binding Semantics
+    /// - **Thread-Local**: Bindings are thread-local and don't affect other threads
+    /// - **Dynamic Scope**: Parameters have dynamic scoping within the body
+    /// - **Nested Support**: Supports nested parameterize forms
+    /// - **Exception Safe**: Bindings are properly restored on exceptions
+    Parameterize {
+        /// Parameter bindings to establish: (parameter_id, value)
+        bindings: Vec<(u64, Value)>,
+        /// Body expressions to evaluate with bindings
+        body: Vec<Spanned<Expr>>,
+        /// Environment for body evaluation
+        env: Rc<Environment>,
+    },
+
     /// Evaluation error
     Error(Error),
+
+    /// Spawn a new thread with a procedure and arguments
+    ///
+    /// This creates and starts a new Scheme thread that executes the given
+    /// procedure with the provided arguments. The thread inherits parameter
+    /// bindings from the current thread and executes concurrently.
+    ///
+    /// ## Thread Creation Semantics
+    /// - **Parameter Inheritance**: Child thread inherits current parameter bindings
+    /// - **Concurrent Execution**: Thread runs independently of parent
+    /// - **Error Isolation**: Exceptions in child thread don't affect parent
+    /// - **Resource Management**: Thread resources are automatically cleaned up
+    ///
+    /// ## Integration with Trampoline
+    /// The evaluator will create a SchemeThread, start it with the given procedure,
+    /// and return the thread object as a Value for further operations.
+    ThreadSpawn {
+        /// The procedure to execute in the new thread
+        procedure: Value,
+        /// Arguments to pass to the procedure
+        args: Vec<Value>,
+        /// Environment for procedure resolution
+        env: Rc<Environment>,
+        /// Optional thread name for debugging
+        name: Option<String>,
+    },
+
+    /// Wait for a thread to complete and return its result
+    ///
+    /// This blocks the current thread until the specified thread completes,
+    /// then returns the thread's result value. If the thread failed with an
+    /// exception, this will propagate that exception.
+    ///
+    /// ## Join Semantics
+    /// - **Blocking**: Current thread blocks until target thread completes
+    /// - **Result Propagation**: Returns the thread's final value
+    /// - **Exception Handling**: Thread exceptions are propagated to joiner
+    /// - **Single Use**: Each thread can only be joined once
+    ///
+    /// ## Timeout Support
+    /// Optional timeout prevents indefinite blocking on non-terminating threads.
+    ThreadJoin {
+        /// The thread ID to wait for
+        thread_id: u64,
+        /// Optional timeout duration
+        timeout: Option<std::time::Duration>,
+        /// Continuation to resume with the thread result
+        continuation: Box<dyn Fn(Value) -> EvalStep + Send + Sync>,
+    },
+
+    /// Acquire a mutex lock
+    ///
+    /// Attempts to acquire the specified mutex, blocking the current thread
+    /// if necessary. The mutex must be unlocked by the same thread that
+    /// acquired it to maintain proper synchronization semantics.
+    ///
+    /// ## Lock Semantics
+    /// - **Exclusive Access**: Only one thread can hold the lock at a time
+    /// - **Ownership**: Only the owning thread can unlock the mutex
+    /// - **Reentrant**: Non-reentrant locks (multiple acquisitions will deadlock)
+    /// - **Exception Safe**: Locks are released on thread termination
+    ///
+    /// ## Timeout Support
+    /// Optional timeout prevents deadlock scenarios where locks cannot be acquired.
+    MutexLock {
+        /// The mutex ID to acquire
+        mutex_id: u64,
+        /// Optional timeout duration
+        timeout: Option<std::time::Duration>,
+        /// Continuation to resume after acquiring the lock
+        continuation: Box<dyn Fn() -> EvalStep + Send + Sync>,
+    },
+
+    /// Release a mutex lock
+    ///
+    /// Releases the specified mutex that was previously acquired by the
+    /// current thread. This allows other waiting threads to acquire the lock.
+    ///
+    /// ## Unlock Semantics
+    /// - **Ownership Check**: Only the owning thread can unlock
+    /// - **Wake Up**: Waiting threads are notified of lock availability
+    /// - **Error Handling**: Unlocking an unowned mutex is an error
+    /// - **Performance**: Fast unlock with minimal overhead
+    MutexUnlock {
+        /// The mutex ID to release
+        mutex_id: u64,
+        /// Continuation to resume after releasing the lock
+        continuation: Box<dyn Fn() -> EvalStep + Send + Sync>,
+    },
+
+    /// Wait on a condition variable
+    ///
+    /// Atomically releases the associated mutex and blocks until the condition
+    /// variable is signaled by another thread. Upon waking, the mutex is
+    /// reacquired before continuing execution.
+    ///
+    /// ## Condition Variable Semantics
+    /// - **Atomic Release**: Mutex is atomically released when waiting
+    /// - **Reacquisition**: Mutex is reacquired before resuming
+    /// - **Spurious Wakeups**: May wake up without explicit notification
+    /// - **Exception Safe**: Mutex state is maintained across exceptions
+    CondvarWait {
+        /// The condition variable ID to wait on
+        condvar_id: u64,
+        /// Optional timeout duration
+        timeout: Option<std::time::Duration>,
+        /// Continuation to resume after waking up
+        continuation: Box<dyn Fn() -> EvalStep + Send + Sync>,
+    },
+
+    /// Notify threads waiting on a condition variable
+    ///
+    /// Signals one or more threads waiting on the specified condition variable.
+    /// This does not guarantee immediate scheduling but makes waiting threads
+    /// eligible for execution.
+    ///
+    /// ## Notification Semantics
+    /// - **Non-Blocking**: Notification never blocks the caller
+    /// - **Best Effort**: No guarantee of immediate thread scheduling
+    /// - **Ordering**: No guarantee about which thread is notified first
+    /// - **Performance**: Minimal overhead notification
+    CondvarNotify {
+        /// The condition variable ID to signal
+        condvar_id: u64,
+        /// Whether to notify all waiting threads (true) or just one (false)
+        notify_all: bool,
+        /// Continuation to resume after notification
+        continuation: Box<dyn Fn() -> EvalStep + Send + Sync>,
+    },
+}
+
+impl std::fmt::Debug for EvalStep {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EvalStep::Return(value) => f.debug_tuple("Return").field(value).finish(),
+            EvalStep::Continue { expr, env } => f.debug_struct("Continue")
+                .field("expr", expr)
+                .field("env", &format!("Env@{:p}", env.as_ref()))
+                .finish(),
+            EvalStep::TailCall { procedure, args, location } => f.debug_struct("TailCall")
+                .field("procedure", procedure)
+                .field("args", args)
+                .field("location", location)
+                .finish(),
+            EvalStep::Parameterize { bindings, body, env } => f.debug_struct("Parameterize")
+                .field("bindings", bindings)
+                .field("body", body)
+                .field("env", &format!("Env@{:p}", env.as_ref()))
+                .finish(),
+            EvalStep::NonLocalJump { value, target_stack_depth } => f.debug_struct("NonLocalJump")
+                .field("value", value)
+                .field("target_stack_depth", target_stack_depth)
+                .finish(),
+            EvalStep::ThreadSpawn { .. } => f.debug_struct("ThreadSpawn").finish_non_exhaustive(),
+            EvalStep::ThreadJoin { .. } => f.debug_struct("ThreadJoin").finish_non_exhaustive(),
+            EvalStep::MutexLock { .. } => f.debug_struct("MutexLock").finish_non_exhaustive(),
+            EvalStep::MutexUnlock { .. } => f.debug_struct("MutexUnlock").finish_non_exhaustive(),
+            EvalStep::CondvarWait { .. } => f.debug_struct("CondvarWait").finish_non_exhaustive(),
+            EvalStep::CondvarNotify { .. } => f.debug_struct("CondvarNotify").finish_non_exhaustive(),
+            EvalStep::CallContinuation { continuation, value } => f.debug_struct("CallContinuation")
+                .field("continuation", continuation)
+                .field("value", value)
+                .finish(),
+            EvalStep::Error(error) => f.debug_tuple("Error").field(error).finish(),
+        }
+    }
 }
 
 /// The main evaluator for Lambdust expressions.
@@ -416,6 +601,9 @@ pub struct Evaluator {
     /// Blacklisted expressions that should not use JIT
     jit_blacklist: HashSet<String>,
     /// Temporarily disabled expressions with retry timestamps
+    /// Track whether we're currently evaluating within a letrec context
+    /// This helps determine when to use live environment binding for closures
+    letrec_depth: usize,
     jit_temp_disabled: HashMap<String, Instant>,
     /// Evaluation context stack for continuation capture
     context_stack: Vec<Frame>,
@@ -428,6 +616,12 @@ pub struct Evaluator {
 }
 
 impl Evaluator {
+    /// Check if we're currently evaluating within a letrec context
+    /// This is used to determine when closures should use live binding references
+    fn in_letrec_context(&self) -> bool {
+        self.letrec_depth > 0
+    }
+
     /// Creates a new evaluator with the global environment.
     pub fn new() -> Self {
         let global_env_manager = Arc::new(GlobalEnvironmentManager::new());
@@ -451,6 +645,7 @@ impl Evaluator {
             jit_runtime: None,
             jit_blacklist: HashSet::new(),
             jit_temp_disabled: HashMap::new(),
+            letrec_depth: 0,
         }
     }
 
@@ -477,6 +672,7 @@ impl Evaluator {
             jit_runtime: None,
             jit_blacklist: HashSet::new(),
             jit_temp_disabled: HashMap::new(),
+            letrec_depth: 0,
         }
     }
 
@@ -503,6 +699,7 @@ impl Evaluator {
             jit_runtime: None,
             jit_blacklist: HashSet::new(),
             jit_temp_disabled: HashMap::new(),
+            letrec_depth: 0,
         }
     }
 
@@ -565,7 +762,32 @@ impl Evaluator {
                 } => {
                     // Non-local jump immediately returns the value, bypassing all computation
                     return Ok(value);
-                } // JIT execution is handled at entry point
+                },
+                EvalStep::Parameterize { bindings, body, env } => {
+                    // Execute body with parameter bindings
+                    self.eval_parameterize_body(bindings, body, env)
+                }
+                
+                // SRFI-18 Threading Support
+                EvalStep::ThreadSpawn { procedure, args, env, name } => {
+                    self.handle_thread_spawn(procedure, args, env, name)
+                }
+                EvalStep::ThreadJoin { thread_id, timeout, continuation } => {
+                    self.handle_thread_join(thread_id, timeout, continuation)
+                }
+                EvalStep::MutexLock { mutex_id, timeout, continuation } => {
+                    self.handle_mutex_lock(mutex_id, timeout, continuation)
+                }
+                EvalStep::MutexUnlock { mutex_id, continuation } => {
+                    self.handle_mutex_unlock(mutex_id, continuation)
+                }
+                EvalStep::CondvarWait { condvar_id, timeout, continuation } => {
+                    self.handle_condvar_wait(condvar_id, timeout, continuation)
+                }
+                EvalStep::CondvarNotify { condvar_id, notify_all, continuation } => {
+                    self.handle_condvar_notify(condvar_id, notify_all, continuation)
+                }
+                // JIT execution is handled at entry point
             };
         }
     }
@@ -640,7 +862,16 @@ impl Evaluator {
                     } => {
                         // Non-local jump immediately returns the value
                         return Ok(value);
+                    },
+                    EvalStep::Parameterize { bindings, body, env } => {
+                        self.eval_parameterize_body(bindings, body, env)
                     }
+                    EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented"),
+                    EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented"),
+                    EvalStep::MutexLock { .. } => todo!("MutexLock not implemented"),
+                    EvalStep::MutexUnlock { .. } => todo!("MutexUnlock not implemented"),
+                    EvalStep::CondvarWait { .. } => todo!("CondvarWait not implemented"),
+                    EvalStep::CondvarNotify { .. } => todo!("CondvarNotify not implemented"),
                 };
             }
         }
@@ -673,7 +904,16 @@ impl Evaluator {
                     } => {
                         // Non-local jump immediately returns the value
                         return Ok(value);
+                    },
+                    EvalStep::Parameterize { bindings, body, env } => {
+                        self.eval_parameterize_body(bindings, body, env)
                     }
+                    EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented"),
+                    EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented"),
+                    EvalStep::MutexLock { .. } => todo!("MutexLock not implemented"),
+                    EvalStep::MutexUnlock { .. } => todo!("MutexUnlock not implemented"),
+                    EvalStep::CondvarWait { .. } => todo!("CondvarWait not implemented"),
+                    EvalStep::CondvarNotify { .. } => todo!("CondvarNotify not implemented"),
                 };
             }
         }
@@ -711,7 +951,16 @@ impl Evaluator {
                     } => {
                         // Non-local jump immediately returns the value
                         return Ok(value);
+                    },
+                    EvalStep::Parameterize { bindings, body, env } => {
+                        self.eval_parameterize_body(bindings, body, env)
                     }
+                    EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented"),
+                    EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented"),
+                    EvalStep::MutexLock { .. } => todo!("MutexLock not implemented"),
+                    EvalStep::MutexUnlock { .. } => todo!("MutexUnlock not implemented"),
+                    EvalStep::CondvarWait { .. } => todo!("CondvarWait not implemented"),
+                    EvalStep::CondvarNotify { .. } => todo!("CondvarNotify not implemented"),
                 };
             }
         }
@@ -1150,10 +1399,19 @@ impl Evaluator {
             }
         }
 
+        // CRITICAL FIX: For closures that might contain recursive references,
+        // use to_thread_safe_live() to maintain binding synchronization
+        // This fixes the letrec recursive binding issue
+        let environment = if self.in_letrec_context() {
+            env.to_thread_safe_live()
+        } else {
+            env.to_thread_safe()
+        };
+
         let procedure = Procedure {
             formals: formals.clone(),
             body: body.to_vec(),
-            environment: env.to_thread_safe(),
+            environment,
             name: eval_metadata
                 .get("name")
                 .and_then(|v| v.as_string().map(|s| s.to_string())),
@@ -1579,6 +1837,15 @@ impl Evaluator {
                     continuation,
                     value,
                 } => self.call_continuation(continuation, value),
+                EvalStep::Parameterize { bindings, body, env } => {
+                    self.eval_parameterize_body(bindings, body, env)
+                },
+                EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented"),
+                EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented"),
+                EvalStep::MutexLock { .. } => todo!("MutexLock not implemented"),
+                EvalStep::MutexUnlock { .. } => todo!("MutexUnlock not implemented"),
+                EvalStep::CondvarWait { .. } => todo!("CondvarWait not implemented"),
+                EvalStep::CondvarNotify { .. } => todo!("CondvarNotify not implemented"),
             };
         };
 
@@ -1614,6 +1881,15 @@ impl Evaluator {
                         continuation,
                         value,
                     } => self.call_continuation(continuation, value),
+                    EvalStep::Parameterize { bindings, body, env } => {
+                        self.eval_parameterize_body(bindings, body, env)
+                    },
+                    EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented"),
+                    EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented"),
+                    EvalStep::MutexLock { .. } => todo!("MutexLock not implemented"),
+                    EvalStep::MutexUnlock { .. } => todo!("MutexUnlock not implemented"),
+                    EvalStep::CondvarWait { .. } => todo!("CondvarWait not implemented"),
+                    EvalStep::CondvarNotify { .. } => todo!("CondvarNotify not implemented"),
                 };
             };
 
@@ -2053,48 +2329,51 @@ impl Evaluator {
             return self.eval_sequence(body, env);
         }
 
-        // Transform letrec to let + set! pattern
-        // (letrec ((x e1) (y e2)) body...)
-        // =>
-        // (let ((x #<unspecified>) (y #<unspecified>)) (set! x e1) (set! y e2) body...)
+        // Mark that we're entering a letrec context
+        self.letrec_depth += 1;
 
-        // Create let bindings with unspecified values
-        let let_bindings: Vec<crate::ast::Binding> = bindings
-            .iter()
-            .map(|b| crate::ast::Binding {
-                name: b.name.clone(),
-                value: Spanned::new(Expr::Literal(crate::ast::Literal::Unspecified), span),
-            })
-            .collect();
-
-        // Create set! expressions
-        let mut set_exprs: Vec<Spanned<Expr>> = bindings
-            .iter()
-            .map(|b| {
-                Spanned::new(
-                    Expr::Set {
-                        name: b.name.clone(),
-                        value: Box::new(b.value.clone()),
-                    },
-                    span,
-                )
-            })
-            .collect();
-
-        // Add body expressions
-        set_exprs.extend_from_slice(body);
-
-        // Create the transformed let expression
-        let transformed_expr = Expr::Let {
-            bindings: let_bindings,
-            body: set_exprs,
-        };
-
-        // Continue evaluation with the transformed expression
-        EvalStep::Continue {
-            expr: Box::new(Spanned::new(transformed_expr, span)),
-            env,
+        // CRITICAL FIX: Direct evaluation approach with proper binding resolution
+        // Instead of let + set! transformation, we create the environment directly
+        // and evaluate all bindings in the correct context
+        
+        // Step 1: Create new environment for letrec bindings with shared storage
+        let letrec_env = Rc::new(Environment::new_shared(Some(env), self.generation));
+        
+        // Step 2: Define all variables as placeholders first
+        for binding in bindings {
+            letrec_env.define(binding.name.clone(), Value::Unspecified);
         }
+        
+        // Step 3: Evaluate all binding values in the letrec environment
+        // This allows recursive references to be resolved correctly
+        let mut computed_values = Vec::new();
+        for binding in bindings {
+            match self.eval(&binding.value, letrec_env.clone()) {
+                Ok(value) => {
+                    computed_values.push((binding.name.clone(), value));
+                }
+                Err(error) => {
+                    // Clean up letrec context before returning error
+                    self.letrec_depth -= 1;
+                    return EvalStep::Error(*error);
+                }
+            }
+        }
+        
+        // Step 4: Update all bindings with their computed values
+        // This is where the magic happens - previously captured environments
+        // will now see the updated bindings due to shared references
+        for (name, value) in computed_values {
+            letrec_env.define(name, value);
+        }
+        
+        // Step 5: Evaluate body in the fully initialized environment
+        let result = self.eval_sequence(body, letrec_env);
+        
+        // Exit letrec context
+        self.letrec_depth -= 1;
+        
+        result
     }
 
     /// Evaluates a cond expression.
@@ -2288,11 +2567,206 @@ impl Evaluator {
         };
 
         // Execute the body with the parameter bindings
-        let result =
-            ParameterBinding::with_bindings(runtime_bindings, || self.eval_sequence(body, env));
+        // Note: We need to handle this through the step-by-step evaluation system
+        // Create a special evaluation step that preserves parameter bindings
+        let parameterize_step = EvalStep::Parameterize {
+            bindings: runtime_bindings.into_iter().collect(),
+            body: body.to_vec(),
+            env: env.clone(),
+        };
 
         self.stack_trace.pop();
-        result
+        parameterize_step
+    }
+
+    /// Execute parameterize body with established parameter bindings
+    fn eval_parameterize_body(
+        &mut self,
+        bindings: Vec<(u64, Value)>,
+        body: Vec<Spanned<Expr>>,
+        env: Rc<Environment>,
+    ) -> EvalStep {
+        // Import the parameter binding functionality
+        use crate::eval::parameter::ParameterBinding;
+
+        // Execute the body with parameter bindings established
+        let bindings_map: std::collections::HashMap<u64, Value> = bindings.into_iter().collect();
+        let result = ParameterBinding::with_bindings(bindings_map, || {
+            // Evaluate the body sequence
+            let mut last_value = Value::Unspecified;
+            
+            for expr in &body {
+                match self.eval(expr, env.clone()) {
+                    Ok(value) => last_value = value,
+                    Err(e) => return Err(*e),
+                }
+            }
+            
+            Ok(last_value)
+        });
+        
+        match result {
+            Ok(value) => EvalStep::Return(value),
+            Err(error) => EvalStep::Error(error),
+        }
+    }
+
+    // SRFI-18 Threading Support Methods
+
+    /// Handle thread spawning
+    fn handle_thread_spawn(
+        &mut self,
+        procedure: Value,
+        args: Vec<Value>,
+        _env: Rc<Environment>,
+        name: Option<String>,
+    ) -> EvalStep {
+        use crate::eval::parameter::capture_parameter_bindings;
+        use crate::concurrency::scheme_threading::SchemeThread;
+        use crate::stdlib::srfi18_multithreading::get_thread_registry;
+        
+        // Capture current parameter bindings for inheritance
+        let inherited_parameters = Arc::new(capture_parameter_bindings());
+        
+        // Create and start the thread
+        let thread = Arc::new(SchemeThread::new(name, inherited_parameters));
+        let thread_id = thread.id;
+        
+        // Register the thread
+        get_thread_registry().register_thread(Arc::clone(&thread));
+        
+        // Start the thread with the procedure and arguments
+        match thread.start(procedure, args) {
+            Ok(()) => EvalStep::Return(Value::Thread(thread)),
+            Err(error) => EvalStep::Error(*error),
+        }
+    }
+
+    /// Handle thread joining
+    fn handle_thread_join(
+        &mut self,
+        thread_id: u64,
+        timeout: Option<std::time::Duration>,
+        continuation: Box<dyn Fn(Value) -> EvalStep + Send + Sync>,
+    ) -> EvalStep {
+        use crate::stdlib::srfi18_multithreading::get_thread_by_id;
+        
+        if let Some(thread) = get_thread_by_id(thread_id) {
+            match thread.join(timeout) {
+                Ok(result) => continuation(result),
+                Err(error) => EvalStep::Error(*error),
+            }
+        } else {
+            EvalStep::Error(crate::diagnostics::Error::runtime_error(
+                &format!("Thread with ID {} not found", thread_id),
+                None,
+            ))
+        }
+    }
+
+    /// Handle mutex locking
+    fn handle_mutex_lock(
+        &mut self,
+        mutex_id: u64,
+        timeout: Option<std::time::Duration>,
+        continuation: Box<dyn Fn() -> EvalStep + Send + Sync>,
+    ) -> EvalStep {
+        use crate::stdlib::srfi18_multithreading::get_mutex_by_id;
+        use crate::concurrency::scheme_threading::current_thread_id;
+        
+        if let Some(mutex) = get_mutex_by_id(mutex_id) {
+            if let Some(thread_id) = current_thread_id() {
+                match mutex.lock(thread_id, timeout) {
+                    Ok(()) => continuation(),
+                    Err(error) => EvalStep::Error(*error),
+                }
+            } else {
+                EvalStep::Error(crate::diagnostics::Error::runtime_error(
+                    "No current thread available for mutex operation",
+                    None,
+                ))
+            }
+        } else {
+            EvalStep::Error(crate::diagnostics::Error::runtime_error(
+                &format!("Mutex with ID {} not found", mutex_id),
+                None,
+            ))
+        }
+    }
+
+    /// Handle mutex unlocking
+    fn handle_mutex_unlock(
+        &mut self,
+        mutex_id: u64,
+        continuation: Box<dyn Fn() -> EvalStep + Send + Sync>,
+    ) -> EvalStep {
+        use crate::stdlib::srfi18_multithreading::get_mutex_by_id;
+        use crate::concurrency::scheme_threading::current_thread_id;
+        
+        if let Some(mutex) = get_mutex_by_id(mutex_id) {
+            if let Some(thread_id) = current_thread_id() {
+                match mutex.unlock(thread_id) {
+                    Ok(()) => continuation(),
+                    Err(error) => EvalStep::Error(*error),
+                }
+            } else {
+                EvalStep::Error(crate::diagnostics::Error::runtime_error(
+                    "No current thread available for mutex operation",
+                    None,
+                ))
+            }
+        } else {
+            EvalStep::Error(crate::diagnostics::Error::runtime_error(
+                &format!("Mutex with ID {} not found", mutex_id),
+                None,
+            ))
+        }
+    }
+
+    /// Handle condition variable waiting
+    fn handle_condvar_wait(
+        &mut self,
+        condvar_id: u64,
+        timeout: Option<std::time::Duration>,
+        continuation: Box<dyn Fn() -> EvalStep + Send + Sync>,
+    ) -> EvalStep {
+        use crate::stdlib::srfi18_multithreading::get_condvar_by_id;
+        
+        if let Some(condvar) = get_condvar_by_id(condvar_id) {
+            match condvar.wait(timeout) {
+                Ok(()) => continuation(),
+                Err(error) => EvalStep::Error(*error),
+            }
+        } else {
+            EvalStep::Error(crate::diagnostics::Error::runtime_error(
+                &format!("Condition variable with ID {} not found", condvar_id),
+                None,
+            ))
+        }
+    }
+
+    /// Handle condition variable notification
+    fn handle_condvar_notify(
+        &mut self,
+        condvar_id: u64,
+        notify_all: bool,
+        continuation: Box<dyn Fn() -> EvalStep + Send + Sync>,
+    ) -> EvalStep {
+        use crate::stdlib::srfi18_multithreading::get_condvar_by_id;
+        
+        if let Some(condvar) = get_condvar_by_id(condvar_id) {
+            if notify_all {
+                condvar.notify_all();
+            } else {
+                condvar.notify_one();
+            }
+            continuation()
+        } else {
+            EvalStep::Error(crate::diagnostics::Error::runtime_error(
+                &format!("Condition variable with ID {} not found", condvar_id),
+                None,
+            ))
+        }
     }
 
     // Helper methods
@@ -3334,6 +3808,54 @@ impl Evaluator {
             temporarily_disabled: self.jit_temp_disabled.len(),
             total_fallbacks: 0,         // Would be tracked in full implementation
             recovery_success_rate: 0.0, // Would be calculated from metrics
+        }
+    }
+
+    /// Helper method for evaluator-integrated primitives to call procedures.
+    /// 
+    /// This method handles the complete evaluation loop including tail calls,
+    /// continuations, and other control flow constructs. It's specifically
+    /// designed for use by evaluator-integrated primitives like call-with-values.
+    /// 
+    /// ## Usage
+    /// ```rust,ignore  
+    /// let result = evaluator.evaluate_procedure_call(procedure, args)?;
+    /// ```
+    /// 
+    /// ## Error Handling
+    /// Returns a Result<Value> where errors are properly propagated from the
+    /// evaluation process. All runtime errors are converted to diagnostic errors.
+    pub fn evaluate_procedure_call(&mut self, procedure: Value, args: Vec<Value>) -> crate::diagnostics::Result<Value> {
+        // Start the procedure call evaluation
+        let mut step = self.apply_procedure(procedure, args, None);
+        
+        // Run the trampoline until we get a final result
+        loop {
+            step = match step {
+                EvalStep::Return(value) => return Ok(value),
+                EvalStep::Error(error) => return Err(Box::new(error)),
+                EvalStep::Continue { expr, env } => self.eval_step(&expr, env),
+                EvalStep::TailCall { procedure, args, location } => {
+                    self.apply_procedure(procedure, args, location)
+                }
+                EvalStep::CallContinuation { continuation, value } => {
+                    // Handle continuation calls - call_continuation returns EvalStep directly
+                    self.call_continuation(continuation, value)
+                }
+                EvalStep::NonLocalJump { value, target_stack_depth: _ } => {
+                    // Non-local jump immediately returns the value, bypassing all computation
+                    return Ok(value);
+                },
+                EvalStep::Parameterize { bindings, body, env } => {
+                    self.eval_parameterize_body(bindings, body, env)
+                }
+                EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented"),
+                EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented"),
+                EvalStep::MutexLock { .. } => todo!("MutexLock not implemented"),
+                EvalStep::MutexUnlock { .. } => todo!("MutexUnlock not implemented"),
+                EvalStep::CondvarWait { .. } => todo!("CondvarWait not implemented"),
+                EvalStep::CondvarNotify { .. } => todo!("CondvarNotify not implemented"),
+            };
         }
     }
 }

@@ -1,4 +1,4 @@
-//! Performance monitoring and metrics for JIT compilation
+#![allow(missing_docs)]//! Performance monitoring and metrics for JIT compilation
 //!
 //! This module provides comprehensive performance tracking for the JIT system,
 //! including execution counters, timing measurements, compilation statistics,

@@ -433,7 +433,7 @@ impl GradualTypingTestFramework {
                 Ok(TestCase {
                     code: "(+ 1 2)".to_string(),
                     expected_type: Some("Number".to_string()),
-                    annotations: vec![("result".to_string(), "Number".to_string())],
+                    annotations: &[("result".to_string(), "Number".to_string())],
                     level,
                 })
             }

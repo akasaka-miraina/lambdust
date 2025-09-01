@@ -1111,7 +1111,7 @@ pub fn primitive_open_input_file(args: &[Value]) -> Result<Value> {
         match File::open(path) {
             Ok(file) => {
                 let reader = BufReader::new(file);
-                *handle.write().unwrap() = Some(PortFileHandle::TextReader(reader));
+                *handle.borrow_mut() = Some(PortFileHandle::TextReader(reader));
             }
             Err(e) => {
                 return Err(Box::new(DiagnosticError::runtime_error(
@@ -1144,7 +1144,7 @@ pub fn primitive_open_output_file(args: &[Value]) -> Result<Value> {
         match File::create(path) {
             Ok(file) => {
                 let writer = BufWriter::new(file);
-                *handle.write().unwrap() = Some(PortFileHandle::TextWriter(writer));
+                *handle.borrow_mut() = Some(PortFileHandle::TextWriter(writer));
             }
             Err(e) => {
                 return Err(Box::new(DiagnosticError::runtime_error(
@@ -1176,7 +1176,7 @@ pub fn primitive_open_binary_input_file(args: &[Value]) -> Result<Value> {
         match File::open(path) {
             Ok(file) => {
                 let reader = BufReader::new(file);
-                *handle.write().unwrap() = Some(PortFileHandle::BinaryReader(reader));
+                *handle.borrow_mut() = Some(PortFileHandle::BinaryReader(reader));
             }
             Err(e) => {
                 return Err(Box::new(DiagnosticError::runtime_error(
@@ -1208,7 +1208,7 @@ pub fn primitive_open_binary_output_file(args: &[Value]) -> Result<Value> {
         match File::create(path) {
             Ok(file) => {
                 let writer = BufWriter::new(file);
-                *handle.write().unwrap() = Some(PortFileHandle::BinaryWriter(writer));
+                *handle.borrow_mut() = Some(PortFileHandle::BinaryWriter(writer));
             }
             Err(e) => {
                 return Err(Box::new(DiagnosticError::runtime_error(
@@ -1534,9 +1534,9 @@ pub fn primitive_get_output_string(args: &[Value]) -> Result<Value> {
 
             match &port.implementation {
                 PortImpl::String { content, .. } => {
-                    let result = content.try_read().unwrap().clone();
+                    let result = content.borrow().clone();
                     // Reset the string for future accumulation
-                    content.write().unwrap().clear();
+                    content.borrow_mut().clear();
                     Ok(Value::string(result))
                 }
                 _ => Err(Box::new(DiagnosticError::runtime_error(
@@ -1597,9 +1597,9 @@ pub fn primitive_get_output_bytevector(args: &[Value]) -> Result<Value> {
 
             match &port.implementation {
                 PortImpl::Bytevector { content, .. } => {
-                    let result = content.try_read().unwrap().clone();
+                    let result = content.borrow().clone();
                     // Reset the bytevector for future accumulation
-                    content.write().unwrap().clear();
+                    content.borrow_mut().clear();
                     Ok(Value::bytevector(result))
                 }
                 _ => Err(Box::new(DiagnosticError::runtime_error(
@@ -1765,7 +1765,7 @@ pub fn primitive_call_with_output_string(args: &[Value]) -> Result<Value> {
     let string_result = if let Value::Port(port) = &port_value {
         match &port.implementation {
             PortImpl::String { content, .. } => {
-                let result = content.try_read().map_err(|_| {
+                let result = content.try_borrow().map_err(|_| {
                     Box::new(DiagnosticError::runtime_error(
                         "call-with-output-string: failed to read port content".to_string(),
                         None,
@@ -1941,7 +1941,7 @@ pub fn primitive_call_with_output_bytevector(args: &[Value]) -> Result<Value> {
     let bytevector_result = if let Value::Port(port) = &port_value {
         match &port.implementation {
             PortImpl::Bytevector { content, .. } => {
-                let result = content.try_read().map_err(|_| {
+                let result = content.try_borrow().map_err(|_| {
                     Box::new(DiagnosticError::runtime_error(
                         "call-with-output-bytevector: failed to read port content".to_string(),
                         None,
@@ -2900,7 +2900,15 @@ fn expr_to_value(expr: crate::ast::Expr) -> Result<Value> {
         | crate::ast::Expr::DefineLibrary { .. }
         | crate::ast::Expr::Pair { .. }
         | crate::ast::Expr::When { .. }
-        | crate::ast::Expr::Unless { .. } => {
+        | crate::ast::Expr::Unless { .. }
+        | crate::ast::Expr::ExternalForm { .. }
+        | crate::ast::Expr::Delay { .. }
+        | crate::ast::Expr::Lazy { .. }
+        | crate::ast::Expr::Eager { .. }
+        | crate::ast::Expr::Cut { .. }
+        | crate::ast::Expr::Cute { .. }
+        | crate::ast::Expr::AndLetStar { .. }
+        | crate::ast::Expr::CondExpand { .. } => {
             // These require evaluation, which we can't do in this context
             Err(Box::new(DiagnosticError::runtime_error(
                 "read: complex expressions require evaluation".to_string(),
@@ -2922,8 +2930,8 @@ fn expr_to_value(expr: crate::ast::Expr) -> Result<Value> {
 fn read_text_from_port(port: &Port) -> Result<Option<String>> {
     match &port.implementation {
         PortImpl::String { content, position } => {
-            let content_guard = content.try_read().unwrap();
-            let mut pos_guard = position.write().unwrap();
+            let content_guard = content.try_borrow().unwrap();
+            let mut pos_guard = position.borrow_mut();
 
             if *pos_guard >= content_guard.len() {
                 return Ok(None); // EOF
@@ -2977,7 +2985,7 @@ fn read_text_from_port(port: &Port) -> Result<Option<String>> {
             // For file ports, this would require implementing proper file reading
             use std::io::{BufRead, BufReader};
 
-            if let Some(file_handle) = handle.write().unwrap().as_mut() {
+            if let Some(file_handle) = handle.borrow_mut().as_mut() {
                 match file_handle {
                     PortFileHandle::TextReader(reader) => {
                         let mut line = String::new();
@@ -3081,8 +3089,8 @@ fn find_sexp_boundary(text: &str) -> Option<usize> {
 fn read_char_from_port(port: &Port, peek: bool) -> Result<Value> {
     match &port.implementation {
         PortImpl::String { content, position } => {
-            let content_guard = content.try_read().unwrap();
-            let mut pos_guard = position.write().unwrap();
+            let content_guard = content.try_borrow().unwrap();
+            let mut pos_guard = position.borrow_mut();
 
             if *pos_guard >= content_guard.len() {
                 return Ok(eof_value());
@@ -3110,8 +3118,8 @@ fn read_char_from_port(port: &Port, peek: bool) -> Result<Value> {
 fn read_line_from_port(port: &Port) -> Result<Value> {
     match &port.implementation {
         PortImpl::String { content, position } => {
-            let content_guard = content.try_read().unwrap();
-            let mut pos_guard = position.write().unwrap();
+            let content_guard = content.try_borrow().unwrap();
+            let mut pos_guard = position.borrow_mut();
 
             if *pos_guard >= content_guard.len() {
                 return Ok(eof_value());
@@ -3139,8 +3147,8 @@ fn read_line_from_port(port: &Port) -> Result<Value> {
 fn read_string_from_port(port: &Port, k: usize) -> Result<Value> {
     match &port.implementation {
         PortImpl::String { content, position } => {
-            let content_guard = content.try_read().unwrap();
-            let mut pos_guard = position.write().unwrap();
+            let content_guard = content.try_borrow().unwrap();
+            let mut pos_guard = position.borrow_mut();
 
             if *pos_guard >= content_guard.len() {
                 return Ok(eof_value());
@@ -3164,8 +3172,8 @@ fn read_string_from_port(port: &Port, k: usize) -> Result<Value> {
 fn read_u8_from_port(port: &Port, peek: bool) -> Result<Value> {
     match &port.implementation {
         PortImpl::Bytevector { content, position } => {
-            let content_guard = content.try_read().unwrap();
-            let mut pos_guard = position.write().unwrap();
+            let content_guard = content.try_borrow().unwrap();
+            let mut pos_guard = position.borrow_mut();
 
             if *pos_guard >= content_guard.len() {
                 return Ok(eof_value());
@@ -3189,7 +3197,7 @@ fn read_u8_from_port(port: &Port, peek: bool) -> Result<Value> {
 fn write_string_to_port(port: &Port, s: &str) -> Result<()> {
     match &port.implementation {
         PortImpl::String { content, .. } => {
-            content.write().unwrap().push_str(s);
+            content.borrow_mut().push_str(s);
             Ok(())
         }
         PortImpl::Standard(StandardPort::Stdout) => {
@@ -3211,7 +3219,7 @@ fn write_string_to_port(port: &Port, s: &str) -> Result<()> {
 fn write_u8_to_port(port: &Port, byte: u8) -> Result<()> {
     match &port.implementation {
         PortImpl::Bytevector { content, .. } => {
-            content.write().unwrap().push(byte);
+            content.borrow_mut().push(byte);
             Ok(())
         }
         _ => Err(Box::new(DiagnosticError::runtime_error(
@@ -3225,8 +3233,8 @@ fn write_u8_to_port(port: &Port, byte: u8) -> Result<()> {
 fn read_bytevector_from_port(port: &Port, k: usize) -> Result<Value> {
     match &port.implementation {
         PortImpl::Bytevector { content, position } => {
-            let content_guard = content.try_read().unwrap();
-            let mut pos_guard = position.write().unwrap();
+            let content_guard = content.try_borrow().unwrap();
+            let mut pos_guard = position.borrow_mut();
 
             if *pos_guard >= content_guard.len() {
                 return Ok(eof_value());
@@ -3255,8 +3263,8 @@ fn read_bytevector_bang_from_port(
 ) -> Result<Value> {
     match &port.implementation {
         PortImpl::Bytevector { content, position } => {
-            let content_guard = content.try_read().unwrap();
-            let mut pos_guard = position.write().unwrap();
+            let content_guard = content.try_borrow().unwrap();
+            let mut pos_guard = position.borrow_mut();
 
             if *pos_guard >= content_guard.len() {
                 return Ok(eof_value());
@@ -3286,7 +3294,7 @@ fn read_bytevector_bang_from_port(
 fn write_bytevector_to_port(port: &Port, bytes: &[u8]) -> Result<()> {
     match &port.implementation {
         PortImpl::Bytevector { content, .. } => {
-            content.write().unwrap().extend_from_slice(bytes);
+            content.borrow_mut().extend_from_slice(bytes);
             Ok(())
         }
         _ => Err(Box::new(DiagnosticError::runtime_error(
@@ -3371,7 +3379,7 @@ mod tests {
 
         // Check the output captured in the string port
         if let PortImpl::String { content, .. } = &output_port.implementation {
-            let captured = content.try_read().unwrap();
+            let captured = content.try_borrow().unwrap();
             assert_eq!(*captured, "Hello World"); // Should NOT have quotes
         } else {
             panic!("Expected string port");
@@ -3397,7 +3405,7 @@ mod tests {
         assert!(result.is_ok());
 
         if let PortImpl::String { content, .. } = &display_port.implementation {
-            let captured = content.try_read().unwrap();
+            let captured = content.try_borrow().unwrap();
             assert_eq!(*captured, "Hello Worldx"); // String without quotes, char without #\
         } else {
             panic!("Expected string port");
@@ -3413,7 +3421,7 @@ mod tests {
         assert!(result.is_ok());
 
         if let PortImpl::String { content, .. } = &write_port.implementation {
-            let captured = content.try_read().unwrap();
+            let captured = content.try_borrow().unwrap();
             assert_eq!(*captured, "\"Hello World\"#\\x"); // String with quotes, char with #\
         } else {
             panic!("Expected string port");

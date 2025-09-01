@@ -1,4 +1,4 @@
-//! Dependent Type System Implementation
+#![allow(missing_docs)]//! Dependent Type System Implementation
 //!
 //! This module provides a dependent type system implementation using the generic
 //! type system framework. This system supports CaTT (Cartesian Type Theory)

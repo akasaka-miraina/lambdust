@@ -402,7 +402,7 @@ mod concurrency_impl {
                 )));
             };
 
-            let mutex = Mutex::new(value);
+            let mutex = crate::concurrency::scheme_threading::SchemeMutex::new(None);
             Ok(Value::Mutex(Arc::new(mutex)))
         }
 

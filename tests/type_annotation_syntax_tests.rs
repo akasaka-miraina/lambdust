@@ -98,7 +98,7 @@ fn test_polymorphic_types() {
     let type_expr = parse_type_expr("(exists (a b) (Pair 'a 'b))").unwrap();
     if let TypeExpr::Exists { vars, .. } = type_expr.inner {
         assert_eq!(vars.len(), 2);
-        assert_eq!(vars, vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(vars, &["a".to_string(), "b".to_string()]);
     } else {
         panic!("Expected exists type");
     }

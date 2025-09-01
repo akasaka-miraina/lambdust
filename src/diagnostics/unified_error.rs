@@ -4,7 +4,7 @@
 //! that eliminates redundancy while maintaining performance and ergonomics.
 
 use crate::diagnostics::{
-    DiagnosticLabel, DiagnosticSeverity, ErrorLabel, LambdustError, LightweightDiagnostic, Span,
+    DiagnosticLabel, DiagnosticSeverity, ErrorLabel, EvalUnifiedError, LightweightDiagnostic, Span,
 };
 use std::error::Error as StdError;
 use std::fmt;
@@ -313,7 +313,7 @@ impl StdError for UnifiedError {
     }
 }
 
-impl LambdustError for UnifiedError {
+impl EvalUnifiedError for UnifiedError {
     fn error_code(&self) -> &'static str {
         self.error_code()
     }
@@ -355,11 +355,11 @@ impl LightweightDiagnostic for UnifiedError {
     }
 
     fn help(&self) -> Option<&str> {
-        LambdustError::help(self)
+        EvalUnifiedError::help(self)
     }
 
     fn labels(&self) -> Vec<DiagnosticLabel> {
-        LambdustError::labels(self)
+        EvalUnifiedError::labels(self)
             .into_iter()
             .map(|label| DiagnosticLabel::primary(label.span(), label.message()))
             .collect()

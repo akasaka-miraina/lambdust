@@ -121,6 +121,24 @@ impl NanBoxedValue {
         Self(encoded)
     }
 
+    /// Creates a NanBoxedValue from a boolean (compatibility method)
+    pub fn boolean(value: bool) -> Self {
+        Self::from_bool(value)
+    }
+
+    /// Creates a NanBoxedValue for nil (compatibility method)
+    pub fn nil() -> Self {
+        Self::nil_value()
+    }
+
+    /// Creates a NanBoxedValue from a small integer (compatibility method)
+    pub fn small_integer(value: i64) -> Self {
+        Self::from_small_int(value).unwrap_or_else(|| {
+            // If value is too large for small integer, convert to float
+            Self::from_number(value as f64)
+        })
+    }
+
     /// Creates a NanBoxedValue from an interned symbol ID
     pub fn from_symbol_id(id: u32) -> Self {
         let encoded = Self::QNAN_MASK
@@ -393,5 +411,56 @@ mod tests {
         // Verify that NanBoxedValue is exactly 8 bytes
         assert_eq!(std::mem::size_of::<NanBoxedValue>(), 8);
         assert_eq!(std::mem::align_of::<NanBoxedValue>(), 8);
+    }
+}
+
+// Value conversion implementations
+impl NanBoxedValue {
+    /// Creates a NanBoxedValue from a legacy Value
+    pub fn from_value(value: crate::eval::value::Value) -> Self {
+        use crate::eval::value::Value;
+        use crate::ast::Literal;
+        
+        match value {
+            Value::Literal(lit) => match lit {
+                Literal::Boolean(b) => Self::from_bool(b),
+                Literal::Integer(i) => {
+                    if let Some(small) = Self::from_small_int(i) {
+                        small
+                    } else {
+                        Self::from_number(i as f64)
+                    }
+                },
+                // Literal::Float doesn't exist, use pattern matching on Number
+                Literal::Character(c) => Self::from_char(c),
+                Literal::Number(n) => Self::from_number(n),
+                _ => Self::unspecified_value(), // Fallback for complex literals
+            },
+            Value::Nil => Self::nil_value(),
+            Value::Unspecified => Self::unspecified_value(),
+            // Value::Boolean variant doesn't exist, handle through literals
+            _ => Self::unspecified_value(), // Fallback for complex values
+        }
+    }
+    
+    /// Converts this NanBoxedValue back to a legacy Value
+    pub fn to_value(&self) -> crate::eval::value::Value {
+        use crate::eval::value::Value;
+        
+        if self.is_boolean() {
+            Value::boolean(self.as_bool().unwrap_or(false))
+        } else if self.is_number() {
+            Value::number(self.as_number().unwrap_or(0.0))
+        } else if self.is_small_int() {
+            Value::integer(self.as_small_int().unwrap_or(0))
+        } else if self.is_nil() {
+            Value::Nil
+        } else if self.is_unspecified() {
+            Value::Unspecified
+        } else if self.is_character() {
+            Value::Literal(crate::ast::Literal::Character(self.as_char().unwrap_or('\0')))
+        } else {
+            Value::Unspecified // Fallback
+        }
     }
 }

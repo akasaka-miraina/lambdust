@@ -769,6 +769,20 @@ impl<'a> InternalLexer<'a> {
         // Check for special multi-character operators first
         let remaining = &self.source[start_pos..];
 
+        // Check for SRFI-26 placeholders
+        if remaining.starts_with("<...>") {
+            // Consume all 5 characters: <...>
+            self.advance(); // consume '<'
+            self.advance(); // consume '.'
+            self.advance(); // consume '.'
+            self.advance(); // consume '.'
+            self.advance(); // consume '>'
+            let end_pos = self.position;
+            let span = Span::new(start_pos, end_pos - start_pos);
+            let text = self.source[start_pos..end_pos].to_owned();
+            return Ok(Some(Token::new(TokenKind::Identifier, span, text)));
+        }
+
         // Check for ->
         if remaining.starts_with("->") {
             self.advance(); // consume '-'

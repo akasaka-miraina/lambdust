@@ -8,10 +8,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
+pub mod and_let_clause;
 pub mod binding;
 pub mod case_clause;
 pub mod case_lambda_clause;
 pub mod cond_clause;
+pub mod cond_expand_clause;
+pub mod cut_argument;
 pub mod formals;
 pub mod guard_clause;
 pub mod literal;
@@ -21,10 +24,13 @@ pub mod program;
 pub mod type_expr;
 pub mod visitor;
 
+pub use and_let_clause::*;
 pub use binding::*;
 pub use case_clause::*;
 pub use case_lambda_clause::*;
 pub use cond_clause::*;
+pub use cond_expand_clause::*;
+pub use cut_argument::*;
 pub use formals::*;
 pub use guard_clause::*;
 pub use literal::*;
@@ -67,6 +73,14 @@ pub enum Expr {
 
     /// Unquote-splicing expression: `(unquote-splicing datum)` or `,@datum`
     UnquoteSplicing(Box<Spanned<Expr>>),
+
+    /// External form: `#,(tag arg ...)` (SRFI-10)
+    ExternalForm {
+        /// The tag (constructor name)
+        tag: String,
+        /// Arguments to the constructor
+        args: Vec<Spanned<Expr>>,
+    },
 
     /// Lambda expression: `(lambda formals body)`
     Lambda {
@@ -129,6 +143,25 @@ pub enum Expr {
     /// Continuation capture: (call-with-current-continuation procedure)
     CallCC(Box<Spanned<Expr>>),
 
+    /// Delayed evaluation: (delay expression)
+    /// Creates a promise that can be forced later
+    Delay {
+        /// Expression to evaluate when forced
+        expression: Box<Spanned<Expr>>,
+    },
+    /// SRFI-45 lazy evaluation: (lazy expression)
+    /// Creates a lazy promise that supports iterative lazy algorithms
+    Lazy {
+        /// Expression to evaluate lazily when forced
+        expression: Box<Spanned<Expr>>,
+    },
+    /// SRFI-45 eager evaluation: (eager expression)
+    /// Creates an eager value that can be forced immediately
+    Eager {
+        /// Expression to evaluate eagerly
+        expression: Box<Spanned<Expr>>,
+    },
+
     /// Primitive operation: `(primitive symbol arguments*)`
     Primitive {
         /// Name of the primitive operation
@@ -151,6 +184,15 @@ pub enum Expr {
         bindings: Vec<ParameterBinding>,
         /// Body expressions
         body: Vec<Spanned<Expr>>,
+    },
+
+    /// Conditional expansion: (cond-expand (feature body ...) ... (else body ...))
+    /// SRFI-0 implementation for compile-time feature detection
+    CondExpand {
+        /// List of feature-condition clauses
+        clauses: Vec<CondExpandClause>,
+        /// Optional else clause
+        else_clause: Option<Vec<Spanned<Expr>>>,
     },
 
     /// Module import: (import import-spec+)
@@ -213,6 +255,15 @@ pub enum Expr {
         /// Recursive variable bindings
         bindings: Vec<Binding>,
         /// Body expressions
+        body: Vec<Spanned<Expr>>,
+    },
+
+    /// SRFI-2 and-let*: `(and-let* (clauses*) body)`
+    /// Conditional binding with short-circuit evaluation
+    AndLetStar {
+        /// and-let* clauses (bindings and tests)
+        clauses: Vec<AndLetClause>,
+        /// Body expressions to evaluate if all clauses succeed
         body: Vec<Spanned<Expr>>,
     },
 
@@ -294,6 +345,25 @@ pub enum Expr {
         /// Expression to which the contract applies
         expr: Box<Spanned<Expr>>,
     },
+
+    // ============= SRFI-26: NOTATION FOR SPECIALIZING PARAMETERS =============
+    /// Cut expression: (cut <slot-or-expr> <slot-or-expr> ...)
+    /// Creates a lambda with some arguments specialized (lazy evaluation)
+    Cut {
+        /// The procedure expression being specialized
+        procedure: Box<Spanned<Expr>>,
+        /// Arguments where `<>` represents slots and expressions are evaluated lazily
+        arguments: Vec<CutArgument>,
+    },
+
+    /// Cute expression: (cute <slot-or-expr> <slot-or-expr> ...)  
+    /// Like cut but non-slot expressions are evaluated immediately (eager evaluation)
+    Cute {
+        /// The procedure expression being specialized
+        procedure: Box<Spanned<Expr>>,
+        /// Arguments where `<>` represents slots and expressions are evaluated eagerly
+        arguments: Vec<CutArgument>,
+    },
 }
 
 impl Expr {
@@ -315,12 +385,16 @@ impl Expr {
                 | Expr::Quasiquote(_)
                 | Expr::Unquote(_)
                 | Expr::UnquoteSplicing(_)
+                | Expr::ExternalForm { .. }
                 | Expr::Lambda { .. }
                 | Expr::If { .. }
                 | Expr::Define { .. }
                 | Expr::Set { .. }
                 | Expr::DefineSyntax { .. }
                 | Expr::CallCC(_)
+                | Expr::Delay { .. }
+                | Expr::Lazy { .. }
+                | Expr::Eager { .. }
                 | Expr::Primitive { .. }
                 | Expr::TypeAnnotation { .. }
                 | Expr::Parameterize { .. }
@@ -330,6 +404,9 @@ impl Expr {
                 | Expr::DefineContract { .. }
                 | Expr::Contract(_)
                 | Expr::ContractApplication { .. }
+                | Expr::Cut { .. }
+                | Expr::Cute { .. }
+                | Expr::AndLetStar { .. }
         )
     }
 
@@ -384,6 +461,16 @@ impl fmt::Display for Expr {
             Expr::Quasiquote(expr) => write!(f, "`{}", expr.inner),
             Expr::Unquote(expr) => write!(f, ",{}", expr.inner),
             Expr::UnquoteSplicing(expr) => write!(f, ",@{}", expr.inner),
+            Expr::ExternalForm { tag, args } => {
+                write!(f, "#,({tag}")?;
+                for arg in args {
+                    write!(f, " {}", arg.inner)?;
+                }
+                write!(f, ")")
+            }
+            Expr::Delay { expression } => write!(f, "(delay {})", expression.inner),
+            Expr::Lazy { expression } => write!(f, "(lazy {})", expression.inner),
+            Expr::Eager { expression } => write!(f, "(eager {})", expression.inner),
             Expr::Lambda {
                 formals,
                 return_type,
@@ -480,6 +567,47 @@ impl fmt::Display for Expr {
                 for export in exports {
                     write!(f, " {}", export.inner)?;
                 }
+                for expr in body {
+                    write!(f, " {}", expr.inner)?;
+                }
+                write!(f, ")")
+            }
+            Expr::Cut {
+                procedure,
+                arguments,
+            } => {
+                write!(f, "(cut {}", procedure.inner)?;
+                for arg in arguments {
+                    write!(f, " {}", arg)?;
+                }
+                write!(f, ")")
+            }
+            Expr::Cute {
+                procedure,
+                arguments,
+            } => {
+                write!(f, "(cute {}", procedure.inner)?;
+                for arg in arguments {
+                    write!(f, " {}", arg)?;
+                }
+                write!(f, ")")
+            }
+            Expr::AndLetStar { clauses, body } => {
+                write!(f, "(and-let* (")?;
+                for (i, clause) in clauses.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    match clause {
+                        AndLetClause::Binding { variable, expression } => {
+                            write!(f, "({} {})", variable, expression.inner)?;
+                        }
+                        AndLetClause::Test { expression } => {
+                            write!(f, "({})", expression.inner)?;
+                        }
+                    }
+                }
+                write!(f, ")")?;
                 for expr in body {
                     write!(f, " {}", expr.inner)?;
                 }

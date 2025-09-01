@@ -12,6 +12,9 @@
 pub mod adaptive_pointer;
 pub mod sync;
 
+// SRFI-18 Threading Infrastructure (core - no async dependencies)
+pub mod scheme_threading;
+
 // Parallel module has tokio dependencies, temporarily async-dependent
 #[cfg(feature = "async-runtime")]
 pub mod parallel;
@@ -88,7 +91,7 @@ pub use rwlock::{ReadGuard, RwLock, WriteGuard};
 #[cfg(feature = "async-runtime")]
 pub use semaphore::{SemaphorePermit, SemaphoreSync};
 
-use crate::diagnostics::{Error, LambdustError, Result};
+use crate::diagnostics::{Error, EvalUnifiedError, Result};
 
 // Phase 3.3: Distributed Computing Framework Exports - temporarily disabled for stabilization
 // All distributed modules disabled until stabilization is complete
@@ -135,7 +138,7 @@ impl std::fmt::Display for ConcurrencyError {
     }
 }
 
-impl LambdustError for ConcurrencyError {
+impl EvalUnifiedError for ConcurrencyError {
     fn error_code(&self) -> &'static str {
         match self {
             Self::ChannelClosed => "lambdust::concurrency::channel_closed",

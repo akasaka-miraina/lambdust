@@ -88,8 +88,8 @@
 
 use super::Parser;
 use crate::ast::{
-    Binding, CaseClause, CaseLambdaClause, CondClause, Expr, Formals, GuardClause, KeywordParam,
-    ParameterBinding, TypeExpr, TypedParam, TypedParameterKind,
+    Binding, CaseClause, CaseLambdaClause, CondClause, CutArgument, Expr, Formals, GuardClause,
+    KeywordParam, ParameterBinding, TypeExpr, TypedParam, TypedParameterKind,
 };
 use crate::diagnostics::{Error, Result, Span, Spanned};
 use crate::lexer::TokenKind;
@@ -841,6 +841,129 @@ impl Parser {
         let span = start_span.combine(end_span);
 
         Ok(Spanned::new(Expr::LetRec { bindings, body }, span))
+    }
+
+    /// Parses a rec form: `(rec <variable> <expression>)`.
+    ///
+    /// The rec special form provides syntactic sugar for simple recursive definitions.
+    /// It is more concise than letrec for cases where you're defining a single 
+    /// recursive binding and immediately returning it.
+    ///
+    /// # SRFI-31 Specification
+    ///
+    /// From SRFI-31: "A special form `rec` for recursive evaluation":
+    /// > `(rec <variable> <expression>)` is equivalent to
+    /// > `(letrec ((<variable> <expression>)) <variable>)`
+    ///
+    /// # Syntax
+    ///
+    /// ```scheme
+    /// (rec variable expression)
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```scheme
+    /// ;; Factorial using rec
+    /// (define factorial
+    ///   (rec f (lambda (n)
+    ///            (if (= n 0) 1 (* n (f (- n 1)))))))
+    /// 
+    /// ;; Fibonacci using rec  
+    /// (define fibonacci
+    ///   (rec fib (lambda (n)
+    ///              (if (<= n 1) n (+ (fib (- n 1)) (fib (- n 2)))))))
+    ///
+    /// ;; List length using rec
+    /// (define length
+    ///   (rec len (lambda (lst)
+    ///              (if (null? lst) 0 (+ 1 (len (cdr lst)))))))
+    /// ```
+    ///
+    /// # Implementation Strategy
+    ///
+    /// This method performs immediate transformation during parsing:
+    /// 1. Parse the variable name (must be identifier)
+    /// 2. Parse the expression 
+    /// 3. Create equivalent letrec structure: `(letrec ((var expr)) var)`
+    /// 4. Return the desugared letrec expression
+    ///
+    /// This approach leverages existing letrec infrastructure for:
+    /// - Recursive binding semantics
+    /// - Scope management
+    /// - Optimization opportunities
+    /// - Error handling consistency
+    ///
+    /// # Arguments
+    ///
+    /// - `start_span`: Source location of the opening parenthesis
+    ///
+    /// # Returns
+    ///
+    /// `Result<Spanned<Expr>>` containing the desugared letrec expression or a parse error
+    ///
+    /// # Errors
+    ///
+    /// - Missing variable name: `(rec)`
+    /// - Invalid variable (non-identifier): `(rec 123 expr)` or `(rec "string" expr)`
+    /// - Missing expression: `(rec var)`
+    /// - Extra arguments: `(rec var expr extra)`
+    /// - Malformed syntax
+    pub fn parse_rec_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        self.with_context("rec form", |parser| {
+            // Parse variable name - must be identifier
+            let name_expr = parser.parse_expression()?;
+            let variable_name = match name_expr.inner {
+                Expr::Identifier(name) => name,
+                _ => {
+                    return Err(Box::new(Error::parse_error(
+                        "Expected identifier as first argument to rec",
+                        name_expr.span,
+                    )));
+                }
+            };
+
+            // Parse expression
+            let expression = parser.parse_expression()?;
+
+            // Check for extra arguments (rec should have exactly 2 arguments)
+            if !parser.check(&TokenKind::RightParen) {
+                return Err(Box::new(Error::parse_error(
+                    "rec form takes exactly two arguments: variable and expression",
+                    parser.current_span(),
+                )));
+            }
+
+            let end_span = parser.current_span();
+            parser.consume(
+                &TokenKind::RightParen,
+                "Expected closing parenthesis after rec",
+            )?;
+            let span = start_span.combine(end_span);
+
+            // Transform (rec var expr) to (letrec ((var expr)) var)
+            // Create binding: (var expr)
+            use crate::ast::Binding;
+            let binding = Binding {
+                name: variable_name.clone(),
+                value: expression,
+            };
+
+            // Create body: var (return the variable itself)
+            let body = vec![Spanned::new(
+                Expr::Identifier(variable_name),
+                name_expr.span,
+            )];
+
+            // Create letrec expression
+            Ok(Spanned::new(
+                Expr::LetRec {
+                    bindings: vec![binding],
+                    body,
+                },
+                span,
+            ))
+        })
     }
 
     /// Parses a cond form: `(cond clauses+)`
@@ -2019,6 +2142,127 @@ impl Parser {
 
             Ok(TypedParam::new(name, type_annotation))
         })
+    }
+
+    /// Parses a cut form: `(cut <procedure> <slot-or-expr>*)`
+    ///
+    /// Cut forms create specialized procedures with placeholder slots:
+    /// - `<>` represents a single argument placeholder
+    /// - `<...>` represents a rest argument placeholder (must be last)
+    /// - Other expressions are evaluated when the procedure is called
+    ///
+    /// # SRFI-26 Specification
+    ///
+    /// Examples:
+    /// - `(cut + <> 5)` => `(lambda (x) (+ x 5))`
+    /// - `(cut list 1 <> 3 <> 5)` => `(lambda (x y) (list 1 x 3 y 5))`
+    /// - `(cut list <> <...>)` => `(lambda (x . rest) (apply list x rest))`
+    pub fn parse_cut_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        // Parse procedure
+        let procedure = self.parse_expression()?;
+        
+        // Parse arguments (slot placeholders and expressions)
+        let mut arguments = Vec::new();
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            let arg_expr = self.parse_expression()?;
+            
+            // Convert placeholder identifiers to CutArgument types
+            let cut_arg = match &arg_expr.inner {
+                Expr::Identifier(name) if name == "<>" => CutArgument::slot(),
+                Expr::Identifier(name) if name == "<...>" => CutArgument::rest_slot(),
+                _ => CutArgument::expression(arg_expr),
+            };
+            
+            arguments.push(cut_arg);
+        }
+
+        // Validate arguments according to SRFI-26 rules
+        self.validate_cut_arguments(&arguments)?;
+
+        let end_span = self.current_span();
+        self.consume(
+            &TokenKind::RightParen,
+            "Expected closing parenthesis after cut",
+        )?;
+        let span = start_span.combine(end_span);
+
+        // Use optimized expansion instead of storing raw AST
+        crate::macro_system::srfi26_expansion::expand_cut_optimized(&procedure, &arguments, span)
+    }
+
+    /// Parses a cute form: `(cute <procedure> <slot-or-expr>*)`
+    ///
+    /// Cute forms are like cut, but non-slot expressions are evaluated immediately:
+    /// - `<>` represents a single argument placeholder
+    /// - `<...>` represents a rest argument placeholder (must be last)
+    /// - Other expressions are evaluated when the cute form is evaluated
+    ///
+    /// # SRFI-26 Specification
+    ///
+    /// Examples:
+    /// - `(cute cons <> (expensive-computation))` evaluates `expensive-computation` once
+    /// - `(cut cons <> (expensive-computation))` evaluates it each time the lambda is called
+    pub fn parse_cute_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        // Parse procedure
+        let procedure = self.parse_expression()?;
+        
+        // Parse arguments (slot placeholders and expressions)
+        let mut arguments = Vec::new();
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            let arg_expr = self.parse_expression()?;
+            
+            // Convert placeholder identifiers to CutArgument types
+            let cut_arg = match &arg_expr.inner {
+                Expr::Identifier(name) if name == "<>" => CutArgument::slot(),
+                Expr::Identifier(name) if name == "<...>" => CutArgument::rest_slot(),
+                _ => CutArgument::expression(arg_expr),
+            };
+            
+            arguments.push(cut_arg);
+        }
+
+        // Validate arguments according to SRFI-26 rules
+        self.validate_cut_arguments(&arguments)?;
+
+        let end_span = self.current_span();
+        self.consume(
+            &TokenKind::RightParen,
+            "Expected closing parenthesis after cute",
+        )?;
+        let span = start_span.combine(end_span);
+
+        // Use optimized expansion instead of storing raw AST
+        crate::macro_system::srfi26_expansion::expand_cute_optimized(&procedure, &arguments, span)
+    }
+
+    /// Validates cut/cute arguments according to SRFI-26 rules
+    fn validate_cut_arguments(&self, arguments: &[CutArgument]) -> Result<()> {
+        let mut rest_slot_position = None;
+        
+        // Find rest slot and check for validity
+        for (i, arg) in arguments.iter().enumerate() {
+            if let CutArgument::RestSlot = arg {
+                if rest_slot_position.is_some() {
+                    return Err(Box::new(Error::parse_error(
+                        "Only one rest slot (<...>) allowed per cut/cute expression",
+                        Span::new(0, 0), // TODO: Use actual span
+                    )));
+                }
+                rest_slot_position = Some(i);
+            }
+        }
+
+        // Rest slot must be last argument if present
+        if let Some(pos) = rest_slot_position {
+            if pos != arguments.len() - 1 {
+                return Err(Box::new(Error::parse_error(
+                    "Rest slot (<...>) must be the last argument",
+                    Span::new(0, 0), // TODO: Use actual span
+                )));
+            }
+        }
+
+        Ok(())
     }
 }
 

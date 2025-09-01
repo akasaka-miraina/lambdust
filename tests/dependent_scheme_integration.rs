@@ -105,7 +105,7 @@ fn test_type_to_value_conversion() {
         .expect("Failed to convert universe type");
 
     match universe_value {
-        Value::Symbol(_) => {
+        Value::symbol(_) => {
             // Should be a symbol representing the universe
         }
         _ => panic!("Expected symbol for universe type"),
@@ -114,9 +114,9 @@ fn test_type_to_value_conversion() {
     // Test Inductive type conversion
     let nat_type = DependentType::Inductive {
         name: "Nat".to_string(),
-        parameters: vec![],
+        parameters: &[],
         universe_level: 0,
-        constructors: vec![],
+        constructors: &[],
         induction_principle: None,
     };
     let nat_value = integration
@@ -124,7 +124,7 @@ fn test_type_to_value_conversion() {
         .expect("Failed to convert inductive type");
 
     match nat_value {
-        Value::Symbol(_) => {
+        Value::symbol(_) => {
             // Should be a symbol representing the type name
         }
         _ => panic!("Expected symbol for inductive type"),

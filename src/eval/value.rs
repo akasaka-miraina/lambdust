@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 //! Runtime value types for the Lambdust evaluation engine.
 //!
 //! This module defines the core `Value` enum and associated types that represent
@@ -361,6 +362,9 @@ pub enum Value {
     /// Promise for lazy evaluation - Thread-safe
     Promise(Rc<RefCell<Promise>>),
 
+    /// Stream for SRFI-41 lazy sequences - Thread-safe
+    Stream(Arc<super::stream::StreamNode>),
+
     /// Type value (for gradual typing) - Thread-safe
     Type(Arc<TypeValue>),
 
@@ -388,8 +392,8 @@ pub enum Value {
     Channel(Arc<crate::concurrency::channels::Channel>),
 
     #[cfg(feature = "async-runtime")]
-    /// Mutex for synchronization - Thread-safe
-    Mutex(Arc<crate::concurrency::Mutex>),
+    /// Async Mutex for synchronization - Thread-safe
+    AsyncMutex(Arc<crate::concurrency::Mutex>),
 
     #[cfg(feature = "async-runtime")]
     /// Semaphore for resource control - Thread-safe
@@ -403,12 +407,136 @@ pub enum Value {
     /// Distributed node - Thread-safe
     DistributedNode(Arc<crate::concurrency::distributed::DistributedNode>),
 
+    // ============= SRFI-18 THREADING VALUES =============
+    /// Thread object for SRFI-18 multithreading support - Thread-safe
+    ///
+    /// Represents a Scheme thread that can execute procedures concurrently.
+    /// Threads inherit parameter bindings from their parent thread and provide
+    /// isolation for concurrent computation.
+    ///
+    /// ## Thread Semantics
+    /// - **Concurrent Execution**: Threads run independently
+    /// - **Parameter Inheritance**: Child threads inherit parent bindings
+    /// - **Exception Isolation**: Exceptions don't cross thread boundaries
+    /// - **Resource Management**: Automatic cleanup on completion
+    Thread(Arc<crate::concurrency::scheme_threading::SchemeThread>),
+
+    /// Mutex object for SRFI-18 synchronization - Thread-safe
+    ///
+    /// Provides mutual exclusion for protecting shared resources between
+    /// threads. Only one thread can hold a mutex at a time, providing
+    /// safe access to critical sections.
+    ///
+    /// ## Mutex Semantics  
+    /// - **Exclusive Access**: Only one thread can hold the lock
+    /// - **Ownership**: Only the owning thread can unlock
+    /// - **Non-Reentrant**: Multiple acquisitions by same thread deadlock
+    /// - **Exception Safe**: Automatic cleanup on thread termination
+    Mutex(Arc<crate::concurrency::scheme_threading::SchemeMutex>),
+
+    /// Condition variable for SRFI-18 thread coordination - Thread-safe
+    ///
+    /// Enables threads to wait for specific conditions to become true,
+    /// working in conjunction with mutexes for efficient thread coordination
+    /// and avoiding busy-waiting patterns.
+    ///
+    /// ## Condition Variable Semantics
+    /// - **Atomic Wait**: Atomically releases mutex and waits
+    /// - **Reacquisition**: Automatically reacquires mutex on wakeup  
+    /// - **Spurious Wakeups**: May wake without explicit notification
+    /// - **Broadcast Support**: Can notify one or all waiting threads
+    ConditionVariable(Arc<crate::concurrency::scheme_threading::SchemeConditionVariable>),
+
     /// Opaque value for FFI - Thread-safe
     Opaque(Arc<dyn std::any::Any + Send + Sync>),
 
     // ============= ENVIRONMENT VALUES =============
     /// Environment for dynamic evaluation (scheme eval) - Thread-safe
     Environment(Arc<ThreadSafeEnvironment>),
+
+    // ============= SRFI-SPECIFIC VALUES =============
+    /// Multiple values container (SRFI-11, SRFI-8) - Thread-safe
+    MultipleValues(Arc<MultipleValues>),
+
+    /// Condition object (SRFI-35) - Thread-safe
+    Condition(Arc<crate::stdlib::srfi35_conditions::ConditionValue>),
+
+    /// Condition type (SRFI-35) - Thread-safe
+    ConditionType(Arc<crate::stdlib::srfi35_conditions::ConditionType>),
+
+    /// Comparator object (SRFI-128) - Thread-safe
+    Comparator(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Time object (SRFI-21) - Thread-safe
+    Time21(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Homogeneous vector (SRFI-4) - Thread-safe
+    HomogeneousVector(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Mapping object (SRFI-146) - Thread-safe
+    Mapping(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Ephemeron object (SRFI-124) - Thread-safe
+    Ephemeron(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Time object (SRFI-19) - Thread-safe
+    Time(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Date object (SRFI-19) - Thread-safe
+    Date(Arc<dyn std::any::Any + Send + Sync>),
+}
+
+/// Container for multiple values returned by functions like `values`.
+///
+/// This struct represents multiple values as used in R7RS Scheme and
+/// various SRFIs. It provides efficient storage and access to a collection
+/// of values that can be unpacked by receiving forms like `let-values`.
+///
+/// ## Usage Examples
+/// - `(values 1 2 3)` creates `MultipleValues::new(vec![1, 2, 3])`
+/// - `(call-with-values producer consumer)` unpacks values for consumer
+/// - SRFI-11 `let-values` forms for structured binding
+///
+/// ## Performance Characteristics
+/// - **Storage**: Uses `Vec<Value>` for efficient sequential access
+/// - **Thread Safety**: Wrapped in `Arc` for sharing across threads
+/// - **Memory**: Small values optimization when count ≤ 1
+#[derive(Debug, Clone)]
+pub struct MultipleValues {
+    /// The actual values stored in order
+    values: Vec<Value>,
+}
+
+impl MultipleValues {
+    /// Create a new MultipleValues container from a vector of values.
+    pub fn new(values: Vec<Value>) -> Self {
+        Self { values }
+    }
+
+    /// Get the values as a slice.
+    pub fn as_slice(&self) -> &[Value] {
+        &self.values
+    }
+
+    /// Get the number of values.
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    /// Check if there are no values.
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    /// Get values as a vector (consuming).
+    pub fn into_vec(self) -> Vec<Value> {
+        self.values
+    }
+
+    /// Get a value by index.
+    pub fn get(&self, index: usize) -> Option<&Value> {
+        self.values.get(index)
+    }
 }
 
 /// A user-defined procedure (closure) - Thread-safe.
@@ -985,6 +1113,20 @@ pub enum Promise {
         /// Environment for expression evaluation
         environment: Arc<ThreadSafeEnvironment>,
     },
+    /// Stream tail promise optimized for SRFI-41 streams
+    StreamTail {
+        /// The thunk that produces the next stream node
+        tail_thunk: Value,
+        /// Stream generation for cache optimization
+        generation: u32,
+    },
+    /// Stream element promise for lazy head evaluation
+    StreamElement {
+        /// The thunk that produces the stream element
+        element_thunk: Value,
+        /// Stream position for debugging and optimization
+        position: u64,
+    },
 }
 
 /// Trampoline continuation for iterative promise evaluation.
@@ -1001,6 +1143,15 @@ pub enum PromiseTrampoline {
         thunk: Value,
         /// Reference to the promise for result caching
         promise_ref: Rc<RefCell<Promise>>,
+    },
+    /// Stream tail computation for optimized stream evaluation
+    ComputeStreamTail {
+        /// The tail thunk value to compute
+        tail_thunk: Value,
+        /// Reference to the stream tail promise
+        promise_ref: Rc<RefCell<Promise>>,
+        /// Stream generation for cache coherency
+        generation: u32,
     },
 }
 
@@ -1102,14 +1253,17 @@ pub struct ThreadSafeEnvironment {
     name: Option<String>,
 }
 
-/// Legacy environment for variable bindings (will be phased out).
+/// Environment for variable bindings with shared binding support.
 ///
-/// Uses generational garbage collection for memory management
-/// and proper lexical scoping semantics.
+/// Uses generational garbage collection for memory management,
+/// proper lexical scoping semantics, and optional shared binding
+/// storage for recursive function support (letrec fix).
 #[derive(Debug, Clone)]
 pub struct Environment {
     /// Variable bindings in this environment
     pub bindings: Rc<std::cell::RefCell<HashMap<String, Value>>>,
+    /// Optional shared binding storage for live references (letrec fix)
+    pub shared_bindings: Option<Arc<RwLock<HashMap<String, Value>>>>,
     /// Parent environment (for lexical scoping)
     pub parent: Option<Rc<Environment>>,
     /// Generation counter for GC
@@ -1393,6 +1547,14 @@ impl Value {
     /// Creates a new pair value.
     pub fn pair(car: Value, cdr: Value) -> Self {
         Value::Pair(Box::new(car), Box::new(cdr))
+    }
+
+    /// Creates a new pair value (alias for `pair`).
+    /// 
+    /// This method provides the traditional Lisp `cons` constructor
+    /// as an alias to the `pair` method for compatibility and familiarity.
+    pub fn cons(car: Value, cdr: Value) -> Self {
+        Self::pair(car, cdr)
     }
 
     /// Creates a new mutable pair value.
@@ -1684,7 +1846,12 @@ impl Value {
 
     /// Creates a new generator from a vector.
     pub fn generator_from_vector(vector: Rc<RefCell<Vec<Value>>>) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::from_vector(vector)))
+        // Convert Rc<RefCell<Vec<Value>>> to Arc<RwLock<Vec<Value>>> for thread-safe generator
+        let thread_safe_vec = {
+            let borrowed = vector.borrow();
+            Arc::new(RwLock::new(borrowed.clone()))
+        };
+        Value::Generator(Arc::new(crate::containers::Generator::from_vector(thread_safe_vec)))
     }
 
     /// Creates a new generator from a string.
@@ -1889,13 +2056,13 @@ impl Value {
     /// Returns true if this value is a mutex.
     #[cfg(feature = "async-runtime")]
     pub fn is_mutex(&self) -> bool {
-        matches!(self, Value::Mutex(_))
+        matches!(self, Value::AsyncMutex(_))
     }
 
     /// Returns true if this value is a mutex (no-op when async-runtime disabled).
     #[cfg(not(feature = "async-runtime"))]
     pub fn is_mutex(&self) -> bool {
-        false
+        matches!(self, Value::Mutex(_))
     }
 
     /// Returns true if this value is a semaphore.
@@ -2056,6 +2223,7 @@ impl PartialEq for Value {
             #[cfg(feature = "async-runtime")]
             (Value::Channel(a), Value::Channel(b)) => Arc::ptr_eq(a, b),
             #[cfg(feature = "async-runtime")]
+            (Value::AsyncMutex(a), Value::AsyncMutex(b)) => Arc::ptr_eq(a, b),
             (Value::Mutex(a), Value::Mutex(b)) => Arc::ptr_eq(a, b),
             #[cfg(feature = "async-runtime")]
             (Value::Semaphore(a), Value::Semaphore(b)) => Arc::ptr_eq(a, b),
@@ -2064,6 +2232,27 @@ impl PartialEq for Value {
             #[cfg(feature = "async-runtime")]
             (Value::DistributedNode(a), Value::DistributedNode(b)) => Arc::ptr_eq(a, b),
             (Value::Opaque(a), Value::Opaque(b)) => Arc::ptr_eq(a, b),
+            // SRFI-specific variants
+            (Value::MultipleValues(a), Value::MultipleValues(b)) => Arc::ptr_eq(a, b),
+            (Value::Condition(a), Value::Condition(b)) => Arc::ptr_eq(a, b),
+            (Value::ConditionType(a), Value::ConditionType(b)) => Arc::ptr_eq(a, b),
+            (Value::Comparator(a), Value::Comparator(b)) => Arc::ptr_eq(a, b),
+            (Value::Time21(a), Value::Time21(b)) => Arc::ptr_eq(a, b),
+            (Value::HomogeneousVector(a), Value::HomogeneousVector(b)) => Arc::ptr_eq(a, b),
+            (Value::Mapping(a), Value::Mapping(b)) => Arc::ptr_eq(a, b),
+            (Value::Ephemeron(a), Value::Ephemeron(b)) => Arc::ptr_eq(a, b),
+            (Value::Time(a), Value::Time(b)) => Arc::ptr_eq(a, b),
+            (Value::Date(a), Value::Date(b)) => Arc::ptr_eq(a, b),
+            (Value::Thread(a), Value::Thread(b)) => Arc::ptr_eq(a, b),
+            (Value::Mutex(a), Value::Mutex(b)) => Arc::ptr_eq(a, b),
+            (Value::ConditionVariable(a), Value::ConditionVariable(b)) => Arc::ptr_eq(a, b),
+            // Advanced values use reference equality
+            (Value::Stream(a), Value::Stream(b)) => Arc::ptr_eq(a, b),
+            (Value::Promise(a), Value::Promise(b)) => Rc::ptr_eq(a, b),
+            (Value::Port(a), Value::Port(b)) => Arc::ptr_eq(a, b),
+            (Value::Type(a), Value::Type(b)) => Arc::ptr_eq(a, b),
+            (Value::Foreign(a), Value::Foreign(b)) => Arc::ptr_eq(a, b),
+            (Value::Syntax(a), Value::Syntax(b)) => Arc::ptr_eq(a, b),
             _ => false,
         }
     }
@@ -2153,6 +2342,7 @@ impl fmt::Display for Value {
             Value::Syntax(syn) => write!(f, "#<syntax:{}>", syn.name),
             Value::Port(_) => write!(f, "#<port>"),
             Value::Promise(_) => write!(f, "#<promise>"),
+            Value::Stream(_) => write!(f, "#<stream>"),
             Value::Type(_) => write!(f, "#<type>"),
             Value::Foreign(obj) => write!(f, "#<foreign:{}>", obj.type_name),
             Value::ErrorObject(err) => write!(f, "#<error:{}>", err.message),
@@ -2187,6 +2377,7 @@ impl fmt::Display for Value {
             #[cfg(feature = "async-runtime")]
             Value::Channel(_) => write!(f, "#<channel>"),
             #[cfg(feature = "async-runtime")]
+            Value::AsyncMutex(_) => write!(f, "#<async-mutex>"),
             Value::Mutex(_) => write!(f, "#<mutex>"),
             #[cfg(feature = "async-runtime")]
             Value::Semaphore(_) => write!(f, "#<semaphore>"),
@@ -2231,6 +2422,20 @@ impl fmt::Display for Value {
                     write!(f, "#<environment>")
                 }
             }
+            // SRFI-specific variants
+            Value::MultipleValues(values) => write!(f, "#<values:{}>", values.len()),
+            Value::Condition(_) => write!(f, "#<condition>"),
+            Value::ConditionType(_) => write!(f, "#<condition-type>"),
+            Value::Comparator(_) => write!(f, "#<comparator>"),
+            Value::Time21(_) => write!(f, "#<time21>"),
+            Value::HomogeneousVector(_) => write!(f, "#<homogeneous-vector>"),
+            Value::Mapping(_) => write!(f, "#<mapping>"),
+            Value::Ephemeron(_) => write!(f, "#<ephemeron>"),
+            Value::Time(_) => write!(f, "#<time>"),
+            Value::Date(_) => write!(f, "#<date>"),
+            Value::Thread(_) => write!(f, "#<thread>"),
+            Value::Mutex(_) => write!(f, "#<mutex>"),
+            Value::ConditionVariable(_) => write!(f, "#<condition-variable>"),
         }
     }
 }
@@ -2301,6 +2506,19 @@ impl Environment {
     pub fn new(parent: Option<Rc<Environment>>, generation: Generation) -> Self {
         Self {
             bindings: Rc::new(std::cell::RefCell::new(HashMap::new())),
+            shared_bindings: None,
+            parent,
+            generation,
+            name: None,
+        }
+    }
+    
+    /// Creates a new environment with shared binding support (for letrec).
+    pub fn new_shared(parent: Option<Rc<Environment>>, generation: Generation) -> Self {
+        let shared_storage = Arc::new(RwLock::new(HashMap::new()));
+        Self {
+            bindings: Rc::new(std::cell::RefCell::new(HashMap::new())),
+            shared_bindings: Some(shared_storage),
             parent,
             generation,
             name: None,
@@ -2315,6 +2533,23 @@ impl Environment {
     ) -> Self {
         Self {
             bindings: Rc::new(std::cell::RefCell::new(HashMap::new())),
+            shared_bindings: None,
+            parent,
+            generation,
+            name: Some(name),
+        }
+    }
+    
+    /// Creates a new environment with a name and shared binding support.
+    pub fn with_name_shared(
+        parent: Option<Rc<Environment>>,
+        generation: Generation,
+        name: String,
+    ) -> Self {
+        let shared_storage = Arc::new(RwLock::new(HashMap::new()));
+        Self {
+            bindings: Rc::new(std::cell::RefCell::new(HashMap::new())),
+            shared_bindings: Some(shared_storage),
             parent,
             generation,
             name: Some(name),
@@ -2328,6 +2563,15 @@ impl Environment {
             return Some(value.clone());
         }
 
+        // CRITICAL FIX: Check shared bindings if present (letrec support)
+        if let Some(shared) = &self.shared_bindings {
+            if let Ok(map) = shared.read() {
+                if let Some(value) = map.get(name) {
+                    return Some(value.clone());
+                }
+            }
+        }
+
         // Check parent environments
         if let Some(parent) = &self.parent {
             parent.lookup(name)
@@ -2338,7 +2582,15 @@ impl Environment {
 
     /// Defines a variable in this environment.
     pub fn define(&self, name: String, value: Value) {
-        self.bindings.borrow_mut().insert(name, value);
+        // Update local bindings
+        self.bindings.borrow_mut().insert(name.clone(), value.clone());
+        
+        // CRITICAL FIX: Also update shared bindings if present (letrec support)
+        if let Some(shared) = &self.shared_bindings {
+            if let Ok(mut map) = shared.write() {
+                map.insert(name, value);
+            }
+        }
     }
 
     /// Sets a variable in this environment or its parents.
@@ -2349,7 +2601,16 @@ impl Environment {
         if let Ok(bindings) = self.bindings.try_borrow() {
             if bindings.contains_key(name) {
                 drop(bindings); // Release the borrow
-                self.bindings.borrow_mut().insert(name.to_string(), value);
+                
+                // Update local bindings
+                self.bindings.borrow_mut().insert(name.to_string(), value.clone());
+                
+                // CRITICAL FIX: Also update shared bindings if present (letrec support)
+                if let Some(shared) = &self.shared_bindings {
+                    if let Ok(mut map) = shared.write() {
+                        map.insert(name.to_string(), value);
+                    }
+                }
                 return true;
             }
         }
@@ -2397,18 +2658,27 @@ impl Environment {
 
     /// Converts this Environment to a ThreadSafeEnvironment that maintains live bindings.
     /// Used for recursive function definitions where the environment may be updated.
+    /// CRITICAL FIX: Returns live references instead of snapshots for letrec support.
     pub fn to_thread_safe_live(&self) -> Arc<ThreadSafeEnvironment> {
         let parent = self.parent.as_ref().map(|p| p.to_thread_safe_live());
 
-        // Create a thread-safe environment that references the live bindings
-        let bindings = self
-            .bindings
-            .try_borrow()
-            .ok()
-            .map(|b| b.clone())
-            .unwrap_or_default();
+        // CRITICAL FIX: Use shared bindings if available (live references)
+        let bindings = if let Some(shared) = &self.shared_bindings {
+            // Return live reference to shared storage - this is the key fix!
+            Arc::clone(shared)
+        } else {
+            // Fallback to snapshot for non-shared environments
+            let local_bindings = self
+                .bindings
+                .try_borrow()
+                .ok()
+                .map(|b| b.clone())
+                .unwrap_or_default();
+            Arc::new(std::sync::RwLock::new(local_bindings))
+        };
+        
         Arc::new(ThreadSafeEnvironment {
-            bindings: Arc::new(std::sync::RwLock::new(bindings)),
+            bindings,
             parent,
             generation: self.generation,
             name: self.name.clone(),
@@ -2578,6 +2848,7 @@ impl ThreadSafeEnvironment {
             bindings: Rc::new(std::cell::RefCell::new(
                 self.bindings.read().unwrap().clone(),
             )),
+            shared_bindings: None,
             parent: legacy_parent,
             generation: self.generation,
             name: self.name.clone(),
@@ -2648,6 +2919,18 @@ unsafe impl Sync for PortDirection {}
 // Promise is safe because all its contents are thread-safe
 unsafe impl Send for Promise {}
 unsafe impl Sync for Promise {}
+
+// StreamNode is safe because all its contents are thread-safe
+unsafe impl Send for super::stream::StreamNode {}
+unsafe impl Sync for super::stream::StreamNode {}
+
+// StreamTail is safe because all its contents are thread-safe
+unsafe impl Send for super::stream::StreamTail {}
+unsafe impl Sync for super::stream::StreamTail {}
+
+// ArenaMetadata is safe because it only contains basic types
+unsafe impl Send for super::stream::ArenaMetadata {}
+unsafe impl Sync for super::stream::ArenaMetadata {}
 
 // TypeValue is safe because it only contains basic types
 unsafe impl Send for TypeValue {}

@@ -1,4 +1,4 @@
-//! Mathematical models and optimization algorithms for JIT compilation
+#![allow(missing_docs)]//! Mathematical models and optimization algorithms for JIT compilation
 //!
 //! This module implements sophisticated mathematical models for JIT compilation
 //! optimization, including:

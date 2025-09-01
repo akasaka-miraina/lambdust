@@ -479,6 +479,7 @@ impl TypeInference {
             Literal::Bytevector(_) => Ok(Type::Bytevector),
             Literal::Nil => Ok(Type::list(Type::Dynamic)), // Empty list can be any list type
             Literal::Unspecified => Ok(Type::Unit),
+            Literal::HomogeneousVector(_) => Ok(Type::Vector(Box::new(Type::Dynamic))), // Vector of uniform type
         }
     }
 

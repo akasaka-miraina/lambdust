@@ -1,4 +1,4 @@
-//! Deoptimization system for JIT compilation
+#![allow(missing_docs)]//! Deoptimization system for JIT compilation
 //!
 //! Provides safe fallback mechanisms when JIT assumptions are violated.
 

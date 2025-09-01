@@ -479,9 +479,9 @@ impl DependentTypePerformanceTestSuite {
                     let constructor_type = arena.alloc_type(DependentTypeData::Universe(0))?;
                     let inductive_data = DependentTypeData::Inductive {
                         name: format!("Ind{i}"),
-                        parameters: vec![],
+                        parameters: &[],
                         universe_level: 1,
-                        constructors: vec![(format!("ctor{i}"), constructor_type)],
+                        constructors: &[(format!("ctor{i}"), constructor_type)],
                         induction_principle: None,
                     };
                     let _inductive_ref = arena.alloc_type(inductive_data)?;

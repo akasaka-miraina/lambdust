@@ -1,4 +1,4 @@
-//! Performance tests for HybridJitEngine and continuation integration
+#![allow(missing_docs)]//! Performance tests for HybridJitEngine and continuation integration
 //!
 //! This module contains comprehensive performance tests to verify the 5-10x improvement
 //! in continuation execution and 2-5x overall system performance as targeted by cs-architect.

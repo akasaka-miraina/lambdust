@@ -675,6 +675,9 @@ impl TypeSafeMacroExpander {
                 crate::ast::Literal::Nil => Ok(MacroType::Primitive(PrimitiveType::Symbol)),
                 crate::ast::Literal::Unspecified => Ok(MacroType::Primitive(PrimitiveType::Symbol)),
                 crate::ast::Literal::Integer(_) => Ok(MacroType::Primitive(PrimitiveType::Number)),
+                crate::ast::Literal::HomogeneousVector(_) => Ok(MacroType::List(Box::new(
+                    MacroType::Untyped, // Would need type analysis of vector elements
+                ))),
             },
             Expr::Identifier(_) => Ok(MacroType::Primitive(PrimitiveType::Symbol)),
             Expr::Application { .. } => Ok(MacroType::Untyped), // Would need more sophisticated analysis

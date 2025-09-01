@@ -65,7 +65,7 @@ fn bind_procedure_application(env: &Arc<ThreadSafeEnvironment>) {
             name: "call-with-values".to_string(),
             arity_min: 2,
             arity_max: Some(2),
-            implementation: PrimitiveImpl::RustFn(primitive_call_with_values),
+            implementation: PrimitiveImpl::EvaluatorIntegrated(evaluator_call_with_values),
             effects: vec![Effect::Pure], // Depends on procedures
         })),
     );
@@ -311,25 +311,76 @@ fn primitive_apply(args: &[Value]) -> Result<Value> {
 }
 
 /// values procedure
+/// TODO: MultipleValues was removed from Value enum, need proper implementation
 fn primitive_values(args: &[Value]) -> Result<Value> {
-    // For now, just return the first value or unspecified
-    if args.is_empty() {
-        Ok(Value::Unspecified)
-    } else if args.len() == 1 {
-        Ok(args[0].clone())
-    } else {
-        // Multiple values - in a full implementation, this would return a special multiple values object
-        Ok(args[0].clone())
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    match args.len() {
+        // (values) returns no values - but in many Scheme implementations this returns unspecified
+        0 => Ok(Value::Unspecified), 
+        // (values x) returns single value x
+        1 => Ok(args[0].clone()),
+        // (values x y ...) returns multiple values - temporarily use Vector for compatibility
+        _ => Ok(Value::Vector(Rc::new(RefCell::new(args.to_vec()))))
     }
 }
 
-/// call-with-values procedure
-fn primitive_call_with_values(_args: &[Value]) -> Result<Value> {
-    // Note: This requires evaluator integration for procedure calls
-    Err(Box::new(DiagnosticError::runtime_error(
-        "call-with-values requires evaluator integration (not yet implemented)".to_string(),
-        None,
-    )))
+/// call-with-values procedure - Evaluator-integrated implementation
+/// 
+/// `(call-with-values producer consumer)` calls producer with no arguments,
+/// then calls consumer with the result values as individual arguments.
+///
+/// This implements R7RS section 6.10 call-with-values semantics:
+/// - If producer returns a single value, consumer is called with that value
+/// - If producer returns multiple values, consumer is called with all values as separate arguments
+/// - Proper tail call optimization is maintained for both procedure calls
+///
+/// ## Implementation Strategy
+/// Since call-with-values requires sequential procedure calls in a trampoline evaluator,
+/// we use the evaluator's built-in evaluation loop to handle the complexity of
+/// tail calls, continuations, and other advanced control flow features.
+fn evaluator_call_with_values(
+    evaluator: &mut crate::eval::evaluator::Evaluator, 
+    args: &[Value]
+) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("call-with-values requires exactly 2 arguments, got {}", args.len()),
+            None,
+        )));
+    }
+    
+    let producer = &args[0];
+    let consumer = &args[1];
+    
+    // Verify both arguments are procedures
+    if !producer.is_procedure() {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "call-with-values first argument (producer) must be a procedure".to_string(),
+            None,
+        )));
+    }
+    
+    if !consumer.is_procedure() {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "call-with-values second argument (consumer) must be a procedure".to_string(),
+            None,
+        )));
+    }
+    
+    // Execute the complete call-with-values operation using the evaluator's trampoline
+    // This ensures proper tail call optimization and handles all control flow correctly
+    let producer_result = evaluator.evaluate_procedure_call(producer.clone(), vec![])?;
+    
+    // Extract values from producer result  
+    // TODO: MultipleValues was temporarily replaced with Vector
+    let consumer_args = match &producer_result {
+        Value::Vector(vec_ref) => vec_ref.borrow().clone(),
+        single_value => vec![single_value.clone()],
+    };
+    
+    // Call consumer with the extracted values as arguments
+    evaluator.evaluate_procedure_call(consumer.clone(), consumer_args)
 }
 
 /// call/cc procedure
@@ -616,7 +667,7 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
                     }
                 }
 
-                // Get write lock for evaluation
+                // Get mutable borrow for evaluation
                 let mut promise = promise_ref.try_borrow_mut().map_err(|_| {
                     DiagnosticError::runtime_error(
                         "failed to acquire promise lock for writing".to_string(),
@@ -632,7 +683,7 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
                     }
                     Promise::Delayed { thunk } => {
                         // Evaluate the thunk using a simple fallback approach
-                        let result = evaluate_simple_thunk(thunk)?;
+                        let result = evaluate_simple_thunk(&thunk)?;
 
                         // Memoize the result
                         *promise = Promise::Forced(result.clone());
@@ -643,7 +694,7 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
                     }
                     Promise::TailRecursive { thunk } => {
                         // For tail-recursive promises, don't memoize to allow optimization
-                        let result = evaluate_simple_thunk(thunk)?;
+                        let result = evaluate_simple_thunk(&thunk)?;
 
                         // Continue evaluation without memoization
                         trampoline_stack.push(result);
@@ -655,6 +706,18 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
                     } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "expression-based promises require evaluator integration".to_string(),
+                            None,
+                        )));
+                    }
+                    Promise::StreamTail { .. } => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "stream tail promises require stream evaluator".to_string(),
+                            None,
+                        )));
+                    }
+                    Promise::StreamElement { .. } => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "stream element promises require stream evaluator".to_string(),
                             None,
                         )));
                     }
@@ -798,6 +861,9 @@ mod tests {
 
     #[test]
     fn test_values() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        
         // Test values with no arguments
         let result = primitive_values(&[]).unwrap();
         assert_eq!(result, Value::Unspecified);
@@ -807,10 +873,17 @@ mod tests {
         let result = primitive_values(&args).unwrap();
         assert_eq!(result, Value::integer(42));
 
-        // Test values with multiple arguments
+        // Test values with multiple arguments - temporarily using Vector
         let args = vec![Value::integer(1), Value::integer(2)];
         let result = primitive_values(&args).unwrap();
-        assert_eq!(result, Value::integer(1)); // Returns first for now
+        if let Value::Vector(vec_ref) = result {
+            let vec = vec_ref.borrow();
+            assert_eq!(vec.len(), 2);
+            assert_eq!(vec[0], Value::integer(1));
+            assert_eq!(vec[1], Value::integer(2));
+        } else {
+            panic!("Expected Vector for multiple arguments (temporary implementation)");
+        }
     }
 
     #[test]

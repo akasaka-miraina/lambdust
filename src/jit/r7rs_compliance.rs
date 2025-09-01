@@ -1,4 +1,4 @@
-//! R7RS Compliance Verification for JIT Compiled Code
+#![allow(missing_docs)]//! R7RS Compliance Verification for JIT Compiled Code
 //!
 //! This module ensures that JIT-compiled code maintains strict R7RS Scheme semantics
 //! across all compilation tiers, with particular focus on the 42 core Lambdust primitives.

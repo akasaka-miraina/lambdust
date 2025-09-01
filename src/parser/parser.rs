@@ -539,6 +539,13 @@ impl Parser {
                 "guard" => self.parse_guard_form(start_span),
                 "case-lambda" => self.parse_case_lambda_form(start_span),
 
+                // SRFI-26: Notation for Specializing Parameters
+                "cut" => self.parse_cut_form(start_span),
+                "cute" => self.parse_cute_form(start_span),
+
+                // SRFI-31: A special form `rec` for recursive evaluation
+                "rec" => self.parse_rec_form(start_span),
+
                 // Not a special form - parse as application
                 _ => {
                     // Parse remaining operands

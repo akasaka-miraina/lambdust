@@ -1,4 +1,4 @@
-//! Fixed macro system for generating JIT primitive implementations.
+#![allow(missing_docs)]//! Fixed macro system for generating JIT primitive implementations.
 //!
 //! This module provides compile-time code generation for JIT primitives,
 //! eliminating redundant implementations while maintaining peak performance.

@@ -39,6 +39,9 @@ serde_json = "1.0"
 indexmap = "2.0"
 im = "15.1"                                        # Immutable data structures for functional programming
 paste = "1.0"                                      # Macro paste for token concatenation
+smallvec = "1.11"                                  # Small vector optimization for multiple values
+rustc-hash = "1.1"                                # Fast hash map implementation for hot paths
+lru = "0.12"                                       # LRU cache for optimization pattern caching
 
 # Type system and inference
 petgraph = "0.6" # For type dependency graphs
@@ -68,6 +71,7 @@ async-std = { version = "1.12", optional = true }
 rayon = "1.8"
 crossbeam = "0.8" # For channels and concurrent data structures
 crossbeam-utils = "0.8" # For Backoff and other utilities
+parking_lot = "0.12" # High-performance synchronization primitives for SRFI-18
 fastrand = "2.0" # Fast random number generator
 num_cpus = "1.16" # For detecting CPU count
 
@@ -143,7 +147,6 @@ unicode-normalization = "0.1"
 unicode-segmentation = "1.10"
 icu_collator = { version = "1.4", optional = true } # Unicode collation for text processing
 icu_locid = { version = "1.4", optional = true }    # ICU locale support
-lru = "0.12"
 
 # Numeric traits for monad implementations
 num-traits = "0.2"
@@ -283,6 +286,7 @@ nan-boxing-optimization = []      # Legacy: NaN boxing integration
 arena-optimization = []           # Legacy: Arena allocation
 simd-optimization = []            # Legacy: SIMD acceleration
 vertical-integration = []         # Legacy: Dependency reduction
+unsafe-ops = []                   # Phase 8: Unsafe optimizations for performance
 
 # The stage features are now defined above in the main features section
 
@@ -341,6 +345,13 @@ required-features = ["benchmarks", "simd"]
 [[bench]]
 name = "phase3_5_integration_benchmarks"
 path = "benches/phase3_5_integration_benchmarks.rs"
+harness = false
+required-features = ["benchmarks"]
+
+# SRFI-43 Performance Benchmarks
+[[bench]]
+name = "srfi43_performance_benchmarks"
+path = "benches/srfi43_performance_benchmarks.rs"
 harness = false
 required-features = ["benchmarks"]
 

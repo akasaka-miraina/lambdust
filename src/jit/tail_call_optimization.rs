@@ -1,4 +1,4 @@
-//! Tail Call Optimization for JIT Compiled Code
+#![allow(missing_docs)]//! Tail Call Optimization for JIT Compiled Code
 //!
 //! This module implements proper tail call elimination for JIT-compiled Scheme code,
 //! ensuring R7RS compliance by guaranteeing constant stack space usage for tail recursion.

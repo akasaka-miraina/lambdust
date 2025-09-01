@@ -1,4 +1,4 @@
-//! Test data generators for property-based testing
+#![allow(missing_docs)]//! Test data generators for property-based testing
 //!
 //! This module provides efficient generators for creating random Scheme values
 //! used in property-based testing. The generators are designed to create

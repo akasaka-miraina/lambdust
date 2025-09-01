@@ -476,7 +476,7 @@ fn test_inductive_type_construction() {
     
     let inductive_type = DependentType::Inductive {
         name: "Nat".to_string(),
-        parameters: vec![],
+        parameters: &[],
         universe_level: 0,
         constructors: vec![
             ("zero".to_string(), DependentType::Variable {

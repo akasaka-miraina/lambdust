@@ -192,6 +192,11 @@ impl ExpansionKey {
                     crate::ast::Literal::Nil => 0u8.hash(hasher),
                     crate::ast::Literal::Unspecified => 1u8.hash(hasher),
                     crate::ast::Literal::Integer(i) => i.hash(hasher),
+                    crate::ast::Literal::HomogeneousVector(vec) => {
+                        // HomogeneousVectorLiteral already implements Hash trait
+                        // We can just delegate to it
+                        vec.hash(hasher);
+                    }
                 }
             }
             Expr::Application { operator, operands } => {

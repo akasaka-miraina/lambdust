@@ -13,7 +13,7 @@ use std::fmt;
 ///
 /// This trait provides the core functionality needed by Lambdust's error types
 /// while being much lighter than the full thiserror crate.
-pub trait LambdustError: fmt::Debug + fmt::Display + Send + Sync + 'static {
+pub trait EvalUnifiedError: fmt::Debug + fmt::Display + Send + Sync + 'static {
     /// Returns the error code for this error type.
     fn error_code(&self) -> &'static str {
         "lambdust::unknown"
@@ -106,14 +106,14 @@ impl ErrorLabel {
     }
 }
 
-/// Macro to implement the standard Error trait for types that implement LambdustError.
+/// Macro to implement the standard Error trait for types that implement EvalUnifiedError.
 macro_rules! impl_std_error {
     ($type:ty) => {
         impl std::error::Error for $type {}
     };
 }
 
-/// Macro to derive LambdustError implementation with error messages.
+/// Macro to derive EvalUnifiedError implementation with error messages.
 ///
 /// This replaces the functionality of #[derive(thiserror::Error)] with a
 /// lightweight custom implementation.
@@ -151,7 +151,7 @@ macro_rules! derive_error {
             }
         }
 
-        impl LambdustError for $name {
+        impl EvalUnifiedError for $name {
             fn error_code(&self) -> &'static str {
                 match self {
                     $(
@@ -173,8 +173,8 @@ macro_rules! derive_error {
 pub mod utils {
     use super::*;
 
-    /// Creates a boxed error from any type implementing LambdustError.
-    pub fn boxed_error<E: LambdustError>(error: E) -> Box<dyn LambdustError> {
+    /// Creates a boxed error from any type implementing EvalUnifiedError.
+    pub fn boxed_error<E: EvalUnifiedError>(error: E) -> Box<dyn EvalUnifiedError> {
         Box::new(error)
     }
 
@@ -211,7 +211,7 @@ impl fmt::Display for RuntimeError {
     }
 }
 
-impl LambdustError for RuntimeError {
+impl EvalUnifiedError for RuntimeError {
     fn error_code(&self) -> &'static str {
         "lambdust::runtime_error"
     }

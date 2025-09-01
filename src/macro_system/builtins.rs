@@ -696,146 +696,63 @@ fn install_assert_macro(expander: &mut MacroExpander) {
 }
 
 /// Installs the `cut` macro from SRFI-26.
-/// (cut cons <> '()) => (lambda (x) (cons x '()))
-/// (cut list 1 <> 3 <> 5) => (lambda (x y) (list 1 x 3 y 5))
+/// 
+/// SRFI-26 cut/cute macros are implemented in Scheme using syntax-rules.
+/// The actual implementation is in stdlib/modules/srfi/26.scm and should
+/// be loaded through the module system rather than installed as Rust-level builtins.
+///
+/// This function provides a basic fallback implementation for bootstrap purposes.
 fn install_cut_macro(expander: &mut MacroExpander) {
-    // Most common case: (cut proc <>)
-    let pattern1 = Pattern::list(vec![
+    // Basic single-slot pattern for bootstrap
+    let pattern = Pattern::list(vec![
         Pattern::identifier("cut"),
         Pattern::variable("proc"),
         Pattern::identifier("<>"),
     ]);
 
-    let template1 = Template::list(vec![
+    let template = Template::list(vec![
         Template::identifier("lambda"),
         Template::list(vec![Template::identifier("x")]),
         Template::list(vec![Template::variable("proc"), Template::identifier("x")]),
     ]);
 
-    let transformer1 = MacroTransformer {
-        pattern: pattern1,
-        template: template1,
+    let transformer = MacroTransformer {
+        pattern,
+        template,
         definition_env: crate::eval::environment::global_environment(),
         name: Some("cut".to_string()),
         source: None,
     };
 
-    // Two slot case: (cut proc <> <>)
-    let pattern2 = Pattern::list(vec![
-        Pattern::identifier("cut"),
-        Pattern::variable("proc"),
-        Pattern::identifier("<>"),
-        Pattern::identifier("<>"),
-    ]);
-
-    let template2 = Template::list(vec![
-        Template::identifier("lambda"),
-        Template::list(vec![Template::identifier("x"), Template::identifier("y")]),
-        Template::list(vec![
-            Template::variable("proc"),
-            Template::identifier("x"),
-            Template::identifier("y"),
-        ]),
-    ]);
-
-    let _transformer2 = MacroTransformer {
-        pattern: pattern2,
-        template: template2,
-        definition_env: crate::eval::environment::global_environment(),
-        name: Some("cut".to_string()),
-        source: None,
-    };
-
-    // Mixed case: (cut proc expr <>)
-    let pattern3 = Pattern::list(vec![
-        Pattern::identifier("cut"),
-        Pattern::variable("proc"),
-        Pattern::variable("expr"),
-        Pattern::identifier("<>"),
-    ]);
-
-    let template3 = Template::list(vec![
-        Template::identifier("lambda"),
-        Template::list(vec![Template::identifier("x")]),
-        Template::list(vec![
-            Template::variable("proc"),
-            Template::variable("expr"),
-            Template::identifier("x"),
-        ]),
-    ]);
-
-    let _transformer3 = MacroTransformer {
-        pattern: pattern3,
-        template: template3,
-        definition_env: crate::eval::environment::global_environment(),
-        name: Some("cut".to_string()),
-        source: None,
-    };
-
-    // For now, use the most common single-slot case
-    expander.define_macro("cut".to_string(), transformer1);
+    expander.define_macro("cut".to_string(), transformer);
 }
 
 /// Installs the `cute` macro from SRFI-26.
-/// (cute cons <> (expensive-computation)) =>
-/// (let ((temp (expensive-computation))) (lambda (x) (cons x temp)))
+/// 
+/// Like cut, cute is properly implemented in Scheme. This is a basic fallback.
 fn install_cute_macro(expander: &mut MacroExpander) {
-    // Most common case: (cute proc <>)
-    let pattern1 = Pattern::list(vec![
+    // Basic single-slot pattern for bootstrap
+    let pattern = Pattern::list(vec![
         Pattern::identifier("cute"),
         Pattern::variable("proc"),
         Pattern::identifier("<>"),
     ]);
 
-    let template1 = Template::list(vec![
+    let template = Template::list(vec![
         Template::identifier("lambda"),
         Template::list(vec![Template::identifier("x")]),
         Template::list(vec![Template::variable("proc"), Template::identifier("x")]),
     ]);
 
-    let transformer1 = MacroTransformer {
-        pattern: pattern1,
-        template: template1,
+    let transformer = MacroTransformer {
+        pattern,
+        template,
         definition_env: crate::eval::environment::global_environment(),
         name: Some("cute".to_string()),
         source: None,
     };
 
-    // Eager evaluation case: (cute proc expr <>)
-    let pattern2 = Pattern::list(vec![
-        Pattern::identifier("cute"),
-        Pattern::variable("proc"),
-        Pattern::variable("expr"),
-        Pattern::identifier("<>"),
-    ]);
-
-    let template2 = Template::list(vec![
-        Template::identifier("let"),
-        Template::list(vec![Template::list(vec![
-            Template::identifier("temp"),
-            Template::variable("expr"),
-        ])]),
-        Template::list(vec![
-            Template::identifier("lambda"),
-            Template::list(vec![Template::identifier("x")]),
-            Template::list(vec![
-                Template::variable("proc"),
-                Template::identifier("temp"),
-                Template::identifier("x"),
-            ]),
-        ]),
-    ]);
-
-    let _transformer2 = MacroTransformer {
-        pattern: pattern2,
-        template: template2,
-        definition_env: crate::eval::environment::global_environment(),
-        name: Some("cute".to_string()),
-        source: None,
-    };
-
-    // For now, use the simple single-slot case
-    expander.define_macro("cute".to_string(), transformer1);
+    expander.define_macro("cute".to_string(), transformer);
 }
 
 #[cfg(test)]

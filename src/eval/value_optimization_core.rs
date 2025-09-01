@@ -487,6 +487,7 @@ impl MemoryAnalyzer {
             Literal::Number(_) => 8,            // Numeric value
             Literal::Nil => 0,                  // No allocation needed
             Literal::Unspecified => 0,          // No allocation needed
+            Literal::HomogeneousVector(vec) => vec.len() * 8 + 24, // Element size estimation + overhead
         }
     }
 

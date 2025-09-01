@@ -239,7 +239,7 @@ fn test_string_mutability_with_gc() {
     gc_system.register_mutator_thread();
 
     // Test that string mutability semantics are preserved
-    let mutable_string = Rc::new(RefCell::new(vec!['h', 'e', 'l', 'l', 'o']));
+    let mutable_string = Rc::new(RefCell::new(&['h', 'e', 'l', 'l', 'o']));
     let string_value = Value::MutableString(mutable_string.clone());
 
     let allocated_obj = gc_system.allocate(string_value, 128).unwrap();
@@ -353,7 +353,7 @@ fn test_closure_environment_capture_with_gc() {
         // Simulate captured environment variables
         let captured_vars = [
             Value::Literal(Literal::InexactReal(i as f64)),
-            Value::Symbol(intern_symbol(format!("var_{i}"))),
+            Value::symbol(intern_symbol(format!("var_{i}"))),
             Value::Literal(Literal::String(Box::new(format!("closure_{i}")))),
         ];
 

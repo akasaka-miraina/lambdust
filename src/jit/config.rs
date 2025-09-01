@@ -1,4 +1,4 @@
-//! JIT compilation configuration and settings
+#![allow(missing_docs)]//! JIT compilation configuration and settings
 //!
 //! This module provides comprehensive configuration options for the JIT compiler,
 //! allowing fine-tuning of compilation strategies, optimization levels, and

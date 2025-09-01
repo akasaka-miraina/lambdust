@@ -145,6 +145,9 @@ impl SerializableValue {
                     Ok(SerializableValue::String(s.to_string()))
                 }
                 crate::ast::Literal::Integer(i) => Ok(SerializableValue::Integer(*i)),
+                crate::ast::Literal::HomogeneousVector(vec) => {
+                    Ok(SerializableValue::String(format!("homogeneous-vector-{}", vec.len())))
+                }
             },
             Value::Symbol(sym) => Ok(SerializableValue::Symbol(format!("symbol-{}", sym.0))),
             Value::Pair(_car, _cdr) => {

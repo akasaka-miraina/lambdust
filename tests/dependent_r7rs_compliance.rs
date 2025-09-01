@@ -83,7 +83,7 @@ fn test_r7rs_exact_integers() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
 
     // Test exact integer values
-    let test_cases = vec![("0", 0), ("42", 42), ("-17", -17), ("1000000", 1000000)];
+    let test_cases = &[("0", 0), ("42", 42), ("-17", -17), ("1000000", 1000000)];
 
     for (expr, expected) in test_cases {
         let result = suite.create_value(expr);
@@ -123,7 +123,7 @@ fn test_r7rs_exact_integers() {
 fn test_r7rs_real_numbers() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
 
-    let test_cases = vec![("3.14", 3.14), ("-2.5", -2.5), ("0.0", 0.0)];
+    let test_cases = &[("3.14", 3.14), ("-2.5", -2.5), ("0.0", 0.0)];
 
     for (expr, expected) in test_cases {
         let result = suite.create_value(expr);
@@ -154,7 +154,7 @@ fn test_r7rs_real_numbers() {
 fn test_r7rs_booleans() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
 
-    let test_cases = vec![("#t", true), ("#f", false)];
+    let test_cases = &[("#t", true), ("#f", false)];
 
     for (expr, expected) in test_cases {
         let result = suite.create_value(expr);
@@ -222,12 +222,12 @@ fn test_r7rs_strings() {
 fn test_r7rs_symbols() {
     let suite = R7RSComplianceTestSuite::new().unwrap();
 
-    let test_cases = vec!["'hello", "'x", "'lambda", "'test-symbol"];
+    let test_cases = &["'hello", "'x", "'lambda", "'test-symbol"];
 
     for expr in test_cases {
         let result = suite.create_value(expr);
         match result {
-            Value::Symbol(_symbol_id) => {
+            Value::symbol(_symbol_id) => {
                 // Symbol creation successful - we can't easily extract the string
                 // but we can verify it's a symbol
                 println!("Successfully created symbol for {}", expr);
@@ -460,7 +460,7 @@ fn test_r7rs_regression_basic_values() {
                 _ => panic!("Expected string for {}", expr),
             },
             "symbol" => match result {
-                Value::Symbol(_) => {}
+                Value::symbol(_) => {}
                 _ => panic!("Expected symbol for {}", expr),
             },
             "null" => match result {
@@ -487,7 +487,7 @@ fn check_r7rs_compliance(value: &Value) -> bool {
         Value::Literal(Literal::InexactReal(_)) => true,
         Value::Literal(Literal::Boolean(_)) => true,
         Value::Literal(Literal::String(_)) => true,
-        Value::Symbol(_) => true,
+        Value::symbol(_) => true,
         Value::Nil => true,
         Value::Procedure(_) => true,
         Value::Pair(..) => true,

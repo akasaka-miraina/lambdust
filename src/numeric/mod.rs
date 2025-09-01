@@ -63,6 +63,9 @@ pub use primitives::*;
 pub use rational::*;
 pub use tower::*;
 
+// Export NumericValue as Number for backward compatibility
+pub use NumericValue as Number;
+
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub use simd_optimization::{AlignedBuffer, CpuFeatures, SimdNumericOps, SimdOperationType};
 

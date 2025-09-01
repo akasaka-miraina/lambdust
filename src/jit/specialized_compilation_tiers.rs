@@ -1,4 +1,4 @@
-//! Specialized compilation tiers for dependent type optimization
+#![allow(missing_docs)]//! Specialized compilation tiers for dependent type optimization
 //!
 //! This module implements the advanced compilation tiers (T4-T5) that leverage
 //! dependent type information for maximum performance optimization.

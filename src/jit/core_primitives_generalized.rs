@@ -1,4 +1,4 @@
-//! Generalized implementation of all 42 core R7RS primitives.
+#![allow(missing_docs)]//! Generalized implementation of all 42 core R7RS primitives.
 //!
 //! This module demonstrates the power of the generic primitive system by
 //! implementing all core Scheme primitives with minimal boilerplate and

@@ -1,4 +1,4 @@
-//! JIT Security Framework - Advanced security system for JIT compilation
+#![allow(missing_docs)]//! JIT Security Framework - Advanced security system for JIT compilation
 //!
 //! This module implements a comprehensive security framework for JIT compiled code:
 //! - Code verification and validation

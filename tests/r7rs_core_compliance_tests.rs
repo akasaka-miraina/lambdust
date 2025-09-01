@@ -59,7 +59,7 @@ fn test_r7rs_list_procedures() {
     
     // List construction
     assert_eq!(eval_expr(&mut interpreter, "(list 1 2 3)"),
-               Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)]));
+               Value::list(&[Value::integer(1), Value::integer(2), Value::integer(3)]));
     
     // List predicates
     assert_eq!(eval_expr(&mut interpreter, "(pair? (cons 1 2))"), Value::boolean(true));
@@ -133,9 +133,9 @@ fn test_r7rs_vector_procedures() {
     
     // Vector construction
     assert_eq!(eval_expr(&mut interpreter, "(vector 1 2 3)"),
-               Value::vector(vec![Value::integer(1), Value::integer(2), Value::integer(3)]));
+               Value::vector(&[Value::integer(1), Value::integer(2), Value::integer(3)]));
     assert_eq!(eval_expr(&mut interpreter, "(make-vector 3 0)"),
-               Value::vector(vec![Value::integer(0), Value::integer(0), Value::integer(0)]));
+               Value::vector(&[Value::integer(0), Value::integer(0), Value::integer(0)]));
     
     // Vector operations
     assert_eq!(eval_expr(&mut interpreter, "(vector-length #(1 2 3))"), Value::integer(3));
@@ -192,7 +192,7 @@ fn test_r7rs_procedures() {
         ((lambda x x) 1 2 3)
     "#;
     assert_eq!(eval_expr(&mut interpreter, varargs), 
-               Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)]));
+               Value::list(&[Value::integer(1), Value::integer(2), Value::integer(3)]));
 }
 
 /// Test R7RS assignment and mutation
@@ -263,9 +263,9 @@ fn test_r7rs_type_conversions() {
     
     // List/vector conversions
     assert_eq!(eval_expr(&mut interpreter, "(vector->list #(1 2 3))"),
-               Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)]));
+               Value::list(&[Value::integer(1), Value::integer(2), Value::integer(3)]));
     assert_eq!(eval_expr(&mut interpreter, "(list->vector '(1 2 3))"),
-               Value::vector(vec![Value::integer(1), Value::integer(2), Value::integer(3)]));
+               Value::vector(&[Value::integer(1), Value::integer(2), Value::integer(3)]));
 }
 
 /// Helper function to evaluate expressions

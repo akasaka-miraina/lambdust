@@ -570,6 +570,7 @@ impl ValueArena {
             Literal::Bytevector(_) => 9,
             Literal::Nil => 10,
             Literal::Unspecified => 11,
+            Literal::HomogeneousVector(_) => 12,
         };
 
         let mut hasher = DefaultHasher::new();

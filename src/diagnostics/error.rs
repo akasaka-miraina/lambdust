@@ -3,18 +3,18 @@
 use super::{Error, Result};
 
 /// Extension trait for converting standard library errors.
-pub trait IntoLambdustError<T> {
+pub trait IntoEvalUnifiedError<T> {
     /// Converts the error into a Lambdust error.
     fn into_lambdust_error(self) -> Result<T>;
 }
 
-impl<T> IntoLambdustError<T> for std::io::Result<T> {
+impl<T> IntoEvalUnifiedError<T> for std::io::Result<T> {
     fn into_lambdust_error(self) -> Result<T> {
         self.map_err(|e| Box::new(Error::io_error(e.to_string())))
     }
 }
 
-impl<T> IntoLambdustError<T> for serde_json::Result<T> {
+impl<T> IntoEvalUnifiedError<T> for serde_json::Result<T> {
     fn into_lambdust_error(self) -> Result<T> {
         self.map_err(|e| Box::new(Error::runtime_error(format!("JSON error: {e}"), None)))
     }

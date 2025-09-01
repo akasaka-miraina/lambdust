@@ -168,7 +168,7 @@ fn test_dependent_type_identity() {
 fn test_dependent_type_inductive() {
     let nat_type = DependentType::Inductive {
         name: "Nat".to_string(),
-        parameters: vec![],
+        parameters: &[],
         universe_level: 0,
         constructors: vec![
             ("zero".to_string(), DependentType::Universe(0)),
@@ -289,7 +289,7 @@ fn test_dependent_term_refl() {
 fn test_dependent_term_constructor() {
     let constructor = DependentTerm::Constructor {
         name: "zero".to_string(),
-        args: vec![],
+        args: &[],
         result_type: Box::new(DependentType::Universe(0)),
     };
 

@@ -576,6 +576,7 @@ fn literal_to_type(lit: &crate::ast::Literal) -> Type {
         crate::ast::Literal::Bytevector(_) => Type::Bytevector,
         crate::ast::Literal::Nil => Type::Unit,
         crate::ast::Literal::Unspecified => Type::Unit,
+        crate::ast::Literal::HomogeneousVector(_) => Type::Vector(Box::new(Type::Dynamic)), // Vector of uniform elements
     }
 }
 

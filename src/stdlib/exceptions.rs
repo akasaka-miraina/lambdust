@@ -63,8 +63,8 @@ use std::fmt;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-/// R7RS Exception object representation
-#[derive(Debug, Clone, PartialEq)]
+/// R7RS Exception object representation with SRFI-35 condition integration
+#[derive(Debug, Clone)]
 pub struct ExceptionObject {
     /// The type of exception (error, read-error, file-error, etc.)
     pub exception_type: String,
@@ -76,6 +76,8 @@ pub struct ExceptionObject {
     pub irritants: Vec<Value>,
     /// Whether this exception can be continued from
     pub continuable: bool,
+    /// SRFI-35 condition object (if this exception is a condition)
+    pub condition: Option<Arc<crate::stdlib::srfi35_conditions::ConditionValue>>,
 }
 
 /// R7RS error types for proper categorization
@@ -109,6 +111,7 @@ impl ExceptionObject {
             message: None,
             irritants: Vec::new(),
             continuable,
+            condition: None,
         }
     }
 
@@ -123,6 +126,7 @@ impl ExceptionObject {
             message: Some(message),
             irritants,
             continuable: false,
+            condition: None,
         }
     }
 
@@ -137,6 +141,7 @@ impl ExceptionObject {
             message: Some(message),
             irritants,
             continuable: false,
+            condition: None,
         }
     }
 
@@ -151,6 +156,7 @@ impl ExceptionObject {
             message: Some(message),
             irritants,
             continuable: false,
+            condition: None,
         }
     }
 
@@ -162,6 +168,31 @@ impl ExceptionObject {
     /// Checks if this is a specific error type
     pub fn is_error_type(&self, error_type: &str) -> bool {
         self.exception_type == error_type
+    }
+
+    /// Creates an exception object from a SRFI-35 condition
+    pub fn from_condition(condition: Arc<crate::stdlib::srfi35_conditions::ConditionValue>, continuable: bool) -> Self {
+        // Try to extract a message if available
+        let system = crate::stdlib::srfi35_conditions::condition_system();
+        let message_field = crate::utils::SymbolId::new(0); // Temporary placeholder
+        let message = condition.condition
+            .condition_ref(message_field, &system.registry)
+            .and_then(|v| match v {
+                Value::Literal(crate::ast::Literal::String(s)) => Some((*s).clone()),
+                _ => None,
+            });
+
+        // Determine exception type from condition (simplified for now)
+        let exception_type = "condition";
+
+        Self {
+            exception_type: exception_type.to_string(),
+            value: Value::Condition(condition.clone()),
+            message: message.map(|s| (*s).clone()),
+            irritants: Vec::new(), // TODO: Extract irritants from condition if available
+            continuable,
+            condition: Some(condition),
+        }
     }
 }
 
@@ -201,6 +232,82 @@ impl ErrorObject {
     /// Checks if this is a file error
     pub fn is_file_error(&self) -> bool {
         matches!(self.error_type, ErrorType::FileError)
+    }
+
+    // ============= SRFI-35 CONDITION INTEGRATION =============
+
+    /// Creates an exception object from a SRFI-35 condition
+    pub fn from_condition(condition: Arc<crate::stdlib::srfi35_conditions::ConditionValue>, continuable: bool) -> Self {
+        // Try to extract a message if available
+        let system = crate::stdlib::srfi35_conditions::condition_system();
+        let message_field = crate::utils::SymbolId::new(0); // Temporary placeholder
+        let message = condition.condition
+            .condition_ref(message_field, &system.registry)
+            .and_then(|v| match v {
+                Value::Literal(crate::ast::Literal::String(s)) => Some(*s.clone()),
+                _ => None,
+            });
+
+        // Determine exception type based on condition hierarchy
+        let exception_type = if condition.condition.has_type(system.standard_types.error, &system.registry) {
+            "error"
+        } else if condition.condition.has_type(system.standard_types.violation, &system.registry) {
+            "violation"
+        } else {
+            "condition"
+        };
+
+        Self {
+            message: message.unwrap_or_else(|| "Unknown error".to_string()),
+            irritants: Vec::new(), // TODO: Extract irritants from condition if available
+            error_type: ErrorType::General, // Default to general error
+        }
+    }
+
+    // TODO: Fix this method - it's trying to access fields that don't exist in ErrorObject
+    /*
+    /// Creates a SRFI-35 condition from this exception object
+    pub fn to_condition(&self) -> Result<Arc<crate::stdlib::srfi35_conditions::ConditionValue>> {
+        if let Some(ref condition) = self.condition {
+            return Ok(condition.clone());
+        }
+
+        // Convert legacy exception to condition
+        let system = crate::stdlib::srfi35_conditions::condition_system();
+        let mut fields = std::collections::HashMap::new();
+
+        // Add message field if present
+        if let Some(ref message) = self.message {
+            let message_field = crate::utils::SymbolId::new(0); // Temporary placeholder
+            fields.insert(message_field, Value::string(message.clone()));
+        }
+
+        // Determine condition type based on exception type
+        let condition_type = match self.exception_type.as_str() {
+            "error" | "read-error" | "file-error" => system.standard_types.error,
+            "violation" => system.standard_types.violation,
+            _ => system.standard_types.condition,
+        };
+
+        let simple_condition = crate::stdlib::srfi35_conditions::SimpleCondition::new(condition_type, fields);
+        let condition_obj = crate::stdlib::srfi35_conditions::ConditionObject::simple(simple_condition);
+        Ok(Arc::new(crate::stdlib::srfi35_conditions::ConditionValue::new(condition_obj)))
+    }
+    */
+
+    // Temporary simple implementation for ErrorObject
+    pub fn to_condition(&self) -> Result<Arc<crate::stdlib::srfi35_conditions::ConditionValue>> {
+        // Convert ErrorObject to a simple condition with message
+        let system = crate::stdlib::srfi35_conditions::condition_system();
+        let mut fields = std::collections::HashMap::new();
+        
+        let message_field = crate::utils::SymbolId::new(0); // Temporary placeholder
+        fields.insert(message_field, Value::string(self.message.clone()));
+        
+        let condition_type = system.standard_types.error;
+        let simple_condition = crate::stdlib::srfi35_conditions::SimpleCondition::new(condition_type, fields);
+        let condition_obj = crate::stdlib::srfi35_conditions::ConditionObject::simple(simple_condition);
+        Ok(Arc::new(crate::stdlib::srfi35_conditions::ConditionValue::new(condition_obj)))
     }
 }
 
@@ -924,6 +1031,9 @@ pub fn primitive_raise(args: &[Value]) -> Result<Value> {
     let exception = if let Value::ErrorObject(_) = obj {
         // Already an error object, wrap as exception
         ExceptionObject::new("error".to_string(), obj.clone(), false)
+    } else if let Value::Condition(condition_value) = obj {
+        // SRFI-35 condition object, convert to exception
+        ExceptionObject::from_condition(condition_value.clone(), false)
     } else {
         // General exception
         ExceptionObject::new("exception".to_string(), obj.clone(), false)
@@ -961,6 +1071,9 @@ fn primitive_raise_evaluator(
     let exception = if let Value::ErrorObject(_) = obj {
         // Already an error object, wrap as exception
         ExceptionObject::new("error".to_string(), obj.clone(), false)
+    } else if let Value::Condition(condition_value) = obj {
+        // SRFI-35 condition object, convert to exception
+        ExceptionObject::from_condition(condition_value.clone(), false)
     } else {
         // General exception
         ExceptionObject::new("exception".to_string(), obj.clone(), false)
@@ -999,6 +1112,9 @@ fn primitive_raise_continuable(args: &[Value]) -> Result<Value> {
     let exception = if let Value::ErrorObject(_) = obj {
         // Already an error object, wrap as continuable exception
         ExceptionObject::new("error".to_string(), obj.clone(), true)
+    } else if let Value::Condition(condition_value) = obj {
+        // SRFI-35 condition object, convert to continuable exception
+        ExceptionObject::from_condition(condition_value.clone(), true)
     } else {
         // General continuable exception
         ExceptionObject::new("exception".to_string(), obj.clone(), true)
@@ -1057,6 +1173,9 @@ fn primitive_raise_continuable_evaluator(
     let exception = if let Value::ErrorObject(_) = obj {
         // Already an error object, wrap as continuable exception
         ExceptionObject::new("error".to_string(), obj.clone(), true)
+    } else if let Value::Condition(condition_value) = obj {
+        // SRFI-35 condition object, convert to continuable exception
+        ExceptionObject::from_condition(condition_value.clone(), true)
     } else {
         // General continuable exception
         ExceptionObject::new("exception".to_string(), obj.clone(), true)
@@ -1408,7 +1527,14 @@ fn execute_thunk_with_exception_handling(
             } => {
                 // For non-local jumps, return the value
                 return Ok(value);
-            }
+            },
+            crate::eval::evaluator::EvalStep::Parameterize { .. } => todo!("Parameterize not implemented in exceptions"),
+            crate::eval::evaluator::EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented in exceptions"),
+            crate::eval::evaluator::EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented in exceptions"),
+            crate::eval::evaluator::EvalStep::MutexLock { .. } => todo!("MutexLock not implemented in exceptions"),
+            crate::eval::evaluator::EvalStep::MutexUnlock { .. } => todo!("MutexUnlock not implemented in exceptions"),
+            crate::eval::evaluator::EvalStep::CondvarWait { .. } => todo!("CondvarWait not implemented in exceptions"),
+            crate::eval::evaluator::EvalStep::CondvarNotify { .. } => todo!("CondvarNotify not implemented in exceptions"),
         }
     }
 }
@@ -1848,8 +1974,8 @@ mod tests {
         };
 
         // Push two handlers successfully
-        assert!(system.push_handler(handler.clone(), false).is_ok());
-        assert!(system.push_handler(handler.clone(), false).is_ok());
+        assert!(system.push_handler(handler, false).is_ok());
+        assert!(system.push_handler(handler, false).is_ok());
         assert_eq!(system.stack_depth(), 2);
 
         // Third handler should fail due to overflow

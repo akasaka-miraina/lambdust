@@ -28,6 +28,9 @@ pub mod bytevector;
 pub mod characters;
 /// Character set operations and SRFI-14 implementation.
 pub mod charset;
+/// R7RS compliance validation for character sets.
+pub mod charset_r7rs_validation;
+// pub mod charset_optimized;  // Disabled for compilation
 /// Concurrency primitives and parallel operations.
 pub mod concurrency;
 /// Control flow procedures (if, cond, case, etc.).
@@ -46,6 +49,8 @@ pub mod hashtable;
 pub mod io;
 /// List processing and higher-order functions.
 pub mod lists;
+/// SRFI-1 List Library (enhanced performance version).
+pub mod srfi1;
 /// Parameter objects (SRFI-39) implementation.
 pub mod parameters;
 /// Simple record types implementation.
@@ -58,6 +63,38 @@ pub mod sorting;
 pub mod srfi23_enhanced;
 /// SRFI-9 record types macro system.
 pub mod srfi9_macro;
+/// High-performance SRFI-9 records implementation.
+pub mod srfi9_records;
+/// SRFI-9 record optimization system.
+pub mod srfi9_optimization;
+/// SRFI-133 Vector Library Phase 1 implementation.
+pub mod srfi133_vectors;
+/// High-performance SRFI-43 Vector Library implementation.
+// pub mod srfi43_optimized; // Temporarily disabled during Phase 8 deployment
+/// SRFI-19 time and date operations.
+pub mod srfi19_time;
+/// SRFI-6 basic string ports implementation.
+pub mod srfi6_basic_string_ports;
+/// SRFI-8 receive - multiple value extraction.
+pub mod srfi8_receive;
+/// SRFI-11 let-values - binding multiple values.
+pub mod srfi11_let_values;
+/// SRFI-98 environment variable access implementation.
+pub mod srfi98_environment_variable_access;
+/// SRFI-71 extended LET-syntax for multiple values.
+pub mod srfi71_let_syntax;
+/// SRFI-21 threading primitives.
+pub mod srfi21_threading;
+/// SRFI-35 condition system implementation.
+pub mod srfi35_conditions;
+/// SRFI-37 args-fold argument processing.
+pub mod srfi37_args_fold;
+/// SRFI-124 ephemerons implementation (simple version).
+pub mod srfi124_ephemerons_simple;
+/// SRFI-18 multithreading support.
+pub mod srfi18_multithreading;
+/// SRFI-41 Streams implementation.
+pub mod srfi41_streams;
 /// String manipulation and conversion operations.
 pub mod strings;
 /// System interface and process operations.

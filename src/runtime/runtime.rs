@@ -173,6 +173,75 @@ impl Runtime {
             })),
         );
 
+        // Install SRFI-71 procedures  
+        // We need to manually install each procedure since env is behind Rc
+        
+        env.define(
+            "uncons".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "uncons".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::uncons),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        env.define(
+            "unlist".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "unlist".to_string(),
+                arity_min: 1,
+                arity_max: Some(2),
+                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::unlist),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        env.define(
+            "values->list".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "values->list".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::values_to_list),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        env.define(
+            "values->vector".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "values->vector".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::values_to_vector),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        env.define(
+            "list->values".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "list->values".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::list_to_values),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        env.define(
+            "vector->values".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "vector->values".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::vector_to_values),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
         println!("DEBUG: Force defined car, cdr, cons primitives in runtime");
 
         Ok(())

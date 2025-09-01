@@ -11,14 +11,14 @@ fn test_environment_bound_predicate() {
     env.define("test-var".to_string(), Value::integer(42));
 
     // Test bound symbol
-    let symbol_value = Value::Symbol(intern_symbol("test-var".to_string()));
+    let symbol_value = Value::symbol(intern_symbol("test-var".to_string()));
     let env_value = Value::Environment(env.clone());
 
     let result = primitive_environment_bound_p(&[symbol_value, env_value]).unwrap();
     assert!(result.is_truthy(), "Expected test-var to be bound");
 
     // Test unbound symbol
-    let unbound_symbol = Value::Symbol(intern_symbol("unbound-var".to_string()));
+    let unbound_symbol = Value::symbol(intern_symbol("unbound-var".to_string()));
     let env_value = Value::Environment(env);
 
     let result = primitive_environment_bound_p(&[unbound_symbol, env_value]).unwrap();
@@ -82,8 +82,8 @@ fn test_null_environment_unsupported_version() {
 #[test]
 fn test_environment_creation_from_scheme_base() {
     // Test creating environment from (scheme base)
-    let scheme_symbol = Value::Symbol(intern_symbol("scheme".to_string()));
-    let base_symbol = Value::Symbol(intern_symbol("base".to_string()));
+    let scheme_symbol = Value::symbol(intern_symbol("scheme".to_string()));
+    let base_symbol = Value::symbol(intern_symbol("base".to_string()));
     let import_list = Value::pair(scheme_symbol, Value::pair(base_symbol, Value::Nil));
 
     let result = primitive_environment(&[import_list]).unwrap();
@@ -108,7 +108,7 @@ fn test_eval_basic_expression() {
     let env_value = Value::Environment(env);
 
     // Test evaluating a simple arithmetic expression: (+ 1 2)
-    let plus_symbol = Value::Symbol(intern_symbol("+".to_string()));
+    let plus_symbol = Value::symbol(intern_symbol("+".to_string()));
     let one = Value::integer(1);
     let two = Value::integer(2);
     let expr = Value::pair(plus_symbol, Value::pair(one, Value::pair(two, Value::Nil)));
@@ -255,7 +255,7 @@ mod property_based_tests {
         }
 
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-        let symbol = Value::Symbol(intern_symbol(var_name.clone()));
+        let symbol = Value::symbol(intern_symbol(var_name.clone()));
         let env_value = Value::Environment(env.clone());
 
         // Check that unbound variable returns false
@@ -313,8 +313,8 @@ mod benchmark_tests {
         let iterations = 1000;
 
         for _ in 0..iterations {
-            let scheme_symbol = Value::Symbol(intern_symbol("scheme".to_string()));
-            let base_symbol = Value::Symbol(intern_symbol("base".to_string()));
+            let scheme_symbol = Value::symbol(intern_symbol("scheme".to_string()));
+            let base_symbol = Value::symbol(intern_symbol("base".to_string()));
             let import_list = Value::pair(scheme_symbol, Value::pair(base_symbol, Value::Nil));
 
             let _result = primitive_environment(&[import_list]).unwrap();
@@ -334,7 +334,7 @@ mod benchmark_tests {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         env.define("test-var".to_string(), Value::integer(42));
 
-        let symbol_value = Value::Symbol(intern_symbol("test-var".to_string()));
+        let symbol_value = Value::symbol(intern_symbol("test-var".to_string()));
         let env_value = Value::Environment(env);
 
         let start = Instant::now();

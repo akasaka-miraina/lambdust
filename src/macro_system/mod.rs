@@ -21,6 +21,9 @@ pub mod pattern;
 pub mod syntax_rules;
 pub mod template;
 
+// SRFI-26 Cut/Cute macro expansion
+pub mod srfi26_expansion;
+
 // Individual structure modules
 pub mod gc_integration;
 pub mod macro_expander;
@@ -54,6 +57,13 @@ pub use template::*;
 pub use syntax_rules::{
     SyntaxRulesTransformer, expand_syntax_rules, parse_syntax_rules,
     syntax_rules_to_macro_transformer, validate_pattern, validate_template,
+};
+
+// SRFI-26 Cut/Cute expansion functions
+pub use srfi26_expansion::{
+    expand_cut_optimized, expand_cute_optimized, reset_parameter_pool,
+    OptimizedCutExpander, ExpanderMetrics, ExpansionCacheStats,
+    global_expansion_metrics, global_cache_stats,
 };
 
 // Re-export individual structures

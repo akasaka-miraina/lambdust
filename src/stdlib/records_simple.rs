@@ -8,7 +8,9 @@ use crate::effects::Effect;
 use crate::eval::value::{
     FieldInfo, PrimitiveImpl, PrimitiveProcedure, Record, RecordType, ThreadSafeEnvironment, Value,
 };
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -98,7 +100,7 @@ pub fn make_record(type_id: u64, field_values: Vec<Value>) -> Result<Record> {
 
     Ok(Record {
         type_id,
-        fields: Arc::new(RwLock::new(field_values)),
+        fields: Rc::new(RefCell::new(field_values)),
     })
 }
 
@@ -281,7 +283,7 @@ fn primitive_record_field_ref(args: &[Value]) -> Result<Value> {
         }
     };
 
-    let fields = record.fields.try_read().map_err(|_| {
+    let fields = record.fields.try_borrow().map_err(|_| {
         Box::new(Error::runtime_error(
             "Failed to acquire record field lock".to_string(),
             None,
@@ -337,7 +339,7 @@ fn primitive_record_field_set(args: &[Value]) -> Result<Value> {
 
     let new_value = args[2].clone();
 
-    let mut fields = record.fields.write().map_err(|_| {
+    let mut fields = record.fields.try_borrow_mut().map_err(|_| {
         Error::runtime_error("Failed to acquire record field lock".to_string(), None)
     })?;
 

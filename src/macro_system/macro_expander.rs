@@ -210,6 +210,15 @@ impl MacroExpander {
                 self.macro_env.define(temp_name, macro_transformer);
                 Ok(Spanned::new(Expr::Begin(vec![]), expr.span)) // Expand to empty begin
             }
+            // SRFI-26: Cut and Cute expressions
+            // Note: These should now be handled by direct expansion in the parser
+            // but we keep this for compatibility with any lingering AST nodes
+            Expr::Cut { procedure, arguments } => {
+                super::expand_cut_optimized(procedure, arguments, expr.span)
+            }
+            Expr::Cute { procedure, arguments } => {
+                super::expand_cute_optimized(procedure, arguments, expr.span)
+            }
             // Other expression types that don't need expansion
             _ => Ok(expr.clone()),
         }

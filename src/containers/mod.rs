@@ -28,14 +28,20 @@ use crate::eval::value::Value;
 pub mod bag;
 pub mod benchmarks;
 pub mod comparator;
+pub mod mapping;
 pub mod generator;
 pub mod hash_table;
+pub mod homogeneous_vector;
+pub mod homogeneous_vector_gc;
 pub mod ideque;
 pub mod list_queue;
 pub mod ordered_set;
 pub mod priority_queue;
 pub mod random_access_list;
 pub mod set;
+
+// SRFI implementations
+pub mod srfi43_vectors;
 
 // Container context optimization modules
 pub mod context_optimization;
@@ -47,6 +53,7 @@ pub use benchmarks::{BenchmarkResult, ContainerBenchmarks, run_quick_benchmark};
 pub use comparator::{Comparator, HashComparator};
 pub use generator::{Generator, ThreadSafeGenerator};
 pub use hash_table::{HashTable, ThreadSafeHashTable};
+pub use homogeneous_vector::{HomogeneousVector, HomogeneousVectorType, RawHomogeneousStorage};
 pub use ideque::{Ideque, PersistentIdeque};
 pub use list_queue::{ListQueue, ThreadSafeListQueue};
 pub use ordered_set::{OrderedSet, ThreadSafeOrderedSet};
@@ -55,6 +62,9 @@ pub use random_access_list::{
     PersistentRandomAccessList, RandomAccessList, ThreadSafeRandomAccessList,
 };
 pub use set::{Set, ThreadSafeSet};
+
+// SRFI implementation exports
+pub use srfi43_vectors::{Srfi43Vector, constructors, iterators};
 
 // Container optimization exports
 pub use context_optimization::{
@@ -342,6 +352,24 @@ pub mod utils {
             Value::Opaque(_) => 37,
             Value::Environment(_) => 38,
             Value::Box(_) => 39,
+            // SRFI extensions
+            Value::Ephemeron(_) => 40,
+            Value::Time(_) => 41,
+            Value::Date(_) => 42,
+            Value::Thread(_) => 43,
+            Value::Mutex(_) => 44,
+            Value::ConditionVariable(_) => 45,
+            Value::Time21(_) => 46,
+            // Additional SRFI and container types
+            Value::HomogeneousVector(_) => 47,
+            Value::MultipleValues(_) => 48,
+            Value::Mapping(_) => 49,
+            Value::Comparator(_) => 50,
+            Value::Condition(_) => 51,
+            #[cfg(feature = "async-runtime")]
+            Value::AsyncMutex(_) => 52,
+            Value::ConditionType(_) => 53,
+            Value::Stream(_) => 54,
         }
     }
 
@@ -444,6 +472,7 @@ pub mod utils {
             Literal::Complex { .. } => std::mem::size_of::<f64>() * 2,
             Literal::Nil => 0,
             Literal::Unspecified => 0,
+            Literal::HomogeneousVector(hv) => hv.byte_size(),
         }
     }
 }

@@ -1,4 +1,4 @@
-//! Hotspot detection and execution profiling system
+#![allow(missing_docs)]//! Hotspot detection and execution profiling system
 //!
 //! This module implements sophisticated hotspot detection for JIT compilation,
 //! tracking execution frequency, timing, and complexity to make intelligent

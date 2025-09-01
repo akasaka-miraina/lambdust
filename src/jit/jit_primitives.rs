@@ -1,4 +1,4 @@
-//! JIT-aware implementations of the 42 core Lambdust primitives
+#![allow(missing_docs)]//! JIT-aware implementations of the 42 core Lambdust primitives
 //!
 //! This module provides specialized implementations of R7RS primitives that can be
 //! efficiently compiled by the JIT system while maintaining strict semantic compliance.

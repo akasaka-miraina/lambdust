@@ -98,7 +98,7 @@ fn test_contract_level_boundary_checking() {
         value: integer_value.clone(),
         predicate: Value::symbol_from_str("integer?"),
         environment: suite.test_environment.clone(),
-        call_stack: vec![],
+        call_stack: &[],
     };
 
     let validation_result = suite.system.validate_contract(&context).unwrap();
@@ -113,7 +113,7 @@ fn test_contract_level_boundary_checking() {
         value: string_value,
         predicate: Value::symbol_from_str("integer?"),
         environment: suite.test_environment.clone(),
-        call_stack: vec![],
+        call_stack: &[],
     };
 
     let failing_result = suite.system.validate_contract(&failing_context).unwrap();
@@ -149,7 +149,7 @@ fn test_static_level_compile_time_checking() {
         "x".to_string(),
         GradualType::Static {
             name: "Integer".to_string(),
-            parameters: vec![],
+            parameters: &[],
         },
     );
 
@@ -329,7 +329,7 @@ fn test_static_to_dependent_migration() {
 
     let boolean_static = GradualType::Static {
         name: "Boolean".to_string(),
-        parameters: vec![],
+        parameters: &[],
     };
     suite
         .system
@@ -513,7 +513,7 @@ fn test_performance_characteristics() {
         value: test_value.clone(),
         predicate: Value::symbol_from_str("integer?"),
         environment: suite.test_environment.clone(),
-        call_stack: vec![],
+        call_stack: &[],
     };
 
     // First validation - should cache result
@@ -835,7 +835,7 @@ fn test_contract_validation_edge_cases() {
             value,
             predicate,
             environment: suite.test_environment.clone(),
-            call_stack: vec![],
+            call_stack: &[],
         };
 
         let result = suite.system.validate_contract(&context).unwrap();

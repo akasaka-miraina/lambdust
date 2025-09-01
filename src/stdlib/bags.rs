@@ -126,7 +126,7 @@ impl ValueKey {
             Value::Continuation(cont) => ValueKeyType::MutableRef(Arc::as_ptr(cont) as usize),
             Value::Syntax(syn) => ValueKeyType::MutableRef(Arc::as_ptr(syn) as usize),
             Value::Port(port) => ValueKeyType::MutableRef(Arc::as_ptr(port) as usize),
-            Value::Promise(promise) => ValueKeyType::MutableRef(Arc::as_ptr(promise) as usize),
+            Value::Promise(promise) => ValueKeyType::MutableRef(Rc::as_ptr(promise) as usize),
             Value::Type(t) => ValueKeyType::MutableRef(Arc::as_ptr(t) as usize),
             Value::Foreign(foreign) => ValueKeyType::MutableRef(Arc::as_ptr(foreign) as usize),
             Value::ErrorObject(err) => ValueKeyType::MutableRef(Arc::as_ptr(err) as usize),
@@ -155,6 +155,10 @@ impl ValueKey {
             }
             Value::Environment(env) => ValueKeyType::MutableRef(Arc::as_ptr(env) as usize),
             Value::Box(boxed) => ValueKeyType::MutableRef(Arc::as_ptr(boxed) as usize),
+            
+            // TODO: Many SRFI-specific values were removed from Value enum
+            // Use a default ValueKeyType for now
+            _ => ValueKeyType::MutableRef(0),
         };
         ValueKey { key_type }
     }
@@ -997,7 +1001,14 @@ fn apply_procedure_with_evaluator(
             } => {
                 // Non-local jump immediately returns the value
                 return Ok(value);
-            }
+            },
+            EvalStep::Parameterize { .. } => todo!("Parameterize not implemented in bags"),
+            EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented in bags"),
+            EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented in bags"),  
+            EvalStep::MutexLock { .. } => todo!("MutexLock not implemented in bags"),
+            EvalStep::MutexUnlock { .. } => todo!("MutexUnlock not implemented in bags"),
+            EvalStep::CondvarWait { .. } => todo!("CondvarWait not implemented in bags"),
+            EvalStep::CondvarNotify { .. } => todo!("CondvarNotify not implemented in bags"),
         }
     }
 }
