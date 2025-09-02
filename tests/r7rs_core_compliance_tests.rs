@@ -3,7 +3,6 @@
 //! This module contains comprehensive tests for R7RS-small compliance,
 //! covering all required procedures and language features.
 
-use lambdust::ast::Literal;
 use lambdust::eval::value::Value;
 use lambdust::runtime::runtime::Runtime;
 
@@ -116,7 +115,7 @@ fn test_r7rs_list_procedures() {
     // List construction
     assert_eq!(
         eval_expr(&mut interpreter, "(list 1 2 3)"),
-        Value::list(&[Value::integer(1), Value::integer(2), Value::integer(3)])
+        Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)])
     );
 
     // List predicates
@@ -336,7 +335,7 @@ fn test_r7rs_procedures() {
     "#;
     assert_eq!(
         eval_expr(&mut interpreter, varargs),
-        Value::list(&[Value::integer(1), Value::integer(2), Value::integer(3)])
+        Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)])
     );
 }
 
@@ -460,7 +459,7 @@ fn test_r7rs_type_conversions() {
     // List/vector conversions
     assert_eq!(
         eval_expr(&mut interpreter, "(vector->list #(1 2 3))"),
-        Value::list(&[Value::integer(1), Value::integer(2), Value::integer(3)])
+        Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)])
     );
     assert_eq!(
         eval_expr(&mut interpreter, "(list->vector '(1 2 3))"),

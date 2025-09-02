@@ -23,7 +23,7 @@ fn create_test_environment() -> Arc<ThreadSafeEnvironment> {
 
 /// Helper to create a simple values expression.
 fn values_expr(values: Vec<Value>) -> Value {
-    let mut expr = &[Value::symbol(intern_symbol("values"))];
+    let mut expr = vec![Value::symbol(intern_symbol("values"))];
     expr.extend(values);
     Value::list(expr)
 }
@@ -38,11 +38,11 @@ fn sym(name: &str) -> Value {
 #[test]
 fn test_parse_fixed_arity_binding() {
     let binding = Value::list(vec![
-        Value::list(&[sym("a"), sym("b")]),
-        values_expr(&[Value::integer(1), Value::integer(2)]),
+        Value::list(vec![sym("a"), sym("b")]),
+        values_expr(vec![Value::integer(1), Value::integer(2)]),
     ]);
 
-    let bindings_list = Value::list(&[binding]);
+    let bindings_list = Value::list(vec![binding]);
 
     assert!(validate_let_values_syntax(&bindings_list).is_ok());
 }
@@ -58,7 +58,7 @@ fn test_parse_variable_arity_binding() {
         ]),
     ]);
 
-    let bindings_list = Value::list(&[binding]);
+    let bindings_list = Value::list(vec![binding]);
 
     assert!(validate_let_values_syntax(&bindings_list).is_ok());
 }
@@ -79,16 +79,16 @@ fn test_parse_mixed_arity_binding() {
         ]),
     ]);
 
-    let bindings_list = Value::list(&[binding]);
+    let bindings_list = Value::list(vec![binding]);
 
     assert!(validate_let_values_syntax(&bindings_list).is_ok());
 }
 
 #[test]
 fn test_parse_empty_formals() {
-    let binding = Value::list(&[Value::Nil, values_expr(vec![])]);
+    let binding = Value::list(vec![Value::Nil, values_expr(vec![])]);
 
-    let bindings_list = Value::list(&[binding]);
+    let bindings_list = Value::list(vec![binding]);
 
     assert!(validate_let_values_syntax(&bindings_list).is_ok());
 }
@@ -103,13 +103,13 @@ fn test_invalid_bindings_not_list() {
 
 #[test]
 fn test_invalid_binding_not_list() {
-    let invalid = Value::list(&[Value::integer(42)]);
+    let invalid = Value::list(vec![Value::integer(42)]);
     assert!(validate_let_values_syntax(&invalid).is_err());
 }
 
 #[test]
 fn test_invalid_binding_wrong_length() {
-    let invalid = Value::list(&[Value::list(vec![sym("only-one-element")])]);
+    let invalid = Value::list(vec![Value::list(vec![sym("only-one-element")])]);
     assert!(validate_let_values_syntax(&invalid).is_err());
 
     let invalid = Value::list(vec![Value::list(vec![
@@ -123,7 +123,7 @@ fn test_invalid_binding_wrong_length() {
 #[test]
 fn test_invalid_formals_non_symbol() {
     let invalid = Value::list(vec![Value::list(vec![
-        Value::list(&[Value::integer(42)]), // Non-symbol in formals
+        Value::list(vec![Value::integer(42)]), // Non-symbol in formals
         Value::integer(1),
     ])]);
     assert!(validate_let_values_syntax(&invalid).is_err());
@@ -133,8 +133,8 @@ fn test_invalid_formals_non_symbol() {
 
 #[test]
 fn test_expand_empty_let_values() {
-    let bindings = &[];
-    let body = &[Value::integer(42)];
+    let bindings = vec![];
+    let body = vec![Value::integer(42)];
 
     let result = expand_let_values(&bindings, &body).unwrap();
     assert_eq!(result, Value::integer(42));
@@ -142,8 +142,8 @@ fn test_expand_empty_let_values() {
 
 #[test]
 fn test_expand_empty_let_values_multiple_body() {
-    let bindings = &[];
-    let body = &[Value::integer(1), Value::integer(2), Value::integer(3)];
+    let bindings = vec![];
+    let body = vec![Value::integer(1), Value::integer(2), Value::integer(3)];
 
     let result = expand_let_values(&bindings, &body).unwrap();
 
@@ -159,11 +159,11 @@ fn test_expand_empty_let_values_multiple_body() {
 #[test]
 fn test_expand_single_binding_let_values() {
     let binding = LetValuesBinding {
-        formals: Formals::Fixed(&["a".to_string()]),
+        formals: Formals::Fixed(vec!["a".to_string()]),
         producer: Value::integer(42),
     };
-    let bindings = &[binding];
-    let body = &[sym("a")];
+    let bindings = vec![binding];
+    let body = vec![sym("a")];
 
     let result = expand_let_values(&bindings, &body).unwrap();
 
@@ -198,15 +198,15 @@ fn test_expand_single_binding_let_values() {
 #[test]
 fn test_expand_multiple_bindings_let_values() {
     let binding1 = LetValuesBinding {
-        formals: Formals::Fixed(&["a".to_string()]),
+        formals: Formals::Fixed(vec!["a".to_string()]),
         producer: Value::integer(1),
     };
     let binding2 = LetValuesBinding {
-        formals: Formals::Fixed(&["b".to_string()]),
+        formals: Formals::Fixed(vec!["b".to_string()]),
         producer: Value::integer(2),
     };
-    let bindings = &[binding1, binding2];
-    let body = &[Value::list(vec![sym("+"), sym("a"), sym("b")])];
+    let bindings = vec![binding1, binding2];
+    let body = vec![Value::list(vec![sym("+"), sym("a"), sym("b")])];
 
     let result = expand_let_values(&bindings, &body).unwrap();
 
@@ -221,8 +221,8 @@ fn test_expand_multiple_bindings_let_values() {
 
 #[test]
 fn test_expand_empty_let_star_values() {
-    let bindings = &[];
-    let body = &[Value::integer(42)];
+    let bindings = vec![];
+    let body = vec![Value::integer(42)];
 
     let result = expand_let_star_values(&bindings, &body).unwrap();
     assert_eq!(result, Value::integer(42));
@@ -231,11 +231,11 @@ fn test_expand_empty_let_star_values() {
 #[test]
 fn test_expand_single_binding_let_star_values() {
     let binding = LetValuesBinding {
-        formals: Formals::Fixed(&["a".to_string()]),
+        formals: Formals::Fixed(vec!["a".to_string()]),
         producer: Value::integer(42),
     };
-    let bindings = &[binding];
-    let body = &[sym("a")];
+    let bindings = vec![binding];
+    let body = vec![sym("a")];
 
     let result = expand_let_star_values(&bindings, &body).unwrap();
 
@@ -250,15 +250,15 @@ fn test_expand_single_binding_let_star_values() {
 #[test]
 fn test_expand_multiple_bindings_let_star_values() {
     let binding1 = LetValuesBinding {
-        formals: Formals::Fixed(&["a".to_string()]),
+        formals: Formals::Fixed(vec!["a".to_string()]),
         producer: Value::integer(1),
     };
     let binding2 = LetValuesBinding {
-        formals: Formals::Fixed(&["b".to_string()]),
+        formals: Formals::Fixed(vec!["b".to_string()]),
         producer: sym("a"), // Uses previous binding
     };
-    let bindings = &[binding1, binding2];
-    let body = &[Value::list(vec![sym("+"), sym("a"), sym("b")])];
+    let bindings = vec![binding1, binding2];
+    let body = vec![Value::list(vec![sym("+"), sym("a"), sym("b")])];
 
     let result = expand_let_star_values(&bindings, &body).unwrap();
 
@@ -277,13 +277,13 @@ fn test_expand_multiple_bindings_let_star_values() {
 fn test_fixed_formals_patterns() {
     // Test various fixed arity patterns
     let patterns = vec![
-        (&[], 0),
-        (&["a"], 1),
-        (&["a", "b"], 2),
-        (&["x", "y", "z"], 3),
+        (vec![], 0),
+        (vec!["a"], 1),
+        (vec!["a", "b"], 2),
+        (vec!["x", "y", "z"], 3),
     ];
 
-    for (params, expected_len) in patterns {
+    for (params, _expected_len) in patterns {
         let formals = Formals::Fixed(params.iter().map(|s| s.to_string()).collect());
         let binding = LetValuesBinding {
             formals,
@@ -291,8 +291,8 @@ fn test_fixed_formals_patterns() {
         };
 
         // Should parse without error
-        let bindings = &[binding];
-        let body = &[Value::integer(1)];
+        let bindings = vec![binding];
+        let body = vec![Value::integer(1)];
         assert!(expand_let_values(&bindings, &body).is_ok());
     }
 }
@@ -309,8 +309,8 @@ fn test_variable_formals_pattern() {
         ]),
     };
 
-    let bindings = &[binding];
-    let body = &[sym("args")];
+    let bindings = vec![binding];
+    let body = vec![sym("args")];
 
     let result = expand_let_values(&bindings, &body).unwrap();
     // Should generate valid expansion
@@ -320,7 +320,7 @@ fn test_variable_formals_pattern() {
 #[test]
 fn test_mixed_formals_pattern() {
     let formals = Formals::Mixed {
-        fixed: &["a".to_string(), "b".to_string()],
+        fixed: vec!["a".to_string(), "b".to_string()],
         rest: "rest".to_string(),
     };
     let binding = LetValuesBinding {
@@ -333,7 +333,7 @@ fn test_mixed_formals_pattern() {
         ]),
     };
 
-    let bindings = &[binding];
+    let bindings = vec![binding];
     let body = vec![Value::list(vec![
         sym("list"),
         sym("a"),
@@ -399,11 +399,11 @@ fn test_let_values_scheme_equivalence() {
     //                   (lambda (a b) (+ a b)))
 
     let binding = LetValuesBinding {
-        formals: Formals::Fixed(&["a".to_string(), "b".to_string()]),
-        producer: values_expr(&[Value::integer(1), Value::integer(2)]),
+        formals: Formals::Fixed(vec!["a".to_string(), "b".to_string()]),
+        producer: values_expr(vec![Value::integer(1), Value::integer(2)]),
     };
-    let bindings = &[binding];
-    let body = &[Value::list(vec![sym("+"), sym("a"), sym("b")])];
+    let bindings = vec![binding];
+    let body = vec![Value::list(vec![sym("+"), sym("a"), sym("b")])];
 
     let result = expand_let_values(&bindings, &body).unwrap();
 
@@ -451,15 +451,15 @@ fn test_let_star_values_scheme_equivalence() {
     // Should expand to nested let-values where second binding can see first
 
     let binding1 = LetValuesBinding {
-        formals: Formals::Fixed(&["a".to_string()]),
-        producer: values_expr(&[Value::integer(1)]),
+        formals: Formals::Fixed(vec!["a".to_string()]),
+        producer: values_expr(vec![Value::integer(1)]),
     };
     let binding2 = LetValuesBinding {
-        formals: Formals::Fixed(&["b".to_string()]),
+        formals: Formals::Fixed(vec!["b".to_string()]),
         producer: sym("a"), // References first binding
     };
-    let bindings = &[binding1, binding2];
-    let body = &[Value::list(vec![sym("+"), sym("a"), sym("b")])];
+    let bindings = vec![binding1, binding2];
+    let body = vec![Value::list(vec![sym("+"), sym("a"), sym("b")])];
 
     let result = expand_let_star_values(&bindings, &body).unwrap();
 
@@ -478,19 +478,19 @@ fn test_let_star_values_scheme_equivalence() {
 fn test_many_bindings() {
     // Test with many bindings to ensure scalability
     let mut bindings = Vec::new();
-    let mut body_args = &[sym("+")];
+    let mut body_args = vec![sym("+")];
 
     for i in 0..10 {
         let param_name = format!("var{}", i);
         let binding = LetValuesBinding {
-            formals: Formals::Fixed(&[param_name.clone()]),
+            formals: Formals::Fixed(vec![param_name.clone()]),
             producer: Value::integer(i as i64),
         };
         bindings.push(binding);
         body_args.push(sym(&param_name));
     }
 
-    let body = &[Value::list(body_args)];
+    let body = vec![Value::list(body_args)];
 
     // Should handle many bindings without error
     assert!(expand_let_values(&bindings, &body).is_ok());
@@ -511,13 +511,13 @@ fn test_deep_nesting() {
         };
 
         let binding = LetValuesBinding {
-            formals: Formals::Fixed(&[param_name]),
+            formals: Formals::Fixed(vec![param_name]),
             producer,
         };
         bindings.push(binding);
     }
 
-    let body = &[sym("var4")]; // Reference last binding
+    let body = vec![sym("var4")]; // Reference last binding
 
     // Should handle deep nesting without error
     assert!(expand_let_star_values(&bindings, &body).is_ok());
@@ -529,11 +529,11 @@ fn test_deep_nesting() {
 fn test_zero_values_binding() {
     // Test binding that produces zero values
     let binding = LetValuesBinding {
-        formals: Formals::Fixed(&[]),
-        producer: values_expr(&[]), // (values) produces zero values
+        formals: Formals::Fixed(vec![]),
+        producer: values_expr(vec![]), // (values) produces zero values
     };
-    let bindings = &[binding];
-    let body = &[Value::integer(42)];
+    let bindings = vec![binding];
+    let body = vec![Value::integer(42)];
 
     assert!(expand_let_values(&bindings, &body).is_ok());
 }
@@ -542,11 +542,11 @@ fn test_zero_values_binding() {
 fn test_single_value_binding() {
     // Test that single values work correctly
     let binding = LetValuesBinding {
-        formals: Formals::Fixed(&["x".to_string()]),
+        formals: Formals::Fixed(vec!["x".to_string()]),
         producer: Value::integer(42), // Single value, not (values 42)
     };
-    let bindings = &[binding];
-    let body = &[sym("x")];
+    let bindings = vec![binding];
+    let body = vec![sym("x")];
 
     assert!(expand_let_values(&bindings, &body).is_ok());
 }
@@ -556,10 +556,10 @@ fn test_variable_arity_with_zero_values() {
     // Test variable arity formals with zero values
     let binding = LetValuesBinding {
         formals: Formals::Variable("args".to_string()),
-        producer: values_expr(&[]), // Zero values
+        producer: values_expr(vec![]), // Zero values
     };
-    let bindings = &[binding];
-    let body = &[sym("args")]; // Should be empty list
+    let bindings = vec![binding];
+    let body = vec![sym("args")]; // Should be empty list
 
     assert!(expand_let_values(&bindings, &body).is_ok());
 }
@@ -570,16 +570,16 @@ fn test_complex_nested_structures() {
     let complex_producer = Value::list(vec![
         sym("if"),
         Value::boolean(true),
-        values_expr(&[Value::integer(1), Value::integer(2)]),
-        values_expr(&[Value::integer(3), Value::integer(4)]),
+        values_expr(vec![Value::integer(1), Value::integer(2)]),
+        values_expr(vec![Value::integer(3), Value::integer(4)]),
     ]);
 
     let binding = LetValuesBinding {
-        formals: Formals::Fixed(&["a".to_string(), "b".to_string()]),
+        formals: Formals::Fixed(vec!["a".to_string(), "b".to_string()]),
         producer: complex_producer,
     };
-    let bindings = &[binding];
-    let body = &[Value::list(vec![sym("*"), sym("a"), sym("b")])];
+    let bindings = vec![binding];
+    let body = vec![Value::list(vec![sym("*"), sym("a"), sym("b")])];
 
     // Should handle complex expressions
     assert!(expand_let_values(&bindings, &body).is_ok());

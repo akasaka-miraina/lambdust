@@ -38,7 +38,7 @@ fn test_parameter_global_set() {
 
 #[test]
 fn test_parameter_thread_local_binding() {
-    ParameterBinding::clear_stack();
+    // Clear stack not available in integration tests
 
     let param = Parameter::new(Value::integer(1), None);
     assert_eq!(param.get().as_integer(), Some(1));
@@ -60,7 +60,7 @@ fn test_parameter_thread_local_binding() {
 
 #[test]
 fn test_nested_parameter_bindings() {
-    ParameterBinding::clear_stack();
+    // Clear stack not available in integration tests
 
     let param = Parameter::new(Value::integer(1), None);
 
@@ -88,7 +88,7 @@ fn test_nested_parameter_bindings() {
 
 #[test]
 fn test_multiple_parameters_same_binding() {
-    ParameterBinding::clear_stack();
+    // Clear stack not available in integration tests
 
     let param1 = Parameter::new(Value::integer(1), None);
     let param2 = Parameter::new(Value::integer(2), None);
@@ -113,7 +113,7 @@ fn test_multiple_parameters_same_binding() {
 
 #[test]
 fn test_parameter_stack_depth() {
-    ParameterBinding::clear_stack();
+    // Clear stack not available in integration tests
     assert_eq!(ParameterBinding::stack_depth(), 0);
 
     let bindings = HashMap::new();
@@ -149,20 +149,20 @@ fn test_parameter_with_name() {
 fn test_make_parameter_function() {
     // Test make-parameter with 1 argument
     let args = &[Value::integer(42)];
-    let result = make_parameter(&args).unwrap();
+    let result = make_parameter(args).unwrap();
     assert!(result.is_parameter());
 
     // Test make-parameter with 2 arguments (with converter)
     let args = &[Value::integer(42), Value::integer(0)]; // placeholder converter
-    let result = make_parameter(&args).unwrap();
+    let result = make_parameter(args).unwrap();
     assert!(result.is_parameter());
 
     // Test make-parameter with wrong number of arguments
     let args = &[];
-    assert!(make_parameter(&args).is_err());
+    assert!(make_parameter(args).is_err());
 
     let args = &[Value::integer(1), Value::integer(2), Value::integer(3)];
-    assert!(make_parameter(&args).is_err());
+    assert!(make_parameter(args).is_err());
 }
 
 #[test]
@@ -172,25 +172,25 @@ fn test_is_parameter_function() {
 
     // Test parameter? with parameter object
     let args = &[param_value];
-    let result = is_parameter(&args).unwrap();
+    let result = is_parameter(args).unwrap();
     assert_eq!(result, Value::boolean(true));
 
     // Test parameter? with non-parameter object
     let args = &[Value::integer(42)];
-    let result = is_parameter(&args).unwrap();
+    let result = is_parameter(args).unwrap();
     assert_eq!(result, Value::boolean(false));
 
     // Test parameter? with wrong number of arguments
     let args = &[];
-    assert!(is_parameter(&args).is_err());
+    assert!(is_parameter(args).is_err());
 
     let args = &[Value::integer(1), Value::integer(2)];
-    assert!(is_parameter(&args).is_err());
+    assert!(is_parameter(args).is_err());
 }
 
 #[test]
 fn test_parameter_performance_statistics() {
-    ParameterBinding::clear_stack();
+    // Clear stack not available in integration tests
     ParameterBinding::reset_statistics();
 
     let param = Parameter::new(Value::integer(42), None);
@@ -211,7 +211,7 @@ fn test_parameter_performance_statistics() {
     });
 
     // Check that statistics were recorded
-    if let Some((reads, writes, cache_hits, cache_misses, parameterize_calls)) =
+    if let Some((reads, _writes, _cache_hits, _cache_misses, parameterize_calls)) =
         ParameterBinding::get_statistics()
     {
         assert!(reads > 0, "Should have recorded parameter reads");
@@ -228,7 +228,7 @@ fn test_parameter_performance_statistics() {
 fn test_parameter_performance_benchmark() {
     use std::time::Instant;
 
-    ParameterBinding::clear_stack();
+    // Clear stack not available in integration tests
     ParameterBinding::reset_statistics();
 
     let param = Parameter::new(Value::integer(42), None);
@@ -314,11 +314,11 @@ fn test_parameter_error_handling() {
 fn test_stdlib_parameter_integration() {
     // Test the stdlib functions work with the optimized parameter system
     let args = &[Value::string("initial")];
-    let param_value = make_parameter(&args).unwrap();
+    let param_value = make_parameter(args).unwrap();
 
     // Should be recognized as a parameter
     let args = &[param_value.clone()];
-    let result = is_parameter(&args).unwrap();
+    let result = is_parameter(args).unwrap();
     assert_eq!(result, Value::boolean(true));
 
     // Extract the parameter and test its behavior
