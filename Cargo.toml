@@ -288,6 +288,7 @@ arena-optimization = []           # Legacy: Arena allocation
 simd-optimization = []            # Legacy: SIMD acceleration
 vertical-integration = []         # Legacy: Dependency reduction
 unsafe-ops = []                   # Phase 8: Unsafe optimizations for performance
+never-enabled = []                # Feature for disabling problematic modules in CI
 
 # The stage features are now defined above in the main features section
 

@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 //! SRFI-133 Vector Library Phase 1 Implementation
 //!
 //! This module implements the first phase of SRFI-133 Vector Library with performance

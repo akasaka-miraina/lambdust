@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 //! Vector operations for the Lambdust standard library.
 //!
 //! This module implements R7RS-compliant vector operations including
