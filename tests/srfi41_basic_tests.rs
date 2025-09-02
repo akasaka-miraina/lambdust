@@ -4,8 +4,8 @@
 //! implementation following the architectural specifications.
 
 use lambdust::ast::literal::Literal;
-use lambdust::eval::environment::ThreadSafeEnvironment;
-use lambdust::eval::stream::{StreamError, StreamNode};
+use lambdust::eval::ThreadSafeEnvironment;
+use lambdust::eval::stream::StreamNode;
 use lambdust::eval::value::{Promise, Value};
 use lambdust::stdlib::srfi41_streams::SRFI41Streams;
 
@@ -172,19 +172,19 @@ fn test_environment_binding() {
     SRFI41Streams::bind_all_operations(&env);
 
     // Test that all core procedures are bound
-    assert!(env.lookup("stream-null".to_string()).is_some());
-    assert!(env.lookup("stream-cons".to_string()).is_some());
-    assert!(env.lookup("stream".to_string()).is_some());
-    assert!(env.lookup("stream-car".to_string()).is_some());
-    assert!(env.lookup("stream-cdr".to_string()).is_some());
-    assert!(env.lookup("stream?".to_string()).is_some());
-    assert!(env.lookup("stream-null?".to_string()).is_some());
-    assert!(env.lookup("list->stream".to_string()).is_some());
-    assert!(env.lookup("stream->list".to_string()).is_some());
-    assert!(env.lookup("stream-take".to_string()).is_some());
-    assert!(env.lookup("stream-drop".to_string()).is_some());
-    assert!(env.lookup("stream-append".to_string()).is_some());
-    assert!(env.lookup("stream-map".to_string()).is_some());
+    assert!(env.lookup("stream-null").is_some());
+    assert!(env.lookup("stream-cons").is_some());
+    assert!(env.lookup("stream").is_some());
+    assert!(env.lookup("stream-car").is_some());
+    assert!(env.lookup("stream-cdr").is_some());
+    assert!(env.lookup("stream?").is_some());
+    assert!(env.lookup("stream-null?").is_some());
+    assert!(env.lookup("list->stream").is_some());
+    assert!(env.lookup("stream->list").is_some());
+    assert!(env.lookup("stream-take").is_some());
+    assert!(env.lookup("stream-drop").is_some());
+    assert!(env.lookup("stream-append").is_some());
+    assert!(env.lookup("stream-map").is_some());
 }
 
 #[test]

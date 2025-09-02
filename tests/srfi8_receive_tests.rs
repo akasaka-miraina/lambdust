@@ -35,10 +35,10 @@ fn test_enhanced_values_procedure() {
 
     assert!(matches!(result, Value::MultipleValues(_)));
     if let Value::MultipleValues(mv) = result {
-        assert_eq!(mv.values.len(), 3);
-        assert_eq!(mv.values[0], Value::integer(1));
-        assert_eq!(mv.values[1], Value::string("hello".to_string()));
-        assert_eq!(mv.values[2], Value::boolean(true));
+        assert_eq!(mv.len(), 3);
+        assert_eq!(*mv.get(0).unwrap(), Value::integer(1));
+        assert_eq!(*mv.get(1).unwrap(), Value::string("hello".to_string()));
+        assert_eq!(*mv.get(2).unwrap(), Value::boolean(true));
     }
 }
 
@@ -89,25 +89,29 @@ fn test_values_length() {
     }
 
     // Test with MultipleValues objects
-    let test_cases = vec![
-        (&[], 0),
-        (&[Value::integer(1)], 1),
-        (&[Value::integer(1), Value::integer(2)], 2),
-        (
-            vec![
-                Value::integer(1),
-                Value::string("test".to_string()),
-                Value::boolean(true),
-            ],
-            3,
-        ),
-    ];
+    // Test empty MultipleValues
+    let mv = Value::MultipleValues(Arc::new(MultipleValues::new(vec![])));
+    let result = primitive_values_length(&[mv]).unwrap();
+    assert_eq!(result, Value::integer(0));
 
-    for (values, expected_len) in test_cases {
-        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values)));
-        let result = primitive_values_length(&[mv]).unwrap();
-        assert_eq!(result, Value::integer(expected_len));
-    }
+    // Test single value MultipleValues
+    let mv = Value::MultipleValues(Arc::new(MultipleValues::new(vec![Value::integer(1)])));
+    let result = primitive_values_length(&[mv]).unwrap();
+    assert_eq!(result, Value::integer(1));
+
+    // Test two values MultipleValues
+    let mv = Value::MultipleValues(Arc::new(MultipleValues::new(vec![Value::integer(1), Value::integer(2)])));
+    let result = primitive_values_length(&[mv]).unwrap();
+    assert_eq!(result, Value::integer(2));
+
+    // Test three values MultipleValues  
+    let mv = Value::MultipleValues(Arc::new(MultipleValues::new(vec![
+        Value::integer(1),
+        Value::string("test".to_string()),
+        Value::boolean(true),
+    ])));
+    let result = primitive_values_length(&[mv]).unwrap();
+    assert_eq!(result, Value::integer(3));
 
     // Test error cases
     assert!(primitive_values_length(&[]).is_err());
@@ -118,7 +122,7 @@ fn test_values_length() {
 #[test]
 fn test_receive_arity_validation() {
     // Test Fixed formals
-    let fixed_formals = Formals::Fixed(&["a".to_string(), "b".to_string(), "c".to_string()]);
+    let fixed_formals = Formals::Fixed(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
 
     // Correct arity
     assert!(validate_receive_arity(&fixed_formals, 3).is_ok());
@@ -137,7 +141,7 @@ fn test_receive_arity_validation() {
 
     // Test Mixed formals
     let mixed_formals = Formals::Mixed {
-        fixed: &["a".to_string(), "b".to_string()],
+        fixed: vec!["a".to_string(), "b".to_string()],
         rest: "rest".to_string(),
     };
 
@@ -152,9 +156,9 @@ fn test_receive_arity_validation() {
 
     // Test unsupported formals (should return error)
     let keyword_formals = Formals::Keyword {
-        fixed: &[],
+        fixed: vec![],
         rest: None,
-        keywords: &[],
+        keywords: vec![],
     };
     assert!(validate_receive_arity(&keyword_formals, 0).is_err());
 }
