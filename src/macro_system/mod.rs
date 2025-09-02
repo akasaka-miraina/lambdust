@@ -139,10 +139,10 @@ pub use macro_time_computation::{
     MacroTimeEnvironment, MacroTimeProcedure, MacroTimeStats, MacroTimeValue, Phase,
     TemplateUtilities,
 };
-pub use macro_time_demo::{
-    demonstrate_advanced_quasisyntax, demonstrate_make_list, demonstrate_phase_separation,
-    demonstrate_repeat_macro, run_all_demonstrations,
-};
+// pub use macro_time_demo::{
+//     demonstrate_advanced_quasisyntax, demonstrate_make_list, demonstrate_phase_separation,
+//     demonstrate_repeat_macro, run_all_demonstrations,
+// };  // Disabled for CI stability
 pub use macro_time_integration::{
     MacroTimeAwareExpander, MacroTimeCompatibilityReport, MacroTimeIntegrationConfig,
     MacroTimeIntegrationStats, integration_interface,
@@ -197,10 +197,10 @@ pub use integrated_optimized_expander::{
     IntegratedOptimizedExpander, IntegratedPerformanceMetrics, IntegrationSettings,
     MonitoringConfig, MonitoringDetailLevel, OptimizedIntegrationConfig,
 };
-pub use integration_tests::{
-    IntegrationTestSuite, PerformanceResults, TestConfig, TestResults,
-    run_performance_benchmarks_only, run_phase_2a_integration_tests,
-};
+// pub use integration_tests::{
+//     IntegrationTestSuite, PerformanceResults, TestConfig, TestResults,
+//     run_performance_benchmarks_only, run_phase_2a_integration_tests,
+// };  // Disabled for CI stability
 pub use optimized_macro_expander::{
     CachingOptimizationConfig, MonitoringLevel, OptimizedMacroExpander,
 };

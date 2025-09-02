@@ -220,27 +220,32 @@ impl HighPerformanceIo {
 
         // This is a simplified implementation - real io_uring integration would be more complex
         #[cfg(all(target_os = "linux", feature = "unix-extensions"))]
-        match nix::sys::epoll::epoll_wait(epoll_fd, events, timeout_ms) {
-        #[cfg(not(all(target_os = "linux", feature = "unix-extensions")))]
-        match Result::<i32, Box<dyn std::error::Error>>::Ok(0) {
-            Ok(num_events) => {
-                let mut completions = Vec::new();
-                for i in 0..num_events {
-                    let event = &events[i];
-                    let user_data = event.data();
+        {
+            match nix::sys::epoll::epoll_wait(epoll_fd, events, timeout_ms) {
+                Ok(num_events) => {
+                    let mut completions = Vec::new();
+                    for i in 0..num_events {
+                        let event = &events[i];
+                        let user_data = event.data();
 
-                    if let Some(operation) = pending_operations.remove(&user_data) {
-                        completions.push(IoCompletion {
-                            operation,
-                            bytes_transferred: 0, // Would be filled by actual implementation
-                            result: Ok(()),
-                            user_data,
-                        });
+                        if let Some(operation) = pending_operations.remove(&user_data) {
+                            completions.push(IoCompletion {
+                                operation,
+                                bytes_transferred: 0, // Would be filled by actual implementation
+                                result: Ok(()),
+                                user_data,
+                            });
+                        }
                     }
+                    Ok(completions)
                 }
-                Ok(completions)
+                Err(e) => Err(std::io::Error::from(e)),
             }
-            Err(e) => Err(std::io::Error::from(e)),
+        }
+        #[cfg(not(all(target_os = "linux", feature = "unix-extensions")))]
+        {
+            // Fallback implementation for non-Linux or minimal feature builds
+            Ok(vec![])
         }
     }
 
