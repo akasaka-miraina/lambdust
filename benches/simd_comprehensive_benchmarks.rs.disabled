@@ -1,0 +1,405 @@
+//! Comprehensive SIMD performance benchmarking suite for Lambdust
+//!
+//! This benchmark suite thoroughly evaluates SIMD optimization performance
+//! across different vector sizes, operations, and hardware configurations.
+
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use lambdust::ast::Literal;
+use lambdust::eval::value::Value;
+use lambdust::numeric::{
+    simd_arithmetic::SimdArithmeticEngine,
+    simd_list_ops::SimdListOpsEngine,
+    simd_value_integration::SimdValueIntegration,
+    simd_wrapper::{SimdCapabilities, SimdStrategy},
+};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+/// Generate test data of varying sizes
+fn generate_f64_data(size: usize) -> Vec<f64> {
+    (0..size).map(|i| i as f64 + 0.5).collect()
+}
+
+/// Generate Value vector for integration tests
+fn generate_value_vector(size: usize) -> Value {
+    let values: Vec<Value> = (0..size)
+        .map(|i| Value::Literal(Literal::InexactReal(i as f64 + 0.5)))
+        .collect();
+    Value::Vector(Rc::new(RefCell::new(values)))
+}
+
+/// Benchmark SIMD arithmetic operations
+fn bench_simd_arithmetic(c: &mut Criterion) {
+    let engine = SimdArithmeticEngine::new();
+    let sizes = vec![8, 32, 128, 512, 2048, 8192, 32768];
+
+    let mut group = c.benchmark_group("simd_arithmetic");
+
+    for size in sizes {
+        let data_a = generate_f64_data(size);
+        let data_b = generate_f64_data(size);
+
+        group.throughput(Throughput::Elements(size as u64));
+
+        // Vector addition benchmark
+        group.bench_with_input(BenchmarkId::new("vector_add", size), &size, |b, _| {
+            b.iter(|| engine.vector_add_f64(black_box(&data_a), black_box(&data_b)))
+        });
+
+        // Vector multiplication benchmark
+        group.bench_with_input(BenchmarkId::new("vector_mul", size), &size, |b, _| {
+            b.iter(|| engine.vector_mul_f64(black_box(&data_a), black_box(&data_b)))
+        });
+
+        // Dot product benchmark
+        group.bench_with_input(BenchmarkId::new("dot_product", size), &size, |b, _| {
+            b.iter(|| engine.dot_product_f64(black_box(&data_a), black_box(&data_b)))
+        });
+    }
+
+    group.finish();
+}
+
+/// Benchmark SIMD vs scalar arithmetic comparison
+fn bench_simd_vs_scalar_arithmetic(c: &mut Criterion) {
+    let engine = SimdArithmeticEngine::new();
+    let size = 8192;
+    let data_a = generate_f64_data(size);
+    let data_b = generate_f64_data(size);
+
+    let mut group = c.benchmark_group("simd_vs_scalar");
+    group.throughput(Throughput::Elements(size as u64));
+
+    // SIMD addition
+    group.bench_function("simd_add", |b| {
+        b.iter(|| engine.vector_add_f64(black_box(&data_a), black_box(&data_b)))
+    });
+
+    // Scalar addition
+    group.bench_function("scalar_add", |b| {
+        b.iter(|| {
+            data_a
+                .iter()
+                .zip(data_b.iter())
+                .map(|(a, b)| a + b)
+                .collect::<Vec<f64>>()
+        })
+    });
+
+    // SIMD dot product
+    group.bench_function("simd_dot_product", |b| {
+        b.iter(|| engine.dot_product_f64(black_box(&data_a), black_box(&data_b)))
+    });
+
+    // Scalar dot product
+    group.bench_function("scalar_dot_product", |b| {
+        b.iter(|| {
+            data_a
+                .iter()
+                .zip(data_b.iter())
+                .map(|(a, b)| a * b)
+                .sum::<f64>()
+        })
+    });
+
+    group.finish();
+}
+
+/// Benchmark SIMD list operations
+fn bench_simd_list_operations(c: &mut Criterion) {
+    let engine = SimdListOpsEngine::new();
+    let sizes = vec![64, 256, 1024, 4096, 16384];
+
+    let mut group = c.benchmark_group("simd_list_ops");
+
+    for size in sizes {
+        let data = generate_f64_data(size);
+
+        group.throughput(Throughput::Elements(size as u64));
+
+        // Map operation benchmark
+        group.bench_with_input(BenchmarkId::new("map_double", size), &size, |b, _| {
+            b.iter(|| engine.simd_map_f64(black_box(&data), |x| x * 2.0))
+        });
+
+        // Filter operation benchmark
+        group.bench_with_input(BenchmarkId::new("filter_positive", size), &size, |b, _| {
+            let mixed_data: Vec<f64> = (0..size)
+                .map(|i| if i % 2 == 0 { i as f64 } else { -(i as f64) })
+                .collect();
+            b.iter(|| engine.simd_filter_f64(black_box(&mixed_data), |x| x > 0.0))
+        });
+
+        // Fold operation benchmark
+        group.bench_with_input(BenchmarkId::new("fold_sum", size), &size, |b, _| {
+            b.iter(|| engine.simd_fold_f64(black_box(&data), 0.0, |acc, x| acc + x))
+        });
+
+        // Specialized sum benchmark
+        group.bench_with_input(BenchmarkId::new("specialized_sum", size), &size, |b, _| {
+            b.iter(|| engine.simd_sum_f64(black_box(&data)))
+        });
+    }
+
+    group.finish();
+}
+
+/// Benchmark Value system integration
+fn bench_value_integration(c: &mut Criterion) {
+    let integration = SimdValueIntegration::new();
+    let sizes = vec![32, 128, 512, 2048, 8192];
+
+    let mut group = c.benchmark_group("value_integration");
+
+    for size in sizes {
+        let value_a = generate_value_vector(size);
+        let value_b = generate_value_vector(size);
+
+        group.throughput(Throughput::Elements(size as u64));
+
+        // Value vector addition
+        group.bench_with_input(BenchmarkId::new("value_add", size), &size, |b, _| {
+            b.iter(|| integration.simd_vector_add(black_box(&value_a), black_box(&value_b)))
+        });
+
+        // Value vector sum
+        group.bench_with_input(BenchmarkId::new("value_sum", size), &size, |b, _| {
+            b.iter(|| integration.simd_sum(black_box(&value_a)))
+        });
+
+        // Value type conversion overhead
+        group.bench_with_input(BenchmarkId::new("type_conversion", size), &size, |b, _| {
+            b.iter(|| integration.value_to_f64_vector(black_box(&value_a)))
+        });
+    }
+
+    group.finish();
+}
+
+/// Benchmark parallel vs sequential processing
+fn bench_parallel_vs_sequential(c: &mut Criterion) {
+    let mut engine = SimdListOpsEngine::new();
+    let large_size = 100_000;
+    let data = generate_f64_data(large_size);
+
+    let mut group = c.benchmark_group("parallel_vs_sequential");
+    group.throughput(Throughput::Elements(large_size as u64));
+
+    // Test with parallel threshold set high (forces sequential)
+    engine.set_parallel_threshold(200_000);
+    group.bench_function("sequential_map", |b| {
+        b.iter(|| engine.simd_map_f64(black_box(&data), |x| x * x + 1.0))
+    });
+
+    // Test with parallel threshold set low (forces parallel)
+    engine.set_parallel_threshold(1000);
+    group.bench_function("parallel_map", |b| {
+        b.iter(|| engine.simd_map_f64(black_box(&data), |x| x * x + 1.0))
+    });
+
+    group.finish();
+}
+
+/// Benchmark memory alignment impact
+fn bench_memory_alignment(c: &mut Criterion) {
+    use lambdust::numeric::simd_wrapper::AlignedBuffer;
+
+    let size = 4096;
+    let regular_data = generate_f64_data(size);
+
+    // Create aligned buffer
+    let mut aligned_buffer = AlignedBuffer::new(size, 32).unwrap();
+    for &val in &regular_data {
+        aligned_buffer.push(val).unwrap();
+    }
+
+    let engine = SimdArithmeticEngine::new();
+
+    let mut group = c.benchmark_group("memory_alignment");
+    group.throughput(Throughput::Elements(size as u64));
+
+    // Regular memory sum
+    group.bench_function("regular_memory", |b| {
+        b.iter(|| regular_data.iter().sum::<f64>())
+    });
+
+    // Aligned memory sum
+    group.bench_function("aligned_memory", |b| {
+        b.iter(|| aligned_buffer.as_slice().iter().sum::<f64>())
+    });
+
+    group.finish();
+}
+
+/// Comprehensive platform capability benchmark
+fn bench_platform_capabilities(c: &mut Criterion) {
+    let capabilities = SimdCapabilities::detect();
+    let strategy = capabilities.best_strategy();
+
+    let mut group = c.benchmark_group("platform_capabilities");
+
+    // Display detected capabilities
+    group.bench_function("capability_detection", |b| {
+        b.iter(|| black_box(SimdCapabilities::detect()))
+    });
+
+    // Strategy-specific benchmarks
+    let size = 1024;
+    let data_a = generate_f64_data(size);
+    let data_b = generate_f64_data(size);
+
+    group.throughput(Throughput::Elements(size as u64));
+
+    match strategy {
+        SimdStrategy::Avx512 => {
+            group.bench_function("avx512_optimized", |b| {
+                let engine = SimdArithmeticEngine::new();
+                b.iter(|| engine.vector_add_f64(black_box(&data_a), black_box(&data_b)))
+            });
+        }
+        SimdStrategy::Avx2 => {
+            group.bench_function("avx2_optimized", |b| {
+                let engine = SimdArithmeticEngine::new();
+                b.iter(|| engine.vector_add_f64(black_box(&data_a), black_box(&data_b)))
+            });
+        }
+        SimdStrategy::Sse => {
+            group.bench_function("sse_optimized", |b| {
+                let engine = SimdArithmeticEngine::new();
+                b.iter(|| engine.vector_add_f64(black_box(&data_a), black_box(&data_b)))
+            });
+        }
+        SimdStrategy::Neon => {
+            group.bench_function("neon_optimized", |b| {
+                let engine = SimdArithmeticEngine::new();
+                b.iter(|| engine.vector_add_f64(black_box(&data_a), black_box(&data_b)))
+            });
+        }
+        SimdStrategy::Scalar => {
+            group.bench_function("scalar_fallback", |b| {
+                b.iter(|| {
+                    data_a
+                        .iter()
+                        .zip(data_b.iter())
+                        .map(|(a, b)| a + b)
+                        .collect::<Vec<f64>>()
+                })
+            });
+        }
+    }
+
+    group.finish();
+}
+
+/// Scaling benchmark for different vector sizes
+fn bench_scaling_performance(c: &mut Criterion) {
+    let engine = SimdArithmeticEngine::new();
+
+    // Test scaling from very small to very large vectors
+    let sizes = vec![
+        1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536,
+    ];
+
+    let mut group = c.benchmark_group("scaling_performance");
+
+    for size in sizes {
+        let data_a = generate_f64_data(size);
+        let data_b = generate_f64_data(size);
+
+        group.throughput(Throughput::Elements(size as u64));
+
+        group.bench_with_input(
+            BenchmarkId::new("vector_add_scaling", size),
+            &size,
+            |b, _| b.iter(|| engine.vector_add_f64(black_box(&data_a), black_box(&data_b))),
+        );
+    }
+
+    group.finish();
+}
+
+/// Real-world scenario benchmarks
+fn bench_real_world_scenarios(c: &mut Criterion) {
+    let integration = SimdValueIntegration::new();
+
+    let mut group = c.benchmark_group("real_world_scenarios");
+
+    // Financial calculations scenario
+    let stock_prices = generate_value_vector(1000);
+    let returns = generate_value_vector(1000);
+
+    group.bench_function("portfolio_calculation", |b| {
+        b.iter(|| {
+            // Calculate weighted returns
+            let weighted = integration
+                .simd_vector_multiply(black_box(&stock_prices), black_box(&returns))
+                .unwrap();
+
+            // Sum for total portfolio value
+            integration.simd_sum(black_box(&weighted))
+        })
+    });
+
+    // Scientific computation scenario
+    let measurements = generate_value_vector(5000);
+
+    group.bench_function("statistical_analysis", |b| {
+        b.iter(|| {
+            // Calculate mean
+            let sum = integration.simd_sum(black_box(&measurements)).unwrap();
+            let count = match &measurements {
+                Value::Vector(vec_ref) => {
+                    if let Ok(vec) = vec_ref.try_borrow() {
+                        vec.len() as f64
+                    } else {
+                        1.0
+                    }
+                }
+                _ => 1.0,
+            };
+
+            // Calculate variance (simplified)
+            integration.simd_map(black_box(&measurements), |x| {
+                let sum_f64 = match &sum {
+                    Value::Literal(literal) => literal.to_f64().unwrap_or(0.0),
+                    _ => 0.0,
+                };
+                (x - sum_f64 / count).powi(2)
+            })
+        })
+    });
+
+    // Signal processing scenario
+    let signal_data = generate_value_vector(8192);
+    let filter_coefficients = generate_value_vector(8192);
+
+    group.bench_function("signal_processing", |b| {
+        b.iter(|| {
+            // Apply filter (element-wise multiplication + sum)
+            let filtered = integration
+                .simd_vector_multiply(black_box(&signal_data), black_box(&filter_coefficients))
+                .unwrap();
+
+            integration.simd_sum(black_box(&filtered))
+        })
+    });
+
+    group.finish();
+}
+
+/// Function implementation
+/// Function implementation
+criterion_group!(
+    simd_benchmarks,
+    bench_simd_arithmetic,
+    bench_simd_vs_scalar_arithmetic,
+    bench_simd_list_operations,
+    bench_value_integration,
+    bench_parallel_vs_sequential,
+    bench_memory_alignment,
+    bench_platform_capabilities,
+    bench_scaling_performance,
+    bench_real_world_scenarios
+);
+
+criterion_main!(simd_benchmarks);

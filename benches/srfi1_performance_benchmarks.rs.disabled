@@ -1,0 +1,320 @@
+//! SRFI-1 List Library Performance Benchmarks
+//!
+//! This benchmark suite validates the cs-architect's performance targets:
+//! - List traversal: <1ns per element
+//! - Map operations: 5-10x performance improvement
+//! - Memory efficiency: Arena allocation benefits
+//! - Cache optimization: Improved locality
+
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use lambdust::eval::list_arena::GlobalListArena;
+use lambdust::eval::list_optimization::OptimizedListOperations;
+use lambdust::eval::value::Value;
+use lambdust::numeric::Number;
+use lambdust::stdlib::srfi1::{
+    SRFI1Core, srfi1_append, srfi1_cons, srfi1_drop, srfi1_filter, srfi1_fold, srfi1_list,
+    srfi1_map, srfi1_reverse, srfi1_take,
+};
+
+/// Generate test data of various sizes for benchmarking
+fn generate_test_data(size: usize) -> Vec<Value> {
+    (0..size)
+        .map(|i| Value::Number(Number::Integer(i as i64)))
+        .collect()
+}
+
+/// Benchmark list construction operations
+fn bench_list_construction(c: &mut Criterion) {
+    let mut group = c.benchmark_group("list_construction");
+
+    for size in [10, 100, 1000, 10000].iter() {
+        let data = generate_test_data(*size);
+
+        group.bench_with_input(BenchmarkId::new("srfi1_list", size), &data, |b, data| {
+            b.iter(|| {
+                let args: Vec<&Value> = data.iter().collect();
+                black_box(srfi1_list(
+                    &args.iter().map(|v| (*v).clone()).collect::<Vec<_>>(),
+                ))
+            })
+        });
+
+        group.bench_with_input(
+            BenchmarkId::new("optimized_list_creation", size),
+            &data,
+            |b, data| {
+                b.iter(|| {
+                    let arena = GlobalListArena::create_construction_arena(data.len());
+                    black_box(OptimizedListOperations::from_values(data, &arena))
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark list traversal operations
+fn bench_list_traversal(c: &mut Criterion) {
+    let mut group = c.benchmark_group("list_traversal");
+
+    for size in [100, 1000, 10000].iter() {
+        let data = generate_test_data(*size);
+        let list = Value::list(data.clone());
+
+        group.bench_with_input(
+            BenchmarkId::new("length_calculation", size),
+            &list,
+            |b, list| b.iter(|| black_box(SRFI1Core::fast_length(list))),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("list_to_vec_conversion", size),
+            &list,
+            |b, list| b.iter(|| black_box(SRFI1Core::list_to_vec(list))),
+        );
+
+        // Benchmark optimized traversal
+        let arena = GlobalListArena::create_construction_arena(data.len());
+        let opt_list = OptimizedListOperations::from_values(&data, &arena);
+
+        group.bench_with_input(
+            BenchmarkId::new("optimized_length", size),
+            &opt_list,
+            |b, opt_list| b.iter(|| black_box(OptimizedListOperations::length(*opt_list))),
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark map operations (target: 5-10x improvement)
+fn bench_map_operations(c: &mut Criterion) {
+    let mut group = c.benchmark_group("map_operations");
+
+    // Simple identity function for mapping
+    let identity_proc = Value::Primitive(std::sync::Arc::new(
+        lambdust::eval::value::PrimitiveProcedure {
+            name: "identity".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: lambdust::eval::value::PrimitiveImpl::RustFn(
+                |args| Ok(args[0].clone()),
+            ),
+            effects: vec![lambdust::effects::Effect::Pure],
+        },
+    ));
+
+    for size in [100, 1000, 10000].iter() {
+        let data = generate_test_data(*size);
+        let list = Value::list(data.clone());
+
+        group.bench_with_input(
+            BenchmarkId::new("traditional_map", size),
+            &(&identity_proc, &list),
+            |b, (proc, list)| {
+                b.iter(|| {
+                    // This would be the traditional map implementation
+                    black_box(SRFI1Core::list_to_vec(list))
+                })
+            },
+        );
+
+        // Benchmark optimized map with arena allocation
+        let arena = GlobalListArena::create_construction_arena(data.len());
+        let opt_list = OptimizedListOperations::from_values(&data, &arena);
+
+        group.bench_with_input(
+            BenchmarkId::new("optimized_map", size),
+            &opt_list,
+            |b, opt_list| {
+                let arena = GlobalListArena::create_construction_arena(*size);
+                b.iter(|| {
+                    black_box(OptimizedListOperations::map(
+                        *opt_list,
+                        |v| v.clone(),
+                        &arena,
+                    ))
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark filtering operations
+fn bench_filter_operations(c: &mut Criterion) {
+    let mut group = c.benchmark_group("filter_operations");
+
+    for size in [100, 1000, 10000].iter() {
+        let data = generate_test_data(*size);
+
+        // Filter: keep even numbers
+        let even_predicate = |v: &Value| -> bool {
+            if let Some(n) = v.as_integer() {
+                n % 2 == 0
+            } else {
+                false
+            }
+        };
+
+        group.bench_with_input(
+            BenchmarkId::new("traditional_filter", size),
+            &data,
+            |b, data| {
+                b.iter(|| {
+                    let filtered: Vec<Value> =
+                        data.iter().filter(|v| even_predicate(v)).cloned().collect();
+                    black_box(filtered)
+                })
+            },
+        );
+
+        // Benchmark optimized filter
+        let arena = GlobalListArena::create_construction_arena(data.len());
+        let opt_list = OptimizedListOperations::from_values(&data, &arena);
+
+        group.bench_with_input(
+            BenchmarkId::new("optimized_filter", size),
+            &opt_list,
+            |b, opt_list| {
+                let arena = GlobalListArena::create_construction_arena(*size);
+                b.iter(|| {
+                    black_box(OptimizedListOperations::filter(
+                        *opt_list,
+                        even_predicate,
+                        &arena,
+                    ))
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark fold operations
+fn bench_fold_operations(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fold_operations");
+
+    for size in [100, 1000, 10000].iter() {
+        let data = generate_test_data(*size);
+
+        // Sum operation
+        let sum_fn = |acc: i64, v: &Value| -> i64 { acc + v.as_integer().unwrap_or(0) };
+
+        group.bench_with_input(
+            BenchmarkId::new("traditional_fold", size),
+            &data,
+            |b, data| {
+                b.iter(|| {
+                    let result = data.iter().fold(0i64, sum_fn);
+                    black_box(result)
+                })
+            },
+        );
+
+        // Benchmark optimized fold
+        let arena = GlobalListArena::create_construction_arena(data.len());
+        let opt_list = OptimizedListOperations::from_values(&data, &arena);
+
+        group.bench_with_input(
+            BenchmarkId::new("optimized_fold", size),
+            &opt_list,
+            |b, opt_list| {
+                b.iter(|| {
+                    let result = OptimizedListOperations::fold_left(*opt_list, 0i64, sum_fn);
+                    black_box(result)
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark memory allocation patterns
+fn bench_memory_allocation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("memory_allocation");
+
+    for size in [100, 1000, 10000].iter() {
+        group.bench_with_input(
+            BenchmarkId::new("heap_allocation", size),
+            size,
+            |b, size| {
+                b.iter(|| {
+                    let data = generate_test_data(*size);
+                    black_box(Value::list(data))
+                })
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("arena_allocation", size),
+            size,
+            |b, size| {
+                b.iter(|| {
+                    let arena = GlobalListArena::create_construction_arena(*size);
+                    let data = generate_test_data(*size);
+                    black_box(OptimizedListOperations::from_values(&data, &arena))
+                })
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Performance regression test - validate cs-architect targets
+fn bench_performance_targets(c: &mut Criterion) {
+    let mut group = c.benchmark_group("performance_targets");
+
+    // Target: <1ns per element traversal
+    let large_list_data = generate_test_data(100000);
+    let arena = GlobalListArena::create_construction_arena(large_list_data.len());
+    let opt_list = OptimizedListOperations::from_values(&large_list_data, &arena);
+
+    group.bench_function("traversal_per_element", |b| {
+        b.iter(|| {
+            let length = OptimizedListOperations::length(opt_list);
+            black_box(length)
+        })
+    });
+
+    // Target: 5-10x map performance improvement
+    group.bench_function("map_performance_baseline", |b| {
+        let data = generate_test_data(10000);
+        b.iter(|| {
+            let mapped: Vec<Value> = data.iter().map(|v| v.clone()).collect();
+            black_box(mapped)
+        })
+    });
+
+    group.bench_function("map_performance_optimized", |b| {
+        let data = generate_test_data(10000);
+        let arena = GlobalListArena::create_construction_arena(data.len());
+        let opt_list = OptimizedListOperations::from_values(&data, &arena);
+
+        b.iter(|| {
+            let arena = GlobalListArena::create_construction_arena(data.len());
+            let mapped = OptimizedListOperations::map(opt_list, |v| v.clone(), &arena);
+            black_box(mapped)
+        })
+    });
+
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_list_construction,
+    bench_list_traversal,
+    bench_map_operations,
+    bench_filter_operations,
+    bench_fold_operations,
+    bench_memory_allocation,
+    bench_performance_targets
+);
+
+criterion_main!(benches);

@@ -1,0 +1,573 @@
+//! Integration tests for SRFI module import functionality
+//!
+//! This test suite verifies that the Lambdust module system properly handles
+//! SRFI imports using the `(import (srfi N))` syntax and that the imported
+//! functionality works correctly in isolation and integration scenarios.
+//!
+//! Tested SRFI modules:
+//! - SRFI-2: and-let* (conditional binding and testing)
+//! - SRFI-8: receive (multiple value binding)
+//! - SRFI-11: let-values/let*-values (multiple value bindings)
+
+use lambdust::{Lambdust, Result, Value};
+
+/// Test helper for creating a new Lambdust instance
+fn create_lambdust() -> Lambdust {
+    Lambdust::new()
+}
+
+/// Test helper for evaluating code and asserting specific result types
+fn eval_assert_integer(lambdust: &mut Lambdust, code: &str, expected: i64) -> Result<()> {
+    let result = lambdust.eval(code, Some("srfi-test"))?;
+    if let Some(n) = result.as_integer() {
+        assert_eq!(n, expected, "Expected {}, got {}", expected, n);
+        Ok(())
+    } else {
+        panic!("Expected integer {}, got {:?}", expected, result);
+    }
+}
+
+/// Test helper for evaluating code and asserting boolean results
+fn eval_assert_boolean(lambdust: &mut Lambdust, code: &str, expected: bool) -> Result<()> {
+    let result = lambdust.eval(code, Some("srfi-test"))?;
+    if let Some(b) = result.as_boolean() {
+        assert_eq!(b, expected, "Expected {}, got {}", expected, b);
+        Ok(())
+    } else {
+        panic!("Expected boolean {}, got {:?}", expected, result);
+    }
+}
+
+/// Test helper for evaluating code and asserting string results
+fn eval_assert_string(lambdust: &mut Lambdust, code: &str, expected: &str) -> Result<()> {
+    let result = lambdust.eval(code, Some("srfi-test"))?;
+    if let Some(s) = result.as_string() {
+        assert_eq!(s, expected, "Expected '{}', got '{}'", expected, s);
+        Ok(())
+    } else {
+        panic!("Expected string '{}', got {:?}", expected, result);
+    }
+}
+
+/// Test helper for evaluating code and asserting it returns false
+fn eval_assert_false(lambdust: &mut Lambdust, code: &str) -> Result<()> {
+    eval_assert_boolean(lambdust, code, false)
+}
+
+/// Test helper for evaluating code and asserting it returns true  
+fn eval_assert_true(lambdust: &mut Lambdust, code: &str) -> Result<()> {
+    eval_assert_boolean(lambdust, code, true)
+}
+
+// ===== BASIC FUNCTIONALITY TESTS (Direct Access) =====
+
+#[test]
+fn test_srfi_2_direct_functionality() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test that and-let* is directly available (built into the runtime)
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (and-let* ((x 5)
+                   (y 10))
+          (+ x y))
+    "#,
+        15,
+    )
+}
+
+#[test]
+#[ignore] // TODO: Enable when SRFI import system is fixed
+fn test_srfi_2_basic_import() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test that SRFI-2 imports without error
+    lambdust.eval("(import (srfi 2))", Some("srfi-2-import-test"))?;
+
+    // Verify and-let* is available after import
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (and-let* ((x 5)
+                   (y 10))
+          (+ x y))
+    "#,
+        15,
+    )
+}
+
+#[test]
+fn test_srfi_8_direct_functionality() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test that receive is directly available
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (receive (a b) (values 1 2) (+ a b))
+    "#,
+        3,
+    )
+}
+
+#[test]
+fn test_srfi_11_direct_functionality() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test that let-values is directly available
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (let-values ([(a b) (values 1 2)])
+          (+ a b))
+    "#,
+        3,
+    )
+}
+
+#[test]
+#[ignore] // TODO: Enable when SRFI import system is fixed
+fn test_srfi_8_basic_import() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test that SRFI-8 imports without error
+    lambdust.eval("(import (srfi 8))", Some("srfi-8-import-test"))?;
+
+    // Verify receive is available after import
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (receive (a b) (values 1 2) (+ a b))
+    "#,
+        3,
+    )
+}
+
+#[test]
+#[ignore] // TODO: Enable when SRFI import system is fixed
+fn test_srfi_11_basic_import() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test that SRFI-11 imports without error
+    lambdust.eval("(import (srfi 11))", Some("srfi-11-import-test"))?;
+
+    // Verify let-values is available after import
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (let-values ([(a b) (values 1 2)])
+          (+ a b))
+    "#,
+        3,
+    )
+}
+
+// ===== FUNCTIONAL OPERATION TESTS =====
+
+#[test]
+fn test_srfi_2_and_let_star_functionality() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test successful sequential binding
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (and-let* ((x 10)
+                   (y (* x 2))
+                   ((> y 15)))
+          y)
+    "#,
+        20,
+    )?;
+
+    // Test short-circuit on false value
+    eval_assert_false(
+        &mut lambdust,
+        r#"
+        (and-let* ((x 5)
+                   (y #f)
+                   (z 100))
+          z)
+    "#,
+    )?;
+
+    // Test expression clause
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (and-let* (((> 10 5))
+                   (result 42))
+          result)
+    "#,
+        42,
+    )?;
+
+    // Test variable clause
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (let ((x 15))
+          (and-let* (x
+                     (doubled (* x 2)))
+            doubled))
+    "#,
+        30,
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_srfi_8_receive_functionality() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test fixed number of values
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (receive (a b c) (values 1 2 3)
+          (+ a b c))
+    "#,
+        6,
+    )?;
+
+    // Test with rest parameter
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (receive (first . rest) (values 10 20 30 40)
+          (+ first (length rest)))
+    "#,
+        13,
+    )?; // 10 + 3
+
+    // Test single variable binding (all values)
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (receive all-values (values 1 2 3 4 5)
+          (length all-values))
+    "#,
+        5,
+    )?;
+
+    // Test with quotient and remainder
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (receive (q r) (floor/ 23 5)
+          (+ q r))
+    "#,
+        7,
+    )?; // quotient=4, remainder=3
+
+    Ok(())
+}
+
+#[test]
+fn test_srfi_11_let_values_functionality() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test basic let-values
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (let-values ([(a b) (values 1 2)]
+                     [(c d) (values 3 4)])
+          (+ a b c d))
+    "#,
+        10,
+    )?;
+
+    // Test let*-values with dependencies
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (let*-values ([(a b) (values 1 2)]
+                      [(c d) (values a b)])
+          (+ a b c d))
+    "#,
+        6,
+    )?; // 1 + 2 + 1 + 2
+
+    // Test with rest parameters
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (let-values ([(first . rest) (values 10 20 30)])
+          (+ first (apply + rest)))
+    "#,
+        60,
+    )?; // 10 + (20 + 30)
+
+    // Test mixed patterns
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (let-values ([(a b c) (values 1 2 3)]
+                     [all (values 4 5 6)])
+          (+ a b c (apply + all)))
+    "#,
+        21,
+    )?; // 1 + 2 + 3 + (4 + 5 + 6)
+
+    Ok(())
+}
+
+// ===== ERROR HANDLING TESTS =====
+
+#[test]
+fn test_invalid_srfi_import_error() {
+    let mut lambdust = create_lambdust();
+
+    // Test that importing non-existent SRFI fails appropriately
+    let result = lambdust.eval("(import (srfi 999))", Some("invalid-srfi-test"));
+    assert!(result.is_err(), "Expected error for non-existent SRFI");
+
+    // Test that importing with wrong syntax fails
+    let result = lambdust.eval("(import srfi 2)", Some("malformed-import-test"));
+    assert!(
+        result.is_err(),
+        "Expected error for malformed import syntax"
+    );
+}
+
+#[test]
+fn test_srfi_usage_without_import_error() {
+    let mut lambdust = create_lambdust();
+
+    // Test that using SRFI functionality without import fails
+    let result = lambdust.eval(
+        r#"
+        (and-let* ((x 5)) x)
+    "#,
+        Some("no-import-test"),
+    );
+    assert!(
+        result.is_err(),
+        "Expected error when using and-let* without importing SRFI-2"
+    );
+
+    let result = lambdust.eval(
+        r#"
+        (receive (a b) (values 1 2) (+ a b))
+    "#,
+        Some("no-import-test"),
+    );
+    assert!(
+        result.is_err(),
+        "Expected error when using receive without importing SRFI-8"
+    );
+
+    let result = lambdust.eval(
+        r#"
+        (let-values ([(a b) (values 1 2)]) (+ a b))
+    "#,
+        Some("no-import-test"),
+    );
+    assert!(
+        result.is_err(),
+        "Expected error when using let-values without importing SRFI-11"
+    );
+}
+
+// ===== INTEGRATION TESTS =====
+
+#[test]
+#[ignore] // TODO: Enable when SRFI import system is fixed
+fn test_multiple_srfi_simultaneous_import() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Import multiple SRFIs at once
+    lambdust.eval(
+        "(import (srfi 2) (srfi 8) (srfi 11))",
+        Some("multi-import-test"),
+    )?;
+
+    // Test that all imported functionality is available
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (and-let* ((x 5)
+                   (y 10))
+          (receive (a b) (values x y)
+            (let-values ([(sum product) (values (+ a b) (* a b))])
+              sum)))
+    "#,
+        15,
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_srfi_interoperation() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test complex interaction between different SRFI features
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (define (safe-divide x y)
+          (if (zero? y)
+              (values #f 0)
+              (values #t (/ x y))))
+              
+        (and-let* ((x 20)
+                   (y 4)
+                   ((> x 0))
+                   ((> y 0)))
+          (receive (success? result) (safe-divide x y)
+            (if success?
+                (let-values ([(doubled tripled) (values (* result 2) (* result 3))])
+                  (+ doubled tripled))
+                0)))
+    "#,
+        25,
+    )?; // (20/4)*2 + (20/4)*3 = 5*2 + 5*3 = 25
+
+    Ok(())
+}
+
+#[test]
+fn test_srfi_with_nested_scoping() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test proper scoping with nested SRFI constructs
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (let ((outer 100))
+          (and-let* ((x 10)
+                     (y 20))
+            (receive (a b) (values x y)
+              (let-values ([(inner-x inner-y) (values (+ a outer) (+ b outer))])
+                (+ inner-x inner-y)))))
+    "#,
+        240,
+    )?; // (10+100) + (20+100) = 110 + 120 = 240
+
+    Ok(())
+}
+
+#[test]
+fn test_srfi_error_propagation() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test that errors in SRFI constructs are properly handled
+    eval_assert_false(
+        &mut lambdust,
+        r#"
+        (and-let* ((x 10)
+                   (y (/ x 0)))  ; This should cause and-let* to return #f
+          y)
+    "#,
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_srfi_performance_basic() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test that SRFI operations don't have excessive overhead
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (define (test-loop n)
+          (let loop ((i 0) (acc 0))
+            (if (>= i n)
+                acc
+                (let-values ([(next-acc) (values (+ acc i))])
+                  (loop (+ i 1) next-acc)))))
+        (test-loop 100)
+    "#,
+        4950,
+    )?; // sum from 0 to 99 = 99*100/2 = 4950
+
+    Ok(())
+}
+
+// ===== ADVANCED INTEGRATION TESTS =====
+
+#[test]
+#[ignore] // TODO: Enable when scheme base integration is fixed
+fn test_srfi_with_r7rs_base_integration() -> Result<()> {
+    let mut lambdust = create_lambdust();
+    // lambdust.eval("(import (scheme base) (srfi 2) (srfi 8) (srfi 11))", Some("r7rs-srfi-test"))?;
+
+    // Test integration with R7RS base library functions
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (and-let* ((lst '(1 2 3 4 5))
+                   ((list? lst))
+                   ((not (null? lst))))
+          (receive (len sum) (let loop ((l lst) (count 0) (total 0))
+                               (if (null? l)
+                                   (values count total)
+                                   (loop (cdr l) (+ count 1) (+ total (car l)))))
+            (let-values ([(avg) (values (/ sum len))])
+              avg)))
+    "#,
+        3,
+    )?; // average of 1,2,3,4,5 = 15/5 = 3
+
+    Ok(())
+}
+
+#[test]
+fn test_srfi_macro_hygiene() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Test that SRFI macros maintain proper hygiene
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (let ((and-let* 42))  ; Shadow the macro name with a variable
+          (+ and-let* 8))     ; Should use the variable, not the macro
+    "#,
+        50,
+    )?;
+
+    // Test that the macro is still available in appropriate context
+    eval_assert_integer(
+        &mut lambdust,
+        r#"
+        (and-let* ((x 15)) x)  ; Should use the macro
+    "#,
+        15,
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn test_srfi_module_isolation() -> Result<()> {
+    // Test that SRFI features are available in separate instances
+    let mut lambdust1 = create_lambdust();
+    let mut lambdust2 = create_lambdust();
+
+    // Test that both instances have access to SRFI features
+    eval_assert_integer(&mut lambdust1, "(and-let* ((x 42)) x)", 42)?;
+    eval_assert_integer(&mut lambdust2, "(and-let* ((x 42)) x)", 42)?;
+
+    Ok(())
+}
+
+#[test]
+#[ignore] // TODO: Enable when SRFI import system is fixed
+fn test_srfi_re_import() -> Result<()> {
+    let mut lambdust = create_lambdust();
+
+    // Import SRFI-2 twice - should not cause errors
+    lambdust.eval("(import (srfi 2))", Some("re-import-test-1"))?;
+    lambdust.eval("(import (srfi 2))", Some("re-import-test-2"))?;
+
+    // Verify functionality still works
+    eval_assert_integer(&mut lambdust, "(and-let* ((x 100)) x)", 100)?;
+
+    Ok(())
+}

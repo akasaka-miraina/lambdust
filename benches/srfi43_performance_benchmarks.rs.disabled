@@ -1,0 +1,515 @@
+//! SRFI-43 Vector Library Performance Benchmarks
+//!
+//! This benchmark suite validates the performance improvements of the optimized
+//! SRFI-43 implementation against the pure Scheme version and standard Rust Vec.
+//!
+//! ## Benchmark Categories:
+//! - Constructor operations (make-vector, vector-unfold, vector-copy)
+//! - Access operations (vector-ref, vector-length, slicing)
+//! - Iteration operations (vector-map, vector-fold, vector-for-each)
+//! - Search operations (vector-index, vector-binary-search)
+//! - Mutator operations (vector-set!, vector-fill!, vector-copy!)
+//! - Memory efficiency (allocation patterns, cache performance)
+//!
+//! ## Performance Targets:
+//! - 5-10x improvement over pure Scheme implementations
+//! - Sub-microsecond operation times for common operations
+//! - >90% cache hit rates for frequently accessed vectors
+//! - <10% memory overhead compared to raw Vec<Value>
+
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use lambdust::containers::srfi43_vectors::{Srfi43Vector, constructors, iterators};
+use lambdust::eval::environment::Environment;
+use lambdust::eval::value::Value;
+use std::time::{Duration, Instant};
+// use lambdust::stdlib::srfi43_optimized; // Module removed
+
+/// Benchmark vector construction operations
+fn bench_vector_constructors(c: &mut Criterion) {
+    let mut group = c.benchmark_group("vector_constructors");
+
+    for size in [10, 100, 1000, 5000].iter() {
+        group.throughput(Throughput::Elements(*size as u64));
+
+        // Benchmark Srfi43Vector::from_values
+        group.bench_with_input(
+            BenchmarkId::new("srfi43_from_values", size),
+            size,
+            |b, &size| {
+                let values: Vec<Value> = (0..size).map(|i| Value::number(i as f64)).collect();
+                b.iter(|| {
+                    let vec = Srfi43Vector::from_values(black_box(&values));
+                    black_box(vec)
+                });
+            },
+        );
+
+        // Benchmark standard Vec<Value> construction for comparison
+        group.bench_with_input(BenchmarkId::new("standard_vec", size), size, |b, &size| {
+            b.iter(|| {
+                let vec: Vec<Value> = (0..size).map(|i| Value::number(i as f64)).collect();
+                black_box(vec)
+            });
+        });
+
+        // Benchmark optimized vector-unfold
+        group.bench_with_input(
+            BenchmarkId::new("vector_unfold_optimized", size),
+            size,
+            |b, &size| {
+                let mut env = Environment::new();
+                let generator = create_test_generator();
+                let args = vec![generator, Value::number(size as f64), Value::number(0.0)];
+
+                b.iter(|| {
+                    let result =
+                        srfi43_optimized::vector_unfold_optimized(black_box(&args), &mut env)
+                            .unwrap();
+                    black_box(result)
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark vector access operations
+fn bench_vector_access(c: &mut Criterion) {
+    let mut group = c.benchmark_group("vector_access");
+
+    let sizes = [100, 1000, 10000];
+
+    for &size in &sizes {
+        // Create test vectors
+        let values: Vec<Value> = (0..size).map(|i| Value::number(i as f64)).collect();
+        let srfi43_vec = Srfi43Vector::from_values(&values);
+        let standard_vec = Value::vector(values.clone());
+
+        group.throughput(Throughput::Elements(1000)); // 1000 random accesses
+
+        // Benchmark Srfi43Vector random access
+        group.bench_with_input(
+            BenchmarkId::new("srfi43_random_access", size),
+            &size,
+            |b, &size| {
+                let indices: Vec<usize> = (0..1000).map(|i| i % size).collect();
+                b.iter(|| {
+                    for &idx in &indices {
+                        let val = srfi43_vec.get(black_box(idx));
+                        black_box(val);
+                    }
+                });
+            },
+        );
+
+        // Benchmark standard vector random access
+        group.bench_with_input(
+            BenchmarkId::new("standard_random_access", size),
+            &size,
+            |b, &size| {
+                let indices: Vec<usize> = (0..1000).map(|i| i % size).collect();
+                b.iter(|| {
+                    if let Some(vec_ref) = standard_vec.as_vector() {
+                        let vec_borrowed = vec_ref.borrow();
+                        for &idx in &indices {
+                            if idx < vec_borrowed.len() {
+                                let val = &vec_borrowed[black_box(idx)];
+                                black_box(val);
+                            }
+                        }
+                    }
+                });
+            },
+        );
+
+        // Benchmark sequential access (cache-friendly)
+        group.bench_with_input(
+            BenchmarkId::new("srfi43_sequential_access", size),
+            &size,
+            |b, &_size| {
+                b.iter(|| {
+                    let length = srfi43_vec.length();
+                    for i in 0..length {
+                        let val = srfi43_vec.get(black_box(i));
+                        black_box(val);
+                    }
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark vector iteration operations
+fn bench_vector_iteration(c: &mut Criterion) {
+    let mut group = c.benchmark_group("vector_iteration");
+
+    for size in [100, 1000, 5000].iter() {
+        let values: Vec<Value> = (0..size).map(|i| Value::number(i as f64)).collect();
+        let srfi43_vec = Srfi43Vector::from_values(&values);
+        let standard_vec = Value::vector(values.clone());
+
+        group.throughput(Throughput::Elements(*size as u64));
+
+        // Benchmark optimized vector-map
+        group.bench_with_input(
+            BenchmarkId::new("vector_map_optimized", size),
+            size,
+            |b, &_size| {
+                let mut env = Environment::new();
+                let mapper = create_square_mapper();
+                let args = vec![mapper, standard_vec.clone()];
+
+                b.iter(|| {
+                    let result =
+                        srfi43_optimized::vector_map_optimized(black_box(&args), &mut env).unwrap();
+                    black_box(result)
+                });
+            },
+        );
+
+        // Benchmark SRFI43Vector iterators::map
+        group.bench_with_input(
+            BenchmarkId::new("srfi43_iterators_map", size),
+            size,
+            |b, &_size| {
+                b.iter(|| {
+                    let result = iterators::map(black_box(&srfi43_vec), |val| {
+                        if let Some(n) = val.as_number() {
+                            Value::number(n * n)
+                        } else {
+                            val
+                        }
+                    });
+                    black_box(result)
+                });
+            },
+        );
+
+        // Benchmark optimized vector-fold
+        group.bench_with_input(
+            BenchmarkId::new("vector_fold_optimized", size),
+            size,
+            |b, &_size| {
+                let mut env = Environment::new();
+                let combiner = create_sum_combiner();
+                let args = vec![combiner, Value::number(0.0), standard_vec.clone()];
+
+                b.iter(|| {
+                    let result =
+                        srfi43_optimized::vector_fold_optimized(black_box(&args), &mut env)
+                            .unwrap();
+                    black_box(result)
+                });
+            },
+        );
+
+        // Benchmark SRFI43Vector iterators::fold
+        group.bench_with_input(
+            BenchmarkId::new("srfi43_iterators_fold", size),
+            size,
+            |b, &_size| {
+                b.iter(|| {
+                    let result = iterators::fold(
+                        black_box(&srfi43_vec),
+                        Value::number(0.0),
+                        |_idx, elem, acc| {
+                            let elem_num = elem.as_number().unwrap_or(0.0);
+                            let acc_num = acc.as_number().unwrap_or(0.0);
+                            Value::number(elem_num + acc_num)
+                        },
+                    );
+                    black_box(result)
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark vector search operations
+fn bench_vector_search(c: &mut Criterion) {
+    let mut group = c.benchmark_group("vector_search");
+
+    for size in [100, 1000, 10000].iter() {
+        // Create sorted vector for binary search
+        let values: Vec<Value> = (0..*size)
+            .step_by(2)
+            .map(|i| Value::number(i as f64))
+            .collect();
+        let sorted_vec = Value::vector(values);
+
+        group.throughput(Throughput::Elements(100)); // 100 search operations
+
+        // Benchmark optimized binary search
+        group.bench_with_input(
+            BenchmarkId::new("binary_search_optimized", size),
+            size,
+            |b, &size| {
+                let mut env = Environment::new();
+                let comparator = create_numeric_comparator();
+                let search_targets: Vec<Value> = (0..100)
+                    .map(|i| Value::number(((i * size / 50) * 2) as f64))
+                    .collect();
+
+                b.iter(|| {
+                    for target in &search_targets {
+                        let args = vec![sorted_vec.clone(), target.clone(), comparator.clone()];
+                        let result = srfi43_optimized::vector_binary_search_optimized(
+                            black_box(&args),
+                            &mut env,
+                        )
+                        .unwrap();
+                        black_box(result);
+                    }
+                });
+            },
+        );
+
+        // Benchmark linear search for comparison
+        group.bench_with_input(BenchmarkId::new("linear_search", size), size, |b, &size| {
+            let search_targets: Vec<f64> = (0..100).map(|i| ((i * size / 50) * 2) as f64).collect();
+
+            b.iter(|| {
+                if let Some(vec_ref) = sorted_vec.as_vector() {
+                    let vec_borrowed = vec_ref.borrow();
+                    for &target in &search_targets {
+                        for (idx, val) in vec_borrowed.iter().enumerate() {
+                            if let Some(n) = val.as_number() {
+                                if n == target {
+                                    black_box(idx);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    }
+
+    group.finish();
+}
+
+/// Benchmark vector copy operations
+fn bench_vector_copy(c: &mut Criterion) {
+    let mut group = c.benchmark_group("vector_copy");
+
+    for size in [100, 1000, 10000].iter() {
+        let values: Vec<Value> = (0..size).map(|i| Value::number(i as f64)).collect();
+        let source_vec = Value::vector(values);
+
+        group.throughput(Throughput::Elements(*size as u64));
+
+        // Benchmark optimized vector-copy (full copy)
+        group.bench_with_input(
+            BenchmarkId::new("vector_copy_optimized_full", size),
+            size,
+            |b, &_size| {
+                let mut env = Environment::new();
+                let args = vec![source_vec.clone()];
+
+                b.iter(|| {
+                    let result =
+                        srfi43_optimized::vector_copy_optimized(black_box(&args), &mut env)
+                            .unwrap();
+                    black_box(result)
+                });
+            },
+        );
+
+        // Benchmark optimized vector-copy (partial copy)
+        group.bench_with_input(
+            BenchmarkId::new("vector_copy_optimized_partial", size),
+            size,
+            |b, &size| {
+                let mut env = Environment::new();
+                let start = size / 4;
+                let end = (size * 3) / 4;
+                let args = vec![
+                    source_vec.clone(),
+                    Value::number(start as f64),
+                    Value::number(end as f64),
+                ];
+
+                b.iter(|| {
+                    let result =
+                        srfi43_optimized::vector_copy_optimized(black_box(&args), &mut env)
+                            .unwrap();
+                    black_box(result)
+                });
+            },
+        );
+
+        // Benchmark standard Vec clone for comparison
+        group.bench_with_input(
+            BenchmarkId::new("standard_vec_clone", size),
+            size,
+            |b, &_size| {
+                b.iter(|| {
+                    if let Some(vec_ref) = source_vec.as_vector() {
+                        let vec_borrowed = vec_ref.borrow();
+                        let cloned = vec_borrowed.clone();
+                        black_box(cloned)
+                    }
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark memory usage and allocation patterns
+fn bench_memory_efficiency(c: &mut Criterion) {
+    let mut group = c.benchmark_group("memory_efficiency");
+
+    // Test allocation and deallocation patterns
+    group.bench_function("allocation_deallocation_cycle", |b| {
+        b.iter(|| {
+            let values: Vec<Value> = (0..1000).map(|i| Value::number(i as f64)).collect();
+            let vec = Srfi43Vector::from_values(black_box(&values));
+            drop(black_box(vec));
+        });
+    });
+
+    // Test memory reuse patterns
+    group.bench_function("memory_reuse_pattern", |b| {
+        let mut vec = Srfi43Vector::with_capacity(1000);
+
+        b.iter(|| {
+            // Fill vector
+            for i in 0..1000 {
+                vec.push(black_box(Value::number(i as f64)));
+            }
+
+            // Clear and reuse
+            vec.clear();
+        });
+    });
+
+    // Test cache performance with access patterns
+    group.bench_function("cache_performance_sequential", |b| {
+        let values: Vec<Value> = (0..10000).map(|i| Value::number(i as f64)).collect();
+        let vec = Srfi43Vector::from_values(&values);
+
+        b.iter(|| {
+            // Sequential access pattern (cache-friendly)
+            for i in 0..10000 {
+                let val = vec.get(black_box(i));
+                black_box(val);
+            }
+        });
+    });
+
+    group.bench_function("cache_performance_random", |b| {
+        let values: Vec<Value> = (0..10000).map(|i| Value::number(i as f64)).collect();
+        let vec = Srfi43Vector::from_values(&values);
+        let random_indices: Vec<usize> = (0..10000)
+            .map(|i| (i * 7919) % 10000) // Pseudo-random pattern
+            .collect();
+
+        b.iter(|| {
+            // Random access pattern (cache-unfriendly)
+            for &idx in &random_indices {
+                let val = vec.get(black_box(idx));
+                black_box(val);
+            }
+        });
+    });
+
+    group.finish();
+}
+
+/// Helper function to create a test generator for unfold benchmarks
+fn create_test_generator() -> Value {
+    use lambdust::eval::unified_eval_errors::EvalUnifiedError;
+    use std::sync::Arc;
+
+    Value::Procedure(Arc::new(|args: &[Value], _env: &mut Environment| {
+        if args.len() >= 2 {
+            let i = args[0].as_number().unwrap_or(0.0);
+            Ok(Value::number(i * 2.0)) // Simple doubling generator
+        } else {
+            Err(EvalUnifiedError::ArityError {
+                expected: "at least 2".to_string(),
+                actual: args.len(),
+                procedure: "test-generator".to_string(),
+            })
+        }
+    }))
+}
+
+/// Helper function to create a square mapping function
+fn create_square_mapper() -> Value {
+    use lambdust::eval::unified_eval_errors::EvalUnifiedError;
+    use std::sync::Arc;
+
+    Value::Procedure(Arc::new(|args: &[Value], _env: &mut Environment| {
+        if args.len() == 1 {
+            let n = args[0].as_number().unwrap_or(0.0);
+            Ok(Value::number(n * n))
+        } else {
+            Err(EvalUnifiedError::ArityError {
+                expected: "1".to_string(),
+                actual: args.len(),
+                procedure: "square-mapper".to_string(),
+            })
+        }
+    }))
+}
+
+/// Helper function to create a sum combiner for fold benchmarks
+fn create_sum_combiner() -> Value {
+    use lambdust::eval::unified_eval_errors::EvalUnifiedError;
+    use std::sync::Arc;
+
+    Value::Procedure(Arc::new(|args: &[Value], _env: &mut Environment| {
+        if args.len() == 3 {
+            let elem = args[1].as_number().unwrap_or(0.0);
+            let acc = args[2].as_number().unwrap_or(0.0);
+            Ok(Value::number(elem + acc))
+        } else {
+            Err(EvalUnifiedError::ArityError {
+                expected: "3".to_string(),
+                actual: args.len(),
+                procedure: "sum-combiner".to_string(),
+            })
+        }
+    }))
+}
+
+/// Helper function to create a numeric comparator
+fn create_numeric_comparator() -> Value {
+    use lambdust::eval::unified_eval_errors::EvalUnifiedError;
+    use std::sync::Arc;
+
+    Value::Procedure(Arc::new(|args: &[Value], _env: &mut Environment| {
+        if args.len() == 2 {
+            let a = args[0].as_number().unwrap_or(0.0);
+            let b = args[1].as_number().unwrap_or(0.0);
+            Ok(Value::number(a - b))
+        } else {
+            Err(EvalUnifiedError::ArityError {
+                expected: "2".to_string(),
+                actual: args.len(),
+                procedure: "numeric-comparator".to_string(),
+            })
+        }
+    }))
+}
+
+criterion_group!(
+    benches,
+    bench_vector_constructors,
+    bench_vector_access,
+    bench_vector_iteration,
+    bench_vector_search,
+    bench_vector_copy,
+    bench_memory_efficiency
+);
+
+criterion_main!(benches);

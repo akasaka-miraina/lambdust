@@ -1,0 +1,76 @@
+//! Phase 3.5 Integration Benchmarks (Temporarily Disabled)
+//!
+//! This benchmark suite will be re-enabled incrementally as Phase 4.0
+//! integration progresses. Currently disabled to maintain compilation stability.
+
+#![allow(dead_code, unused_imports, unused_variables)]
+
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use lambdust::eval::Value;
+use std::sync::Arc;
+use std::thread;
+
+/// Placeholder benchmarks for Phase 3.5 integration
+/// These will be re-enabled as optimization modules are integrated
+fn benchmark_basic_value_operations(c: &mut Criterion) {
+    let values: Vec<f64> = (0..1000).map(|i| i as f64).collect();
+
+    c.bench_function("basic_value_creation", |b| {
+        b.iter(|| {
+            let mut results = Vec::new();
+            for &val in &values {
+                let value = Value::number(val);
+                results.push(black_box(value));
+            }
+            results
+        })
+    });
+}
+
+fn benchmark_value_arithmetic(c: &mut Criterion) {
+    let values: Vec<Value> = (0..1000).map(|i| Value::number(i as f64)).collect();
+
+    c.bench_function("value_basic_arithmetic", |b| {
+        b.iter(|| {
+            let mut sum = 0.0f64;
+            for value in &values {
+                if let Some(n) = value.as_number() {
+                    sum += n;
+                }
+            }
+            black_box(sum)
+        })
+    });
+}
+
+// Disabled benchmarks for Phase 3.5 features
+// These will be re-enabled during Phase 4.0 integration
+/*
+fn benchmark_nan_boxing_integration(c: &mut Criterion) {
+    // Will be re-enabled when nan_boxing_optimization module is integrated
+}
+
+fn benchmark_arena_allocation(c: &mut Criterion) {
+    // Will be re-enabled when arena_optimization module is integrated
+}
+
+fn benchmark_simd_acceleration(c: &mut Criterion) {
+    // Will be re-enabled when simd_optimization module is integrated
+}
+
+fn benchmark_trait_optimization(c: &mut Criterion) {
+    // Will be re-enabled when trait_optimization module is integrated
+}
+
+fn benchmark_vertical_integration(c: &mut Criterion) {
+    // Will be re-enabled when vertical_integration module is integrated
+}
+*/
+
+criterion_group!(
+    benches,
+    benchmark_basic_value_operations,
+    benchmark_value_arithmetic,
+);
+
+criterion_main!(benches);

@@ -206,6 +206,7 @@ fn execute_file(lambdust: &mut Lambdust, filename: &str, type_check_only: bool) 
 }
 
 #[cfg(feature = "repl")]
+#[allow(dead_code)]
 fn start_repl(lambdust: &mut Lambdust) -> Result<()> {
     println!(
         "{}",
@@ -307,6 +308,7 @@ fn start_enhanced_repl(lambdust: Lambdust) -> Result<()> {
 }
 
 #[cfg(feature = "repl")]
+#[allow(dead_code)]
 fn evaluate_repl_expression(
     lambdust: &mut Lambdust,
     source: &str,
@@ -319,6 +321,7 @@ fn evaluate_repl_expression(
 }
 
 #[cfg(feature = "repl")]
+#[allow(dead_code)]
 fn print_repl_help() {
     println!("{}", "Lambdust REPL Commands:".bright_blue().bold());
     println!("  {}  - Show this help", ":help, :h".bright_yellow());

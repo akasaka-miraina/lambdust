@@ -1,0 +1,449 @@
+//! SRFI-9 Records Performance Benchmarks
+//!
+//! This benchmark suite validates the performance targets for the
+//! high-performance SRFI-9 implementation:
+//! - Record creation: 10-20ns per instance (5-10x improvement)
+//! - Field access: <1ns for hot paths, <5ns for cold paths
+//! - SIMD bulk operations: 4-8x speedup for collections of 4+ records
+//! - Memory efficiency: 60-80% reduction vs. individual heap allocation
+
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use lambdust::eval::nan_boxed_value::NanBoxedValue;
+use lambdust::eval::record_access::{BulkRecordOperations, FieldAccessCache};
+use lambdust::eval::record_arena::{ArenaConfig, RecordArena};
+use lambdust::eval::record_instance::RecordInstance;
+use lambdust::eval::record_type::{GLOBAL_RECORD_REGISTRY, RecordTypeDescriptor};
+use lambdust::stdlib::srfi9_optimization::{GLOBAL_RECORD_PERFORMANCE_MONITOR, RecordOperation};
+use std::hint::black_box as hint_black_box;
+use std::ptr::NonNull;
+use std::time::Instant;
+
+/// Helper function to create a benchmark record type
+fn create_benchmark_type(
+    name: &str,
+    field_count: usize,
+) -> lambdust::eval::record_type::RecordTypeId {
+    let field_names: Vec<String> = (0..field_count).map(|i| format!("field{}", i)).collect();
+
+    let desc = RecordTypeDescriptor::new(name.to_string(), field_names);
+    let type_id = desc.type_id;
+    GLOBAL_RECORD_REGISTRY.register_type(desc);
+    type_id
+}
+
+/// Benchmark record creation performance
+fn benchmark_record_creation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("record_creation");
+
+    // Test different field counts
+    for field_count in [1, 2, 4, 8, 16].iter() {
+        let type_id = create_benchmark_type(&format!("create_test_{}", field_count), *field_count);
+        let values: Vec<NanBoxedValue> = (0..*field_count)
+            .map(|i| NanBoxedValue::small_integer(i as i32))
+            .collect();
+
+        group.throughput(Throughput::Elements(1));
+        group.bench_with_input(
+            BenchmarkId::new("fields", field_count),
+            field_count,
+            |b, _| {
+                b.iter(|| {
+                    let instance = RecordInstance::new(type_id, &values).unwrap();
+                    hint_black_box(instance)
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark field access performance
+fn benchmark_field_access(c: &mut Criterion) {
+    let mut group = c.benchmark_group("field_access");
+
+    let type_id = create_benchmark_type("access_test", 4);
+    let values = vec![
+        NanBoxedValue::small_integer(10),
+        NanBoxedValue::small_integer(20),
+        NanBoxedValue::small_integer(30),
+        NanBoxedValue::small_integer(40),
+    ];
+    let instance = RecordInstance::new(type_id, &values).unwrap();
+
+    // Direct field access (hot path)
+    group.bench_function("direct_access_hot", |b| {
+        b.iter(|| unsafe {
+            let value = instance.as_ref().get_field_fast(0);
+            hint_black_box(value)
+        });
+    });
+
+    // Bounds-checked access (cold path)
+    group.bench_function("bounds_checked_access", |b| {
+        b.iter(|| {
+            let value = instance.as_ref().get_field(0).unwrap();
+            hint_black_box(value)
+        });
+    });
+
+    // Named field access (coldest path)
+    group.bench_function("named_field_access", |b| {
+        b.iter(|| {
+            let value = instance.as_ref().get_field_by_name("field0").unwrap();
+            hint_black_box(value)
+        });
+    });
+
+    group.finish();
+}
+
+/// Benchmark cached field access performance
+fn benchmark_cached_field_access(c: &mut Criterion) {
+    let mut group = c.benchmark_group("cached_field_access");
+
+    let type_id = create_benchmark_type("cached_test", 3);
+    let values = vec![
+        NanBoxedValue::small_integer(100),
+        NanBoxedValue::small_integer(200),
+        NanBoxedValue::small_integer(300),
+    ];
+    let instance = RecordInstance::new(type_id, &values).unwrap();
+    let cache = FieldAccessCache::new();
+    let site_id = cache.allocate_site_id();
+
+    // Warm up the cache
+    for _ in 0..10 {
+        cache
+            .get_field_cached(unsafe { instance.as_ref() }, "field0", site_id)
+            .unwrap();
+    }
+
+    // Benchmark cached access
+    group.bench_function("cached_hit", |b| {
+        b.iter(|| {
+            let value = cache
+                .get_field_cached(unsafe { instance.as_ref() }, "field0", site_id)
+                .unwrap();
+            hint_black_box(value)
+        });
+    });
+
+    // Benchmark cache miss (different field each time)
+    let mut field_counter = 0;
+    group.bench_function("cached_miss", |b| {
+        b.iter(|| {
+            let field_name = format!("field{}", field_counter % 3);
+            let new_site_id = cache.allocate_site_id();
+            let value = cache
+                .get_field_cached(unsafe { instance.as_ref() }, &field_name, new_site_id)
+                .unwrap();
+            field_counter += 1;
+            hint_black_box(value)
+        });
+    });
+
+    group.finish();
+}
+
+/// Benchmark SIMD bulk operations
+fn benchmark_simd_bulk_operations(c: &mut Criterion) {
+    let mut group = c.benchmark_group("simd_bulk_operations");
+
+    let type_id = create_benchmark_type("simd_test", 2);
+
+    // Test different batch sizes
+    for &batch_size in &[4, 8, 16, 32, 64, 128] {
+        // Create records for bulk operations
+        let mut records = Vec::new();
+        let mut record_refs = Vec::new();
+
+        for i in 0..batch_size {
+            let values = vec![
+                NanBoxedValue::small_integer(i as i32),
+                NanBoxedValue::small_integer((i * 2) as i32),
+            ];
+            let instance = RecordInstance::new(type_id, &values).unwrap();
+            record_refs.push(unsafe { instance.as_ref() });
+            records.push(instance);
+        }
+
+        let mut results = vec![NanBoxedValue::nil(); batch_size];
+
+        group.throughput(Throughput::Elements(batch_size as u64));
+
+        // Benchmark bulk field extraction
+        group.bench_with_input(
+            BenchmarkId::new("bulk_extract", batch_size),
+            &batch_size,
+            |b, _| {
+                b.iter(|| {
+                    BulkRecordOperations::extract_field_bulk(&record_refs, 0, &mut results)
+                        .unwrap();
+                    hint_black_box(&results)
+                });
+            },
+        );
+
+        // Benchmark individual field extraction for comparison
+        group.bench_with_input(
+            BenchmarkId::new("individual_extract", batch_size),
+            &batch_size,
+            |b, _| {
+                b.iter(|| {
+                    for (i, &record_ref) in record_refs.iter().enumerate() {
+                        results[i] = unsafe { record_ref.get_field_fast(0) };
+                    }
+                    hint_black_box(&results)
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark arena allocation vs standard allocation
+fn benchmark_arena_allocation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("allocation_comparison");
+
+    let arena = RecordArena::new(ArenaConfig::default());
+
+    // Benchmark arena allocation
+    group.bench_function("arena_allocation", |b| {
+        b.iter(|| {
+            if let Some(ptr) = arena.allocate(64) {
+                hint_black_box(ptr);
+                arena.deallocate(ptr, 64);
+            }
+        });
+    });
+
+    // Benchmark standard heap allocation for comparison
+    group.bench_function("heap_allocation", |b| {
+        b.iter(|| {
+            let boxed = Box::new([0u8; 64]);
+            hint_black_box(boxed);
+            // Box is dropped automatically
+        });
+    });
+
+    // Benchmark bulk arena allocation
+    let batch_size = 100;
+    group.throughput(Throughput::Elements(batch_size));
+    group.bench_function("arena_bulk_allocation", |b| {
+        b.iter(|| {
+            let mut ptrs = Vec::with_capacity(batch_size as usize);
+
+            // Allocate
+            for _ in 0..batch_size {
+                if let Some(ptr) = arena.allocate(64) {
+                    ptrs.push(ptr);
+                }
+            }
+
+            // Deallocate
+            for ptr in ptrs {
+                arena.deallocate(ptr, 64);
+            }
+        });
+    });
+
+    // Benchmark bulk heap allocation for comparison
+    group.bench_function("heap_bulk_allocation", |b| {
+        b.iter(|| {
+            let mut boxes = Vec::with_capacity(batch_size as usize);
+
+            for _ in 0..batch_size {
+                boxes.push(Box::new([0u8; 64]));
+            }
+
+            hint_black_box(boxes);
+            // Boxes are dropped automatically
+        });
+    });
+
+    group.finish();
+}
+
+/// Benchmark record comparison performance
+fn benchmark_record_comparison(c: &mut Criterion) {
+    let mut group = c.benchmark_group("record_comparison");
+
+    let type_id = create_benchmark_type("compare_test", 8);
+    let values = vec![
+        NanBoxedValue::small_integer(1),
+        NanBoxedValue::small_integer(2),
+        NanBoxedValue::small_integer(3),
+        NanBoxedValue::small_integer(4),
+        NanBoxedValue::small_integer(5),
+        NanBoxedValue::small_integer(6),
+        NanBoxedValue::small_integer(7),
+        NanBoxedValue::small_integer(8),
+    ];
+
+    let instance1 = RecordInstance::new(type_id, &values).unwrap();
+    let instance2 = RecordInstance::new(type_id, &values).unwrap();
+
+    // Test equal records
+    group.bench_function("equal_records", |b| {
+        b.iter(|| {
+            let result = instance1.as_ref().equals(instance2.as_ref()).unwrap();
+            hint_black_box(result)
+        });
+    });
+
+    // Test unequal records
+    let different_values = vec![
+        NanBoxedValue::small_integer(1),
+        NanBoxedValue::small_integer(2),
+        NanBoxedValue::small_integer(3),
+        NanBoxedValue::small_integer(4),
+        NanBoxedValue::small_integer(5),
+        NanBoxedValue::small_integer(6),
+        NanBoxedValue::small_integer(7),
+        NanBoxedValue::small_integer(99), // Different last field
+    ];
+    let instance3 = RecordInstance::new(type_id, &different_values).unwrap();
+
+    group.bench_function("unequal_records", |b| {
+        b.iter(|| {
+            let result = instance1.as_ref().equals(instance3.as_ref()).unwrap();
+            hint_black_box(result)
+        });
+    });
+
+    group.finish();
+}
+
+/// Benchmark performance monitoring overhead
+fn benchmark_performance_monitoring(c: &mut Criterion) {
+    let mut group = c.benchmark_group("performance_monitoring");
+
+    let type_id = create_benchmark_type("monitor_test", 2);
+
+    // Benchmark with monitoring
+    group.bench_function("with_monitoring", |b| {
+        b.iter(|| {
+            GLOBAL_RECORD_PERFORMANCE_MONITOR.record_type_performance(
+                type_id,
+                RecordOperation::FieldAccess { access_time_ns: 5 },
+            );
+        });
+    });
+
+    // Benchmark without monitoring (baseline)
+    group.bench_function("without_monitoring", |b| {
+        b.iter(|| {
+            // Just a simple operation for comparison
+            hint_black_box(type_id);
+        });
+    });
+
+    group.finish();
+}
+
+/// Comprehensive performance scaling test
+fn benchmark_performance_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("performance_scaling");
+    group.sample_size(10); // Fewer samples for long-running benchmarks
+
+    // Test record creation scaling
+    for &record_count in &[100, 1000, 10000] {
+        let type_id = create_benchmark_type(&format!("scale_test_{}", record_count), 3);
+        let values = vec![
+            NanBoxedValue::small_integer(1),
+            NanBoxedValue::small_integer(2),
+            NanBoxedValue::small_integer(3),
+        ];
+
+        group.throughput(Throughput::Elements(record_count));
+        group.bench_with_input(
+            BenchmarkId::new("create_many_records", record_count),
+            &record_count,
+            |b, &count| {
+                b.iter(|| {
+                    let mut records = Vec::with_capacity(count as usize);
+                    for _ in 0..count {
+                        let instance = RecordInstance::new(type_id, &values).unwrap();
+                        records.push(instance);
+                    }
+                    hint_black_box(records)
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Memory efficiency benchmark
+fn benchmark_memory_efficiency(c: &mut Criterion) {
+    let mut group = c.benchmark_group("memory_efficiency");
+
+    let type_id = create_benchmark_type("memory_test", 4);
+    let values = vec![
+        NanBoxedValue::small_integer(1),
+        NanBoxedValue::small_integer(2),
+        NanBoxedValue::small_integer(3),
+        NanBoxedValue::small_integer(4),
+    ];
+
+    // Measure memory usage of arena-allocated records
+    group.bench_function("arena_memory_usage", |b| {
+        b.iter(|| {
+            let mut records = Vec::with_capacity(1000);
+
+            for _ in 0..1000 {
+                let instance = RecordInstance::new(type_id, &values).unwrap();
+                records.push(instance);
+            }
+
+            hint_black_box(records);
+        });
+    });
+
+    // Compare with standard allocation patterns
+    #[derive(Debug)]
+    struct StandardRecord {
+        field1: i32,
+        field2: i32,
+        field3: i32,
+        field4: i32,
+    }
+
+    group.bench_function("standard_memory_usage", |b| {
+        b.iter(|| {
+            let mut records = Vec::with_capacity(1000);
+
+            for _ in 0..1000 {
+                let record = Box::new(StandardRecord {
+                    field1: 1,
+                    field2: 2,
+                    field3: 3,
+                    field4: 4,
+                });
+                records.push(record);
+            }
+
+            hint_black_box(records);
+        });
+    });
+
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    benchmark_record_creation,
+    benchmark_field_access,
+    benchmark_cached_field_access,
+    benchmark_simd_bulk_operations,
+    benchmark_arena_allocation,
+    benchmark_record_comparison,
+    benchmark_performance_monitoring,
+    benchmark_performance_scaling,
+    benchmark_memory_efficiency,
+);
+
+criterion_main!(benches);

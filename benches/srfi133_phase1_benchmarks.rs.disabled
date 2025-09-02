@@ -1,0 +1,658 @@
+//! Performance benchmarks for SRFI-133 Vector Library Phase 1
+//!
+//! These benchmarks validate the performance targets specified by the cs-architect:
+//! - 5-10x improvement over naive implementations via NaN-boxing optimization
+//! - SIMD acceleration for numerical operations (4-8x speedup)
+//! - Cache optimization with 95%+ L1 cache hit rate for sequential access
+//! - Memory efficiency through adaptive algorithms and arena integration
+
+use criterion::{BatchSize, BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use lambdust::effects::Effect;
+use lambdust::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
+use lambdust::stdlib::srfi133_vectors::create_srfi133_phase1_bindings;
+use std::sync::Arc;
+use std::time::Duration;
+
+/// Creates a benchmark environment with all necessary bindings
+fn create_benchmark_env() -> Arc<ThreadSafeEnvironment> {
+    let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+    create_srfi133_phase1_bindings(&env);
+
+    // Add mathematical operations for benchmarking
+    env.define(
+        "+".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "+".to_string(),
+            arity_min: 0,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(|args| {
+                let sum = args
+                    .iter()
+                    .filter_map(|v| v.as_number())
+                    .fold(0.0, |acc, n| acc + n);
+                Ok(Value::number(sum))
+            }),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
+    env.define(
+        "*".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "*".to_string(),
+            arity_min: 0,
+            arity_max: None,
+            implementation: PrimitiveImpl::RustFn(|args| {
+                let product = args
+                    .iter()
+                    .filter_map(|v| v.as_number())
+                    .fold(1.0, |acc, n| acc * n);
+                Ok(Value::number(product))
+            }),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
+    env.define(
+        "even?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "even?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(|args| {
+                if let Some(n) = args[0].as_number() {
+                    Ok(Value::boolean(n as i64 % 2 == 0))
+                } else {
+                    Ok(Value::boolean(false))
+                }
+            }),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
+    env.define(
+        "positive?".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "positive?".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(|args| {
+                if let Some(n) = args[0].as_number() {
+                    Ok(Value::boolean(n > 0.0))
+                } else {
+                    Ok(Value::boolean(false))
+                }
+            }),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
+    env.define(
+        "square".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "square".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(|args| {
+                if let Some(n) = args[0].as_number() {
+                    Ok(Value::number(n * n))
+                } else {
+                    Ok(args[0].clone())
+                }
+            }),
+            effects: vec![Effect::Pure],
+        })),
+    );
+
+    env
+}
+
+/// Helper function to call procedures in benchmarks
+fn call_procedure(env: &Arc<ThreadSafeEnvironment>, name: &str, args: &[Value]) -> Value {
+    let proc = env.lookup(name).unwrap();
+    match &proc {
+        Value::Primitive(prim) => match &prim.implementation {
+            PrimitiveImpl::RustFn(func) => func(args).unwrap(),
+            PrimitiveImpl::Native(func) => func(args).unwrap(),
+            _ => panic!("Unsupported primitive type in benchmark"),
+        },
+        _ => panic!("Expected primitive procedure"),
+    }
+}
+
+/// Create a vector of numbers for benchmarking
+fn create_number_vector(size: usize) -> Value {
+    Value::vector((0..size).map(|i| Value::number(i as f64)).collect())
+}
+
+/// Create multiple vectors for multi-vector benchmarks
+fn create_number_vectors(count: usize, size: usize) -> Vec<Value> {
+    (0..count).map(|_| create_number_vector(size)).collect()
+}
+
+// ============= ENHANCED PREDICATES BENCHMARKS =============
+
+fn bench_vector_empty_predicate(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("vector-empty?");
+
+    // Test performance is O(1) regardless of vector size
+    for size in [10, 100, 1000, 10000, 100000] {
+        group.bench_with_input(BenchmarkId::new("optimized", size), &size, |b, &size| {
+            let vector = create_number_vector(size);
+            b.iter(|| {
+                black_box(call_procedure(
+                    &env,
+                    "vector-empty?",
+                    &[black_box(vector.clone())],
+                ))
+            });
+        });
+    }
+
+    // Compare against naive length-based implementation
+    let naive_empty = |vec: &Value| -> bool {
+        if let Value::Vector(v) = vec {
+            v.borrow().len() == 0
+        } else {
+            false
+        }
+    };
+
+    for size in [10, 100, 1000, 10000, 100000] {
+        group.bench_with_input(BenchmarkId::new("naive", size), &size, |b, &size| {
+            let vector = create_number_vector(size);
+            b.iter(|| black_box(naive_empty(black_box(&vector))));
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_vector_equal(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("vector=");
+    let equal_proc = env.lookup("+").unwrap(); // Use + as a dummy equality proc
+
+    // Test early termination optimization
+    for size in [100, 1000, 10000] {
+        // Equal vectors (worst case - must check all elements)
+        group.bench_with_input(
+            BenchmarkId::new("equal_vectors", size),
+            &size,
+            |b, &size| {
+                let vec1 = create_number_vector(size);
+                let vec2 = create_number_vector(size);
+                b.iter(|| {
+                    black_box(call_procedure(
+                        &env,
+                        "vector=",
+                        &[
+                            black_box(equal_proc.clone()),
+                            black_box(vec1.clone()),
+                            black_box(vec2.clone()),
+                        ],
+                    ))
+                });
+            },
+        );
+
+        // Unequal vectors (best case - early termination)
+        group.bench_with_input(
+            BenchmarkId::new("unequal_first_element", size),
+            &size,
+            |b, &size| {
+                let vec1 = create_number_vector(size);
+                let mut vec2_data = (0..size)
+                    .map(|i| Value::number(i as f64))
+                    .collect::<Vec<_>>();
+                if !vec2_data.is_empty() {
+                    vec2_data[0] = Value::number(-1.0); // Different first element
+                }
+                let vec2 = Value::vector(vec2_data);
+
+                b.iter(|| {
+                    black_box(call_procedure(
+                        &env,
+                        "vector=",
+                        &[
+                            black_box(equal_proc.clone()),
+                            black_box(vec1.clone()),
+                            black_box(vec2.clone()),
+                        ],
+                    ))
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// ============= FOLD OPERATIONS BENCHMARKS =============
+
+fn bench_vector_fold_numerical_optimization(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("vector-fold");
+    let add_proc = env.lookup("+").unwrap();
+
+    // Test NaN-boxing numerical optimization
+    for size in [100, 1000, 10000, 100000] {
+        group.bench_with_input(
+            BenchmarkId::new("optimized_numerical", size),
+            &size,
+            |b, &size| {
+                let vector = create_number_vector(size);
+                b.iter(|| {
+                    black_box(call_procedure(
+                        &env,
+                        "vector-fold",
+                        &[
+                            black_box(add_proc.clone()),
+                            black_box(Value::number(0.0)),
+                            black_box(vector.clone()),
+                        ],
+                    ))
+                });
+            },
+        );
+
+        // Compare against naive implementation
+        group.bench_with_input(BenchmarkId::new("naive_fold", size), &size, |b, &size| {
+            let vector = create_number_vector(size);
+            b.iter(|| {
+                if let Value::Vector(v) = &vector {
+                    let vec_data = v.borrow();
+                    let result = vec_data
+                        .iter()
+                        .fold(0.0, |acc, val| acc + val.as_number().unwrap_or(0.0));
+                    black_box(Value::number(result))
+                }
+            });
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_vector_fold_cache_optimization(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("vector-fold-cache");
+    let add_proc = env.lookup("+").unwrap();
+
+    // Test cache-friendly processing with different vector sizes
+    for size in [64, 128, 256, 512, 1024, 2048, 4096, 8192] {
+        group.bench_with_input(
+            BenchmarkId::new("cache_friendly", size),
+            &size,
+            |b, &size| {
+                let vector = create_number_vector(size);
+                b.iter(|| {
+                    black_box(call_procedure(
+                        &env,
+                        "vector-fold",
+                        &[
+                            black_box(add_proc.clone()),
+                            black_box(Value::number(0.0)),
+                            black_box(vector.clone()),
+                        ],
+                    ))
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+fn bench_vector_fold_right(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("vector-fold-right");
+    let add_proc = env.lookup("+").unwrap();
+
+    for size in [100, 1000, 10000] {
+        group.bench_with_input(BenchmarkId::new("right_fold", size), &size, |b, &size| {
+            let vector = create_number_vector(size);
+            b.iter(|| {
+                black_box(call_procedure(
+                    &env,
+                    "vector-fold-right",
+                    &[
+                        black_box(add_proc.clone()),
+                        black_box(Value::number(0.0)),
+                        black_box(vector.clone()),
+                    ],
+                ))
+            });
+        });
+    }
+
+    group.finish();
+}
+
+// ============= SEARCH OPERATIONS BENCHMARKS =============
+
+fn bench_vector_index_early_termination(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("vector-index");
+    let even_proc = env.lookup("even?").unwrap();
+
+    for size in [1000, 10000, 100000] {
+        // Best case: target at beginning
+        group.bench_with_input(BenchmarkId::new("found_early", size), &size, |b, &size| {
+            let mut data = vec![Value::number(2.0)]; // Even number first
+            data.extend((1..size).map(|i| Value::number((i * 2 + 1) as f64))); // Rest odd
+            let vector = Value::vector(data);
+
+            b.iter(|| {
+                black_box(call_procedure(
+                    &env,
+                    "vector-index",
+                    &[black_box(even_proc.clone()), black_box(vector.clone())],
+                ))
+            });
+        });
+
+        // Worst case: target at end
+        group.bench_with_input(BenchmarkId::new("found_late", size), &size, |b, &size| {
+            let mut data: Vec<Value> = (0..size - 1)
+                .map(|i| Value::number((i * 2 + 1) as f64))
+                .collect(); // All odd
+            data.push(Value::number(2.0)); // Even number at end
+            let vector = Value::vector(data);
+
+            b.iter(|| {
+                black_box(call_procedure(
+                    &env,
+                    "vector-index",
+                    &[black_box(even_proc.clone()), black_box(vector.clone())],
+                ))
+            });
+        });
+
+        // Not found case
+        group.bench_with_input(BenchmarkId::new("not_found", size), &size, |b, &size| {
+            let data: Vec<Value> = (0..size)
+                .map(|i| Value::number((i * 2 + 1) as f64))
+                .collect(); // All odd
+            let vector = Value::vector(data);
+
+            b.iter(|| {
+                black_box(call_procedure(
+                    &env,
+                    "vector-index",
+                    &[black_box(even_proc.clone()), black_box(vector.clone())],
+                ))
+            });
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_vector_any_simd_acceleration(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("vector-any");
+    let even_proc = env.lookup("even?").unwrap();
+
+    // Test SIMD threshold behavior
+    for size in [8, 16, 32, 64, 128, 256, 512, 1024, 2048] {
+        group.bench_with_input(
+            BenchmarkId::new("potential_simd", size),
+            &size,
+            |b, &size| {
+                let vector = create_number_vector(size);
+                b.iter(|| {
+                    black_box(call_procedure(
+                        &env,
+                        "vector-any",
+                        &[black_box(even_proc.clone()), black_box(vector.clone())],
+                    ))
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+fn bench_vector_every(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("vector-every");
+    let positive_proc = env.lookup("positive?").unwrap();
+
+    for size in [1000, 10000, 100000] {
+        // Best case: early termination (first element fails)
+        group.bench_with_input(
+            BenchmarkId::new("early_termination", size),
+            &size,
+            |b, &size| {
+                let mut data = vec![Value::number(-1.0)]; // Negative first
+                data.extend((1..size).map(|i| Value::number(i as f64))); // Rest positive
+                let vector = Value::vector(data);
+
+                b.iter(|| {
+                    black_box(call_procedure(
+                        &env,
+                        "vector-every",
+                        &[black_box(positive_proc.clone()), black_box(vector.clone())],
+                    ))
+                });
+            },
+        );
+
+        // Worst case: all elements satisfy predicate
+        group.bench_with_input(BenchmarkId::new("all_satisfy", size), &size, |b, &size| {
+            let vector = create_number_vector(size); // All positive numbers
+            b.iter(|| {
+                black_box(call_procedure(
+                    &env,
+                    "vector-every",
+                    &[black_box(positive_proc.clone()), black_box(vector.clone())],
+                ))
+            });
+        });
+    }
+
+    group.finish();
+}
+
+// ============= PERFORMANCE SHOWCASE BENCHMARKS =============
+
+fn bench_vector_map_inplace_memory_optimization(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("vector-map!");
+    let square_proc = env.lookup("square").unwrap();
+
+    for size in [100, 1000, 10000, 100000] {
+        group.bench_with_input(
+            BenchmarkId::new("inplace_optimized", size),
+            &size,
+            |b, &size| {
+                b.iter_batched(
+                    || create_number_vector(size),
+                    |vector| {
+                        black_box(call_procedure(
+                            &env,
+                            "vector-map!",
+                            &[black_box(square_proc.clone()), black_box(vector)],
+                        ))
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+
+        // Compare against creating new vector (higher memory usage)
+        group.bench_with_input(
+            BenchmarkId::new("naive_new_vector", size),
+            &size,
+            |b, &size| {
+                b.iter_batched(
+                    || create_number_vector(size),
+                    |vector| {
+                        if let Value::Vector(v) = &vector {
+                            let vec_data = v.borrow();
+                            let new_data: Vec<Value> = vec_data
+                                .iter()
+                                .map(|val| {
+                                    if let Some(n) = val.as_number() {
+                                        Value::number(n * n)
+                                    } else {
+                                        val.clone()
+                                    }
+                                })
+                                .collect();
+                            black_box(Value::vector(new_data))
+                        }
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
+    }
+
+    group.finish();
+}
+
+fn bench_vector_map_inplace_cache_friendly(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("vector-map!-cache");
+    let square_proc = env.lookup("square").unwrap();
+
+    // Test cache-friendly block processing with different sizes
+    for size in [64, 128, 256, 512, 1024, 2048, 4096, 8192] {
+        group.bench_with_input(BenchmarkId::new("cache_blocks", size), &size, |b, &size| {
+            b.iter_batched(
+                || create_number_vector(size),
+                |vector| {
+                    black_box(call_procedure(
+                        &env,
+                        "vector-map!",
+                        &[black_box(square_proc.clone()), black_box(vector)],
+                    ))
+                },
+                BatchSize::SmallInput,
+            );
+        });
+    }
+
+    group.finish();
+}
+
+// ============= COMPARATIVE BENCHMARKS =============
+
+fn bench_optimization_comparison(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("optimization-comparison");
+
+    // Compare vector-fold against naive Rust fold for large vectors
+    let size = 100000;
+    let add_proc = env.lookup("+").unwrap();
+
+    group.bench_function("srfi133_vector_fold", |b| {
+        let vector = create_number_vector(size);
+        b.iter(|| {
+            black_box(call_procedure(
+                &env,
+                "vector-fold",
+                &[
+                    black_box(add_proc.clone()),
+                    black_box(Value::number(0.0)),
+                    black_box(vector.clone()),
+                ],
+            ))
+        });
+    });
+
+    group.bench_function("rust_native_fold", |b| {
+        let data: Vec<f64> = (0..size).map(|i| i as f64).collect();
+        b.iter(|| {
+            let result = data.iter().fold(0.0, |acc, &x| acc + x);
+            black_box(result)
+        });
+    });
+
+    group.finish();
+}
+
+fn bench_memory_efficiency(c: &mut Criterion) {
+    let env = create_benchmark_env();
+    let mut group = c.benchmark_group("memory-efficiency");
+
+    // Test memory usage patterns for different operations
+    for size in [1000, 10000, 100000] {
+        // In-place vs. copying operations
+        group.bench_with_input(BenchmarkId::new("inplace_map", size), &size, |b, &size| {
+            let square_proc = env.lookup("square").unwrap();
+            b.iter_batched(
+                || create_number_vector(size),
+                |vector| {
+                    black_box(call_procedure(
+                        &env,
+                        "vector-map!",
+                        &[black_box(square_proc.clone()), black_box(vector)],
+                    ))
+                },
+                BatchSize::SmallInput,
+            );
+        });
+
+        // Fold operations (constant memory)
+        group.bench_with_input(
+            BenchmarkId::new("constant_memory_fold", size),
+            &size,
+            |b, &size| {
+                let add_proc = env.lookup("+").unwrap();
+                let vector = create_number_vector(size);
+                b.iter(|| {
+                    black_box(call_procedure(
+                        &env,
+                        "vector-fold",
+                        &[
+                            black_box(add_proc.clone()),
+                            black_box(Value::number(0.0)),
+                            black_box(vector.clone()),
+                        ],
+                    ))
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// ============= BENCHMARK GROUP CONFIGURATION =============
+
+criterion_group! {
+    name = srfi133_phase1_benchmarks;
+    config = Criterion::default()
+        .measurement_time(Duration::from_secs(10))
+        .sample_size(100)
+        .warm_up_time(Duration::from_secs(3));
+    targets =
+        // Enhanced predicates
+        bench_vector_empty_predicate,
+        bench_vector_equal,
+
+        // Fold operations
+        bench_vector_fold_numerical_optimization,
+        bench_vector_fold_cache_optimization,
+        bench_vector_fold_right,
+
+        // Search operations
+        bench_vector_index_early_termination,
+        bench_vector_any_simd_acceleration,
+        bench_vector_every,
+
+        // Performance showcase
+        bench_vector_map_inplace_memory_optimization,
+        bench_vector_map_inplace_cache_friendly,
+
+        // Comparative analysis
+        bench_optimization_comparison,
+        bench_memory_efficiency
+}
+
+criterion_main!(srfi133_phase1_benchmarks);
