@@ -69,31 +69,33 @@ pub use NumericValue as Number;
 // #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 // pub use simd_optimization::{AlignedBuffer, CpuFeatures, SimdNumericOps, SimdOperationType};  // Disabled for CI stability
 
-#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
-pub use simd_optimization_stub::{AlignedBuffer, CpuFeatures, SimdNumericOps, SimdOperationType};
+// SIMD optimization disabled for CI stability
+// #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+// pub use simd_optimization_stub::{AlignedBuffer, CpuFeatures, SimdNumericOps, SimdOperationType};
 
-// Re-export SIMD configuration and optimized functions
-pub use SimdNumericOps as SimdConfig;
+// Re-export SIMD configuration and optimized functions - Disabled for CI stability
+// pub use SimdNumericOps as SimdConfig;
 
-/// Optimized addition of numeric arrays using SIMD
-pub fn add_numeric_arrays_optimized(a: &[f64], b: &[f64]) -> crate::diagnostics::Result<Vec<f64>> {
-    let mut result = vec![0.0; a.len()];
-    let simd_ops_guard = get_simd_ops();
-    let mut simd_ops = simd_ops_guard.lock().map_err(|_| {
-        crate::diagnostics::Error::runtime_error("Failed to acquire SIMD lock".to_string(), None)
-    })?;
-    simd_ops.add_f64_arrays(a, b, &mut result)?;
-    Ok(result)
-}
+// SIMD functions disabled for CI stability
+// /// Optimized addition of numeric arrays using SIMD
+// pub fn add_numeric_arrays_optimized(a: &[f64], b: &[f64]) -> crate::diagnostics::Result<Vec<f64>> {
+//     let mut result = vec![0.0; a.len()];
+//     let simd_ops_guard = get_simd_ops();
+//     let mut simd_ops = simd_ops_guard.lock().map_err(|_| {
+//         crate::diagnostics::Error::runtime_error("Failed to acquire SIMD lock".to_string(), None)
+//     })?;
+//     simd_ops.add_f64_arrays(a, b, &mut result)?;
+//     Ok(result)
+// }
 
-/// Optimized dot product using SIMD
-pub fn dot_product_optimized(a: &[f64], b: &[f64]) -> crate::diagnostics::Result<f64> {
-    let simd_ops_guard = get_simd_ops();
-    let mut simd_ops = simd_ops_guard.lock().map_err(|_| {
-        crate::diagnostics::Error::runtime_error("Failed to acquire SIMD lock".to_string(), None)
-    })?;
-    simd_ops.dot_product_f64(a, b)
-}
+// /// Optimized dot product using SIMD
+// pub fn dot_product_optimized(a: &[f64], b: &[f64]) -> crate::diagnostics::Result<f64> {
+//     let simd_ops_guard = get_simd_ops();
+//     let mut simd_ops = simd_ops_guard.lock().map_err(|_| {
+//         crate::diagnostics::Error::runtime_error("Failed to acquire SIMD lock".to_string(), None)
+//     })?;
+//     simd_ops.dot_product_f64(a, b)
+// }
 
 use crate::ast::Literal;
 use once_cell::sync::Lazy;
@@ -101,14 +103,15 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
-/// Global SIMD optimization engine for high-performance numeric computations
-static GLOBAL_SIMD_OPS: Lazy<Arc<Mutex<SimdNumericOps>>> =
-    Lazy::new(|| Arc::new(Mutex::new(SimdNumericOps::new())));
+// SIMD global operations disabled for CI stability
+// /// Global SIMD optimization engine for high-performance numeric computations
+// static GLOBAL_SIMD_OPS: Lazy<Arc<Mutex<SimdNumericOps>>> =
+//     Lazy::new(|| Arc::new(Mutex::new(SimdNumericOps::new())));
 
-/// Gets the global SIMD operations engine
-pub fn get_simd_ops() -> Arc<Mutex<SimdNumericOps>> {
-    GLOBAL_SIMD_OPS.clone()
-}
+// /// Gets the global SIMD operations engine
+// pub fn get_simd_ops() -> Arc<Mutex<SimdNumericOps>> {
+//     GLOBAL_SIMD_OPS.clone()
+// }
 
 /// Unified numeric value type that encompasses all numeric types in the tower
 #[derive(Debug, Clone, PartialEq)]
@@ -368,121 +371,122 @@ impl NumericValue {
         Ok(crate::numeric::tower::subtract(self, other))
     }
 
-    /// SIMD-optimized vector addition for compatible vectors
-    pub fn simd_vector_add(&self, other: &Self) -> Result<Self, String> {
-        match (self, other) {
-            (Self::Vector(a), Self::Vector(b)) if a.len() == b.len() => {
-                // Try to extract f64 vectors for SIMD optimization
-                let a_f64: Result<Vec<f64>, _> = a
-                    .iter()
-                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
-                    .collect();
-                let b_f64: Result<Vec<f64>, _> = b
-                    .iter()
-                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
-                    .collect();
+    // SIMD vector operations disabled for CI stability
+    // /// SIMD-optimized vector addition for compatible vectors
+    // pub fn simd_vector_add(&self, other: &Self) -> Result<Self, String> {
+    //     match (self, other) {
+    //         (Self::Vector(a), Self::Vector(b)) if a.len() == b.len() => {
+    //             // Try to extract f64 vectors for SIMD optimization
+    //             let a_f64: Result<Vec<f64>, _> = a
+    //                 .iter()
+    //                 .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+    //                 .collect();
+    //             let b_f64: Result<Vec<f64>, _> = b
+    //                 .iter()
+    //                 .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+    //                 .collect();
 
-                match (a_f64, b_f64) {
-                    (Ok(a_vals), Ok(b_vals)) => {
-                        // Use SIMD optimization
-                        let simd_ops_arc = get_simd_ops();
-                        let mut simd_ops = simd_ops_arc
-                            .lock()
-                            .map_err(|_| "Failed to acquire SIMD lock")?;
-                        let mut result = vec![0.0; a_vals.len()];
-                        simd_ops
-                            .add_f64_arrays(&a_vals, &b_vals, &mut result)
-                            .map_err(|e| format!("SIMD error: {e}"))?;
-                        Ok(Self::real_vector(result))
-                    }
-                    _ => {
-                        // Fallback to element-wise addition
-                        let result: Result<Vec<_>, _> =
-                            a.iter().zip(b.iter()).map(|(x, y)| x.add(y)).collect();
-                        Ok(Self::Vector(result?))
-                    }
-                }
-            }
-            _ => Err("Cannot perform SIMD vector addition on non-matching vectors".to_string()),
-        }
-    }
+    //             match (a_f64, b_f64) {
+    //                 (Ok(a_vals), Ok(b_vals)) => {
+    //                     // Use SIMD optimization
+    //                     let simd_ops_arc = get_simd_ops();
+    //                     let mut simd_ops = simd_ops_arc
+    //                         .lock()
+    //                         .map_err(|_| "Failed to acquire SIMD lock")?;
+    //                     let mut result = vec![0.0; a_vals.len()];
+    //                     simd_ops
+    //                         .add_f64_arrays(&a_vals, &b_vals, &mut result)
+    //                         .map_err(|e| format!("SIMD error: {e}"))?;
+    //                     Ok(Self::real_vector(result))
+    //                 }
+    //                 _ => {
+    //                     // Fallback to element-wise addition
+    //                     let result: Result<Vec<_>, _> =
+    //                         a.iter().zip(b.iter()).map(|(x, y)| x.add(y)).collect();
+    //                     Ok(Self::Vector(result?))
+    //                 }
+    //             }
+    //         }
+    //         _ => Err("Cannot perform SIMD vector addition on non-matching vectors".to_string()),
+    //     }
+    // }
 
-    /// SIMD-optimized vector multiplication for compatible vectors
-    pub fn simd_vector_multiply(&self, other: &Self) -> Result<Self, String> {
-        match (self, other) {
-            (Self::Vector(a), Self::Vector(b)) if a.len() == b.len() => {
-                let a_f64: Result<Vec<f64>, _> = a
-                    .iter()
-                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
-                    .collect();
-                let b_f64: Result<Vec<f64>, _> = b
-                    .iter()
-                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
-                    .collect();
+    // /// SIMD-optimized vector multiplication for compatible vectors - Disabled for CI stability
+    // pub fn simd_vector_multiply(&self, other: &Self) -> Result<Self, String> {
+    //     match (self, other) {
+    //         (Self::Vector(a), Self::Vector(b)) if a.len() == b.len() => {
+    //             let a_f64: Result<Vec<f64>, _> = a
+    //                 .iter()
+    //                 .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+    //                 .collect();
+    //             let b_f64: Result<Vec<f64>, _> = b
+    //                 .iter()
+    //                 .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+    //                 .collect();
 
-                match (a_f64, b_f64) {
-                    (Ok(a_vals), Ok(b_vals)) => {
-                        let simd_ops_arc = get_simd_ops();
-                        let mut simd_ops = simd_ops_arc
-                            .lock()
-                            .map_err(|_| "Failed to acquire SIMD lock")?;
-                        let mut result = vec![0.0; a_vals.len()];
-                        simd_ops
-                            .multiply_f64_arrays(&a_vals, &b_vals, &mut result)
-                            .map_err(|e| format!("SIMD error: {e}"))?;
-                        Ok(Self::real_vector(result))
-                    }
-                    _ => {
-                        let result: Result<Vec<_>, _> =
-                            a.iter().zip(b.iter()).map(|(x, y)| x.multiply(y)).collect();
-                        Ok(Self::Vector(result?))
-                    }
-                }
-            }
-            _ => {
-                Err("Cannot perform SIMD vector multiplication on non-matching vectors".to_string())
-            }
-        }
-    }
+    //             match (a_f64, b_f64) {
+    //                 (Ok(a_vals), Ok(b_vals)) => {
+    //                     let simd_ops_arc = get_simd_ops();
+    //                     let mut simd_ops = simd_ops_arc
+    //                         .lock()
+    //                         .map_err(|_| "Failed to acquire SIMD lock")?;
+    //                     let mut result = vec![0.0; a_vals.len()];
+    //                     simd_ops
+    //                         .multiply_f64_arrays(&a_vals, &b_vals, &mut result)
+    //                         .map_err(|e| format!("SIMD error: {e}"))?;
+    //                     Ok(Self::real_vector(result))
+    //                 }
+    //                 _ => {
+    //                     let result: Result<Vec<_>, _> =
+    //                         a.iter().zip(b.iter()).map(|(x, y)| x.multiply(y)).collect();
+    //                     Ok(Self::Vector(result?))
+    //                 }
+    //             }
+    //         }
+    //         _ => {
+    //             Err("Cannot perform SIMD vector multiplication on non-matching vectors".to_string())
+    //         }
+    //     }
+    // }
 
-    /// SIMD-optimized dot product for compatible vectors
-    pub fn simd_dot_product(&self, other: &Self) -> Result<Self, String> {
-        match (self, other) {
-            (Self::Vector(a), Self::Vector(b)) if a.len() == b.len() => {
-                let a_f64: Result<Vec<f64>, _> = a
-                    .iter()
-                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
-                    .collect();
-                let b_f64: Result<Vec<f64>, _> = b
-                    .iter()
-                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
-                    .collect();
+    // /// SIMD-optimized dot product for compatible vectors - Disabled for CI stability
+    // pub fn simd_dot_product(&self, other: &Self) -> Result<Self, String> {
+    //     match (self, other) {
+    //         (Self::Vector(a), Self::Vector(b)) if a.len() == b.len() => {
+    //             let a_f64: Result<Vec<f64>, _> = a
+    //                 .iter()
+    //                 .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+    //                 .collect();
+    //             let b_f64: Result<Vec<f64>, _> = b
+    //                 .iter()
+    //                 .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+    //                 .collect();
 
-                match (a_f64, b_f64) {
-                    (Ok(a_vals), Ok(b_vals)) => {
-                        let simd_ops_arc = get_simd_ops();
-                        let mut simd_ops = simd_ops_arc
-                            .lock()
-                            .map_err(|_| "Failed to acquire SIMD lock")?;
-                        let result = simd_ops
-                            .dot_product_f64(&a_vals, &b_vals)
-                            .map_err(|e| format!("SIMD error: {e}"))?;
-                        Ok(Self::Real(result))
-                    }
-                    _ => {
-                        // Fallback: compute sum of element-wise products
-                        let products: Result<Vec<_>, _> =
-                            a.iter().zip(b.iter()).map(|(x, y)| x.multiply(y)).collect();
-                        let sum = products?
-                            .into_iter()
-                            .try_fold(Self::Integer(0), |acc, x| acc.add(&x))?;
-                        Ok(sum)
-                    }
-                }
-            }
-            _ => Err("Cannot perform dot product on non-matching vectors".to_string()),
-        }
-    }
+    //             match (a_f64, b_f64) {
+    //                 (Ok(a_vals), Ok(b_vals)) => {
+    //                     let simd_ops_arc = get_simd_ops();
+    //                     let mut simd_ops = simd_ops_arc
+    //                         .lock()
+    //                         .map_err(|_| "Failed to acquire SIMD lock")?;
+    //                     let result = simd_ops
+    //                         .dot_product_f64(&a_vals, &b_vals)
+    //                         .map_err(|e| format!("SIMD error: {e}"))?;
+    //                     Ok(Self::Real(result))
+    //                 }
+    //                 _ => {
+    //                     // Fallback: compute sum of element-wise products
+    //                     let products: Result<Vec<_>, _> =
+    //                         a.iter().zip(b.iter()).map(|(x, y)| x.multiply(y)).collect();
+    //                     let sum = products?
+    //                         .into_iter()
+    //                         .try_fold(Self::Integer(0), |acc, x| acc.add(&x))?;
+    //                     Ok(sum)
+    //                 }
+    //             }
+    //         }
+    //         _ => Err("Cannot perform dot product on non-matching vectors".to_string()),
+    //     }
+    // }
 
     /// Extracts f64 values from a numeric vector if possible
     pub fn to_f64_vector(&self) -> Option<Vec<f64>> {
