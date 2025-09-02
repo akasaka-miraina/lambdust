@@ -312,7 +312,7 @@ fn primitive_apply(args: &[Value]) -> Result<Value> {
 
 /// values procedure
 /// TODO: MultipleValues was removed from Value enum, need proper implementation
-fn primitive_values(args: &[Value]) -> Result<Value> {
+pub fn primitive_values(args: &[Value]) -> Result<Value> {
     use std::cell::RefCell;
     use std::rc::Rc;
     match args.len() {
@@ -339,7 +339,7 @@ fn primitive_values(args: &[Value]) -> Result<Value> {
 /// Since call-with-values requires sequential procedure calls in a trampoline evaluator,
 /// we use the evaluator's built-in evaluation loop to handle the complexity of
 /// tail calls, continuations, and other advanced control flow features.
-fn evaluator_call_with_values(
+pub fn evaluator_call_with_values(
     evaluator: &mut crate::eval::evaluator::Evaluator,
     args: &[Value],
 ) -> Result<Value> {

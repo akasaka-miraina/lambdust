@@ -1000,7 +1000,8 @@ mod tests {
         let report = manager.compact_pools().unwrap();
 
         // Some savings should be achieved (even if 0 in this simplified test)
-        assert!(report.total_savings >= 0);
+        // Note: total_savings is unsigned, so this is always true
+        assert!(report.total_savings < usize::MAX);
     }
 
     #[test]
@@ -1018,7 +1019,7 @@ mod tests {
 
         // Should have attempted some prefetches
         let total_attempts = report.successful_prefetches + report.failed_prefetches;
-        assert!(total_attempts >= 0);
+        assert!(total_attempts < usize::MAX); // Unsigned value is always >= 0
     }
 
     #[test]

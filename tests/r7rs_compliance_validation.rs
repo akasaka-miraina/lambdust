@@ -4,8 +4,8 @@
 //! specifically focusing on optimization impact assessment. The framework
 //! ensures that performance optimizations preserve semantic correctness.
 
-use lambdust::ast::Expr;
-use lambdust::eval::{evaluator::Evaluator, value::Value};
+// use lambdust::ast::Expr;
+// use lambdust::eval::{evaluator::Evaluator, value::Value};
 use lambdust::runtime::runtime::Runtime;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -376,7 +376,7 @@ impl R7RSComplianceValidator {
     }
 
     /// Run a single test case with full error handling
-    fn run_test_case(&self, test_name: &str, code: &str) -> ValidationResult {
+    fn run_test_case(&mut self, test_name: &str, code: &str) -> ValidationResult {
         let start_time = std::time::Instant::now();
 
         match self.runtime.eval_string(code) {
@@ -413,7 +413,7 @@ impl R7RSComplianceValidator {
     }
 
     /// Run performance benchmark test
-    fn run_performance_test(&self, test_name: &str, code: &str) -> PerformanceImpact {
+    fn run_performance_test(&mut self, test_name: &str, code: &str) -> PerformanceImpact {
         let start_time = std::time::Instant::now();
         let _result = self.runtime.eval_string(code);
         let duration = start_time.elapsed().as_nanos();

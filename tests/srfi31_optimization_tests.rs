@@ -37,9 +37,9 @@
 //! - Error handling consistency
 
 use lambdust::ast::{Binding, Expr, Formals, Literal, Spanned};
-use lambdust::diagnostics::{Result, Span};
+use lambdust::diagnostics::Span;
 use lambdust::eval::rec_optimization_framework::{
-    ComplexityClass, DEFAULT_CONFIDENCE_THRESHOLD, MemoryOptimizer, MemoryStrategy,
+    ComplexityClass, MemoryOptimizer, MemoryStrategy,
     RecPatternOptimizer, RecursivePattern, SrfiOptimizationEngine, TailCallDetector,
     TailCallStrategy,
 };
@@ -558,7 +558,7 @@ fn test_optimization_integration_timeout_protection() {
             name: variable_name.to_string(),
             value: expression.clone(),
         }],
-        body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
+        body: vec![create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
 
@@ -582,7 +582,7 @@ fn test_optimization_integration_statistics_collection() {
             name: variable_name.to_string(),
             value: expression.clone(),
         }],
-        body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
+        body: vec![create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
 
@@ -631,7 +631,7 @@ fn test_srfi_optimization_engine_optimization_flow() {
             name: variable_name.to_string(),
             value: expression.clone(),
         }],
-        body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
+        body: vec![create_expr(Expr::Identifier(variable_name.to_string()))],
     });
 
     let result = engine.optimize_rec_form(&variable_name, &expression, &original_letrec);
@@ -669,7 +669,7 @@ fn test_optimization_performance_overhead() {
             name: variable_name.to_string(),
             value: expression.clone(),
         }],
-        body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
+        body: vec![create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
 
@@ -703,7 +703,7 @@ fn test_disabled_optimization_zero_overhead() {
             name: variable_name.to_string(),
             value: expression.clone(),
         }],
-        body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
+        body: vec![create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
 
@@ -789,7 +789,7 @@ fn test_optimization_cache_limits() {
             formals: Formals::Fixed(vec![format!("param{}", i)]),
             return_type: None,
             metadata: HashMap::new(),
-            body: &[create_expr(Expr::Literal(Literal::ExactInteger(i as i64)))],
+            body: vec![create_expr(Expr::Literal(Literal::ExactInteger(i as i64)))],
         });
 
         optimizer.analyze_pattern(&format!("func{}", i), &expr);
@@ -814,7 +814,7 @@ fn test_concurrent_optimization_safety() {
             name: variable_name.to_string(),
             value: expression.clone(),
         }],
-        body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
+        body: vec![create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
 
@@ -897,7 +897,7 @@ fn test_optimization_preserves_semantics() {
             name: variable_name.to_string(),
             value: expression.clone(),
         }],
-        body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
+        body: vec![create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
 
@@ -939,7 +939,7 @@ fn test_performance_monitoring_accuracy() {
             name: variable_name.to_string(),
             value: expression.clone(),
         }],
-        body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
+        body: vec![create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
 
@@ -992,7 +992,7 @@ fn test_end_to_end_optimization_pipeline() {
                 name: name.to_string(),
                 value: expression.clone(),
             }],
-            body: &[create_expr(Expr::Identifier(name.to_string()))],
+            body: vec![create_expr(Expr::Identifier(name.to_string()))],
         });
         let span = Span::new(0, 100);
 

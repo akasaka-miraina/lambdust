@@ -111,7 +111,7 @@ fn test_field_mutation() {
 /// Test record comparison functionality
 #[test]
 fn test_record_comparison() {
-    let type_id = create_test_record_type("comparable", &["a", "b"]);
+    let type_id = create_test_record_type("comparable", vec!["a", "b"]);
 
     let values1 = vec![
         NanBoxedValue::small_integer(1),
@@ -226,14 +226,14 @@ fn test_field_access_caching() {
 /// Test SIMD bulk operations
 #[test]
 fn test_simd_bulk_operations() {
-    let type_id = create_test_record_type("simd-test", &["value"]);
+    let type_id = create_test_record_type("simd-test", vec!["value"]);
 
     // Create multiple records
-    let record_count = 16; // Multiple of SIMD width
+    const RECORD_COUNT: usize = 16; // Multiple of SIMD width
     let mut records = Vec::new();
     let mut record_refs = Vec::new();
 
-    for i in 0..record_count {
+    for i in 0..RECORD_COUNT {
         let values = &[NanBoxedValue::small_integer(i as i32)];
         let instance = RecordInstance::new(type_id, &values).unwrap();
         record_refs.push(unsafe { instance.as_ref() });
@@ -241,7 +241,7 @@ fn test_simd_bulk_operations() {
     }
 
     // Test bulk field extraction
-    let mut results = &[NanBoxedValue::nil_value(); record_count];
+    let mut results = vec![NanBoxedValue::nil_value(); RECORD_COUNT];
     let start = Instant::now();
     BulkRecordOperations::extract_field_bulk(&record_refs, 0, &mut results).unwrap();
     let bulk_time = start.elapsed();
@@ -468,9 +468,9 @@ fn test_stdlib_integration() {
     let type_def = registry
         .define_record_type(
             "test-stdlib".to_string(),
-            ("make-test-stdlib".to_string(), &["field1".to_string()]),
+            ("make-test-stdlib".to_string(), vec!["field1".to_string()]),
             "test-stdlib?".to_string(),
-            &[("field1".to_string(), "test-stdlib-field1".to_string(), None)],
+            vec![("field1".to_string(), "test-stdlib-field1".to_string(), None)],
         )
         .unwrap();
 
@@ -487,10 +487,10 @@ fn test_stdlib_integration() {
 /// Test error handling
 #[test]
 fn test_error_handling() {
-    let type_id = create_test_record_type("error-test", &["field1", "field2"]);
+    let type_id = create_test_record_type("error-test", vec!["field1", "field2"]);
 
     // Test field count mismatch
-    let wrong_values = &[NanBoxedValue::small_integer(1)]; // Missing field2
+    let wrong_values = vec![NanBoxedValue::small_integer(1)]; // Missing field2
     let result = RecordInstance::new(type_id, &wrong_values);
     assert!(result.is_err());
 
@@ -547,9 +547,9 @@ fn benchmark_record_creation() {
 /// Benchmark field access performance
 #[test]
 fn benchmark_field_access() {
-    let type_id = create_test_record_type("access-benchmark", &["field"]);
+    let type_id = create_test_record_type("access-benchmark", vec!["field"]);
 
-    let values = &[NanBoxedValue::small_integer(42)];
+    let values = vec![NanBoxedValue::small_integer(42)];
     let instance = RecordInstance::new(type_id, &values).unwrap();
 
     let iterations = 100000;

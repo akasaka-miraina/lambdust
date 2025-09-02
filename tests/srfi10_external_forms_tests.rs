@@ -558,7 +558,7 @@ mod error_handling_tests {
             let result = proc(&[], &env);
             assert!(result.is_err(), "Procedure should reject empty arguments");
 
-            let too_many_args = &[Value::Integer(1), Value::Integer(2), Value::Integer(3)];
+            let too_many_args = &[Value::integer(1), Value::integer(2), Value::integer(3)];
             let result = proc(&too_many_args, &env);
             assert!(
                 result.is_err(),

@@ -12,8 +12,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-#[cfg(feature = "minimal-repl")]
-use lambdust::repl::start_minimal_repl;
+// #[cfg(feature = "minimal-repl")]
+// use lambdust::repl::start_minimal_repl;
 
 #[cfg(feature = "repl")]
 use {
@@ -301,7 +301,7 @@ fn start_repl(lambdust: &mut Lambdust) -> Result<()> {
 
 #[cfg(feature = "enhanced-repl")]
 fn start_enhanced_repl(lambdust: Lambdust) -> Result<()> {
-    let config = ReplConfig::default();
+    let _config = ReplConfig::default();
     let mut repl = EnhancedRepl::with_defaults(lambdust)?;
     repl.run()
 }

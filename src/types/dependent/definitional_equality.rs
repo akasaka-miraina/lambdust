@@ -1825,6 +1825,6 @@ mod tests {
 
         let stats = checker.statistics();
         assert!(stats.total_checks >= 2);
-        assert!(stats.cache_hits >= 0);
+        assert!(stats.cache_hits < u64::MAX); // Unsigned value is always >= 0
     }
 }

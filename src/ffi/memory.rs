@@ -680,7 +680,8 @@ mod tests {
     fn test_basic_allocation() {
         let manager = FfiMemoryManager::new();
         let ptr = manager.allocate(64, None).unwrap();
-        assert!(!ptr.as_ptr().is_null());
+        // Check that allocation succeeded by verifying we have a valid allocation
+        assert!(!ptr.as_ptr().is_null(), "Allocation should not be null");
 
         let stats = manager.stats();
         assert_eq!(stats.active_allocations, 1);

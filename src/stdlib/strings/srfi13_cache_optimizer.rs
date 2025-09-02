@@ -622,6 +622,6 @@ mod tests {
 
         // Test stats retrieval
         let stats = get_global_cache_stats();
-        assert!(stats.string_cache_size >= 0); // Should be non-negative
+        assert!(stats.string_cache_size < usize::MAX); // Unsigned value is always >= 0
     }
 }

@@ -30,7 +30,7 @@ fn add_test_procedures(env: &Arc<ThreadSafeEnvironment>) {
             arity_min: 2,
             arity_max: Some(2),
             implementation: PrimitiveImpl::RustFn(|args| Ok(Value::boolean(args[0] == args[1]))),
-            effects: &[Effect::Pure],
+            effects: vec![Effect::Pure],
         })),
     );
 
@@ -48,7 +48,7 @@ fn add_test_procedures(env: &Arc<ThreadSafeEnvironment>) {
                     .fold(0.0, |acc, n| acc + n);
                 Ok(Value::number(sum))
             }),
-            effects: &[Effect::Pure],
+            effects: vec![Effect::Pure],
         })),
     );
 
@@ -66,7 +66,7 @@ fn add_test_procedures(env: &Arc<ThreadSafeEnvironment>) {
                     .fold(1.0, |acc, n| acc * n);
                 Ok(Value::number(product))
             }),
-            effects: &[Effect::Pure],
+            effects: vec![Effect::Pure],
         })),
     );
 
@@ -84,7 +84,7 @@ fn add_test_procedures(env: &Arc<ThreadSafeEnvironment>) {
                     Ok(Value::boolean(false))
                 }
             }),
-            effects: &[Effect::Pure],
+            effects: vec![Effect::Pure],
         })),
     );
 
@@ -102,7 +102,7 @@ fn add_test_procedures(env: &Arc<ThreadSafeEnvironment>) {
                     Ok(Value::boolean(false))
                 }
             }),
-            effects: &[Effect::Pure],
+            effects: vec![Effect::Pure],
         })),
     );
 
@@ -120,7 +120,7 @@ fn add_test_procedures(env: &Arc<ThreadSafeEnvironment>) {
                     Ok(args[0].clone())
                 }
             }),
-            effects: &[Effect::Pure],
+            effects: vec![Effect::Pure],
         })),
     );
 }
@@ -327,7 +327,7 @@ fn test_vector_fold_right_basic() {
                 .fold(0.0, |acc, n| acc + n);
             Ok(Value::number(first - rest_sum))
         }),
-        effects: &[Effect::Pure],
+        effects: vec![Effect::Pure],
     });
 
     // Add to environment for testing

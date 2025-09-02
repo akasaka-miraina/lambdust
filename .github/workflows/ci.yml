@@ -134,20 +134,10 @@ jobs:
       - name: Build examples
         run: cargo build --examples ${{ matrix.profile == 'release' && '--release' || '' }}
 
-  # Feature-specific Testing
+  # Feature Testing
   features:
     name: Feature Testing
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        features:
-          - "minimal-repl"
-          - "enhanced-repl"
-          - "async-runtime"
-          - "network-io"
-          - "ffi"
-          - "minimal-repl,async-runtime"
-          - "enhanced-repl,network-io,ffi"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -163,14 +153,36 @@ jobs:
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: features-${{ matrix.features }}
+          shared-key: features
           cache-on-failure: true
 
-      - name: Test with features
-        run: cargo test --no-default-features --features "${{ matrix.features }}"
+      - name: Test individual features
+        run: |
+          echo "Testing individual features..."
+          cargo test --no-default-features --features "minimal-repl"
+          cargo test --no-default-features --features "enhanced-repl"
+          cargo test --no-default-features --features "async-runtime"
+          cargo test --no-default-features --features "network-io"
+          cargo test --no-default-features --features "ffi"
 
-      - name: Build with features
-        run: cargo build --no-default-features --features "${{ matrix.features }}"
+      - name: Test feature combinations
+        run: |
+          echo "Testing feature combinations..."
+          cargo test --no-default-features --features "minimal-repl,async-runtime"
+          cargo test --no-default-features --features "enhanced-repl,network-io,ffi"
+
+      - name: Build verification with features
+        run: |
+          echo "Building with individual features..."
+          cargo build --no-default-features --features "minimal-repl"
+          cargo build --no-default-features --features "enhanced-repl"
+          cargo build --no-default-features --features "async-runtime"
+          cargo build --no-default-features --features "network-io"
+          cargo build --no-default-features --features "ffi"
+          
+          echo "Building with feature combinations..."
+          cargo build --no-default-features --features "minimal-repl,async-runtime"
+          cargo build --no-default-features --features "enhanced-repl,network-io,ffi"
 
   # Minimum Supported Rust Version
   msrv:

@@ -130,6 +130,35 @@ impl Runtime {
         Ok(())
     }
 
+    /// Evaluates a string containing Scheme code.
+    pub fn eval_string(&mut self, code: &str) -> Result<Value> {
+        // Parse the code into AST
+        use crate::parser::Parser;
+        use crate::lexer::Lexer;
+        
+        let mut lexer = Lexer::new(code, None);
+        let tokens = lexer.tokenize()?;
+        
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse()?;
+        
+        // Evaluate the program
+        if program.expressions.is_empty() {
+            return Ok(Value::Nil);
+        }
+        
+        // Evaluate each expression and return the last result
+        let mut result = Value::Nil;
+        use crate::eval::environment::global_environment;
+        let env = global_environment();
+        
+        for expr in &program.expressions {
+            result = self.evaluator.eval(expr, env.clone())?;
+        }
+        
+        Ok(result)
+    }
+
     /// Populates essential primitives that might be missing from the default environment.
     fn populate_essential_primitives(env: &std::rc::Rc<crate::eval::Environment>) -> Result<()> {
         use crate::effects::Effect;
