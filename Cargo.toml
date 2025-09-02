@@ -144,7 +144,7 @@ rand_xorshift = "0.3"                               # Fast PRNG for property tes
 futures = "0.3"                                 # For futures utilities in tests
 
 # Text processing
-unicode-normalization = "0.1"
+unicode-normalization = "=0.1.22"  # Lock to MSRV 1.75.0 compatible version
 unicode-segmentation = "1.10"
 # ICU dependencies temporarily removed for MSRV compatibility
 # icu_collator = { version = "1.4", optional = true } # Unicode collation for text processing

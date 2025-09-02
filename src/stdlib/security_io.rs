@@ -333,10 +333,10 @@ impl SecurityManager {
         #[cfg(not(unix))]
         {
             if chroot_path.is_some() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "Chroot sandboxing not supported on this platform".to_string(),
                     None,
-                ));
+                )));
             }
 
             // Enable basic sandboxing without chroot

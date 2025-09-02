@@ -100,8 +100,12 @@ jobs:
       - name: Test SRFI implementations
         run: |
           echo "Testing SRFI implementations..."
-          find tests/srfi -name "*.ldust" -exec echo "Testing {}" \; -exec \
-            cargo run --bin lambdust --release --no-default-features -- {} \; > srfi-test-results.txt
+          if [ -d "tests/srfi" ] && [ -n "$(find tests/srfi -name '*.ldust' 2>/dev/null)" ]; then
+            find tests/srfi -name "*.ldust" -exec echo "Testing {}" \; -exec \
+              cargo run --bin lambdust --release --no-default-features -- {} \;
+          else
+            echo "No SRFI test files found - SRFI tests will be implemented in future releases"
+          fi > srfi-test-results.txt
 
       - name: Upload SRFI results
         uses: actions/upload-artifact@v4
