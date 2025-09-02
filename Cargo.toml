@@ -146,8 +146,9 @@ futures = "0.3"                                 # For futures utilities in tests
 # Text processing
 unicode-normalization = "0.1"
 unicode-segmentation = "1.10"
-icu_collator = { version = "1.4", optional = true } # Unicode collation for text processing
-icu_locid = { version = "1.4", optional = true }    # ICU locale support
+# ICU dependencies temporarily removed for MSRV compatibility
+# icu_collator = { version = "1.4", optional = true } # Unicode collation for text processing
+# icu_locid = { version = "1.4", optional = true }    # ICU locale support
 
 # Numeric traits for monad implementations
 num-traits = "0.2"
@@ -220,7 +221,7 @@ platform-extensions = [
 # Legacy compatibility (opt-in only)
 async = ["async-runtime"]                           # Backward compatibility
 advanced-io = ["network-io", "platform-extensions"] # Backward compatibility
-text-processing = ["icu_collator", "icu_locid"]
+text-processing = []  # Temporarily empty - ICU dependencies removed for MSRV compatibility
 compression = ["flate2", "zstd", "lz4_flex"]
 tls = ["rustls", "tokio-rustls", "webpki-roots"]
 unix-extensions = ["nix"]

@@ -93,7 +93,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep.sarif
-        if: always()
+        if: always() && hashFiles('semgrep.sarif') != ''
 
   # FFI Security Analysis
   ffi-security:
@@ -216,8 +216,10 @@ jobs:
           cargo license
           
           # Check for problematic licenses (excluding r-efi LGPL which is acceptable)
-          if cargo license | grep -E "(GPL|AGPL|SSPL|BCL)" | grep -v "r-efi.*LGPL"; then
-            echo "⚠️  Found potentially problematic licenses. Review required."
+          problematic=$(cargo license | grep -E "(GPL|AGPL|SSPL|BCL)" | grep -v "Apache-2.0 OR LGPL-2.1-or-later OR MIT.*r-efi" || true)
+          if [ -n "$problematic" ]; then
+            echo "⚠️  Found potentially problematic licenses: $problematic"
+            echo "Review required for licenses other than r-efi LGPL."
             exit 1
           else
             echo "✅ All licenses appear compatible (r-efi LGPL exception allowed)"
