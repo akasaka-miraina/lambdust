@@ -41,7 +41,7 @@ jobs:
       - name: Test core primitives
         run: |
           echo "Testing 42 core primitives..."
-          cargo run --release --no-default-features -- --eval '
+          cargo run --bin lambdust --release --no-default-features -- --eval '
           (define primitives-test
             (lambda ()
               ;; Test arithmetic operations
@@ -101,7 +101,7 @@ jobs:
         run: |
           echo "Testing SRFI implementations..."
           find tests/srfi -name "*.ldust" -exec echo "Testing {}" \; -exec \
-            cargo run --release --no-default-features -- {} \; > srfi-test-results.txt
+            cargo run --bin lambdust --release --no-default-features -- {} \; > srfi-test-results.txt
 
       - name: Upload SRFI results
         uses: actions/upload-artifact@v4
@@ -138,7 +138,7 @@ jobs:
       - name: Test gradual typing
         run: |
           echo "Testing gradual typing system..."
-          cargo run --release --no-default-features -- --eval '
+          cargo run --bin lambdust --release --no-default-features -- --eval '
           ;; Test gradual typing features
           (define (typed-factorial (n : Integer)) : Integer
             (if (<= n 1)
@@ -191,7 +191,7 @@ jobs:
       - name: Test actor system
         run: |
           echo "Testing actor system..."
-          cargo run --release --no-default-features -- --eval '
+          cargo run --bin lambdust --release --no-default-features -- --eval '
           ;; Test actor-based concurrency
           (define counter-actor
             (spawn-actor
@@ -247,7 +247,7 @@ jobs:
       - name: Test effect handlers
         run: |
           echo "Testing effect handling system..."
-          cargo run --release --no-default-features -- --eval '
+          cargo run --bin lambdust --release --no-default-features -- --eval '
           ;; Test effect handling
           (with-effects
             (IO State)

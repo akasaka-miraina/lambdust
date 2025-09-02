@@ -8,6 +8,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/username/lambdust"
 keywords = ["scheme", "lisp", "functional", "types", "compiler"]
 categories = ["compilers", "development-tools"]
+default-run = "lambdust"
 include = [
     "src/**/*.rs",
     "stdlib/**/*.scm",
