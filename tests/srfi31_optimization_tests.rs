@@ -59,7 +59,7 @@ fn create_expr(expr: Expr) -> Spanned<Expr> {
 /// Helper function to create factorial lambda expression for testing
 fn create_factorial_lambda() -> Spanned<Expr> {
     create_expr(Expr::Lambda {
-        formals: Formals::Fixed(&["n".to_string()]),
+        formals: Formals::Fixed(vec!["n".to_string()]),
         return_type: None,
         metadata: HashMap::new(),
         body: vec![create_expr(Expr::If {
@@ -94,7 +94,7 @@ fn create_factorial_lambda() -> Spanned<Expr> {
 /// Helper function to create tail-recursive factorial lambda
 fn create_tail_recursive_factorial() -> Spanned<Expr> {
     create_expr(Expr::Lambda {
-        formals: Formals::Fixed(&["n".to_string(), "acc".to_string()]),
+        formals: Formals::Fixed(vec!["n".to_string(), "acc".to_string()]),
         return_type: None,
         metadata: HashMap::new(),
         body: vec![create_expr(Expr::If {
@@ -132,7 +132,7 @@ fn create_tail_recursive_factorial() -> Spanned<Expr> {
 /// Helper function to create fibonacci lambda (tree recursion)
 fn create_fibonacci_lambda() -> Spanned<Expr> {
     create_expr(Expr::Lambda {
-        formals: Formals::Fixed(&["n".to_string()]),
+        formals: Formals::Fixed(vec!["n".to_string()]),
         return_type: None,
         metadata: HashMap::new(),
         body: vec![create_expr(Expr::If {
@@ -739,7 +739,7 @@ fn test_optimization_with_malformed_expressions() {
 
     // Test with empty expression
     let empty_expr = create_expr(Expr::Lambda {
-        formals: Formals::Fixed(&[]),
+        formals: Formals::Fixed(vec![]),
         return_type: None,
         metadata: HashMap::new(),
         body: &[],
@@ -786,7 +786,7 @@ fn test_optimization_cache_limits() {
     // Fill cache beyond capacity
     for i in 0..5 {
         let expr = create_expr(Expr::Lambda {
-            formals: Formals::Fixed(&[format!("param{}", i)]),
+            formals: Formals::Fixed(vec![format!("param{}", i)]),
             return_type: None,
             metadata: HashMap::new(),
             body: &[create_expr(Expr::Literal(Literal::ExactInteger(i as i64)))],

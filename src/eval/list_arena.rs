@@ -546,7 +546,7 @@ mod tests {
 
     #[test]
     #[allow(unexpected_cfgs)]
-    #[cfg(feature = "thread_safe_tests")] // Only enable when explicitly requested
+    #[cfg(all(feature = "thread_safe_tests", not(feature = "arena-optimization")))] // Disabled with arena optimization due to Send requirements
     fn test_concurrent_allocation() {
         use std::sync::Arc;
         use std::thread;

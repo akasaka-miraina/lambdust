@@ -600,24 +600,24 @@ impl SimdNumericOps {
         let chunks = len / 4;
         let remainder = len % 4;
 
-        let mut sum_vec = _mm256_setzero_pd();
+        let mut sum_vec = unsafe { _mm256_setzero_pd() };
 
         // Accumulate 4 elements at a time
         for i in 0..chunks {
             let offset = i * 4;
-            let a_chunk = _mm256_loadu_pd(a.as_ptr().add(offset));
-            let b_chunk = _mm256_loadu_pd(b.as_ptr().add(offset));
-            let product = _mm256_mul_pd(a_chunk, b_chunk);
-            sum_vec = _mm256_add_pd(sum_vec, product);
+            let a_chunk = unsafe { _mm256_loadu_pd(a.as_ptr().add(offset)) };
+            let b_chunk = unsafe { _mm256_loadu_pd(b.as_ptr().add(offset)) };
+            let product = unsafe { _mm256_mul_pd(a_chunk, b_chunk) };
+            sum_vec = unsafe { _mm256_add_pd(sum_vec, product) };
         }
 
         // Horizontal sum of the 4 elements in sum_vec
-        let sum_high = _mm256_extractf128_pd(sum_vec, 1);
-        let sum_low = _mm256_castpd256_pd128(sum_vec);
-        let sum_combined = _mm_add_pd(sum_low, sum_high);
-        let sum_final = _mm_add_pd(sum_combined, _mm_shuffle_pd(sum_combined, sum_combined, 1));
+        let sum_high = unsafe { _mm256_extractf128_pd(sum_vec, 1) };
+        let sum_low = unsafe { _mm256_castpd256_pd128(sum_vec) };
+        let sum_combined = unsafe { _mm_add_pd(sum_low, sum_high) };
+        let sum_final = unsafe { _mm_add_pd(sum_combined, _mm_shuffle_pd(sum_combined, sum_combined, 1)) };
 
-        let mut result = _mm_cvtsd_f64(sum_final);
+        let mut result = unsafe { _mm_cvtsd_f64(sum_final) };
 
         // Handle remainder elements
         if remainder > 0 {
@@ -637,18 +637,18 @@ impl SimdNumericOps {
         let chunks = len / 2;
         let remainder = len % 2;
 
-        let mut sum_vec = _mm_setzero_pd();
+        let mut sum_vec = unsafe { _mm_setzero_pd() };
 
         for i in 0..chunks {
             let offset = i * 2;
-            let a_chunk = _mm_loadu_pd(a.as_ptr().add(offset));
-            let b_chunk = _mm_loadu_pd(b.as_ptr().add(offset));
-            let product = _mm_mul_pd(a_chunk, b_chunk);
-            sum_vec = _mm_add_pd(sum_vec, product);
+            let a_chunk = unsafe { _mm_loadu_pd(a.as_ptr().add(offset)) };
+            let b_chunk = unsafe { _mm_loadu_pd(b.as_ptr().add(offset)) };
+            let product = unsafe { _mm_mul_pd(a_chunk, b_chunk) };
+            sum_vec = unsafe { _mm_add_pd(sum_vec, product) };
         }
 
-        let sum_final = _mm_add_pd(sum_vec, _mm_shuffle_pd(sum_vec, sum_vec, 1));
-        let mut result = _mm_cvtsd_f64(sum_final);
+        let sum_final = unsafe { _mm_add_pd(sum_vec, _mm_shuffle_pd(sum_vec, sum_vec, 1)) };
+        let mut result = unsafe { _mm_cvtsd_f64(sum_final) };
 
         if remainder > 0 {
             let offset = chunks * 2;

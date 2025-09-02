@@ -383,7 +383,7 @@ mod procedure_application_integration {
 
         // First call-with-values: (values 1 2) -> (lambda (a b) ...)
         let inner_values = &[Value::integer(1), Value::integer(2)];
-        let inner_mv = Value::MultipleValues(Arc::new(MultipleValues::new(inner_values)));
+        let inner_mv = Value::MultipleValues(Arc::new(MultipleValues::new(inner_values.to_vec())));
 
         if let Value::MultipleValues(inner_ref) = inner_mv {
             let a = inner_ref.as_slice()[0].clone();
