@@ -14,9 +14,9 @@ pub mod monadic_evaluator;
 pub mod optimized_environment;
 pub mod optimized_value;
 pub mod parameter;
+pub mod stream;
 pub mod unified_eval_errors;
 pub mod value;
-pub mod stream;
 
 // SRFI-31 optimization framework
 pub mod rec_optimization_framework;
@@ -27,8 +27,8 @@ pub mod arena_integration;
 pub mod value_arena;
 
 // SRFI-1 optimization modules
-pub mod list_optimization;
 pub mod list_arena;
+pub mod list_optimization;
 
 // NaN-boxing value representation modules
 pub mod nan_boxed_value;
@@ -46,8 +46,8 @@ pub mod value_bridge;
 pub mod value_optimization_core;
 
 // Phase 8 optimization infrastructure
-pub mod unified_value_system;
 pub mod string_interning_system;
+pub mod unified_value_system;
 
 // Performance verification modules
 pub mod arc_allocation_tracker;

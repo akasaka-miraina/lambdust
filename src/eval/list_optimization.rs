@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! NaN-Boxing List Optimization for SRFI-1 Implementation
+#![allow(missing_docs)]
+//! NaN-Boxing List Optimization for SRFI-1 Implementation
 //!
 //! This module provides optimized list cell representations using NaN-boxing integration
 //! to achieve sub-nanosecond list traversal performance as specified by the cs-architect.
@@ -21,15 +22,15 @@ use crate::eval::nan_boxed_value::NanBoxedValue;
 use crate::eval::value::Value;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 
 /// Optimized list cell using NaN-boxing for 8-byte representation
 ///
 /// Each cell contains:
 /// - data: NaN-boxed value with embedded type information (64 bits)
 /// - next: Pointer to next cell or null (64 bits)
-/// 
+///
 /// Total size: 16 bytes (2 cache lines on most architectures)
 #[repr(C, align(8))]
 #[derive(Debug)]
@@ -57,7 +58,7 @@ impl OptimizedListCell {
     }
 
     /// Ultra-fast traversal operation targeting <1ns per element
-    /// 
+    ///
     /// Uses direct pointer arithmetic and minimal bounds checking
     /// for maximum performance in hot paths
     #[inline(always)]
@@ -109,7 +110,11 @@ impl OptimizedListCell {
     /// Optimized map operation targeting 5-10x performance improvement
     ///
     /// Uses arena allocation and direct cell construction for efficiency
-    pub fn apply_map<F>(&self, f: F, arena: &ListConstructionArena) -> Option<NonNull<OptimizedListCell>>
+    pub fn apply_map<F>(
+        &self,
+        f: F,
+        arena: &ListConstructionArena,
+    ) -> Option<NonNull<OptimizedListCell>>
     where
         F: Fn(&Value) -> Value,
     {
@@ -130,12 +135,16 @@ impl OptimizedListCell {
     }
 
     /// Fast filter operation using direct cell manipulation
-    pub fn apply_filter<P>(&self, predicate: P, arena: &ListConstructionArena) -> Option<NonNull<OptimizedListCell>>
+    pub fn apply_filter<P>(
+        &self,
+        predicate: P,
+        arena: &ListConstructionArena,
+    ) -> Option<NonNull<OptimizedListCell>>
     where
         P: Fn(&Value) -> bool + Copy,
     {
         let current_value = self.get_value();
-        
+
         if predicate(&current_value) {
             // Include this element
             let filtered_next = if let Some(next_cell) = self.traverse() {
@@ -173,9 +182,7 @@ impl OptimizedListCell {
     fn value_to_nan_boxed(value: &Value) -> NanBoxedValue {
         match value {
             Value::Literal(crate::ast::Literal::Boolean(b)) => NanBoxedValue::from_bool(*b),
-            Value::Literal(crate::ast::Literal::Number(n)) => {
-                NanBoxedValue::from_number(*n)
-            }
+            Value::Literal(crate::ast::Literal::Number(n)) => NanBoxedValue::from_number(*n),
             Value::Nil => NanBoxedValue::nil_value(),
             _ => {
                 // For complex values, we need to store them as heap objects
@@ -242,7 +249,7 @@ impl ListConstructionArena {
         // Production implementation would use actual arena allocation
         let cell = Box::new(OptimizedListCell::new(data, next));
         let cell_ptr = Box::into_raw(cell);
-        
+
         // Update statistics
         self.allocation_count.fetch_add(1, Ordering::Relaxed);
         self.bytes_allocated.fetch_add(
@@ -260,7 +267,7 @@ impl ListConstructionArena {
         }
 
         let mut result = None;
-        
+
         // Build list in reverse order
         for value in values.iter().rev() {
             let boxed_value = OptimizedListCell::value_to_nan_boxed(value);
@@ -300,7 +307,10 @@ pub struct OptimizedListOperations;
 
 impl OptimizedListOperations {
     /// Creates an optimized list from a slice of values
-    pub fn from_values(values: &[Value], arena: &ListConstructionArena) -> Option<NonNull<OptimizedListCell>> {
+    pub fn from_values(
+        values: &[Value],
+        arena: &ListConstructionArena,
+    ) -> Option<NonNull<OptimizedListCell>> {
         arena.create_list(values)
     }
 
@@ -363,11 +373,7 @@ impl OptimizedListOperations {
     }
 
     /// Optimized fold-left operation
-    pub fn fold_left<T, F>(
-        list: Option<NonNull<OptimizedListCell>>,
-        initial: T,
-        f: F,
-    ) -> T
+    pub fn fold_left<T, F>(list: Option<NonNull<OptimizedListCell>>, initial: T, f: F) -> T
     where
         F: Fn(T, &Value) -> T + Copy,
     {
@@ -380,7 +386,7 @@ impl OptimizedListOperations {
 }
 
 /// Thread-safe wrapper for OptimizedListCell pointers
-/// 
+///
 /// This wrapper ensures safe transfer of OptimizedListCell pointers between threads
 /// while maintaining performance characteristics of NonNull<T>
 #[derive(Debug, Clone, Copy)]
@@ -408,7 +414,7 @@ impl SafeListCellPtr {
     }
 }
 
-// Safety: SafeListCellPtr can be safely sent between threads 
+// Safety: SafeListCellPtr can be safely sent between threads
 // because OptimizedListCell implements Send and the pointer is guaranteed non-null
 unsafe impl Send for SafeListCellPtr {}
 unsafe impl Sync for SafeListCellPtr {}
@@ -449,9 +455,9 @@ mod tests {
         let arena = ListConstructionArena::new(1024);
         let values = vec![Value::boolean(true), Value::boolean(false)];
         let list = OptimizedListOperations::from_values(&values, &arena);
-        
+
         assert_eq!(OptimizedListOperations::length(list), 2);
-        
+
         let back_to_values = OptimizedListOperations::to_values(list);
         assert_eq!(back_to_values.len(), 2);
     }
@@ -461,45 +467,67 @@ mod tests {
         let arena = ListConstructionArena::new(1024);
         let values = vec![Value::boolean(true), Value::boolean(false)];
         let list = OptimizedListOperations::from_values(&values, &arena);
-        
+
         // Map operation: negate booleans
-        let mapped = OptimizedListOperations::map(list, |v| match v {
-            Value::Literal(crate::ast::literal::Literal::Boolean(b)) => Value::boolean(!b),
-            other => other.clone(),
-        }, &arena);
-        
+        let mapped = OptimizedListOperations::map(
+            list,
+            |v| match v {
+                Value::Literal(crate::ast::literal::Literal::Boolean(b)) => Value::boolean(!b),
+                other => other.clone(),
+            },
+            &arena,
+        );
+
         let mapped_values = OptimizedListOperations::to_values(mapped);
-        assert_eq!(mapped_values, vec![Value::boolean(false), Value::boolean(true)]);
+        assert_eq!(
+            mapped_values,
+            vec![Value::boolean(false), Value::boolean(true)]
+        );
     }
 
     #[test]
     fn test_filter_operation() {
         let arena = ListConstructionArena::new(1024);
-        let values = vec![Value::boolean(true), Value::boolean(false), Value::boolean(true)];
+        let values = vec![
+            Value::boolean(true),
+            Value::boolean(false),
+            Value::boolean(true),
+        ];
         let list = OptimizedListOperations::from_values(&values, &arena);
-        
+
         // Filter: keep only true values
-        let filtered = OptimizedListOperations::filter(list, |v| match v {
-            Value::Literal(crate::ast::literal::Literal::Boolean(true)) => true,
-            _ => false,
-        }, &arena);
-        
+        let filtered = OptimizedListOperations::filter(
+            list,
+            |v| match v {
+                Value::Literal(crate::ast::literal::Literal::Boolean(true)) => true,
+                _ => false,
+            },
+            &arena,
+        );
+
         let filtered_values = OptimizedListOperations::to_values(filtered);
-        assert_eq!(filtered_values, vec![Value::boolean(true), Value::boolean(true)]);
+        assert_eq!(
+            filtered_values,
+            vec![Value::boolean(true), Value::boolean(true)]
+        );
     }
 
     #[test]
     fn test_fold_operation() {
         let arena = ListConstructionArena::new(1024);
-        let values = vec![Value::boolean(true), Value::boolean(false), Value::boolean(true)];
+        let values = vec![
+            Value::boolean(true),
+            Value::boolean(false),
+            Value::boolean(true),
+        ];
         let list = OptimizedListOperations::from_values(&values, &arena);
-        
+
         // Fold: count true values
         let count = OptimizedListOperations::fold_left(list, 0, |acc, v| match v {
             Value::Literal(crate::ast::literal::Literal::Boolean(true)) => acc + 1,
             _ => acc,
         });
-        
+
         assert_eq!(count, 2);
     }
 }

@@ -3,9 +3,10 @@
 //! This test suite verifies both correctness and performance of the parameter system,
 //! including thread-local bindings, parameter conversion, and performance optimizations.
 
-use lambdust::eval::parameter::{Parameter, ParameterBinding};
+use lambdust::eval::parameter::ParameterBinding;
+use lambdust::eval::value::Parameter;
 use lambdust::eval::value::Value;
-use lambdust::stdlib::parameters::{make_parameter, is_parameter};
+use lambdust::stdlib::parameters::{is_parameter, make_parameter};
 use std::collections::HashMap;
 
 #[test]
@@ -137,12 +138,8 @@ fn test_parameter_stack_depth() {
 
 #[test]
 fn test_parameter_with_name() {
-    let param = Parameter::with_name(
-        Value::string("hello"), 
-        None, 
-        "test-param".to_string()
-    );
-    
+    let param = Parameter::with_name(Value::string("hello"), None, "test-param".to_string());
+
     assert_eq!(param.get().as_string(), Some("hello"));
     assert_eq!(param.name(), Some("test-param"));
     assert_eq!(param.id() > 0, true); // Should have a valid ID
@@ -203,10 +200,10 @@ fn test_parameter_performance_statistics() {
         param.get(); // Should increment read count
     }
 
-    // Create some bindings to test parameterize statistics  
+    // Create some bindings to test parameterize statistics
     let mut bindings = HashMap::new();
     bindings.insert(param.id(), Value::integer(100));
-    
+
     ParameterBinding::with_bindings(bindings, || {
         for _ in 0..5 {
             param.get(); // Should hit hot cache after a few reads
@@ -214,19 +211,23 @@ fn test_parameter_performance_statistics() {
     });
 
     // Check that statistics were recorded
-    if let Some((reads, writes, cache_hits, cache_misses, parameterize_calls)) = 
-        ParameterBinding::get_statistics() {
+    if let Some((reads, writes, cache_hits, cache_misses, parameterize_calls)) =
+        ParameterBinding::get_statistics()
+    {
         assert!(reads > 0, "Should have recorded parameter reads");
-        assert!(parameterize_calls > 0, "Should have recorded parameterize calls");
+        assert!(
+            parameterize_calls > 0,
+            "Should have recorded parameterize calls"
+        );
         // Note: cache behavior depends on implementation details
     }
 }
 
 /// Performance benchmark test - should run quickly with optimizations
-#[test] 
+#[test]
 fn test_parameter_performance_benchmark() {
     use std::time::Instant;
-    
+
     ParameterBinding::clear_stack();
     ParameterBinding::reset_statistics();
 
@@ -250,45 +251,49 @@ fn test_parameter_performance_benchmark() {
     // Performance target: <100ns per read (including hot cache optimization)
     // This is a reasonable target for the optimized implementation
     println!("Parameter read performance: {}ns per read", ns_per_read);
-    
+
     // Don't fail the test if performance doesn't meet target in debug builds
     // In release builds with optimizations, this should be much faster
     if cfg!(not(debug_assertions)) {
-        assert!(ns_per_read < 1000, "Parameter reads should be under 1000ns in release mode, got {}ns", ns_per_read);
+        assert!(
+            ns_per_read < 1000,
+            "Parameter reads should be under 1000ns in release mode, got {}ns",
+            ns_per_read
+        );
     }
 }
 
 /// Test parameter system under concurrent access (if threading is enabled)
-#[cfg(feature = "async-runtime")] 
+#[cfg(feature = "async-runtime")]
 #[test]
 fn test_parameter_thread_safety() {
     use std::sync::Arc;
     use std::thread;
-    
+
     let param = Arc::new(Parameter::new(Value::integer(0), None));
     let param_clone = param.clone();
-    
+
     // Set global value from main thread
     param.set_global(Value::integer(42)).unwrap();
-    
+
     let handle = thread::spawn(move || {
-        // Should see the global value from the other thread  
+        // Should see the global value from the other thread
         assert_eq!(param_clone.get().as_integer(), Some(42));
-        
+
         // Thread-local bindings should be isolated
         let mut bindings = HashMap::new();
         bindings.insert(param_clone.id(), Value::integer(100));
-        
+
         ParameterBinding::with_bindings(bindings, || {
             assert_eq!(param_clone.get().as_integer(), Some(100));
         });
-        
+
         // Should return to global value after binding
         assert_eq!(param_clone.get().as_integer(), Some(42));
     });
-    
+
     handle.join().unwrap();
-    
+
     // Main thread should still see global value
     assert_eq!(param.get().as_integer(), Some(42));
 }
@@ -298,7 +303,7 @@ fn test_parameter_thread_safety() {
 fn test_parameter_error_handling() {
     // Test set_global with converter (when converter is implemented)
     let param = Parameter::new(Value::integer(42), Some(Value::integer(0)));
-    
+
     // For now, this should succeed since converter is not fully implemented
     // In a full implementation, this would test converter validation
     assert!(param.set_global(Value::integer(100)).is_ok());
@@ -310,28 +315,28 @@ fn test_stdlib_parameter_integration() {
     // Test the stdlib functions work with the optimized parameter system
     let args = &[Value::string("initial")];
     let param_value = make_parameter(&args).unwrap();
-    
+
     // Should be recognized as a parameter
     let args = &[param_value.clone()];
     let result = is_parameter(&args).unwrap();
     assert_eq!(result, Value::boolean(true));
-    
+
     // Extract the parameter and test its behavior
     if let Value::Parameter(param) = param_value {
         assert_eq!(param.get().as_string(), Some("initial"));
-        
+
         // Test global setting
         param.set_global(Value::string("updated")).unwrap();
         assert_eq!(param.get().as_string(), Some("updated"));
-        
+
         // Test thread-local binding
         let mut bindings = HashMap::new();
         bindings.insert(param.id, Value::string("bound"));
-        
+
         ParameterBinding::with_bindings(bindings, || {
             assert_eq!(param.get().as_string(), Some("bound"));
         });
-        
+
         // Should return to global value
         assert_eq!(param.get().as_string(), Some("updated"));
     }

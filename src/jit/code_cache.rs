@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! JIT code cache with intelligent memory management
+#![allow(missing_docs)]
+//! JIT code cache with intelligent memory management
 //!
 //! This module implements a sophisticated code cache that manages generated native code
 //! with LRU eviction, memory pressure handling, and integration with the garbage collector.

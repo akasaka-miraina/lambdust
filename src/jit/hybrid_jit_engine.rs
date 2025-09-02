@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! HybridJitEngine - Revolutionary LLVM+Cranelift hybrid JIT system
+#![allow(missing_docs)]
+//! HybridJitEngine - Revolutionary LLVM+Cranelift hybrid JIT system
 //!
 //! This module implements cs-architect's innovative hybrid JIT design that provides:
 //! - LLVM for continuation chain optimization (10x performance improvement)

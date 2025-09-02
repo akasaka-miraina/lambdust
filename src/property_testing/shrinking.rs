@@ -82,7 +82,10 @@ impl SmartShrinker {
         // Remove duplicates and sort by "simplicity" (absolute value)
         candidates.sort_by(|a, b| {
             if let (Some(a_val), Some(b_val)) = (a.as_number(), b.as_number()) {
-                a_val.abs().partial_cmp(&b_val.abs()).unwrap_or(std::cmp::Ordering::Equal)
+                a_val
+                    .abs()
+                    .partial_cmp(&b_val.abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
             } else {
                 std::cmp::Ordering::Equal
             }
@@ -329,7 +332,7 @@ impl SmartShrinker {
     /// Shrink a vector (similar to list but produces vectors)
     fn shrink_vector(elements: &[Value]) -> Vec<Value> {
         let list_candidates = Self::shrink_list(elements);
-        
+
         list_candidates
             .into_iter()
             .map(|candidate| {
@@ -413,7 +416,7 @@ impl StructuralShrinker {
     /// Shrink vector by focusing on structural patterns
     fn shrink_vector_structure(elements: &[Value]) -> Vec<Value> {
         let list_candidates = Self::shrink_list_structure(elements);
-        
+
         list_candidates
             .into_iter()
             .map(|candidate| {
@@ -466,7 +469,7 @@ mod tests {
             Value::integer(4),
         ];
         let candidates = SmartShrinker::shrink_list(&original);
-        
+
         assert!(candidates.contains(&Value::Nil));
         assert!(candidates.contains(&Value::integer(1)));
         assert!(candidates.contains(&Value::list(vec![Value::integer(1), Value::integer(2)])));
@@ -481,7 +484,7 @@ mod tests {
 
         if let Some(elements) = nested_list.as_list() {
             let candidates = StructuralShrinker::shrink_list_structure(&elements);
-            
+
             // Should contain flattened version
             let expected_flat = Value::list(vec![
                 Value::integer(1),
@@ -489,7 +492,7 @@ mod tests {
                 Value::integer(3),
                 Value::integer(4),
             ]);
-            
+
             assert!(candidates.contains(&expected_flat));
         }
     }
@@ -504,19 +507,19 @@ mod tests {
             Value::integer(5),
             Value::integer(6),
         ];
-        
+
         let candidates = SmartShrinker::delta_debug_list(&elements);
-        
+
         // Should generate various subset candidates
         assert!(!candidates.is_empty());
-        
+
         // Check that we have some expected subsets
         let expected_half = Value::list(vec![
             Value::integer(1),
             Value::integer(2),
             Value::integer(3),
         ]);
-        
+
         assert!(candidates.contains(&expected_half));
     }
 }

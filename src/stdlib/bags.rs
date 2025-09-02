@@ -155,7 +155,7 @@ impl ValueKey {
             }
             Value::Environment(env) => ValueKeyType::MutableRef(Arc::as_ptr(env) as usize),
             Value::Box(boxed) => ValueKeyType::MutableRef(Arc::as_ptr(boxed) as usize),
-            
+
             // TODO: Many SRFI-specific values were removed from Value enum
             // Use a default ValueKeyType for now
             _ => ValueKeyType::MutableRef(0),
@@ -1001,10 +1001,10 @@ fn apply_procedure_with_evaluator(
             } => {
                 // Non-local jump immediately returns the value
                 return Ok(value);
-            },
+            }
             EvalStep::Parameterize { .. } => todo!("Parameterize not implemented in bags"),
             EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented in bags"),
-            EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented in bags"),  
+            EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented in bags"),
             EvalStep::MutexLock { .. } => todo!("MutexLock not implemented in bags"),
             EvalStep::MutexUnlock { .. } => todo!("MutexUnlock not implemented in bags"),
             EvalStep::CondvarWait { .. } => todo!("CondvarWait not implemented in bags"),

@@ -8,16 +8,16 @@
 
 use crate::ast::Literal;
 use crate::eval::nan_boxed_value::NanBoxedValue;
-use crate::eval::record_arena::{RecordArena, SizeClass, GLOBAL_RECORD_ARENA};
+use crate::eval::record_arena::{GLOBAL_RECORD_ARENA, RecordArena, SizeClass};
 use crate::eval::record_type::{
-    FieldDescriptor, RecordError, RecordResult, RecordTypeDescriptor, RecordTypeId,
-    GLOBAL_RECORD_REGISTRY,
+    FieldDescriptor, GLOBAL_RECORD_REGISTRY, RecordError, RecordResult, RecordTypeDescriptor,
+    RecordTypeId,
 };
 use crate::eval::value::Value;
 use std::fmt::{self, Debug, Formatter};
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// High-performance record instance with cache-optimized layout
 #[repr(C, align(64))] // Cache-line aligned
@@ -216,7 +216,11 @@ impl RecordInstance {
     }
 
     /// Sets a field value by name
-    pub fn set_field_by_name(&mut self, field_name: &str, value: NanBoxedValue) -> RecordResult<()> {
+    pub fn set_field_by_name(
+        &mut self,
+        field_name: &str,
+        value: NanBoxedValue,
+    ) -> RecordResult<()> {
         // Get type descriptor
         let type_desc = GLOBAL_RECORD_REGISTRY
             .get_type(self.type_id)
@@ -277,7 +281,9 @@ impl RecordInstance {
         }
 
         // Record bulk operation
-        type_desc.access_stats.record_bulk_operation(values.len() as u64);
+        type_desc
+            .access_stats
+            .record_bulk_operation(values.len() as u64);
 
         // Use SIMD if beneficial and aligned
         if type_desc.simd_flags.bulk_init && values.len() >= 4 {
@@ -358,7 +364,9 @@ impl RecordInstance {
         let field_count = type_desc.fields.len();
 
         // Record bulk operation
-        type_desc.access_stats.record_bulk_operation(field_count as u64 * 2);
+        type_desc
+            .access_stats
+            .record_bulk_operation(field_count as u64 * 2);
 
         // Use SIMD comparison if beneficial
         if type_desc.simd_flags.bulk_compare && field_count >= 4 {
@@ -467,19 +475,21 @@ impl RecordInstance {
     /// Calculates the total instance size needed for the given field count
     fn calculate_instance_size(field_count: usize) -> RecordResult<u32> {
         let field_size = std::mem::size_of::<NanBoxedValue>();
-        let total_fields_size = field_count.checked_mul(field_size).ok_or_else(|| {
-            RecordError::AllocationError("Field count overflow".to_string())
-        })?;
+        let total_fields_size = field_count
+            .checked_mul(field_size)
+            .ok_or_else(|| RecordError::AllocationError("Field count overflow".to_string()))?;
 
-        let total_size = Self::HEADER_SIZE.checked_add(total_fields_size).ok_or_else(|| {
-            RecordError::AllocationError("Instance size overflow".to_string())
-        })?;
+        let total_size = Self::HEADER_SIZE
+            .checked_add(total_fields_size)
+            .ok_or_else(|| RecordError::AllocationError("Instance size overflow".to_string()))?;
 
         // Align to cache line boundary (64 bytes)
         let aligned_size = (total_size + 63) & !63;
 
         if aligned_size > u32::MAX as usize {
-            return Err(RecordError::AllocationError("Instance too large".to_string()));
+            return Err(RecordError::AllocationError(
+                "Instance too large".to_string(),
+            ));
         }
 
         Ok(aligned_size as u32)
@@ -487,9 +497,7 @@ impl RecordInstance {
 
     /// Gets pointer to the fields array
     unsafe fn fields_ptr(instance_ptr: *mut RecordInstance) -> *mut NanBoxedValue {
-        unsafe {
-            (instance_ptr as *mut u8).add(Self::HEADER_SIZE) as *mut NanBoxedValue
-        }
+        unsafe { (instance_ptr as *mut u8).add(Self::HEADER_SIZE) as *mut NanBoxedValue }
     }
 
     /// Gets current timestamp for instance creation
@@ -517,7 +525,7 @@ impl Drop for RecordInstance {
         if let Some(type_desc) = GLOBAL_RECORD_REGISTRY.get_type(self.type_id) {
             let type_desc = type_desc.read().unwrap();
             let instance_size = type_desc.instance_size;
-            
+
             // Deallocate from arena
             let self_ptr = NonNull::new(self as *mut RecordInstance).unwrap();
             GLOBAL_RECORD_ARENA.deallocate(self_ptr.cast::<u8>(), instance_size);
@@ -606,7 +614,7 @@ pub fn nan_boxed_to_value(boxed: NanBoxedValue) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::record_type::{RecordTypeDescriptor, GLOBAL_RECORD_REGISTRY};
+    use crate::eval::record_type::{GLOBAL_RECORD_REGISTRY, RecordTypeDescriptor};
 
     fn create_test_type() -> RecordTypeId {
         let desc = RecordTypeDescriptor::new(
@@ -621,28 +629,40 @@ mod tests {
     #[test]
     fn test_record_instance_creation() {
         let type_id = create_test_type();
-        let values = vec![NanBoxedValue::boolean(true), NanBoxedValue::small_integer(42)];
+        let values = vec![
+            NanBoxedValue::boolean(true),
+            NanBoxedValue::small_integer(42),
+        ];
 
         let instance = RecordInstance::new(type_id, &values).unwrap();
-        
+
         unsafe {
             assert_eq!(instance.as_ref().type_id(), type_id);
-            assert_eq!(instance.as_ref().get_field_fast(0), NanBoxedValue::boolean(true));
-            assert_eq!(instance.as_ref().get_field_fast(1), NanBoxedValue::small_integer(42));
+            assert_eq!(
+                instance.as_ref().get_field_fast(0),
+                NanBoxedValue::boolean(true)
+            );
+            assert_eq!(
+                instance.as_ref().get_field_fast(1),
+                NanBoxedValue::small_integer(42)
+            );
         }
     }
 
     #[test]
     fn test_field_access_by_name() {
         let type_id = create_test_type();
-        let values = vec![NanBoxedValue::small_integer(1), NanBoxedValue::small_integer(2)];
+        let values = vec![
+            NanBoxedValue::small_integer(1),
+            NanBoxedValue::small_integer(2),
+        ];
 
         let instance = RecordInstance::new(type_id, &values).unwrap();
-        
+
         unsafe {
             let field1 = instance.as_ref().get_field_by_name("field1").unwrap();
             let field2 = instance.as_ref().get_field_by_name("field2").unwrap();
-            
+
             assert_eq!(field1, NanBoxedValue::small_integer(1));
             assert_eq!(field2, NanBoxedValue::small_integer(2));
         }
@@ -651,65 +671,96 @@ mod tests {
     #[test]
     fn test_field_mutation() {
         let type_id = create_test_type();
-        let values = vec![NanBoxedValue::small_integer(1), NanBoxedValue::small_integer(2)];
+        let values = vec![
+            NanBoxedValue::small_integer(1),
+            NanBoxedValue::small_integer(2),
+        ];
 
         let mut instance = RecordInstance::new(type_id, &values).unwrap();
-        
+
         unsafe {
             let instance_ref = instance.as_mut();
-            
+
             // Mutate field by index
-            instance_ref.set_field(0, NanBoxedValue::small_integer(10)).unwrap();
-            
+            instance_ref
+                .set_field(0, NanBoxedValue::small_integer(10))
+                .unwrap();
+
             // Mutate field by name
-            instance_ref.set_field_by_name("field2", NanBoxedValue::small_integer(20)).unwrap();
-            
+            instance_ref
+                .set_field_by_name("field2", NanBoxedValue::small_integer(20))
+                .unwrap();
+
             // Verify mutations
-            assert_eq!(instance_ref.get_field_fast(0), NanBoxedValue::small_integer(10));
-            assert_eq!(instance_ref.get_field_fast(1), NanBoxedValue::small_integer(20));
+            assert_eq!(
+                instance_ref.get_field_fast(0),
+                NanBoxedValue::small_integer(10)
+            );
+            assert_eq!(
+                instance_ref.get_field_fast(1),
+                NanBoxedValue::small_integer(20)
+            );
         }
     }
 
     #[test]
     fn test_bulk_operations() {
         let type_id = create_test_type();
-        let initial_values = vec![NanBoxedValue::small_integer(1), NanBoxedValue::small_integer(2)];
+        let initial_values = vec![
+            NanBoxedValue::small_integer(1),
+            NanBoxedValue::small_integer(2),
+        ];
 
         let mut instance = RecordInstance::new(type_id, &initial_values).unwrap();
-        
+
         unsafe {
             let instance_ref = instance.as_mut();
-            
+
             // Test bulk get
             let all_fields = instance_ref.get_all_fields().unwrap();
             assert_eq!(all_fields.len(), 2);
-            
+
             // Test bulk set
-            let new_values = vec![NanBoxedValue::small_integer(10), NanBoxedValue::small_integer(20)];
+            let new_values = vec![
+                NanBoxedValue::small_integer(10),
+                NanBoxedValue::small_integer(20),
+            ];
             instance_ref.set_all_fields(&new_values).unwrap();
-            
+
             // Verify
-            assert_eq!(instance_ref.get_field_fast(0), NanBoxedValue::small_integer(10));
-            assert_eq!(instance_ref.get_field_fast(1), NanBoxedValue::small_integer(20));
+            assert_eq!(
+                instance_ref.get_field_fast(0),
+                NanBoxedValue::small_integer(10)
+            );
+            assert_eq!(
+                instance_ref.get_field_fast(1),
+                NanBoxedValue::small_integer(20)
+            );
         }
     }
 
     #[test]
     fn test_record_comparison() {
         let type_id = create_test_type();
-        let values = vec![NanBoxedValue::small_integer(1), NanBoxedValue::small_integer(2)];
+        let values = vec![
+            NanBoxedValue::small_integer(1),
+            NanBoxedValue::small_integer(2),
+        ];
 
         let instance1 = RecordInstance::new(type_id, &values).unwrap();
         let instance2 = RecordInstance::new(type_id, &values).unwrap();
-        
+
         unsafe {
             let equal = instance1.as_ref().equals(instance2.as_ref()).unwrap();
             assert!(equal);
-            
+
             // Create different instance
-            let different_values = vec![NanBoxedValue::small_integer(3), NanBoxedValue::small_integer(4)];
+            let different_values = vec![
+                NanBoxedValue::small_integer(3),
+                NanBoxedValue::small_integer(4),
+            ];
             let instance3 = RecordInstance::new(type_id, &different_values).unwrap();
-            
+
             let not_equal = instance1.as_ref().equals(instance3.as_ref()).unwrap();
             assert!(!not_equal);
         }
@@ -718,16 +769,19 @@ mod tests {
     #[test]
     fn test_reference_counting() {
         let type_id = create_test_type();
-        let values = vec![NanBoxedValue::small_integer(1), NanBoxedValue::small_integer(2)];
+        let values = vec![
+            NanBoxedValue::small_integer(1),
+            NanBoxedValue::small_integer(2),
+        ];
 
         let instance = RecordInstance::new(type_id, &values).unwrap();
-        
+
         unsafe {
             assert_eq!(instance.as_ref().ref_count(), 1);
-            
+
             instance.as_ref().retain();
             assert_eq!(instance.as_ref().ref_count(), 2);
-            
+
             let should_deallocate = instance.as_ref().release();
             assert!(!should_deallocate);
             assert_eq!(instance.as_ref().ref_count(), 1);

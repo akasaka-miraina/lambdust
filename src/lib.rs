@@ -11,11 +11,9 @@
 #![allow(unused_assignments)]
 #![allow(unused_must_use)]
 #![allow(non_snake_case)]
-
 // Allow documentation-related clippy warnings to focus on functional issues
 #![allow(clippy::missing_docs_in_private_items)]
 #![allow(clippy::missing_panics_doc)]
-
 // Allow clippy warnings in development phase (CLAUDE.md compliance)
 #![allow(clippy::type_complexity)]
 #![allow(clippy::useless_format)]
@@ -175,7 +173,7 @@ pub use ast::{Expr, Literal, Program};
 pub use continuations::{
     ContinuationFrame, ContinuationGC, OptimizedContinuation, call_with_current_continuation,
 };
-pub use diagnostics::{Error, Result, Span, EvalUnifiedError};
+pub use diagnostics::{Error, EvalUnifiedError, Result, Span};
 pub use eval::{Evaluator, Value};
 pub use lexer::{Lexer, Token};
 pub use parser::Parser;
@@ -192,19 +190,20 @@ pub use metaprogramming::{
 
 // Phase 8 Core Optimization Systems
 pub use feature::optimization_features::{
-    OptimizationFeature, OptimizationFlags, FeatureStatsSnapshot,
-    global_optimization_flags, initialize_phase8_optimizations, print_optimization_report,
+    FeatureStatsSnapshot, OptimizationFeature, OptimizationFlags, global_optimization_flags,
+    initialize_phase8_optimizations, print_optimization_report,
 };
 
 pub use validation::{
-    ValidationPipeline, ValidationPipelineResult, PerformanceValidator, CorrectnessValidator,
-    RegressionDetector, BenchmarkRunner, global_validation_pipeline, run_validation, run_quick_validation,
+    BenchmarkRunner, CorrectnessValidator, PerformanceValidator, RegressionDetector,
+    ValidationPipeline, ValidationPipelineResult, global_validation_pipeline, run_quick_validation,
+    run_validation,
 };
 
 // String Interning System
 pub use utils::string_interner::{
-    StringInterner, InternedString, InternedId, SymbolInterner, SymbolInternerStats,
-    intern, intern_symbol, global_interner_stats, global_symbol_interner_stats,
+    InternedId, InternedString, StringInterner, SymbolInterner, SymbolInternerStats,
+    global_interner_stats, global_symbol_interner_stats, intern, intern_symbol,
 };
 
 // Note: Lambdust and MultithreadedLambdust are defined below

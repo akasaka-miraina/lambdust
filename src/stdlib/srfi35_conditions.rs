@@ -9,9 +9,9 @@
 
 use crate::ast::Literal;
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::Value;
 use crate::eval::Environment;
-use crate::utils::{string_interner::StringInterner, SymbolId};
+use crate::eval::value::Value;
+use crate::utils::{SymbolId, string_interner::StringInterner};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
@@ -151,7 +151,11 @@ impl ConditionObject {
     }
 
     /// Extracts conditions of a specific type
-    pub fn extract_conditions(&self, type_id: ConditionTypeId, registry: &ConditionTypeRegistry) -> Vec<&SimpleCondition> {
+    pub fn extract_conditions(
+        &self,
+        type_id: ConditionTypeId,
+        registry: &ConditionTypeRegistry,
+    ) -> Vec<&SimpleCondition> {
         self.simple_conditions()
             .into_iter()
             .filter(|condition| {
@@ -165,7 +169,11 @@ impl ConditionObject {
     }
 
     /// Gets field value from the first matching condition type
-    pub fn condition_ref(&self, field_name: SymbolId, registry: &ConditionTypeRegistry) -> Option<&Value> {
+    pub fn condition_ref(
+        &self,
+        field_name: SymbolId,
+        registry: &ConditionTypeRegistry,
+    ) -> Option<&Value> {
         for condition in self.simple_conditions() {
             if let Some(value) = condition.get_field(field_name) {
                 return Some(value);
@@ -208,7 +216,9 @@ impl ConditionTypeRegistry {
 
     /// Generates a new condition type ID
     fn next_type_id(&self) -> ConditionTypeId {
-        let id = self.next_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let id = self
+            .next_id
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         ConditionTypeId(id)
     }
 
@@ -274,7 +284,10 @@ impl ConditionTypeRegistry {
         );
 
         self.types.write().unwrap().insert(type_id, condition_type);
-        self.name_to_id.write().unwrap().insert(name_symbol_id, type_id);
+        self.name_to_id
+            .write()
+            .unwrap()
+            .insert(name_symbol_id, type_id);
 
         Ok(type_id)
     }
@@ -288,7 +301,12 @@ impl ConditionTypeRegistry {
     pub fn get_type_by_name(&self, name: &str) -> Option<ConditionType> {
         let name_id = self.interner.intern(name);
         let name_symbol_id = crate::utils::SymbolId::new(0); // Temporary placeholder
-        let type_id = self.name_to_id.read().unwrap().get(&name_symbol_id).copied()?;
+        let type_id = self
+            .name_to_id
+            .read()
+            .unwrap()
+            .get(&name_symbol_id)
+            .copied()?;
         self.get_type(type_id)
     }
 
@@ -296,7 +314,11 @@ impl ConditionTypeRegistry {
     pub fn get_type_id(&self, name: &str) -> Option<ConditionTypeId> {
         let name_id = self.interner.intern(name);
         let name_symbol_id = crate::utils::SymbolId::new(0); // Temporary placeholder
-        self.name_to_id.read().unwrap().get(&name_symbol_id).copied()
+        self.name_to_id
+            .read()
+            .unwrap()
+            .get(&name_symbol_id)
+            .copied()
     }
 
     /// Checks if a type is a subtype of another
@@ -304,7 +326,7 @@ impl ConditionTypeRegistry {
         if child_id == parent_id {
             return true;
         }
-        
+
         if let Some(child_type) = self.get_type(child_id) {
             child_type.is_subtype_of(parent_id)
         } else {
@@ -342,13 +364,8 @@ impl StandardConditionTypes {
     /// Registers all standard condition types
     pub fn register_all(registry: &ConditionTypeRegistry) -> Result<Self> {
         // Root condition type
-        let condition = registry.register_type(
-            "&condition",
-            None,
-            "make-condition",
-            "condition?",
-            vec![],
-        )?;
+        let condition =
+            registry.register_type("&condition", None, "make-condition", "condition?", vec![])?;
 
         // Message condition type
         let message = registry.register_type(
@@ -369,13 +386,8 @@ impl StandardConditionTypes {
         )?;
 
         // Error condition type
-        let error = registry.register_type(
-            "&error",
-            Some("&serious"),
-            "make-error",
-            "error?",
-            vec![],
-        )?;
+        let error =
+            registry.register_type("&error", Some("&serious"), "make-error", "error?", vec![])?;
 
         // Violation condition type
         let violation = registry.register_type(
@@ -516,15 +528,19 @@ pub fn condition_procedure(args: &[Value]) -> Result<Value> {
         match arg {
             Value::Condition(condition_value) => {
                 simple_conditions.extend(
-                    condition_value.condition
+                    condition_value
+                        .condition
                         .simple_conditions()
                         .into_iter()
-                        .cloned()
+                        .cloned(),
                 );
             }
             _ => {
                 return Err(Box::new(DiagnosticError::runtime_error(
-                    format!("condition: expected condition object, got {}", crate::stdlib::types::get_value_type_name(arg)),
+                    format!(
+                        "condition: expected condition object, got {}",
+                        crate::stdlib::types::get_value_type_name(arg)
+                    ),
                     None,
                 )));
             }
@@ -532,7 +548,9 @@ pub fn condition_procedure(args: &[Value]) -> Result<Value> {
     }
 
     let compound_condition = ConditionObject::compound(simple_conditions);
-    Ok(Value::Condition(Arc::new(ConditionValue::new(compound_condition))))
+    Ok(Value::Condition(Arc::new(ConditionValue::new(
+        compound_condition,
+    ))))
 }
 
 /// Gets simple conditions from a condition object
@@ -546,7 +564,8 @@ pub fn simple_conditions_procedure(args: &[Value]) -> Result<Value> {
 
     match &args[0] {
         Value::Condition(condition_value) => {
-            let simple_conditions: Vec<Value> = condition_value.condition
+            let simple_conditions: Vec<Value> = condition_value
+                .condition
                 .simple_conditions()
                 .into_iter()
                 .map(|simple_condition| {
@@ -558,7 +577,10 @@ pub fn simple_conditions_procedure(args: &[Value]) -> Result<Value> {
             Ok(Value::from_vec(simple_conditions))
         }
         _ => Err(Box::new(DiagnosticError::runtime_error(
-            format!("simple-conditions: expected condition object, got {}", crate::stdlib::types::get_value_type_name(&args[0])),
+            format!(
+                "simple-conditions: expected condition object, got {}",
+                crate::stdlib::types::get_value_type_name(&args[0])
+            ),
             None,
         ))),
     }
@@ -580,7 +602,10 @@ pub fn condition_predicate(args: &[Value]) -> Result<Value> {
 pub fn condition_has_type_procedure(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("condition-has-type?: expected 2 arguments, got {}", args.len()),
+            format!(
+                "condition-has-type?: expected 2 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
@@ -596,21 +621,29 @@ pub fn condition_has_type_procedure(args: &[Value]) -> Result<Value> {
         Value::ConditionType(type_id) => type_id.clone(),
         _ => {
             return Err(Box::new(DiagnosticError::runtime_error(
-                format!("condition-has-type?: expected condition type, got {}", crate::stdlib::types::get_value_type_name(&args[1])),
+                format!(
+                    "condition-has-type?: expected condition type, got {}",
+                    crate::stdlib::types::get_value_type_name(&args[1])
+                ),
                 None,
             )));
         }
     };
 
     let system = condition_system();
-    Ok(Value::boolean(condition.has_type(type_id.id, &system.registry)))
+    Ok(Value::boolean(
+        condition.has_type(type_id.id, &system.registry),
+    ))
 }
 
 /// Extracts a condition of a specific type
 pub fn extract_condition_procedure(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("extract-condition: expected 2 arguments, got {}", args.len()),
+            format!(
+                "extract-condition: expected 2 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
@@ -619,7 +652,10 @@ pub fn extract_condition_procedure(args: &[Value]) -> Result<Value> {
         Value::Condition(condition_value) => &condition_value.condition,
         _ => {
             return Err(Box::new(DiagnosticError::runtime_error(
-                format!("extract-condition: expected condition object, got {}", crate::stdlib::types::get_value_type_name(&args[0])),
+                format!(
+                    "extract-condition: expected condition object, got {}",
+                    crate::stdlib::types::get_value_type_name(&args[0])
+                ),
                 None,
             )));
         }
@@ -629,7 +665,10 @@ pub fn extract_condition_procedure(args: &[Value]) -> Result<Value> {
         Value::ConditionType(type_id) => type_id.clone(),
         _ => {
             return Err(Box::new(DiagnosticError::runtime_error(
-                format!("extract-condition: expected condition type, got {}", crate::stdlib::types::get_value_type_name(&args[1])),
+                format!(
+                    "extract-condition: expected condition type, got {}",
+                    crate::stdlib::types::get_value_type_name(&args[1])
+                ),
                 None,
             )));
         }
@@ -641,10 +680,11 @@ pub fn extract_condition_procedure(args: &[Value]) -> Result<Value> {
     if matching_conditions.is_empty() {
         Ok(Value::boolean(false))
     } else {
-        let compound_condition = ConditionObject::compound(
-            matching_conditions.into_iter().cloned().collect()
-        );
-        Ok(Value::Condition(Arc::new(ConditionValue::new(compound_condition))))
+        let compound_condition =
+            ConditionObject::compound(matching_conditions.into_iter().cloned().collect());
+        Ok(Value::Condition(Arc::new(ConditionValue::new(
+            compound_condition,
+        ))))
     }
 }
 
@@ -661,7 +701,10 @@ pub fn condition_ref_procedure(args: &[Value]) -> Result<Value> {
         Value::Condition(condition_value) => &condition_value.condition,
         _ => {
             return Err(Box::new(DiagnosticError::runtime_error(
-                format!("condition-ref: expected condition object, got {}", crate::stdlib::types::get_value_type_name(&args[0])),
+                format!(
+                    "condition-ref: expected condition object, got {}",
+                    crate::stdlib::types::get_value_type_name(&args[0])
+                ),
                 None,
             )));
         }
@@ -671,7 +714,10 @@ pub fn condition_ref_procedure(args: &[Value]) -> Result<Value> {
         Value::Symbol(symbol_id) => *symbol_id,
         _ => {
             return Err(Box::new(DiagnosticError::runtime_error(
-                format!("condition-ref: expected symbol, got {}", crate::stdlib::types::get_value_type_name(&args[1])),
+                format!(
+                    "condition-ref: expected symbol, got {}",
+                    crate::stdlib::types::get_value_type_name(&args[1])
+                ),
                 None,
             )));
         }
@@ -691,7 +737,9 @@ pub fn condition_ref_procedure(args: &[Value]) -> Result<Value> {
 // ============= INTEGRATION WITH EXISTING EXCEPTION SYSTEM =============
 
 /// Converts an ExceptionObject to a condition object
-pub fn exception_to_condition(exception: &crate::stdlib::exceptions::ExceptionObject) -> Result<ConditionValue> {
+pub fn exception_to_condition(
+    exception: &crate::stdlib::exceptions::ExceptionObject,
+) -> Result<ConditionValue> {
     let system = condition_system();
     let mut fields = HashMap::new();
 
@@ -710,16 +758,21 @@ pub fn exception_to_condition(exception: &crate::stdlib::exceptions::ExceptionOb
     };
 
     let simple_condition = SimpleCondition::new(condition_type, fields);
-    Ok(ConditionValue::new(ConditionObject::simple(simple_condition)))
+    Ok(ConditionValue::new(ConditionObject::simple(
+        simple_condition,
+    )))
 }
 
 /// Converts a condition object to an ExceptionObject
-pub fn condition_to_exception(condition: &ConditionValue) -> crate::stdlib::exceptions::ExceptionObject {
+pub fn condition_to_exception(
+    condition: &ConditionValue,
+) -> crate::stdlib::exceptions::ExceptionObject {
     let system = condition_system();
 
     // Extract message if present
     let message_field = crate::utils::intern_symbol("message");
-    let message = condition.condition
+    let message = condition
+        .condition
         .condition_ref(message_field, &system.registry)
         .and_then(|v| match v {
             Value::Literal(Literal::String(s)) => Some(s.clone()),
@@ -727,7 +780,10 @@ pub fn condition_to_exception(condition: &ConditionValue) -> crate::stdlib::exce
         });
 
     // Determine exception type based on condition hierarchy
-    let exception_type = if condition.condition.has_type(system.standard_types.error, &system.registry) {
+    let exception_type = if condition
+        .condition
+        .has_type(system.standard_types.error, &system.registry)
+    {
         "error"
     } else {
         "condition"
@@ -751,21 +807,19 @@ mod tests {
         let interner = Arc::new(StringInterner::new());
         let registry = ConditionTypeRegistry::new(interner);
 
-        let condition_id = registry.register_type(
-            "&condition",
-            None,
-            "make-condition",
-            "condition?",
-            vec![],
-        ).unwrap();
+        let condition_id = registry
+            .register_type("&condition", None, "make-condition", "condition?", vec![])
+            .unwrap();
 
-        let message_id = registry.register_type(
-            "&message",
-            Some("&condition"),
-            "make-message-condition",
-            "message-condition?",
-            vec![("message", "condition-message")],
-        ).unwrap();
+        let message_id = registry
+            .register_type(
+                "&message",
+                Some("&condition"),
+                "make-message-condition",
+                "message-condition?",
+                vec![("message", "condition-message")],
+            )
+            .unwrap();
 
         assert!(registry.is_subtype(message_id, condition_id));
         assert!(!registry.is_subtype(condition_id, message_id));
@@ -775,15 +829,15 @@ mod tests {
     fn test_condition_object_creation() {
         let interner = Arc::new(StringInterner::new());
         initialize_condition_system(interner).unwrap();
-        
+
         let system = condition_system();
         let message_field = crate::utils::intern_symbol("message");
-        
+
         let mut fields = HashMap::new();
         fields.insert(message_field, Value::string("Test message".to_string()));
-        
+
         let condition = ConditionValue::simple(system.standard_types.message, fields);
-        
+
         assert!(matches!(condition.condition, ConditionObject::Simple(_)));
     }
 
@@ -791,22 +845,22 @@ mod tests {
     fn test_compound_condition_creation() {
         let interner = Arc::new(StringInterner::new());
         initialize_condition_system(interner).unwrap();
-        
+
         let system = condition_system();
         let message_field = crate::utils::intern_symbol("message");
-        
+
         let mut fields1 = HashMap::new();
         fields1.insert(message_field, Value::string("Error message".to_string()));
         let condition1 = SimpleCondition::new(system.standard_types.message, fields1);
-        
+
         let condition2 = SimpleCondition::new(system.standard_types.error, HashMap::new());
-        
+
         let compound = ConditionValue::compound(vec![condition1, condition2]);
-        
+
         match compound.condition {
             ConditionObject::Compound(conditions) => {
                 assert_eq!(conditions.len(), 2);
-            },
+            }
             _ => panic!("Expected compound condition"),
         }
     }

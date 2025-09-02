@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Formal parameters for lambda expressions.
+#![allow(missing_docs)]
+//! Formal parameters for lambda expressions.
 
 use crate::diagnostics::Spanned;
 use serde::{Deserialize, Serialize};

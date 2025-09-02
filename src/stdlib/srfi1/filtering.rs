@@ -6,9 +6,9 @@
 //! Optimized for performance using arena allocation and efficient traversal.
 
 use crate::diagnostics::{Error, Result};
+use crate::effects::Effect;
 use crate::eval::list_arena::GlobalListArena;
 use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
-use crate::effects::Effect;
 use crate::stdlib::srfi1::SRFI1Core;
 use std::sync::Arc;
 
@@ -54,28 +54,28 @@ pub fn bind_filtering_operations(env: &Arc<ThreadSafeEnvironment>) {
 /// filter - Select elements that satisfy predicate
 pub fn srfi1_filter(args: &[Value]) -> Result<Value> {
     SRFI1Core::validate_arity(args, 2, Some(2), "filter")?;
-    
+
     let predicate = &args[0];
     let list = &args[1];
-    
+
     if !predicate.is_procedure() {
         return Err(Box::new(Error::runtime_error(
             "filter first argument must be a procedure".to_string(),
             None,
         )));
     }
-    
+
     SRFI1Core::ensure_proper_list(list, "filter")?;
-    
+
     let elements = SRFI1Core::list_to_vec(list)?;
     if elements.is_empty() {
         return Ok(Value::Nil);
     }
-    
+
     // Create arena for optimized allocation
     let mut arena = GlobalListArena::create_construction_arena(elements.len());
     let mut filtered_elements = Vec::new();
-    
+
     // Apply predicate to each element
     for element in elements {
         let keep = match predicate {
@@ -99,38 +99,38 @@ pub fn srfi1_filter(args: &[Value]) -> Result<Value> {
                 )));
             }
         };
-        
+
         if keep {
             filtered_elements.push(element);
         }
     }
-    
+
     Ok(SRFI1Core::vec_to_list(filtered_elements))
 }
 
 /// remove - Remove elements that satisfy predicate (opposite of filter)
 pub fn srfi1_remove(args: &[Value]) -> Result<Value> {
     SRFI1Core::validate_arity(args, 2, Some(2), "remove")?;
-    
+
     let predicate = &args[0];
     let list = &args[1];
-    
+
     if !predicate.is_procedure() {
         return Err(Box::new(Error::runtime_error(
             "remove first argument must be a procedure".to_string(),
             None,
         )));
     }
-    
+
     SRFI1Core::ensure_proper_list(list, "remove")?;
-    
+
     let elements = SRFI1Core::list_to_vec(list)?;
     if elements.is_empty() {
         return Ok(Value::Nil);
     }
-    
+
     let mut removed_elements = Vec::new();
-    
+
     // Apply predicate to each element (keep those that don't satisfy predicate)
     for element in elements {
         let remove = match predicate {
@@ -154,12 +154,13 @@ pub fn srfi1_remove(args: &[Value]) -> Result<Value> {
                 )));
             }
         };
-        
-        if !remove {  // Keep elements that don't satisfy predicate
+
+        if !remove {
+            // Keep elements that don't satisfy predicate
             removed_elements.push(element);
         }
     }
-    
+
     Ok(SRFI1Core::vec_to_list(removed_elements))
 }
 
@@ -167,27 +168,27 @@ pub fn srfi1_remove(args: &[Value]) -> Result<Value> {
 /// Returns (values satisfying-list not-satisfying-list)
 pub fn srfi1_partition(args: &[Value]) -> Result<Value> {
     SRFI1Core::validate_arity(args, 2, Some(2), "partition")?;
-    
+
     let predicate = &args[0];
     let list = &args[1];
-    
+
     if !predicate.is_procedure() {
         return Err(Box::new(Error::runtime_error(
             "partition first argument must be a procedure".to_string(),
             None,
         )));
     }
-    
+
     SRFI1Core::ensure_proper_list(list, "partition")?;
-    
+
     let elements = SRFI1Core::list_to_vec(list)?;
     if elements.is_empty() {
         return Ok(Value::pair(Value::Nil, Value::Nil));
     }
-    
+
     let mut satisfying = Vec::new();
     let mut not_satisfying = Vec::new();
-    
+
     // Partition elements based on predicate
     for element in elements {
         let satisfies = match predicate {
@@ -211,17 +212,17 @@ pub fn srfi1_partition(args: &[Value]) -> Result<Value> {
                 )));
             }
         };
-        
+
         if satisfies {
             satisfying.push(element);
         } else {
             not_satisfying.push(element);
         }
     }
-    
+
     let satisfying_list = SRFI1Core::vec_to_list(satisfying);
     let not_satisfying_list = SRFI1Core::vec_to_list(not_satisfying);
-    
+
     Ok(Value::pair(satisfying_list, not_satisfying_list))
 }
 
@@ -229,27 +230,18 @@ pub fn srfi1_partition(args: &[Value]) -> Result<Value> {
 mod tests {
     use super::*;
     use crate::ast::Literal;
-    
 
     fn is_positive() -> Value {
         Value::Primitive(Arc::new(PrimitiveProcedure {
             name: "positive?".to_string(),
             arity_min: 1,
             arity_max: Some(1),
-            implementation: PrimitiveImpl::RustFn(|args| {
-                match &args[0] {
-                    Value::Literal(Literal::ExactInteger(n)) => {
-                        Ok(Value::boolean(*n > 0))
-                    }
-                    Value::Literal(Literal::InexactReal(n)) => {
-                        Ok(Value::boolean(*n > 0.0))
-                    }
-                    #[allow(deprecated)]
-                    Value::Literal(Literal::Number(n)) => {
-                        Ok(Value::boolean(*n > 0.0))
-                    }
-                    _ => Ok(Value::boolean(false))
-                }
+            implementation: PrimitiveImpl::RustFn(|args| match &args[0] {
+                Value::Literal(Literal::ExactInteger(n)) => Ok(Value::boolean(*n > 0)),
+                Value::Literal(Literal::InexactReal(n)) => Ok(Value::boolean(*n > 0.0)),
+                #[allow(deprecated)]
+                Value::Literal(Literal::Number(n)) => Ok(Value::boolean(*n > 0.0)),
+                _ => Ok(Value::boolean(false)),
             }),
             effects: vec![Effect::Pure],
         }))
@@ -259,7 +251,7 @@ mod tests {
     fn test_filtering_binding() {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         bind_filtering_operations(&env);
-        
+
         assert!(env.lookup("filter").is_some());
         assert!(env.lookup("remove").is_some());
         assert!(env.lookup("partition").is_some());
@@ -279,16 +271,13 @@ mod tests {
             Value::integer(-1),
             Value::integer(2),
             Value::integer(-3),
-            Value::integer(4)
+            Value::integer(4),
         ]);
-        
+
         let result = srfi1_filter(&[predicate, list]).unwrap();
         let result_vec = SRFI1Core::list_to_vec(&result).unwrap();
-        
-        assert_eq!(result_vec, vec![
-            Value::integer(2),
-            Value::integer(4)
-        ]);
+
+        assert_eq!(result_vec, vec![Value::integer(2), Value::integer(4)]);
     }
 
     #[test]
@@ -298,16 +287,13 @@ mod tests {
             Value::integer(-1),
             Value::integer(2),
             Value::integer(-3),
-            Value::integer(4)
+            Value::integer(4),
         ]);
-        
+
         let result = srfi1_remove(&[predicate, list]).unwrap();
         let result_vec = SRFI1Core::list_to_vec(&result).unwrap();
-        
-        assert_eq!(result_vec, vec![
-            Value::integer(-1),
-            Value::integer(-3)
-        ]);
+
+        assert_eq!(result_vec, vec![Value::integer(-1), Value::integer(-3)]);
     }
 
     #[test]
@@ -317,27 +303,21 @@ mod tests {
             Value::integer(-1),
             Value::integer(2),
             Value::integer(-3),
-            Value::integer(4)
+            Value::integer(4),
         ]);
-        
+
         let result = srfi1_partition(&[predicate, list]).unwrap();
-        
+
         match result {
             Value::Pair(satisfying, not_satisfying) => {
                 let sat_vec = SRFI1Core::list_to_vec(&satisfying).unwrap();
                 let not_sat_vec = SRFI1Core::list_to_vec(&not_satisfying).unwrap();
-                
-                assert_eq!(sat_vec, vec![
-                    Value::integer(2),
-                    Value::integer(4)
-                ]);
-                
-                assert_eq!(not_sat_vec, vec![
-                    Value::integer(-1),
-                    Value::integer(-3)
-                ]);
+
+                assert_eq!(sat_vec, vec![Value::integer(2), Value::integer(4)]);
+
+                assert_eq!(not_sat_vec, vec![Value::integer(-1), Value::integer(-3)]);
             }
-            _ => panic!("partition should return a pair")
+            _ => panic!("partition should return a pair"),
         }
     }
 
@@ -345,13 +325,13 @@ mod tests {
     fn test_partition_empty() {
         let predicate = is_positive();
         let result = srfi1_partition(&[predicate, Value::Nil]).unwrap();
-        
+
         match result {
             Value::Pair(satisfying, not_satisfying) => {
                 assert_eq!(*satisfying.as_ref(), Value::Nil);
                 assert_eq!(*not_satisfying.as_ref(), Value::Nil);
             }
-            _ => panic!("partition should return a pair")
+            _ => panic!("partition should return a pair"),
         }
     }
 }

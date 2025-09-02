@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Test data generators for property-based testing
+#![allow(missing_docs)]
+//! Test data generators for property-based testing
 //!
 //! This module provides efficient generators for creating random Scheme values
 //! used in property-based testing. The generators are designed to create
@@ -101,33 +102,33 @@ impl SchemeValueGenerator {
     /// Generate a random character
     fn generate_character(&self, rng: &mut XorShiftRng) -> Value {
         let chars = [
-            ' ', '\t', '\n', '\r',  // Whitespace
-            'a', 'z', 'A', 'Z',     // ASCII letters
-            '0', '9',               // ASCII digits
+            ' ', '\t', '\n', '\r', // Whitespace
+            'a', 'z', 'A', 'Z', // ASCII letters
+            '0', '9', // ASCII digits
             '!', '@', '#', '$', '%', '^', '&', '*', // Special characters
-            'λ', 'π', 'Ω',          // Unicode characters
-            '\0',                   // Null character
+            'λ', 'π', 'Ω',  // Unicode characters
+            '\0', // Null character
         ];
-        
+
         let ch = if rng.gen_bool(0.7) {
             chars[rng.gen_range(0..chars.len())]
         } else {
             // Generate random Unicode character
             char::from_u32(rng.gen_range(1..0x10000)).unwrap_or('?')
         };
-        
+
         Value::Literal(Literal::Character(ch))
     }
 
     /// Generate a random string
     fn generate_string(&self, rng: &mut XorShiftRng, size: usize) -> Value {
         let length = rng.gen_range(0..=size.min(100));
-        
+
         // Special cases
         if length == 0 || rng.gen_bool(0.1) {
             return Value::string("");
         }
-        
+
         let mut string = String::with_capacity(length);
         for _ in 0..length {
             let ch = match rng.gen_range(0..10) {
@@ -138,20 +139,18 @@ impl SchemeValueGenerator {
             };
             string.push(ch);
         }
-        
+
         Value::string(string)
     }
 
     /// Generate a random symbol
     fn generate_symbol(&self, rng: &mut XorShiftRng, size: usize) -> Value {
         let symbols = [
-            "x", "y", "z", "foo", "bar", "baz", "test", "value", "result",
-            "+", "-", "*", "/", "=", "<", ">", "<=", ">=",
-            "car", "cdr", "cons", "list", "length", "append",
-            "map", "filter", "fold", "reduce", "apply",
-            "λ", "define", "let", "if", "cond", "case",
+            "x", "y", "z", "foo", "bar", "baz", "test", "value", "result", "+", "-", "*", "/", "=",
+            "<", ">", "<=", ">=", "car", "cdr", "cons", "list", "length", "append", "map",
+            "filter", "fold", "reduce", "apply", "λ", "define", "let", "if", "cond", "case",
         ];
-        
+
         let symbol_name = if rng.gen_bool(0.8) {
             symbols[rng.gen_range(0..symbols.len())].to_string()
         } else {
@@ -173,7 +172,7 @@ impl SchemeValueGenerator {
             }
             name
         };
-        
+
         Value::symbol_from_str(symbol_name)
     }
 
@@ -182,14 +181,14 @@ impl SchemeValueGenerator {
         if size == 0 || rng.gen_bool(0.1) {
             return Value::Nil;
         }
-        
+
         let length = rng.gen_range(0..=(size / 2).min(10));
         let mut elements = Vec::with_capacity(length);
-        
+
         for _ in 0..length {
             elements.push(self.generate_recursive(rng, size / 2));
         }
-        
+
         Value::list(elements)
     }
 
@@ -197,11 +196,11 @@ impl SchemeValueGenerator {
     fn generate_vector(&self, rng: &mut XorShiftRng, size: usize) -> Value {
         let length = rng.gen_range(0..=(size / 2).min(10));
         let mut elements = Vec::with_capacity(length);
-        
+
         for _ in 0..length {
             elements.push(self.generate_recursive(rng, size / 2));
         }
-        
+
         Value::vector(elements)
     }
 
@@ -211,7 +210,7 @@ impl SchemeValueGenerator {
         if size == 0 {
             return self.generate_atomic(rng);
         }
-        
+
         // Weighted random selection of value type
         let total_weight = self.type_weights.number
             + self.type_weights.integer
@@ -222,50 +221,50 @@ impl SchemeValueGenerator {
             + self.type_weights.list
             + self.type_weights.vector
             + self.type_weights.nil;
-            
+
         let choice = rng.gen_range(0..total_weight);
         let mut current_weight = 0;
-        
+
         current_weight += self.type_weights.number;
         if choice < current_weight {
             return self.generate_number(rng);
         }
-        
+
         current_weight += self.type_weights.integer;
         if choice < current_weight {
             return self.generate_integer(rng);
         }
-        
+
         current_weight += self.type_weights.boolean;
         if choice < current_weight {
             return self.generate_boolean(rng);
         }
-        
+
         current_weight += self.type_weights.character;
         if choice < current_weight {
             return self.generate_character(rng);
         }
-        
+
         current_weight += self.type_weights.string;
         if choice < current_weight {
             return self.generate_string(rng, size);
         }
-        
+
         current_weight += self.type_weights.symbol;
         if choice < current_weight {
             return self.generate_symbol(rng, size);
         }
-        
+
         current_weight += self.type_weights.list;
         if choice < current_weight {
             return self.generate_list(rng, size);
         }
-        
+
         current_weight += self.type_weights.vector;
         if choice < current_weight {
             return self.generate_vector(rng, size);
         }
-        
+
         // Default to nil
         Value::Nil
     }
@@ -297,7 +296,7 @@ impl Generator<Value> for SchemeValueGenerator {
 
     fn shrink(&self, value: &Value) -> Vec<Value> {
         let mut shrunk = Vec::new();
-        
+
         if let Some(n) = value.as_number() {
             if n != 0.0 {
                 shrunk.push(Value::number(0.0));
@@ -323,7 +322,9 @@ impl Generator<Value> for SchemeValueGenerator {
                 shrunk.push(Value::integer(-1));
             }
         } else if let Some(s) = value.as_string() {
-            if s.is_empty() { return shrunk; }
+            if s.is_empty() {
+                return shrunk;
+            }
             shrunk.push(Value::string(""));
             if s.len() > 1 {
                 let mid = s.len() / 2;
@@ -331,7 +332,9 @@ impl Generator<Value> for SchemeValueGenerator {
                 shrunk.push(Value::string(&s[mid..]));
             }
         } else if let Some(elements) = value.as_list() {
-            if elements.is_empty() { return shrunk; }
+            if elements.is_empty() {
+                return shrunk;
+            }
             shrunk.push(Value::Nil);
             if elements.len() > 1 {
                 let mid = elements.len() / 2;
@@ -352,7 +355,7 @@ impl Generator<Value> for SchemeValueGenerator {
             // shrunk.push(Value::vector(vec![]));
         }
         // No shrinking for other types
-        
+
         shrunk
     }
 }
@@ -378,11 +381,11 @@ impl Generator<Value> for ListGenerator {
     fn generate(&self, rng: &mut XorShiftRng, size: usize) -> Value {
         let length = rng.gen_range(self.min_length..=self.max_length.min(size));
         let mut elements = Vec::with_capacity(length);
-        
+
         for _ in 0..length {
             elements.push(self.value_generator.generate(rng, size / 2));
         }
-        
+
         Value::list(elements)
     }
 
@@ -399,7 +402,10 @@ pub struct NumberGenerator {
 
 impl NumberGenerator {
     pub fn new(min_value: f64, max_value: f64) -> Self {
-        Self { min_value, max_value }
+        Self {
+            min_value,
+            max_value,
+        }
     }
 }
 
@@ -412,18 +418,18 @@ impl Generator<Value> for NumberGenerator {
         if let Some(n) = value.as_number() {
             // n is already extracted from as_number()
             let mut shrunk = Vec::new();
-            
+
             if n != 0.0 && n >= self.min_value && 0.0 <= self.max_value {
                 shrunk.push(Value::number(0.0));
             }
-            
+
             if n > 1.0 {
                 let half = n / 2.0;
                 if half >= self.min_value {
                     shrunk.push(Value::number(half));
                 }
             }
-            
+
             shrunk
         } else {
             vec![]
@@ -440,29 +446,29 @@ mod tests {
     fn test_scheme_value_generator() {
         let generator = SchemeValueGenerator::new();
         let mut rng = XorShiftRng::seed_from_u64(42);
-        
+
         for _ in 0..100 {
             let value = generator.generate(&mut rng, 10);
             // Just ensure we can generate values without panicking
             // Check that value is one of the expected types using is_* methods
             assert!(
-                value.is_number() || 
-                value.is_boolean() || 
-                value.is_string() || 
-                value.is_symbol() || 
-                value.is_list() || 
-                value.is_vector() || 
-                value.is_nil() ||
-                matches!(value, Value::Literal(_))
+                value.is_number()
+                    || value.is_boolean()
+                    || value.is_string()
+                    || value.is_symbol()
+                    || value.is_list()
+                    || value.is_vector()
+                    || value.is_nil()
+                    || matches!(value, Value::Literal(_))
             );
         }
     }
-    
+
     #[test]
     fn test_number_generator() {
         let generator = NumberGenerator::new(-10.0, 10.0);
         let mut rng = XorShiftRng::seed_from_u64(42);
-        
+
         for _ in 0..50 {
             let value = generator.generate(&mut rng, 10);
             if let Some(n) = value.as_number() {
@@ -472,12 +478,12 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_list_generator() {
         let generator = ListGenerator::new(1, 5);
         let mut rng = XorShiftRng::seed_from_u64(42);
-        
+
         for _ in 0..20 {
             let value = generator.generate(&mut rng, 10);
             if let Some(elements) = value.as_list() {
@@ -487,18 +493,18 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_shrinking() {
         let generator = SchemeValueGenerator::new();
-        
+
         // Test number shrinking
         let big_number = Value::number(100.0);
         let shrunk = generator.shrink(&big_number);
         assert!(!shrunk.is_empty());
         assert!(shrunk.contains(&Value::number(0.0)));
-        
-        // Test list shrinking  
+
+        // Test list shrinking
         let big_list = Value::list(vec![
             Value::integer(1),
             Value::integer(2),

@@ -9,23 +9,22 @@
 use crate::diagnostics::{Error, Result};
 use crate::effects::Effect;
 use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
-use crate::stdlib::strings::common::{extract_string, CharacterSet};
+use crate::stdlib::strings::common::{CharacterSet, extract_string};
 
 // Import our optimization modules
-use super::srfi13_optimized_search::{
-    enhanced_string_contains, enhanced_string_index_char, enhanced_string_index_predicate
-};
-use super::srfi13_simd_chars::{
-    enhanced_string_upcase, enhanced_string_downcase, enhanced_string_titlecase,
-    enhanced_multi_char_search, enhanced_case_insensitive_compare
-};
 use super::srfi13_arena_builder::{
-    enhanced_string_concat, enhanced_string_join, enhanced_string_repeat,
-    StreamingStringBuilder, OptimizationHint
+    OptimizationHint, StreamingStringBuilder, enhanced_string_concat, enhanced_string_join,
+    enhanced_string_repeat,
 };
 use super::srfi13_cache_optimizer::{
-    enhanced_cache_optimized_search, enhanced_cache_optimized_compare,
-    get_global_cache_stats
+    enhanced_cache_optimized_compare, enhanced_cache_optimized_search, get_global_cache_stats,
+};
+use super::srfi13_optimized_search::{
+    enhanced_string_contains, enhanced_string_index_char, enhanced_string_index_predicate,
+};
+use super::srfi13_simd_chars::{
+    enhanced_case_insensitive_compare, enhanced_multi_char_search, enhanced_string_downcase,
+    enhanced_string_titlecase, enhanced_string_upcase,
 };
 
 use std::sync::Arc;
@@ -52,7 +51,7 @@ fn bind_optimized_search_operations(env: &Arc<ThreadSafeEnvironment>) {
             effects: vec![Effect::Pure],
         })),
     );
-    
+
     // Optimized string-index with SIMD acceleration
     env.define(
         "string-index".to_string(),
@@ -64,7 +63,7 @@ fn bind_optimized_search_operations(env: &Arc<ThreadSafeEnvironment>) {
             effects: vec![Effect::Pure],
         })),
     );
-    
+
     // Optimized string-index-right
     env.define(
         "string-index-right".to_string(),
@@ -76,7 +75,7 @@ fn bind_optimized_search_operations(env: &Arc<ThreadSafeEnvironment>) {
             effects: vec![Effect::Pure],
         })),
     );
-    
+
     // Multi-character search optimization
     env.define(
         "string-index-any".to_string(),
@@ -103,7 +102,7 @@ fn bind_optimized_transform_operations(env: &Arc<ThreadSafeEnvironment>) {
             effects: vec![Effect::Pure],
         })),
     );
-    
+
     env.define(
         "string-downcase".to_string(),
         Value::Primitive(Arc::new(PrimitiveProcedure {
@@ -114,7 +113,7 @@ fn bind_optimized_transform_operations(env: &Arc<ThreadSafeEnvironment>) {
             effects: vec![Effect::Pure],
         })),
     );
-    
+
     env.define(
         "string-titlecase".to_string(),
         Value::Primitive(Arc::new(PrimitiveProcedure {
@@ -125,7 +124,7 @@ fn bind_optimized_transform_operations(env: &Arc<ThreadSafeEnvironment>) {
             effects: vec![Effect::Pure],
         })),
     );
-    
+
     // SIMD foldcase for case-insensitive operations
     env.define(
         "string-foldcase".to_string(),
@@ -152,7 +151,7 @@ fn bind_optimized_construction_operations(env: &Arc<ThreadSafeEnvironment>) {
             effects: vec![Effect::Pure],
         })),
     );
-    
+
     // Arena-optimized string join
     env.define(
         "string-join".to_string(),
@@ -164,7 +163,7 @@ fn bind_optimized_construction_operations(env: &Arc<ThreadSafeEnvironment>) {
             effects: vec![Effect::Pure],
         })),
     );
-    
+
     // Optimized string repetition
     env.define(
         "string-repeat".to_string(),
@@ -191,7 +190,7 @@ fn bind_optimized_comparison_operations(env: &Arc<ThreadSafeEnvironment>) {
             effects: vec![Effect::Pure],
         })),
     );
-    
+
     // Case-insensitive comparison with SIMD
     env.define(
         "string-ci=?".to_string(),
@@ -203,7 +202,7 @@ fn bind_optimized_comparison_operations(env: &Arc<ThreadSafeEnvironment>) {
             effects: vec![Effect::Pure],
         })),
     );
-    
+
     env.define(
         "string-ci<?".to_string(),
         Value::Primitive(Arc::new(PrimitiveProcedure {
@@ -241,11 +240,11 @@ fn optimized_string_contains(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let s1 = extract_string(&args[0], "string-contains")?;
     let s2 = extract_string(&args[1], "string-contains")?;
-    
-    // For now, use the basic optimization - full substring support would require 
+
+    // For now, use the basic optimization - full substring support would require
     // handling start/end indices like the original implementation
     if args.len() == 2 {
         // Simple case - use our optimized search
@@ -269,9 +268,9 @@ fn optimized_string_index(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let string = extract_string(&args[0], "string-index")?;
-    
+
     // Handle character search (most common case)
     if let Value::Literal(crate::ast::Literal::Character(ch)) = &args[1] {
         if args.len() == 2 {
@@ -283,10 +282,10 @@ fn optimized_string_index(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     // For character sets and complex cases, fall back to predicate-based search
     let criterion = CharacterSet::from_value(&args[1])?;
-    
+
     if args.len() == 2 {
         // Use SIMD-optimized predicate search
         if let Some(pos) = enhanced_string_index_predicate(string, |c| criterion.contains(c)) {
@@ -304,20 +303,28 @@ fn optimized_string_index(args: &[Value]) -> Result<Value> {
 fn optimized_string_index_right(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
         return Err(Box::new(Error::runtime_error(
-            format!("string-index-right expects 2-4 arguments, got {}", args.len()),
+            format!(
+                "string-index-right expects 2-4 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let string = extract_string(&args[0], "string-index-right")?;
-    
+
     // Handle character search
     if let Value::Literal(crate::ast::Literal::Character(ch)) = &args[1] {
         if args.len() == 2 {
             // Reverse character search using SIMD
-            if let Some(pos) = string.chars().enumerate().collect::<Vec<_>>().into_iter().rev()
+            if let Some(pos) = string
+                .chars()
+                .enumerate()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
                 .find(|&(_, c)| c == *ch)
-                .map(|(i, _)| i) 
+                .map(|(i, _)| i)
             {
                 return Ok(Value::integer(pos as i64));
             } else {
@@ -325,7 +332,7 @@ fn optimized_string_index_right(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     // For complex cases, fall back to standard implementation
     fallback_string_index_right(args)
 }
@@ -338,10 +345,10 @@ fn optimized_string_index_any(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let string = extract_string(&args[0], "string-index-any")?;
     let char_set = CharacterSet::from_value(&args[1])?;
-    
+
     if args.len() == 2 {
         // Extract characters for multi-character search optimization
         if let CharacterSet::String(ref chars) = char_set {
@@ -354,7 +361,7 @@ fn optimized_string_index_any(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     // Fall back for complex cases
     if let Some(pos) = enhanced_string_index_predicate(string, |c| char_set.contains(c)) {
         Ok(Value::integer(pos as i64))
@@ -371,7 +378,7 @@ fn optimized_string_upcase(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let s = extract_string(&args[0], "string-upcase")?;
     let result = enhanced_string_upcase(s);
     Ok(Value::string(result))
@@ -385,7 +392,7 @@ fn optimized_string_downcase(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let s = extract_string(&args[0], "string-downcase")?;
     let result = enhanced_string_downcase(s);
     Ok(Value::string(result))
@@ -399,7 +406,7 @@ fn optimized_string_titlecase(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let s = extract_string(&args[0], "string-titlecase")?;
     let result = enhanced_string_titlecase(s);
     Ok(Value::string(result))
@@ -413,7 +420,7 @@ fn optimized_string_foldcase(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let s = extract_string(&args[0], "string-foldcase")?;
     // Use downcase as a reasonable approximation for foldcase
     let result = enhanced_string_downcase(s);
@@ -428,7 +435,7 @@ fn optimized_string_concatenate(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Extract list of strings
     let string_list = args[0].as_list().ok_or_else(|| {
         Box::new(Error::runtime_error(
@@ -436,13 +443,13 @@ fn optimized_string_concatenate(args: &[Value]) -> Result<Value> {
             None,
         ))
     })?;
-    
+
     let mut strings = Vec::new();
     for item in string_list.iter() {
         let s = extract_string(item, "string-concatenate")?;
         strings.push(s);
     }
-    
+
     // Use arena-optimized concatenation
     let string_refs: Vec<&str> = strings.iter().map(|s| s.as_ref()).collect();
     let result = enhanced_string_concat(&string_refs)?;
@@ -457,7 +464,7 @@ fn optimized_string_join(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Extract list of strings
     let string_list = args[0].as_list().ok_or_else(|| {
         Box::new(Error::runtime_error(
@@ -465,20 +472,20 @@ fn optimized_string_join(args: &[Value]) -> Result<Value> {
             None,
         ))
     })?;
-    
+
     let mut strings = Vec::new();
     for item in string_list.iter() {
         let s = extract_string(item, "string-join")?;
         strings.push(s);
     }
-    
+
     // Get separator (default to empty string)
     let separator = if args.len() > 1 {
         extract_string(&args[1], "string-join")?
     } else {
         ""
     };
-    
+
     // Use arena-optimized join
     let string_refs: Vec<&str> = strings.iter().map(|s| s.as_ref()).collect();
     let result = enhanced_string_join(&string_refs, separator)?;
@@ -493,7 +500,7 @@ fn optimized_string_repeat(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let s = extract_string(&args[0], "string-repeat")?;
     let count = args[1].as_integer().ok_or_else(|| {
         Box::new(Error::runtime_error(
@@ -501,7 +508,7 @@ fn optimized_string_repeat(args: &[Value]) -> Result<Value> {
             None,
         ))
     })? as usize;
-    
+
     // Use arena-optimized repetition
     let result = enhanced_string_repeat(s, count)?;
     Ok(Value::string(result))
@@ -515,18 +522,18 @@ fn optimized_string_less_than(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     for window in args.windows(2) {
         let s1 = extract_string(&window[0], "string<?")?;
         let s2 = extract_string(&window[1], "string<?")?;
-        
+
         use std::cmp::Ordering;
         match enhanced_cache_optimized_compare(s1, s2) {
             Ordering::Less => continue,
             _ => return Ok(Value::boolean(false)),
         }
     }
-    
+
     Ok(Value::boolean(true))
 }
 
@@ -538,9 +545,9 @@ fn optimized_string_ci_equal(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let first = extract_string(&args[0], "string-ci=?")?;
-    
+
     for arg in &args[1..] {
         let s = extract_string(arg, "string-ci=?")?;
         use std::cmp::Ordering;
@@ -548,7 +555,7 @@ fn optimized_string_ci_equal(args: &[Value]) -> Result<Value> {
             return Ok(Value::boolean(false));
         }
     }
-    
+
     Ok(Value::boolean(true))
 }
 
@@ -560,25 +567,25 @@ fn optimized_string_ci_less_than(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     for window in args.windows(2) {
         let s1 = extract_string(&window[0], "string-ci<?")?;
         let s2 = extract_string(&window[1], "string-ci<?")?;
-        
+
         use std::cmp::Ordering;
         match enhanced_case_insensitive_compare(s1, s2) {
             Ordering::Less => continue,
             _ => return Ok(Value::boolean(false)),
         }
     }
-    
+
     Ok(Value::boolean(true))
 }
 
 /// Get performance optimization statistics
 fn get_optimization_stats(_args: &[Value]) -> Result<Value> {
     let cache_stats = get_global_cache_stats();
-    
+
     // Create a simple association list with stats
     let stats = vec![
         Value::list(vec![
@@ -598,7 +605,7 @@ fn get_optimization_stats(_args: &[Value]) -> Result<Value> {
             Value::integer(cache_stats.prefetch_distance as i64),
         ]),
     ];
-    
+
     Ok(Value::list(stats))
 }
 
@@ -613,10 +620,10 @@ fn fallback_string_contains(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let s1 = extract_string(&args[0], "string-contains")?;
     let s2 = extract_string(&args[1], "string-contains")?;
-    
+
     if let Some(pos) = s1.find(s2) {
         Ok(Value::integer(pos as i64))
     } else {
@@ -632,16 +639,16 @@ fn fallback_string_index(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let string = extract_string(&args[0], "string-index")?;
     let criterion = CharacterSet::from_value(&args[1])?;
-    
+
     for (pos, ch) in string.chars().enumerate() {
         if criterion.contains(ch) {
             return Ok(Value::integer(pos as i64));
         }
     }
-    
+
     Ok(Value::boolean(false))
 }
 
@@ -649,9 +656,14 @@ fn fallback_string_index_right(args: &[Value]) -> Result<Value> {
     // Simplified fallback - in a full implementation, this would be more comprehensive
     let string = extract_string(&args[0], "string-index-right")?;
     let criterion = CharacterSet::from_value(&args[1])?;
-    
+
     // Simple reverse search
-    if let Some((pos, _)) = string.chars().enumerate().collect::<Vec<_>>().into_iter().rev()
+    if let Some((pos, _)) = string
+        .chars()
+        .enumerate()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
         .find(|(_, ch)| criterion.contains(*ch))
     {
         Ok(Value::integer(pos as i64))
@@ -664,20 +676,20 @@ fn fallback_string_index_right(args: &[Value]) -> Result<Value> {
 mod tests {
     use super::*;
     use crate::ast::Literal;
-    
+
     #[test]
     fn test_optimized_string_contains() {
         // Test basic optimization path
         let args = vec![Value::string("hello world"), Value::string("wor")];
         let result = optimized_string_contains(&args).unwrap();
         assert_eq!(result.as_integer(), Some(6));
-        
+
         // Test not found case
         let args = vec![Value::string("hello world"), Value::string("xyz")];
         let result = optimized_string_contains(&args).unwrap();
         assert_eq!(result.as_boolean(), Some(false));
     }
-    
+
     #[test]
     fn test_optimized_string_index() {
         // Test character search optimization
@@ -687,7 +699,7 @@ mod tests {
         ];
         let result = optimized_string_index(&args).unwrap();
         assert_eq!(result.as_integer(), Some(1));
-        
+
         // Test not found
         let args = vec![
             Value::string("hello"),
@@ -696,25 +708,25 @@ mod tests {
         let result = optimized_string_index(&args).unwrap();
         assert_eq!(result.as_boolean(), Some(false));
     }
-    
+
     #[test]
     fn test_optimized_case_conversion() {
         // Test SIMD-optimized upcase
         let args = vec![Value::string("hello")];
         let result = optimized_string_upcase(&args).unwrap();
         assert_eq!(result.as_string(), Some("HELLO"));
-        
+
         // Test SIMD-optimized downcase
         let args = vec![Value::string("WORLD")];
         let result = optimized_string_downcase(&args).unwrap();
         assert_eq!(result.as_string(), Some("world"));
-        
+
         // Test SIMD-optimized titlecase
         let args = vec![Value::string("hello world")];
         let result = optimized_string_titlecase(&args).unwrap();
         assert_eq!(result.as_string(), Some("Hello World"));
     }
-    
+
     #[test]
     fn test_optimized_string_concatenate() {
         // Test arena-optimized concatenation
@@ -727,7 +739,7 @@ mod tests {
         let result = optimized_string_concatenate(&args).unwrap();
         assert_eq!(result.as_string(), Some("hello world"));
     }
-    
+
     #[test]
     fn test_optimized_string_join() {
         // Test arena-optimized join
@@ -740,7 +752,7 @@ mod tests {
         let result = optimized_string_join(&args).unwrap();
         assert_eq!(result.as_string(), Some("apple, banana, cherry"));
     }
-    
+
     #[test]
     fn test_optimized_string_repeat() {
         // Test arena-optimized repetition
@@ -748,27 +760,27 @@ mod tests {
         let result = optimized_string_repeat(&args).unwrap();
         assert_eq!(result.as_string(), Some("abcabcabc"));
     }
-    
+
     #[test]
     fn test_optimized_comparison() {
         // Test cache-optimized comparison
         let args = vec![Value::string("abc"), Value::string("def")];
         let result = optimized_string_less_than(&args).unwrap();
         assert_eq!(result.as_boolean(), Some(true));
-        
+
         // Test case-insensitive equality
         let args = vec![Value::string("Hello"), Value::string("HELLO")];
         let result = optimized_string_ci_equal(&args).unwrap();
         assert_eq!(result.as_boolean(), Some(true));
     }
-    
+
     #[test]
     fn test_optimization_stats() {
         // Test stats retrieval
         let result = get_optimization_stats(&[]).unwrap();
         let stats_list = result.as_list().unwrap();
         assert!(!stats_list.is_empty());
-        
+
         // Should contain expected stat entries
         let has_cache_size = stats_list.iter().any(|item| {
             if let Some(pair) = item.as_list() {

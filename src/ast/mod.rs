@@ -599,7 +599,10 @@ impl fmt::Display for Expr {
                         write!(f, " ")?;
                     }
                     match clause {
-                        AndLetClause::Binding { variable, expression } => {
+                        AndLetClause::Binding {
+                            variable,
+                            expression,
+                        } => {
                             write!(f, "({} {})", variable, expression.inner)?;
                         }
                         AndLetClause::Test { expression } => {

@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Security management for JIT compiled code
+#![allow(missing_docs)]
+//! Security management for JIT compiled code
 //!
 //! Provides code signing, validation, and execution sandboxing
 //! to ensure JIT code cannot execute malicious operations.

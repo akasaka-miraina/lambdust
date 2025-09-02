@@ -4,7 +4,7 @@
 //! optimizations including NaN-boxing integration and SIMD acceleration.
 //!
 //! ## Phase 1 Features (8 critical procedures)
-//! 
+//!
 //! ### Enhanced Predicates
 //! - `vector-empty?` - Zero-length predicate with O(1) performance
 //! - `vector=` - Element-wise equality with early termination optimization
@@ -32,7 +32,7 @@ use crate::effects::Effect;
 use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 // SIMD optimization will be conditionally imported based on architecture
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-use crate::numeric::simd_optimization::{SimdOperationType, AlignedBuffer};
+use crate::numeric::simd_optimization::{AlignedBuffer, SimdOperationType};
 use std::sync::Arc;
 
 // Import SIMD intrinsics for optimized operations
@@ -49,13 +49,13 @@ const SIMD_THRESHOLD: usize = 16;
 pub fn create_srfi133_phase1_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // Enhanced predicates
     bind_enhanced_predicates(env);
-    
+
     // Fold operations
     bind_fold_operations(env);
-    
-    // Search operations  
+
+    // Search operations
     bind_search_operations(env);
-    
+
     // Performance showcase
     bind_performance_operations(env);
 }
@@ -210,7 +210,7 @@ fn primitive_vector_equal(args: &[Value]) -> Result<Value> {
     for vector_arg in vectors.iter() {
         let vector = extract_vector(vector_arg, "vector=")?;
         let len = vector.len();
-        
+
         match common_length {
             None => common_length = Some(len),
             Some(expected) => {
@@ -233,13 +233,14 @@ fn primitive_vector_equal(args: &[Value]) -> Result<Value> {
     for i in 0..length {
         // Compare element i across all vectors
         let first_element = &vector_data[0][i];
-        
+
         for vector in &vector_data[1..] {
             let current_element = &vector[i];
-            
+
             // Apply element equality predicate
-            let eq_result = apply_procedure(elt_equal, &[first_element.clone(), current_element.clone()])?;
-            
+            let eq_result =
+                apply_procedure(elt_equal, &[first_element.clone(), current_element.clone()])?;
+
             if eq_result.is_falsy() {
                 return Ok(Value::boolean(false)); // Early termination on first inequality
             }
@@ -303,7 +304,8 @@ fn primitive_vector_fold(args: &[Value]) -> Result<Value> {
 fn primitive_vector_fold_right(args: &[Value]) -> Result<Value> {
     if args.len() < 3 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            "vector-fold-right requires at least 3 arguments (kons knil vec1 [vec2 ...])".to_string(),
+            "vector-fold-right requires at least 3 arguments (kons knil vec1 [vec2 ...])"
+                .to_string(),
             None,
         )));
     }
@@ -567,7 +569,7 @@ fn primitive_vector_map_inplace(args: &[Value]) -> Result<Value> {
         // Process in cache-line-sized blocks for optimal performance
         for block_start in (0..min_length).step_by(CACHE_BLOCK_SIZE) {
             let block_end = (block_start + CACHE_BLOCK_SIZE).min(min_length);
-            
+
             for i in block_start..block_end {
                 let mut proc_args = Vec::new();
                 for vector in &vector_data {
@@ -588,14 +590,12 @@ fn primitive_vector_map_inplace(args: &[Value]) -> Result<Value> {
 /// Extracts a vector from a Value (borrowing the contents).
 fn extract_vector(value: &Value, operation: &str) -> Result<Vec<Value>> {
     match value {
-        Value::Vector(vector_ref) => {
-            vector_ref.try_borrow()
-                .map(|v| v.clone())
-                .map_err(|_| Box::new(DiagnosticError::runtime_error(
-                    format!("{} cannot borrow vector", operation),
-                    None,
-                )))
-        },
+        Value::Vector(vector_ref) => vector_ref.try_borrow().map(|v| v.clone()).map_err(|_| {
+            Box::new(DiagnosticError::runtime_error(
+                format!("{} cannot borrow vector", operation),
+                None,
+            ))
+        }),
         _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{} requires a vector", operation),
             None,
@@ -606,30 +606,23 @@ fn extract_vector(value: &Value, operation: &str) -> Result<Vec<Value>> {
 /// Applies a procedure to arguments with error handling
 fn apply_procedure(procedure: &Value, args: &[Value]) -> Result<Value> {
     match procedure {
-        Value::Primitive(prim) => {
-            match &prim.implementation {
-                PrimitiveImpl::RustFn(func) => func(args),
-                PrimitiveImpl::Native(func) => func(args),
-                PrimitiveImpl::EvaluatorIntegrated(_) => {
-                    Err(Box::new(DiagnosticError::runtime_error(
-                        "Evaluator-integrated functions require evaluator access".to_string(),
-                        None,
-                    )))
-                }
-                PrimitiveImpl::ForeignFn { .. } => {
-                    Err(Box::new(DiagnosticError::runtime_error(
-                        "Foreign functions not yet implemented in this context".to_string(),
-                        None,
-                    )))
-                }
-            }
-        }
-        _ => {
-            Err(Box::new(DiagnosticError::runtime_error(
-                "User-defined procedures require evaluator integration (not yet implemented)".to_string(),
+        Value::Primitive(prim) => match &prim.implementation {
+            PrimitiveImpl::RustFn(func) => func(args),
+            PrimitiveImpl::Native(func) => func(args),
+            PrimitiveImpl::EvaluatorIntegrated(_) => Err(Box::new(DiagnosticError::runtime_error(
+                "Evaluator-integrated functions require evaluator access".to_string(),
                 None,
-            )))
-        }
+            ))),
+            PrimitiveImpl::ForeignFn { .. } => Err(Box::new(DiagnosticError::runtime_error(
+                "Foreign functions not yet implemented in this context".to_string(),
+                None,
+            ))),
+        },
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            "User-defined procedures require evaluator integration (not yet implemented)"
+                .to_string(),
+            None,
+        ))),
     }
 }
 
@@ -642,13 +635,9 @@ fn is_numerical_fold_candidate(vector: &[Value], _procedure: &Value) -> bool {
 }
 
 /// Optimized numerical fold using NaN-boxing
-fn optimized_numerical_fold(
-    vector: &[Value], 
-    initial: &Value, 
-    procedure: &Value
-) -> Result<Value> {
+fn optimized_numerical_fold(vector: &[Value], initial: &Value, procedure: &Value) -> Result<Value> {
     let mut acc = initial.as_number().unwrap_or(0.0);
-    
+
     // Fast path for common numerical operations
     for value in vector {
         if let Some(num) = value.as_number() {
@@ -657,7 +646,7 @@ fn optimized_numerical_fold(
             acc = result.as_number().unwrap_or(acc);
         }
     }
-    
+
     Ok(Value::number(acc))
 }
 
@@ -726,9 +715,7 @@ mod tests {
             name: "equal?".to_string(),
             arity_min: 2,
             arity_max: Some(2),
-            implementation: PrimitiveImpl::RustFn(|args| {
-                Ok(Value::boolean(args[0] == args[1]))
-            }),
+            implementation: PrimitiveImpl::RustFn(|args| Ok(Value::boolean(args[0] == args[1]))),
             effects: vec![Effect::Pure],
         });
 
@@ -741,15 +728,12 @@ mod tests {
             Value::Primitive(eq_proc.clone()),
             vec1.clone(),
             vec2.clone(),
-        ]).unwrap();
+        ])
+        .unwrap();
         assert_eq!(result, Value::boolean(true));
 
         // Test unequal vectors
-        let result = primitive_vector_equal(&[
-            Value::Primitive(eq_proc),
-            vec1,
-            vec3,
-        ]).unwrap();
+        let result = primitive_vector_equal(&[Value::Primitive(eq_proc), vec1, vec3]).unwrap();
         assert_eq!(result, Value::boolean(false));
     }
 
@@ -776,11 +760,9 @@ mod tests {
             Value::number(3.0),
         ]);
 
-        let result = primitive_vector_fold(&[
-            Value::Primitive(add_proc),
-            Value::number(0.0),
-            vector,
-        ]).unwrap();
+        let result =
+            primitive_vector_fold(&[Value::Primitive(add_proc), Value::number(0.0), vector])
+                .unwrap();
 
         assert_eq!(result, Value::number(6.0));
     }
@@ -808,10 +790,7 @@ mod tests {
             Value::number(3.0),
         ]);
 
-        let result = primitive_vector_index(&[
-            Value::Primitive(even_proc),
-            vector,
-        ]).unwrap();
+        let result = primitive_vector_index(&[Value::Primitive(even_proc), vector]).unwrap();
 
         assert_eq!(result, Value::integer(1)); // First even number at index 1
     }
@@ -846,17 +825,12 @@ mod tests {
         ]);
 
         // Test vector with even numbers
-        let result = primitive_vector_any(&[
-            Value::Primitive(even_proc.clone()),
-            vector_with_even,
-        ]).unwrap();
+        let result =
+            primitive_vector_any(&[Value::Primitive(even_proc.clone()), vector_with_even]).unwrap();
         assert_eq!(result, Value::boolean(true));
 
         // Test vector with all odd numbers
-        let result = primitive_vector_any(&[
-            Value::Primitive(even_proc),
-            vector_all_odd,
-        ]).unwrap();
+        let result = primitive_vector_any(&[Value::Primitive(even_proc), vector_all_odd]).unwrap();
         assert_eq!(result, Value::boolean(false));
     }
 
@@ -890,17 +864,15 @@ mod tests {
         ]);
 
         // Test vector with all positive numbers
-        let result = primitive_vector_every(&[
-            Value::Primitive(positive_proc.clone()),
-            vector_all_positive,
-        ]).unwrap();
+        let result =
+            primitive_vector_every(&[Value::Primitive(positive_proc.clone()), vector_all_positive])
+                .unwrap();
         assert_eq!(result, Value::boolean(true));
 
         // Test vector with negative numbers
-        let result = primitive_vector_every(&[
-            Value::Primitive(positive_proc),
-            vector_with_negative,
-        ]).unwrap();
+        let result =
+            primitive_vector_every(&[Value::Primitive(positive_proc), vector_with_negative])
+                .unwrap();
         assert_eq!(result, Value::boolean(false));
     }
 
@@ -928,11 +900,9 @@ mod tests {
         ]);
 
         // Apply in-place mapping
-        let result = primitive_vector_map_inplace(&[
-            Value::Primitive(double_proc),
-            vector.clone(),
-        ]).unwrap();
-        
+        let result =
+            primitive_vector_map_inplace(&[Value::Primitive(double_proc), vector.clone()]).unwrap();
+
         assert_eq!(result, Value::Unspecified);
 
         // Check that the vector was modified in place
@@ -956,7 +926,7 @@ mod tests {
     #[test]
     fn test_empty_vector_edge_cases() {
         let empty_vec = Value::vector(Vec::new());
-        
+
         // vector-empty? should return true
         let result = primitive_vector_empty(&[empty_vec.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
@@ -969,18 +939,13 @@ mod tests {
             implementation: PrimitiveImpl::RustFn(|_| Ok(Value::boolean(true))),
             effects: vec![Effect::Pure],
         });
-        
-        let result = primitive_vector_any(&[
-            Value::Primitive(proc.clone()),
-            empty_vec.clone(),
-        ]).unwrap();
+
+        let result =
+            primitive_vector_any(&[Value::Primitive(proc.clone()), empty_vec.clone()]).unwrap();
         assert_eq!(result, Value::boolean(false));
 
         // vector-every over empty vector should return true
-        let result = primitive_vector_every(&[
-            Value::Primitive(proc),
-            empty_vec,
-        ]).unwrap();
+        let result = primitive_vector_every(&[Value::Primitive(proc), empty_vec]).unwrap();
         assert_eq!(result, Value::boolean(true));
     }
 }

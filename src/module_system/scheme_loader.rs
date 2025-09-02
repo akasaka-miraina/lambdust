@@ -557,14 +557,42 @@ impl SchemeLibraryLoader {
                 // Handle special forms and primitives that should be available during compilation
                 match name.as_str() {
                     // Core special forms that are always available
-                    "define" | "define-values" | "define-syntax" | "define-library" |
-                    "import" | "export" | "begin" | "lambda" | "case-lambda" |
-                    "if" | "when" | "unless" | "cond" | "case" | "and" | "or" |
-                    "let" | "let*" | "letrec" | "letrec*" | "let-values" | "let*-values" |
-                    "do" | "quote" | "quasiquote" | "unquote" | "unquote-splicing" |
-                    "syntax-rules" | "syntax-case" | "with-syntax" |
-                    "call/cc" | "call-with-current-continuation" | "call-with-values" |
-                    "dynamic-wind" | "values" | "set!" => {
+                    "define"
+                    | "define-values"
+                    | "define-syntax"
+                    | "define-library"
+                    | "import"
+                    | "export"
+                    | "begin"
+                    | "lambda"
+                    | "case-lambda"
+                    | "if"
+                    | "when"
+                    | "unless"
+                    | "cond"
+                    | "case"
+                    | "and"
+                    | "or"
+                    | "let"
+                    | "let*"
+                    | "letrec"
+                    | "letrec*"
+                    | "let-values"
+                    | "let*-values"
+                    | "do"
+                    | "quote"
+                    | "quasiquote"
+                    | "unquote"
+                    | "unquote-splicing"
+                    | "syntax-rules"
+                    | "syntax-case"
+                    | "with-syntax"
+                    | "call/cc"
+                    | "call-with-current-continuation"
+                    | "call-with-values"
+                    | "dynamic-wind"
+                    | "values"
+                    | "set!" => {
                         // Return a placeholder value for special forms
                         // The actual compilation is handled elsewhere
                         Ok(Value::symbol_from_str(name.clone()))

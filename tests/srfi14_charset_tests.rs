@@ -4,7 +4,7 @@
 //! covering all character set operations, predicates, and standard character sets.
 
 use lambdust::eval::value::Value;
-use lambdust::stdlib::charset::{CharSet, StandardCharSets, CharSetCursor};
+use lambdust::stdlib::charset::{CharSet, CharSetCursor, StandardCharSets};
 
 #[cfg(test)]
 mod srfi14_tests {
@@ -235,7 +235,7 @@ mod srfi14_tests {
     #[test]
     fn test_charset_filtering_predicates() {
         let mixed = CharSet::from_string("aB3!");
-        
+
         // Test filtering with predicates
         let alphabetic = mixed.filter(|c| c.is_alphabetic());
         assert_eq!(alphabetic.size(), 2); // 'a', 'B'
@@ -270,12 +270,15 @@ mod srfi14_tests {
     #[test]
     fn test_charset_fold() {
         let abc = CharSet::from_string("abc");
-        
+
         // Test fold to collect all characters
-        let collected: Vec<char> = abc.fold(|c, mut acc: Vec<char>| {
-            acc.push(c);
-            acc
-        }, Vec::new());
+        let collected: Vec<char> = abc.fold(
+            |c, mut acc: Vec<char>| {
+                acc.push(c);
+                acc
+            },
+            Vec::new(),
+        );
         assert_eq!(collected.len(), 3);
         // Due to BTreeSet ordering, should be sorted
         assert_eq!(collected, &['a', 'b', 'c']);
@@ -285,10 +288,13 @@ mod srfi14_tests {
         assert_eq!(count, 3);
 
         // Test fold for string building
-        let string: String = abc.fold(|c, mut acc| {
-            acc.push(c);
-            acc
-        }, String::new());
+        let string: String = abc.fold(
+            |c, mut acc| {
+                acc.push(c);
+                acc
+            },
+            String::new(),
+        );
         assert_eq!(string, "abc");
 
         // Test fold with empty set
@@ -302,20 +308,20 @@ mod srfi14_tests {
     fn test_charset_complement() {
         let vowels = CharSet::from_string("aeiou");
         let complement = vowels.complement();
-        
+
         // Complement should not contain vowels
         assert!(!complement.contains('a'));
         assert!(!complement.contains('e'));
         assert!(!complement.contains('i'));
         assert!(!complement.contains('o'));
         assert!(!complement.contains('u'));
-        
+
         // But should contain other printable ASCII characters
         assert!(complement.contains('b'));
         assert!(complement.contains('z'));
         assert!(complement.contains('1'));
         assert!(complement.contains(' '));
-        
+
         // Test empty set complement
         let empty = CharSet::new();
         let full_complement = empty.complement();
@@ -327,7 +333,7 @@ mod srfi14_tests {
     }
 
     /// Test display and string conversion
-    #[test] 
+    #[test]
     fn test_charset_display() {
         // Empty set display
         let empty = CharSet::new();
@@ -411,7 +417,7 @@ mod srfi14_integration_tests {
         if let Value::CharSet(cs) = &charset_value {
             assert_eq!(cs.size(), 3);
             assert!(cs.contains('a'));
-            assert!(cs.contains('b'));  
+            assert!(cs.contains('b'));
             assert!(cs.contains('c'));
         } else {
             panic!("Expected CharSet value");
@@ -428,9 +434,11 @@ mod srfi14_performance_tests {
     #[test]
     fn test_charset_performance() {
         // Test performance of basic operations on reasonably sized character sets
-        
+
         // Create a medium-sized character set
-        let chars: Vec<char> = (0..1000).map(|i| char::from_u32(i as u32).unwrap_or('?')).collect();
+        let chars: Vec<char> = (0..1000)
+            .map(|i| char::from_u32(i as u32).unwrap_or('?'))
+            .collect();
         let charset = CharSet::from_chars(chars);
 
         // Test contains performance
@@ -443,7 +451,9 @@ mod srfi14_performance_tests {
         println!("Contains operations (1000x): {:?}", contains_duration);
 
         // Test union performance
-        let other_chars: Vec<char> = (500..1500).map(|i| char::from_u32(i as u32).unwrap_or('?')).collect();
+        let other_chars: Vec<char> = (500..1500)
+            .map(|i| char::from_u32(i as u32).unwrap_or('?'))
+            .collect();
         let other_charset = CharSet::from_chars(other_chars);
 
         let start = Instant::now();

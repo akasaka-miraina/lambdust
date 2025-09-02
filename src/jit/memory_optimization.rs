@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Cache-aware memory optimization strategies for JIT compilation
+#![allow(missing_docs)]
+//! Cache-aware memory optimization strategies for JIT compilation
 //!
 //! This module implements sophisticated cache-aware memory optimization strategies
 //! based on advanced computer science principles:

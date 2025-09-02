@@ -3,9 +3,9 @@
 //! This module handles the execution of property tests, including parallel
 //! execution, result collection, and shrinking of failing test cases.
 
+use crate::ast::Literal;
 use crate::eval::value::Value;
 use crate::property_testing::{Generator, Property, PropertyConfig, PropertyResult, TestSummary};
-use crate::ast::Literal;
 use rand::{Rng, SeedableRng};
 use rand_xorshift::XorShiftRng;
 use rayon::prelude::*;
@@ -36,10 +36,22 @@ where
 
     if config.parallel && config.test_cases > 10 {
         // Parallel execution for larger test suites
-        run_parallel_tests(property.clone(), generators.clone(), &config, base_seed, summary.clone());
+        run_parallel_tests(
+            property.clone(),
+            generators.clone(),
+            &config,
+            base_seed,
+            summary.clone(),
+        );
     } else {
         // Sequential execution for smaller test suites or when parallel is disabled
-        run_sequential_tests(property.clone(), generators.clone(), &config, base_seed, summary.clone());
+        run_sequential_tests(
+            property.clone(),
+            generators.clone(),
+            &config,
+            base_seed,
+            summary.clone(),
+        );
     }
 
     // Finalize the summary

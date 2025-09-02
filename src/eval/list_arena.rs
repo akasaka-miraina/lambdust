@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Arena-Based List Allocation for SRFI-1 Performance Optimization
+#![allow(missing_docs)]
+//! Arena-Based List Allocation for SRFI-1 Performance Optimization
 //!
 //! This module implements a multi-tier arena allocation system specifically optimized
 //! for list construction operations in SRFI-1 procedures. The design follows the
@@ -21,7 +22,7 @@
 use crate::eval::list_optimization::{ListConstructionArena, OptimizedListCell};
 use crate::eval::nan_boxed_value::NanBoxedValue;
 use crate::eval::value::Value;
-use std::alloc::{alloc, dealloc, Layout};
+use std::alloc::{Layout, alloc, dealloc};
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::ptr::{self, NonNull};
@@ -30,9 +31,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 /// Memory region size constants optimized for SRFI-1 operations
-const SMALL_REGION_SIZE: usize = 4096;     // 4KB for small lists (1-50 elements)
-const MEDIUM_REGION_SIZE: usize = 16384;   // 16KB for medium lists (51-200 elements)
-const LARGE_REGION_SIZE: usize = 65536;    // 64KB for large lists (200+ elements)
+const SMALL_REGION_SIZE: usize = 4096; // 4KB for small lists (1-50 elements)
+const MEDIUM_REGION_SIZE: usize = 16384; // 16KB for medium lists (51-200 elements)
+const LARGE_REGION_SIZE: usize = 65536; // 64KB for large lists (200+ elements)
 
 /// Minimum alignment for optimized list cells (64-bit aligned)
 const CELL_ALIGNMENT: usize = 8;
@@ -72,10 +73,10 @@ impl MultiTierListArena {
     pub fn allocate_list(&self, estimated_elements: usize) -> ArenaRegionHandle {
         let arena = self.select_arena(estimated_elements);
         let handle = arena.allocate_region(estimated_elements);
-        
+
         // Update statistics
         self.stats.record_allocation(estimated_elements);
-        
+
         handle
     }
 
@@ -141,9 +142,9 @@ impl TierArena {
     fn allocate_region(&self, estimated_elements: usize) -> ArenaRegionHandle {
         let required_size = estimated_elements * std::mem::size_of::<OptimizedListCell>();
         let region = self.get_or_create_region(required_size);
-        
+
         self.allocation_count.fetch_add(1, Ordering::Relaxed);
-        
+
         ArenaRegionHandle::new(region)
     }
 
@@ -169,22 +170,24 @@ impl TierArena {
         let region_size = std::cmp::max(self.region_size, min_size);
         let region = Box::new(ArenaRegion::new(region_size));
         let region_ptr = NonNull::from(region.as_ref());
-        
+
         // Store region in collection
         {
             let mut regions = self.regions.lock().unwrap();
             regions.push(region);
         }
-        
+
         // Update current region
-        self.current_region.store(region_ptr.as_ptr(), Ordering::Release);
-        
+        self.current_region
+            .store(region_ptr.as_ptr(), Ordering::Release);
+
         region_ptr
     }
 
     /// Clears all regions in this tier
     fn clear(&self) {
-        self.current_region.store(ptr::null_mut(), Ordering::Release);
+        self.current_region
+            .store(ptr::null_mut(), Ordering::Release);
         let mut regions = self.regions.lock().unwrap();
         regions.clear();
         self.total_allocated.store(0, Ordering::Relaxed);
@@ -207,9 +210,9 @@ struct ArenaRegion {
 impl ArenaRegion {
     /// Creates a new arena region with specified size
     fn new(size: usize) -> Self {
-        let layout = Layout::from_size_align(size, CELL_ALIGNMENT)
-            .expect("Invalid layout for arena region");
-        
+        let layout =
+            Layout::from_size_align(size, CELL_ALIGNMENT).expect("Invalid layout for arena region");
+
         let memory = unsafe {
             let ptr = alloc(layout);
             if ptr.is_null() {
@@ -236,18 +239,22 @@ impl ArenaRegion {
     unsafe fn allocate(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
         let current_offset = self.offset.load(Ordering::Relaxed);
         let aligned_offset = (current_offset + align - 1) & !(align - 1);
-        
+
         if aligned_offset + size > self.size {
             return None; // Not enough space
         }
 
         // Try to claim this space
-        if self.offset.compare_exchange_weak(
-            current_offset,
-            aligned_offset + size,
-            Ordering::AcqRel,
-            Ordering::Relaxed,
-        ).is_ok() {
+        if self
+            .offset
+            .compare_exchange_weak(
+                current_offset,
+                aligned_offset + size,
+                Ordering::AcqRel,
+                Ordering::Relaxed,
+            )
+            .is_ok()
+        {
             let ptr = unsafe { self.memory.as_ptr().add(aligned_offset) };
             Some(unsafe { NonNull::new_unchecked(ptr) })
         } else {
@@ -283,7 +290,7 @@ impl ArenaRegionHandle {
         let region = unsafe { self.region.as_ref() };
         let size = std::mem::size_of::<OptimizedListCell>();
         let align = std::mem::align_of::<OptimizedListCell>();
-        
+
         unsafe { region.allocate(size, align) }.map(|ptr| ptr.cast())
     }
 }
@@ -318,10 +325,10 @@ impl ConstructionArena {
                 // Initialize the cell
                 let cell = OptimizedListCell::new(data, next);
                 ptr::write(cell_ptr.as_ptr(), cell);
-                
+
                 self.allocation_count += 1;
                 self.stats.record_cell_allocation();
-                
+
                 Some(cell_ptr)
             } else {
                 None // Arena is full
@@ -336,7 +343,7 @@ impl ConstructionArena {
         }
 
         let mut result = None;
-        
+
         // Build list in reverse order for efficient cons-like construction
         for value in values.iter().rev() {
             let boxed_value = Self::value_to_nan_boxed(value);
@@ -358,9 +365,7 @@ impl ConstructionArena {
     fn value_to_nan_boxed(value: &Value) -> NanBoxedValue {
         match value {
             Value::Literal(crate::ast::Literal::Boolean(b)) => NanBoxedValue::from_bool(*b),
-            Value::Literal(crate::ast::Literal::Number(n)) => {
-                NanBoxedValue::from_number(*n)
-            }
+            Value::Literal(crate::ast::Literal::Number(n)) => NanBoxedValue::from_number(*n),
             Value::Nil => NanBoxedValue::nil_value(),
             _ => NanBoxedValue::unspecified_value(),
         }
@@ -400,7 +405,8 @@ impl ArenaStatistics {
 
     fn record_allocation(&self, elements: usize) {
         self.total_allocations.fetch_add(1, Ordering::Relaxed);
-        self.total_elements.fetch_add(elements as u64, Ordering::Relaxed);
+        self.total_elements
+            .fetch_add(elements as u64, Ordering::Relaxed);
     }
 
     fn record_cell_allocation(&self) {
@@ -450,7 +456,7 @@ impl GlobalListArena {
     pub fn instance() -> &'static MultiTierListArena {
         use std::sync::OnceLock;
         static ARENA: OnceLock<MultiTierListArena> = OnceLock::new();
-        
+
         ARENA.get_or_init(|| MultiTierListArena::new())
     }
 
@@ -479,13 +485,13 @@ mod tests {
     #[test]
     fn test_arena_allocation_tiers() {
         let arena = MultiTierListArena::new();
-        
+
         // Small allocation should go to small tier
         let _small = arena.allocate_list(10);
-        
-        // Large allocation should go to large tier  
+
+        // Large allocation should go to large tier
         let _large = arena.allocate_list(500);
-        
+
         let stats = arena.get_statistics();
         assert_eq!(stats.total_allocations, 2);
     }
@@ -494,10 +500,10 @@ mod tests {
     fn test_construction_arena() {
         let arena = MultiTierListArena::new();
         let mut construction = arena.create_construction_arena(50);
-        
+
         let values = vec![Value::boolean(true), Value::boolean(false)];
         let list = construction.create_list(&values);
-        
+
         assert!(list.is_some());
         assert_eq!(construction.get_allocation_count(), 2);
     }
@@ -507,9 +513,9 @@ mod tests {
         let mut construction = GlobalListArena::create_construction_arena(10);
         let values = vec![Value::Nil];
         let list = construction.create_list(&values);
-        
+
         assert!(list.is_some());
-        
+
         let stats = GlobalListArena::get_statistics();
         assert!(stats.total_allocations > 0);
     }
@@ -533,7 +539,7 @@ mod tests {
         let values = vec![Value::boolean(true); 10];
         let result = construction.create_list(&values);
         assert!(result.is_some());
-        
+
         let stats = arena.get_statistics();
         assert_eq!(stats.total_allocations, 1);
     }
@@ -544,10 +550,10 @@ mod tests {
     fn test_concurrent_allocation() {
         use std::sync::Arc;
         use std::thread;
-        
+
         let arena = Arc::new(MultiTierListArena::new());
         let mut handles = vec![];
-        
+
         for _ in 0..4 {
             let arena_clone = Arc::clone(&arena);
             let handle = thread::spawn(move || {
@@ -557,12 +563,12 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         for handle in handles {
             let result = handle.join().unwrap();
             assert!(result.is_some());
         }
-        
+
         let stats = arena.get_statistics();
         assert_eq!(stats.total_allocations, 4);
     }

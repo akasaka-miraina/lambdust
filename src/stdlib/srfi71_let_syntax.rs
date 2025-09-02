@@ -37,8 +37,8 @@
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::effects::Effect;
-use crate::eval::value::{PrimitiveProcedure, PrimitiveImpl, Value, MultipleValues};
 use crate::eval::value::{Environment, Generation};
+use crate::eval::value::{MultipleValues, PrimitiveImpl, PrimitiveProcedure, Value};
 use std::sync::Arc;
 
 /// Install SRFI-71 extended let syntax procedures and utilities into the environment.
@@ -182,7 +182,7 @@ pub fn unlist(args: &[Value]) -> Result<Value> {
     // Extract list elements
     let mut elements = Vec::new();
     let mut current = &args[0];
-    
+
     loop {
         match current {
             Value::Nil => break,
@@ -213,7 +213,11 @@ pub fn unlist(args: &[Value]) -> Result<Value> {
 
         if n > elements.len() {
             return Err(Box::new(DiagnosticError::runtime_error(
-                format!("unlist: list has {} elements but {} requested", elements.len(), n),
+                format!(
+                    "unlist: list has {} elements but {} requested",
+                    elements.len(),
+                    n
+                ),
                 None,
             )));
         }
@@ -226,7 +230,9 @@ pub fn unlist(args: &[Value]) -> Result<Value> {
     } else if elements.len() == 1 {
         Ok(elements.into_iter().next().unwrap())
     } else {
-        Ok(Value::MultipleValues(Arc::new(MultipleValues::new(elements))))
+        Ok(Value::MultipleValues(Arc::new(MultipleValues::new(
+            elements,
+        ))))
     }
 }
 
@@ -279,7 +285,7 @@ pub fn list_to_values(args: &[Value]) -> Result<Value> {
 
     let mut elements = Vec::new();
     let mut current = &args[0];
-    
+
     loop {
         match current {
             Value::Nil => break,
@@ -301,7 +307,9 @@ pub fn list_to_values(args: &[Value]) -> Result<Value> {
     } else if elements.len() == 1 {
         Ok(elements.into_iter().next().unwrap())
     } else {
-        Ok(Value::MultipleValues(Arc::new(MultipleValues::new(elements))))
+        Ok(Value::MultipleValues(Arc::new(MultipleValues::new(
+            elements,
+        ))))
     }
 }
 
@@ -322,7 +330,9 @@ pub fn vector_to_values(args: &[Value]) -> Result<Value> {
             } else if elements.len() == 1 {
                 Ok(elements.into_iter().next().unwrap())
             } else {
-                Ok(Value::MultipleValues(Arc::new(MultipleValues::new(elements))))
+                Ok(Value::MultipleValues(Arc::new(MultipleValues::new(
+                    elements,
+                ))))
             }
         }
         _ => Err(Box::new(DiagnosticError::runtime_error(
@@ -345,7 +355,7 @@ mod tests {
         // Test basic uncons
         let pair = Value::cons(Value::integer(1), Value::integer(2));
         let result = uncons(&[pair]).unwrap();
-        
+
         if let Value::MultipleValues(mv) = result {
             let values = mv.as_slice();
             assert_eq!(values.len(), 2);
@@ -356,9 +366,13 @@ mod tests {
         }
 
         // Test uncons with list
-        let list = Value::list(vec![Value::integer(10), Value::integer(20), Value::integer(30)]);
+        let list = Value::list(vec![
+            Value::integer(10),
+            Value::integer(20),
+            Value::integer(30),
+        ]);
         let result = uncons(&[list]).unwrap();
-        
+
         if let Value::MultipleValues(mv) = result {
             let values = mv.as_slice();
             assert_eq!(values.len(), 2);
@@ -374,11 +388,11 @@ mod tests {
         // Test basic unlist
         let list = Value::list(vec![
             Value::integer(1),
-            Value::integer(2), 
+            Value::integer(2),
             Value::integer(3),
         ]);
         let result = unlist(&[list]).unwrap();
-        
+
         if let Value::MultipleValues(mv) = result {
             let values = mv.as_slice();
             assert_eq!(values.len(), 3);
@@ -397,7 +411,7 @@ mod tests {
             Value::integer(40),
         ]);
         let result = unlist(&[list, Value::Literal(crate::ast::Literal::ExactInteger(2))]).unwrap();
-        
+
         if let Value::MultipleValues(mv) = result {
             let values = mv.as_slice();
             assert_eq!(values.len(), 2);
@@ -410,15 +424,19 @@ mod tests {
     #[test]
     fn test_list_values_conversion() {
         // Test list->values
-        let list = Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)]);
+        let list = Value::list(vec![
+            Value::integer(1),
+            Value::integer(2),
+            Value::integer(3),
+        ]);
         let values_result = list_to_values(&[list]).unwrap();
-        
+
         // Test values->list (using the MultipleValues directly)
         let list_result = values_to_list(&[values_result]).unwrap();
-        
+
         // Should get back the original list structure
         assert!(matches!(list_result, Value::Pair(_, _) | Value::Nil));
-        
+
         // Verify elements
         let mut current = &list_result;
         let mut elements = Vec::new();
@@ -432,7 +450,7 @@ mod tests {
                 _ => panic!("Expected list structure"),
             }
         }
-        
+
         assert_eq!(elements.len(), 3);
         assert_eq!(elements[0], Value::integer(1));
         assert_eq!(elements[1], Value::integer(2));

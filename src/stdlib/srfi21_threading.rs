@@ -4,15 +4,18 @@
 //! concurrency infrastructure, providing R7RS-compliant threading primitives
 //! with real-time scheduling capabilities.
 
-use std::sync::{Mutex as StdMutex, Condvar as StdCondVar};
 use crate::diagnostics::{Error, Result};
 use crate::eval::Value;
 use crate::utils::SymbolId;
-use std::sync::{Arc, RwLock, atomic::{AtomicU64, AtomicBool, Ordering}};
-use std::collections::{HashMap, BinaryHeap, HashSet};
-use std::time::{Duration, Instant};
-use std::thread::{self, ThreadId as StdThreadId, JoinHandle};
 use std::cmp::Ordering as CmpOrdering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::sync::{
+    Arc, RwLock,
+    atomic::{AtomicBool, AtomicU64, Ordering},
+};
+use std::sync::{Condvar as StdCondVar, Mutex as StdMutex};
+use std::thread::{self, JoinHandle, ThreadId as StdThreadId};
+use std::time::{Duration, Instant};
 
 /// Unique identifier for SRFI-21 threads
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -240,7 +243,9 @@ impl PartialOrd for WaitingThread {
 impl Ord for WaitingThread {
     fn cmp(&self, other: &Self) -> CmpOrdering {
         // Higher priority threads come first (reverse order for max-heap)
-        other.priority.cmp(&self.priority)
+        other
+            .priority
+            .cmp(&self.priority)
             .then_with(|| self.wait_start.cmp(&other.wait_start))
     }
 }
@@ -274,9 +279,12 @@ pub struct Srfi21Time {
 impl Srfi21Time {
     pub fn now() -> Self {
         use std::time::{SystemTime, UNIX_EPOCH};
-        let duration = SystemTime::now().duration_since(UNIX_EPOCH)
+        let duration = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap_or_else(|_| Duration::from_secs(0));
-        Self { nanos: duration.as_nanos() as u64 }
+        Self {
+            nanos: duration.as_nanos() as u64,
+        }
     }
 
     pub fn to_seconds(&self) -> f64 {
@@ -284,27 +292,27 @@ impl Srfi21Time {
     }
 
     pub fn from_seconds(seconds: f64) -> Self {
-        Self { nanos: (seconds * 1_000_000_000.0) as u64 }
+        Self {
+            nanos: (seconds * 1_000_000_000.0) as u64,
+        }
     }
 
     pub fn add_duration(&self, duration: Duration) -> Self {
-        Self { nanos: self.nanos + duration.as_nanos() as u64 }
+        Self {
+            nanos: self.nanos + duration.as_nanos() as u64,
+        }
     }
 
     pub fn sub_duration(&self, duration: Duration) -> Self {
-        Self { 
-            nanos: self.nanos.saturating_sub(duration.as_nanos() as u64) 
+        Self {
+            nanos: self.nanos.saturating_sub(duration.as_nanos() as u64),
         }
     }
 }
 
 impl Srfi21Thread {
     /// Create a new SRFI-21 thread with specified priority and quantum
-    pub fn new(
-        name: Option<String>, 
-        priority: u8, 
-        quantum: Option<Duration>
-    ) -> Self {
+    pub fn new(name: Option<String>, priority: u8, quantum: Option<Duration>) -> Self {
         Self {
             id: ThreadId::new(),
             name,
@@ -368,11 +376,7 @@ impl Srfi21Mutex {
     }
 
     /// Create a timed mutex with timeout
-    pub fn new_timed(
-        name: Option<String>, 
-        priority_inheritance: bool, 
-        timeout: Duration
-    ) -> Self {
+    pub fn new_timed(name: Option<String>, priority_inheritance: bool, timeout: Duration) -> Self {
         Self {
             inner: StdMutex::new(()),
             owner: Arc::new(RwLock::new(None)),
@@ -429,7 +433,10 @@ impl PriorityInheritanceGraph {
 
     /// Record that waiter is blocked on holder's resource
     pub fn inherit_priority(&mut self, holder: ThreadId, waiter: ThreadId) -> Result<()> {
-        self.dependencies.entry(holder).or_insert_with(HashSet::new).insert(waiter);
+        self.dependencies
+            .entry(holder)
+            .or_insert_with(HashSet::new)
+            .insert(waiter);
         // Recalculate effective priorities
         self.recalculate_priorities();
         Ok(())
@@ -454,16 +461,17 @@ impl PriorityInheritanceGraph {
         // a more sophisticated graph algorithm to handle priority chains
         for (&holder, waiters) in &self.dependencies {
             // First, calculate the max waiter priority without mutable borrow
-            let max_waiter_priority = waiters.iter()
+            let max_waiter_priority = waiters
+                .iter()
                 .filter_map(|&waiter| self.effective_priorities.get(&waiter))
                 .map(|p| p.effective_priority)
                 .max();
-                
+
             // Then, get mutable access to holder priority
             if let Some(holder_priority) = self.effective_priorities.get_mut(&holder) {
                 let base_priority = holder_priority.base_priority;
                 let max_waiter_priority = max_waiter_priority.unwrap_or(base_priority);
-                
+
                 if max_waiter_priority > base_priority {
                     holder_priority.inherit_priority(max_waiter_priority);
                 } else {
@@ -530,7 +538,7 @@ impl Default for ThreadRegistry {
 }
 
 /// Global thread registry instance
-pub static THREAD_REGISTRY: std::sync::LazyLock<ThreadRegistry> = 
+pub static THREAD_REGISTRY: std::sync::LazyLock<ThreadRegistry> =
     std::sync::LazyLock::new(ThreadRegistry::new);
 
 /// Error types specific to SRFI-21 operations

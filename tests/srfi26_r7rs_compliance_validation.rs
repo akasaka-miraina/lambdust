@@ -14,16 +14,15 @@
 //!
 //! Reference: https://srfi.schemers.org/srfi-26/srfi-26.html
 
-use lambdust::ast::{CutArgument, Expr, Literal, Formals};
+use lambdust::ast::{CutArgument, Expr, Formals, Literal};
 use lambdust::diagnostics::{Span, Spanned};
 use lambdust::eval::{Environment, Evaluator, Value};
 use lambdust::lexer::Lexer;
-use lambdust::parser::Parser;
 use lambdust::macro_system::{
-    expand_cut_optimized, expand_cute_optimized, reset_parameter_pool,
-    global_expansion_metrics, global_cache_stats,
-    OptimizedCutExpander, ExpanderMetrics, ExpansionCacheStats,
+    ExpanderMetrics, ExpansionCacheStats, OptimizedCutExpander, expand_cut_optimized,
+    expand_cute_optimized, global_cache_stats, global_expansion_metrics, reset_parameter_pool,
 };
+use lambdust::parser::Parser;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
@@ -83,7 +82,7 @@ mod srfi26_core_compliance {
     #[test]
     fn test_cut_basic_single_slot() {
         reset_parameter_pool();
-        
+
         // Test: (cut + <> 5) should produce (lambda (x1) (+ x1 5))
         let procedure = create_procedure_expr("+");
         let arguments = vec![
@@ -102,7 +101,7 @@ mod srfi26_core_compliance {
                 if let Formals::Fixed(params) = formals {
                     assert_eq!(params.len(), 1);
                     let param_name = &params[0];
-                    
+
                     // Verify body is correct application
                     assert_eq!(body.len(), 1);
                     if let Expr::Application { operator, operands } = &body[0].inner {
@@ -112,10 +111,14 @@ mod srfi26_core_compliance {
                         } else {
                             panic!("Expected + operator");
                         }
-                        
+
                         // Operands should be [param, 5]
                         if operands.len() != 2 {
-                            eprintln!("DEBUG: Expected 2 operands, got {} operands: {:?}", operands.len(), operands);
+                            eprintln!(
+                                "DEBUG: Expected 2 operands, got {} operands: {:?}",
+                                operands.len(),
+                                operands
+                            );
                         }
                         assert_eq!(operands.len(), 2);
                         if let Expr::Identifier(param) = &operands[0].inner {
@@ -123,7 +126,7 @@ mod srfi26_core_compliance {
                         } else {
                             panic!("Expected parameter identifier");
                         }
-                        
+
                         if let Expr::Literal(Literal::ExactInteger(n)) = &operands[1].inner {
                             assert_eq!(*n, 5);
                         } else {
@@ -144,7 +147,7 @@ mod srfi26_core_compliance {
     #[test]
     fn test_cut_multiple_slots() {
         reset_parameter_pool();
-        
+
         // Test: (cut list 1 <> 3 <> 5) should produce (lambda (x1 x2) (list 1 x1 3 x2 5))
         let procedure = create_procedure_expr("list");
         let arguments = vec![
@@ -164,7 +167,7 @@ mod srfi26_core_compliance {
                 // Should have 2 parameters for 2 slots
                 if let Formals::Fixed(params) = formals {
                     assert_eq!(params.len(), 2);
-                    
+
                     // Body should be application with 5 arguments
                     assert_eq!(body.len(), 1);
                     if let Expr::Application { operator, operands } = &body[0].inner {
@@ -172,7 +175,7 @@ mod srfi26_core_compliance {
                             assert_eq!(op_name, "list");
                         }
                         assert_eq!(operands.len(), 5);
-                        
+
                         // Check argument pattern: 1, x1, 3, x2, 5
                         if let Expr::Literal(Literal::ExactInteger(n)) = &operands[0].inner {
                             assert_eq!(*n, 1);
@@ -199,13 +202,10 @@ mod srfi26_core_compliance {
     #[test]
     fn test_cut_rest_slot() {
         reset_parameter_pool();
-        
+
         // Test: (cut list <> <...>) should produce (lambda (x1 . rest) (apply list x1 rest))
         let procedure = create_procedure_expr("list");
-        let arguments = vec![
-            CutArgument::slot(),
-            CutArgument::rest_slot(),
-        ];
+        let arguments = vec![CutArgument::slot(), CutArgument::rest_slot()];
 
         let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
         assert!(result.is_ok());
@@ -217,7 +217,7 @@ mod srfi26_core_compliance {
                 if let Formals::Mixed { fixed, rest } = formals {
                     assert_eq!(fixed.len(), 1);
                     let fixed_param = &fixed[0];
-                    
+
                     // Body should use apply
                     assert_eq!(body.len(), 1);
                     if let Expr::Application { operator, operands } = &body[0].inner {
@@ -238,7 +238,7 @@ mod srfi26_core_compliance {
     #[test]
     fn test_cut_procedure_slot() {
         reset_parameter_pool();
-        
+
         // Test: (cut <> 1 2) should produce (lambda (f) (f 1 2))
         let procedure_slot = spanned(Expr::Identifier("<>".to_string())); // This will be treated as slot in procedure position
         let arguments = vec![
@@ -254,7 +254,7 @@ mod srfi26_core_compliance {
     #[test]
     fn test_cut_no_slots() {
         reset_parameter_pool();
-        
+
         // Test: (cut + 1 2) should produce (lambda () (+ 1 2))
         let procedure = create_procedure_expr("+");
         let arguments = vec![
@@ -272,7 +272,7 @@ mod srfi26_core_compliance {
                 if let Formals::Fixed(params) = formals {
                     assert_eq!(params.len(), 0);
                 }
-                
+
                 // Body should be application with literal arguments
                 assert_eq!(body.len(), 1);
                 if let Expr::Application { operator, operands } = &body[0].inner {
@@ -295,7 +295,7 @@ mod cut_cute_semantics {
     #[test]
     fn test_cute_eager_evaluation() {
         reset_parameter_pool();
-        
+
         // Test cute vs cut difference
         // cute should evaluate non-slot expressions immediately
         let procedure = create_procedure_expr("cons");
@@ -311,7 +311,7 @@ mod cut_cute_semantics {
         // For cute, the non-slot expression should be bound to a temporary variable
         // This ensures it's evaluated when cute is evaluated, not when the result is called
         let cute_lambda = cute_result.unwrap();
-        
+
         // The exact structure may vary based on optimization, but the key is that
         // cute should preserve the eager evaluation semantics
         assert!(matches!(cute_lambda.inner, Expr::Lambda { .. }));
@@ -320,7 +320,7 @@ mod cut_cute_semantics {
     #[test]
     fn test_cut_lazy_evaluation() {
         reset_parameter_pool();
-        
+
         // Test that cut preserves lazy evaluation of non-slot expressions
         let procedure = create_procedure_expr("cons");
         let arguments = vec![
@@ -355,13 +355,10 @@ mod error_handling_compliance {
     #[test]
     fn test_invalid_rest_slot_position() {
         reset_parameter_pool();
-        
+
         // Error: <...> not at end should fail
         let procedure = create_procedure_expr("list");
-        let arguments = vec![
-            CutArgument::rest_slot(),
-            CutArgument::slot(),
-        ];
+        let arguments = vec![CutArgument::rest_slot(), CutArgument::slot()];
 
         let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
         // This should fail - rest slot not at end is invalid
@@ -372,13 +369,10 @@ mod error_handling_compliance {
     #[test]
     fn test_multiple_rest_slots() {
         reset_parameter_pool();
-        
+
         // Error: multiple <...> should fail
         let procedure = create_procedure_expr("list");
-        let arguments = vec![
-            CutArgument::rest_slot(),
-            CutArgument::rest_slot(),
-        ];
+        let arguments = vec![CutArgument::rest_slot(), CutArgument::rest_slot()];
 
         let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
         // Should handle multiple rest slots appropriately
@@ -394,7 +388,7 @@ mod optimization_semantic_preservation {
     #[test]
     fn test_optimization_preserves_semantics() {
         reset_parameter_pool();
-        
+
         // Test that optimizations don't change observable behavior
         let procedure = create_procedure_expr("+");
         let arguments = vec![
@@ -405,18 +399,28 @@ mod optimization_semantic_preservation {
         // Expand same pattern multiple times to test caching
         let result1 = expand_cut_optimized(&procedure, &arguments, dummy_span());
         let result2 = expand_cut_optimized(&procedure, &arguments, dummy_span());
-        
+
         assert!(result1.is_ok());
         assert!(result2.is_ok());
-        
+
         // Results should be semantically equivalent
         let lambda1 = result1.unwrap();
         let lambda2 = result2.unwrap();
-        
+
         // Both should produce identical lambda structures
         match (&lambda1.inner, &lambda2.inner) {
-            (Expr::Lambda { formals: f1, body: b1, .. }, 
-             Expr::Lambda { formals: f2, body: b2, .. }) => {
+            (
+                Expr::Lambda {
+                    formals: f1,
+                    body: b1,
+                    ..
+                },
+                Expr::Lambda {
+                    formals: f2,
+                    body: b2,
+                    ..
+                },
+            ) => {
                 // Formals should be equivalent
                 assert_eq!(f1, f2);
                 // Bodies should be equivalent
@@ -429,24 +433,24 @@ mod optimization_semantic_preservation {
     #[test]
     fn test_cache_hit_performance() {
         reset_parameter_pool();
-        
+
         let procedure = create_procedure_expr("+");
         let arguments = &[CutArgument::slot()];
-        
+
         // First expansion (cache miss)
         let start1 = Instant::now();
         let result1 = expand_cut_optimized(&procedure, &arguments, dummy_span());
         let duration1 = start1.elapsed();
-        
+
         assert!(result1.is_ok());
-        
+
         // Second expansion (should be cache hit and faster)
         let start2 = Instant::now();
         let result2 = expand_cut_optimized(&procedure, &arguments, dummy_span());
         let duration2 = start2.elapsed();
-        
+
         assert!(result2.is_ok());
-        
+
         // Cache hit should be significantly faster (though this might be flaky on fast hardware)
         // For production validation, we check cache stats instead
         let cache_stats = global_cache_stats();
@@ -456,24 +460,24 @@ mod optimization_semantic_preservation {
     #[test]
     fn test_expansion_metrics() {
         reset_parameter_pool();
-        
+
         let procedure = create_procedure_expr("list");
         let arguments = vec![
             CutArgument::slot(),
             CutArgument::slot(),
             CutArgument::rest_slot(),
         ];
-        
+
         // Perform several expansions
         for _ in 0..5 {
             let _ = expand_cut_optimized(&procedure, &arguments, dummy_span());
         }
-        
+
         let metrics = global_expansion_metrics();
         assert!(metrics.total_expansions >= 5);
         assert!(metrics.successful_expansions > 0);
         assert!(metrics.average_time_micros > 0.0);
-        
+
         // Success rate should be high for valid patterns
         assert!(metrics.success_rate() > 0.8);
     }
@@ -496,7 +500,7 @@ mod production_readiness {
             let barrier = Arc::clone(&barrier);
             let handle = thread::spawn(move || {
                 barrier.wait();
-                
+
                 // Each thread performs expansions
                 for j in 0..10 {
                     reset_parameter_pool();
@@ -505,7 +509,7 @@ mod production_readiness {
                         CutArgument::slot(),
                         CutArgument::expression(create_integer_expr(i * 10 + j)),
                     ];
-                    
+
                     let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
                     assert!(result.is_ok());
                 }
@@ -516,7 +520,7 @@ mod production_readiness {
         for handle in handles {
             handle.join().unwrap();
         }
-        
+
         // Verify global metrics reflect all expansions
         let metrics = global_expansion_metrics();
         assert!(metrics.total_expansions >= 40);
@@ -525,10 +529,10 @@ mod production_readiness {
     #[test]
     fn test_memory_usage_bounded() {
         reset_parameter_pool();
-        
+
         // Test that repeated expansions don't cause unbounded memory growth
         let initial_metrics = global_cache_stats();
-        
+
         // Perform many expansions with different patterns
         for i in 0..100 {
             let procedure = create_procedure_expr("test");
@@ -536,15 +540,15 @@ mod production_readiness {
                 CutArgument::slot(),
                 CutArgument::expression(create_integer_expr(i)), // Different each time
             ];
-            
+
             let _ = expand_cut_optimized(&procedure, &arguments, dummy_span());
         }
-        
+
         let final_metrics = global_cache_stats();
-        
+
         // Cache size should be bounded (LRU should prevent unbounded growth)
         assert!(final_metrics.cache_size <= final_metrics.cache_capacity);
-        
+
         // Should have reasonable hit rate due to similar patterns
         if final_metrics.total_requests > 0 {
             // At least some cache utilization
@@ -562,17 +566,17 @@ mod r7rs_module_integration {
     fn test_module_import_compatibility() {
         // Test that SRFI-26 integrates properly with R7RS module system
         // This test verifies that the symbols <> and <...> are properly exported
-        
+
         // Parse a module import statement (simulated)
         let module_test = "(import (srfi 26))";
-        
+
         // Verify that after import, cut and cute are available
         // This is more of a conceptual test - actual module loading would need
         // the full evaluator integration
-        
+
         // For now, verify that our expansion functions work with standard expressions
         let test_expr = parse_expr("(cut + <> 1)");
-        
+
         // If parsing succeeds, the lexer recognizes <> properly
         assert!(test_expr.is_ok());
     }
@@ -582,16 +586,16 @@ mod r7rs_module_integration {
         // Test that <> and <...> are properly recognized as symbols
         let slot_expr = parse_expr("<>");
         let rest_slot_expr = parse_expr("<...>");
-        
+
         assert!(slot_expr.is_ok());
         assert!(rest_slot_expr.is_ok());
-        
+
         // Verify they parse as identifiers
         match &slot_expr.unwrap().inner {
             Expr::Identifier(name) => assert_eq!(name, "<>"),
             _ => panic!("Expected identifier for <>"),
         }
-        
+
         match &rest_slot_expr.unwrap().inner {
             Expr::Identifier(name) => assert_eq!(name, "<...>"),
             _ => panic!("Expected identifier for <...>"),
@@ -608,7 +612,7 @@ mod comprehensive_integration {
     fn test_srfi26_specification_examples() {
         // Test all examples from the SRFI-26 specification
         reset_parameter_pool();
-        
+
         // Example 1: (cut cons <> '())
         let proc1 = create_procedure_expr("cons");
         let args1 = vec![
@@ -617,7 +621,7 @@ mod comprehensive_integration {
         ];
         let result1 = expand_cut_optimized(&proc1, &args1, dummy_span());
         assert!(result1.is_ok());
-        
+
         // Example 2: (cut list 1 <> 3 <> 5)
         let proc2 = create_procedure_expr("list");
         let args2 = vec![
@@ -629,22 +633,19 @@ mod comprehensive_integration {
         ];
         let result2 = expand_cut_optimized(&proc2, &args2, dummy_span());
         assert!(result2.is_ok());
-        
+
         // Example 3: (cut list <...>)
         let proc3 = create_procedure_expr("list");
         let args3 = &[CutArgument::rest_slot()];
         let result3 = expand_cut_optimized(&proc3, &args3, dummy_span());
         assert!(result3.is_ok());
-        
+
         // Example 4: (cut list <> <...>)
         let proc4 = create_procedure_expr("list");
-        let args4 = vec![
-            CutArgument::slot(),
-            CutArgument::rest_slot(),
-        ];
+        let args4 = vec![CutArgument::slot(), CutArgument::rest_slot()];
         let result4 = expand_cut_optimized(&proc4, &args4, dummy_span());
         assert!(result4.is_ok());
-        
+
         // All specification examples should expand successfully
     }
 
@@ -652,9 +653,9 @@ mod comprehensive_integration {
     fn test_performance_requirements_met() {
         // Validate that performance requirements are met
         reset_parameter_pool();
-        
+
         let start_time = Instant::now();
-        
+
         // Perform 1000 expansions
         for i in 0..1000 {
             let procedure = create_procedure_expr("test");
@@ -662,24 +663,30 @@ mod comprehensive_integration {
                 CutArgument::slot(),
                 CutArgument::expression(create_integer_expr(i % 10)), // Some repetition for caching
             ];
-            
+
             let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
             assert!(result.is_ok());
         }
-        
+
         let total_time = start_time.elapsed();
         let average_time = total_time / 1000;
-        
+
         // Should achieve sub-millisecond average expansion time
-        assert!(average_time.as_nanos() < 1_000_000, 
-                "Average expansion time too slow: {:?}", average_time);
-        
+        assert!(
+            average_time.as_nanos() < 1_000_000,
+            "Average expansion time too slow: {:?}",
+            average_time
+        );
+
         // Verify cache effectiveness
         let cache_stats = global_cache_stats();
         if cache_stats.total_requests > 100 {
             // Should have decent hit rate with repeated patterns
-            assert!(cache_stats.hit_rate > 0.1, 
-                    "Cache hit rate too low: {}", cache_stats.hit_rate);
+            assert!(
+                cache_stats.hit_rate > 0.1,
+                "Cache hit rate too low: {}",
+                cache_stats.hit_rate
+            );
         }
     }
 
@@ -687,30 +694,53 @@ mod comprehensive_integration {
     fn test_production_deployment_readiness() {
         // Final validation for production deployment
         reset_parameter_pool();
-        
+
         // Test various patterns that would occur in production
         let test_patterns = vec![
             // Simple cases
-            (create_procedure_expr("+"), &[CutArgument::slot(), CutArgument::expression(create_integer_expr(1))]),
-            (create_procedure_expr("*"), &[CutArgument::expression(create_integer_expr(2)), CutArgument::slot()]),
-            
+            (
+                create_procedure_expr("+"),
+                &[
+                    CutArgument::slot(),
+                    CutArgument::expression(create_integer_expr(1)),
+                ],
+            ),
+            (
+                create_procedure_expr("*"),
+                &[
+                    CutArgument::expression(create_integer_expr(2)),
+                    CutArgument::slot(),
+                ],
+            ),
             // Complex cases
-            (create_procedure_expr("map"), &[CutArgument::slot(), CutArgument::slot()]),
-            (create_procedure_expr("fold"), &[CutArgument::slot(), CutArgument::expression(create_integer_expr(0)), CutArgument::slot()]),
-            
+            (
+                create_procedure_expr("map"),
+                &[CutArgument::slot(), CutArgument::slot()],
+            ),
+            (
+                create_procedure_expr("fold"),
+                &[
+                    CutArgument::slot(),
+                    CutArgument::expression(create_integer_expr(0)),
+                    CutArgument::slot(),
+                ],
+            ),
             // Rest parameter cases
-            (create_procedure_expr("apply"), &[CutArgument::slot(), CutArgument::rest_slot()]),
+            (
+                create_procedure_expr("apply"),
+                &[CutArgument::slot(), CutArgument::rest_slot()],
+            ),
             (create_procedure_expr("list"), &[CutArgument::rest_slot()]),
         ];
-        
+
         let mut all_successful = true;
         let mut total_expansions = 0;
-        
+
         for (procedure, arguments) in test_patterns {
             // Test both cut and cute
             let cut_result = expand_cut_optimized(&procedure, &arguments, dummy_span());
             let cute_result = expand_cute_optimized(&procedure, &arguments, dummy_span());
-            
+
             if cut_result.is_err() || cute_result.is_err() {
                 all_successful = false;
                 if cut_result.is_err() {
@@ -720,16 +750,19 @@ mod comprehensive_integration {
                     eprintln!("Cute expansion failed: {:?}", cute_result.unwrap_err());
                 }
             }
-            
+
             total_expansions += 2;
         }
-        
+
         assert!(all_successful, "Some expansions failed");
         assert!(total_expansions > 0, "No expansions performed");
-        
+
         // Verify metrics are reasonable
         let final_metrics = global_expansion_metrics();
-        assert!(final_metrics.success_rate() > 0.9, 
-                "Success rate too low: {}", final_metrics.success_rate());
+        assert!(
+            final_metrics.success_rate() > 0.9,
+            "Success rate too low: {}",
+            final_metrics.success_rate()
+        );
     }
 }

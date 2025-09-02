@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Continuation-JIT Integration System
+#![allow(missing_docs)]
+//! Continuation-JIT Integration System
 //!
 //! This module implements the integration between the continuation system and HybridJitEngine,
 //! enabling revolutionary continuation chain optimization as designed by cs-architect.

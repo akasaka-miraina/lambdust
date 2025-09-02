@@ -61,9 +61,8 @@ pub use syntax_rules::{
 
 // SRFI-26 Cut/Cute expansion functions
 pub use srfi26_expansion::{
-    expand_cut_optimized, expand_cute_optimized, reset_parameter_pool,
-    OptimizedCutExpander, ExpanderMetrics, ExpansionCacheStats,
-    global_expansion_metrics, global_cache_stats,
+    ExpanderMetrics, ExpansionCacheStats, OptimizedCutExpander, expand_cut_optimized,
+    expand_cute_optimized, global_cache_stats, global_expansion_metrics, reset_parameter_pool,
 };
 
 // Re-export individual structures

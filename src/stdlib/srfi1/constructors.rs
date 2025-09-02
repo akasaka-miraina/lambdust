@@ -13,8 +13,8 @@
 
 use crate::ast::Literal;
 use crate::diagnostics::{Error, Result};
-use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use crate::effects::Effect;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 // Note: Number type is handled through Value::number() factory methods
 use crate::stdlib::srfi1::SRFI1Core;
 use std::sync::Arc;
@@ -157,7 +157,7 @@ pub fn srfi1_xcons(args: &[Value]) -> Result<Value> {
 /// (cons* 1 2) => (1 . 2)
 pub fn srfi1_cons_star(args: &[Value]) -> Result<Value> {
     SRFI1Core::validate_arity(args, 1, None, "cons*")?;
-    
+
     if args.len() == 1 {
         Ok(args[0].clone())
     } else {
@@ -172,7 +172,7 @@ pub fn srfi1_cons_star(args: &[Value]) -> Result<Value> {
 /// list-copy - Create a shallow copy of a list
 pub fn srfi1_list_copy(args: &[Value]) -> Result<Value> {
     SRFI1Core::validate_arity(args, 1, Some(1), "list-copy")?;
-    
+
     let list = &args[0];
     match list {
         Value::Nil => Ok(Value::Nil),
@@ -191,39 +191,39 @@ pub fn srfi1_list_copy(args: &[Value]) -> Result<Value> {
 /// make-list - Create a list of specified length with optional fill value
 pub fn srfi1_make_list(args: &[Value]) -> Result<Value> {
     SRFI1Core::validate_arity(args, 1, Some(2), "make-list")?;
-    
+
     let n = args[0].as_integer().ok_or_else(|| {
         Error::runtime_error("make-list length must be an integer".to_string(), None)
     })?;
-    
+
     if n < 0 {
         return Err(Box::new(Error::runtime_error(
             "make-list length must be non-negative".to_string(),
             None,
         )));
     }
-    
+
     let fill_value = args.get(1).cloned().unwrap_or(Value::Nil);
     let values = vec![fill_value; n as usize];
-    
+
     Ok(SRFI1Core::vec_to_list(values))
 }
 
 /// list-tabulate - Create a list by calling a procedure for each index
 pub fn srfi1_list_tabulate(args: &[Value]) -> Result<Value> {
     SRFI1Core::validate_arity(args, 2, Some(2), "list-tabulate")?;
-    
+
     let n = args[0].as_integer().ok_or_else(|| {
         Error::runtime_error("list-tabulate length must be an integer".to_string(), None)
     })?;
-    
+
     if n < 0 {
         return Err(Box::new(Error::runtime_error(
             "list-tabulate length must be non-negative".to_string(),
             None,
         )));
     }
-    
+
     let proc = &args[1];
     if !proc.is_procedure() {
         return Err(Box::new(Error::runtime_error(
@@ -231,28 +231,28 @@ pub fn srfi1_list_tabulate(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let mut values = Vec::with_capacity(n as usize);
     for i in 0..n {
         let index_value = Value::number(i as f64);
         let result = SRFI1Core::apply_procedure(proc, &index_value)?;
         values.push(result);
     }
-    
+
     Ok(SRFI1Core::vec_to_list(values))
 }
 
 /// circular-list - Create a circular list from arguments
 pub fn srfi1_circular_list(args: &[Value]) -> Result<Value> {
     SRFI1Core::validate_arity(args, 1, None, "circular-list")?;
-    
+
     if args.is_empty() {
         return Err(Box::new(Error::runtime_error(
             "circular-list requires at least one argument".to_string(),
             None,
         )));
     }
-    
+
     // For now, return a regular list with a note that circular lists
     // need special handling in the value system
     // TODO: Implement proper circular list support
@@ -264,34 +264,30 @@ pub fn srfi1_circular_list(args: &[Value]) -> Result<Value> {
 /// with step (default 1)
 pub fn srfi1_iota(args: &[Value]) -> Result<Value> {
     SRFI1Core::validate_arity(args, 1, Some(3), "iota")?;
-    
-    let count = args[0].as_integer().ok_or_else(|| {
-        Error::runtime_error("iota count must be an integer".to_string(), None)
-    })?;
-    
+
+    let count = args[0]
+        .as_integer()
+        .ok_or_else(|| Error::runtime_error("iota count must be an integer".to_string(), None))?;
+
     if count < 0 {
         return Err(Box::new(Error::runtime_error(
             "iota count must be non-negative".to_string(),
             None,
         )));
     }
-    
-    let start = args.get(1)
-        .and_then(|v| v.as_integer())
-        .unwrap_or(0);
-        
-    let step = args.get(2)
-        .and_then(|v| v.as_integer())
-        .unwrap_or(1);
-    
+
+    let start = args.get(1).and_then(|v| v.as_integer()).unwrap_or(0);
+
+    let step = args.get(2).and_then(|v| v.as_integer()).unwrap_or(1);
+
     let mut values = Vec::with_capacity(count as usize);
     let mut current = start;
-    
+
     for _ in 0..count {
         values.push(Value::number(current as f64));
         current += step;
     }
-    
+
     Ok(SRFI1Core::vec_to_list(values))
 }
 
@@ -316,7 +312,7 @@ mod tests {
     fn test_srfi1_list() {
         let result = srfi1_list(&[]).unwrap();
         assert_eq!(result, Value::Nil);
-        
+
         let result = srfi1_list(&[Value::boolean(true), Value::boolean(false)]).unwrap();
         assert!(SRFI1Core::is_proper_list(&result));
         assert_eq!(SRFI1Core::fast_length(&result).unwrap(), 2);
@@ -327,7 +323,7 @@ mod tests {
         let result = srfi1_xcons(&[Value::boolean(false), Value::boolean(true)]).unwrap();
         match result {
             Value::Pair(car, cdr) => {
-                assert_eq!(*car, Value::boolean(true));  // Arguments are reversed
+                assert_eq!(*car, Value::boolean(true)); // Arguments are reversed
                 assert_eq!(*cdr, Value::boolean(false));
             }
             _ => panic!("Expected pair"),
@@ -339,7 +335,7 @@ mod tests {
         // Single argument
         let result = srfi1_cons_star(&[Value::boolean(true)]).unwrap();
         assert_eq!(result, Value::boolean(true));
-        
+
         // Two arguments
         let result = srfi1_cons_star(&[Value::boolean(true), Value::boolean(false)]).unwrap();
         match result {
@@ -349,14 +345,11 @@ mod tests {
             }
             _ => panic!("Expected pair"),
         }
-        
+
         // Three arguments: (cons* 1 2 3) => (1 . (2 . 3))
-        let result = srfi1_cons_star(&[
-            Value::integer(1),
-            Value::integer(2),
-            Value::integer(3)
-        ]).unwrap();
-        
+        let result =
+            srfi1_cons_star(&[Value::integer(1), Value::integer(2), Value::integer(3)]).unwrap();
+
         // Should create (1 . (2 . 3))
         assert!(matches!(result, Value::Pair(_, _)));
     }
@@ -365,7 +358,7 @@ mod tests {
     fn test_srfi1_list_copy() {
         let original = Value::list(vec![Value::boolean(true), Value::boolean(false)]);
         let copy = srfi1_list_copy(&[original.clone()]).unwrap();
-        
+
         // Should be equal but not the same object
         let orig_vec = SRFI1Core::list_to_vec(&original).unwrap();
         let copy_vec = SRFI1Core::list_to_vec(&copy).unwrap();
@@ -377,16 +370,13 @@ mod tests {
         // Empty list
         let result = srfi1_make_list(&[Value::integer(0)]).unwrap();
         assert_eq!(result, Value::Nil);
-        
+
         // List with default fill
         let result = srfi1_make_list(&[Value::integer(3)]).unwrap();
         assert_eq!(SRFI1Core::fast_length(&result).unwrap(), 3);
-        
+
         // List with custom fill
-        let result = srfi1_make_list(&[
-            Value::integer(2),
-            Value::boolean(true)
-        ]).unwrap();
+        let result = srfi1_make_list(&[Value::integer(2), Value::boolean(true)]).unwrap();
         let vec = SRFI1Core::list_to_vec(&result).unwrap();
         assert_eq!(vec, vec![Value::boolean(true), Value::boolean(true)]);
     }
@@ -396,35 +386,26 @@ mod tests {
         // Basic iota
         let result = srfi1_iota(&[Value::integer(3)]).unwrap();
         let vec = SRFI1Core::list_to_vec(&result).unwrap();
-        assert_eq!(vec, vec![
-            Value::integer(0),
-            Value::integer(1),
-            Value::integer(2)
-        ]);
-        
+        assert_eq!(
+            vec,
+            vec![Value::integer(0), Value::integer(1), Value::integer(2)]
+        );
+
         // With start
-        let result = srfi1_iota(&[
-            Value::integer(3),
-            Value::integer(10)
-        ]).unwrap();
+        let result = srfi1_iota(&[Value::integer(3), Value::integer(10)]).unwrap();
         let vec = SRFI1Core::list_to_vec(&result).unwrap();
-        assert_eq!(vec, vec![
-            Value::integer(10),
-            Value::integer(11),
-            Value::integer(12)
-        ]);
-        
+        assert_eq!(
+            vec,
+            vec![Value::integer(10), Value::integer(11), Value::integer(12)]
+        );
+
         // With start and step
-        let result = srfi1_iota(&[
-            Value::integer(3),
-            Value::integer(0),
-            Value::integer(5)
-        ]).unwrap();
+        let result =
+            srfi1_iota(&[Value::integer(3), Value::integer(0), Value::integer(5)]).unwrap();
         let vec = SRFI1Core::list_to_vec(&result).unwrap();
-        assert_eq!(vec, vec![
-            Value::integer(0),
-            Value::integer(5),
-            Value::integer(10)
-        ]);
+        assert_eq!(
+            vec,
+            vec![Value::integer(0), Value::integer(5), Value::integer(10)]
+        );
     }
 }

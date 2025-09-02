@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Field Access Optimization System for SRFI-9 Records
+#![allow(missing_docs)]
+//! Field Access Optimization System for SRFI-9 Records
 //!
 //! This module implements the high-performance field access layer with:
 //! - <1ns field access for hot paths through direct pointer arithmetic
@@ -9,8 +10,7 @@
 use crate::eval::nan_boxed_value::NanBoxedValue;
 use crate::eval::record_instance::{RecordInstance, RecordRef};
 use crate::eval::record_type::{
-    RecordError, RecordResult, RecordTypeDescriptor, RecordTypeId, 
-    GLOBAL_RECORD_REGISTRY
+    GLOBAL_RECORD_REGISTRY, RecordError, RecordResult, RecordTypeDescriptor, RecordTypeId,
 };
 use std::collections::HashMap;
 use std::ptr::{self, NonNull};
@@ -60,14 +60,16 @@ impl CallSite {
     pub fn record_hit(&self) {
         self.cache_hits.fetch_add(1, Ordering::Relaxed);
         self.access_count.fetch_add(1, Ordering::Relaxed);
-        self.last_access.store(current_timestamp(), Ordering::Relaxed);
+        self.last_access
+            .store(current_timestamp(), Ordering::Relaxed);
     }
 
     /// Records a cache miss
     pub fn record_miss(&self) {
         self.cache_misses.fetch_add(1, Ordering::Relaxed);
         self.access_count.fetch_add(1, Ordering::Relaxed);
-        self.last_access.store(current_timestamp(), Ordering::Relaxed);
+        self.last_access
+            .store(current_timestamp(), Ordering::Relaxed);
     }
 
     /// Gets cache hit rate
@@ -138,7 +140,9 @@ impl FieldAccessCache {
         field_name: &str,
         call_site_id: u64,
     ) -> RecordResult<NanBoxedValue> {
-        self.global_stats.total_lookups.fetch_add(1, Ordering::Relaxed);
+        self.global_stats
+            .total_lookups
+            .fetch_add(1, Ordering::Relaxed);
 
         // Try cache lookup first
         if let Some(cached_result) = self.try_cached_access(instance, field_name, call_site_id)? {
@@ -160,20 +164,20 @@ impl FieldAccessCache {
         let call_sites = self.call_sites.read().unwrap();
         if let Some(call_site) = call_sites.get(&call_site_id) {
             // Check if we have cached type and field information
-            if let (Some(cached_type_id), Some(cached_field_index)) = 
-                (call_site.cached_type_id, call_site.cached_field_index) {
-                
+            if let (Some(cached_type_id), Some(cached_field_index)) =
+                (call_site.cached_type_id, call_site.cached_field_index)
+            {
                 // Verify type matches
                 if instance.type_id() == cached_type_id {
                     call_site.record_hit();
-                    
+
                     // Ultra-fast direct field access
                     let value = unsafe { instance.get_field_fast(cached_field_index) };
                     return Ok(Some(value));
                 }
             }
         }
-        
+
         Ok(None)
     }
 
@@ -200,9 +204,10 @@ impl FieldAccessCache {
         // Update call site cache
         {
             let mut call_sites = self.call_sites.write().unwrap();
-            let call_site = call_sites.entry(call_site_id)
+            let call_site = call_sites
+                .entry(call_site_id)
                 .or_insert_with(|| CallSite::new(call_site_id));
-            
+
             call_site.update_cache(type_id, field_index);
             call_site.record_miss();
         }
@@ -220,18 +225,20 @@ impl FieldAccessCache {
         value: NanBoxedValue,
         call_site_id: u64,
     ) -> RecordResult<()> {
-        self.global_stats.total_lookups.fetch_add(1, Ordering::Relaxed);
+        self.global_stats
+            .total_lookups
+            .fetch_add(1, Ordering::Relaxed);
 
         // Try cached access first
         let call_sites = self.call_sites.read().unwrap();
         if let Some(call_site) = call_sites.get(&call_site_id) {
-            if let (Some(cached_type_id), Some(cached_field_index)) = 
-                (call_site.cached_type_id, call_site.cached_field_index) {
-                
+            if let (Some(cached_type_id), Some(cached_field_index)) =
+                (call_site.cached_type_id, call_site.cached_field_index)
+            {
                 if instance.type_id() == cached_type_id {
                     call_site.record_hit();
                     self.global_stats.total_hits.fetch_add(1, Ordering::Relaxed);
-                    
+
                     // Ultra-fast direct field mutation
                     unsafe { instance.set_field_fast(cached_field_index, value) };
                     return Ok(());
@@ -256,9 +263,10 @@ impl FieldAccessCache {
         // Update cache
         {
             let mut call_sites = self.call_sites.write().unwrap();
-            let call_site = call_sites.entry(call_site_id)
+            let call_site = call_sites
+                .entry(call_site_id)
                 .or_insert_with(|| CallSite::new(call_site_id));
-            
+
             call_site.update_cache(type_id, field_index);
             call_site.record_miss();
         }
@@ -314,7 +322,9 @@ impl FieldAccessCache {
         for (site_id, call_site) in call_sites.iter() {
             if call_site.is_hot() && call_site.is_monomorphic() {
                 jit_candidates.push(*site_id);
-                self.global_stats.jit_compilations.fetch_add(1, Ordering::Relaxed);
+                self.global_stats
+                    .jit_compilations
+                    .fetch_add(1, Ordering::Relaxed);
             }
         }
 
@@ -341,14 +351,16 @@ impl BulkRecordOperations {
     /// Bulk field extraction from multiple records
     #[cfg(target_arch = "x86_64")]
     pub fn extract_field_bulk(
-        records: &[&RecordInstance], 
+        records: &[&RecordInstance],
         field_index: usize,
-        results: &mut [NanBoxedValue]
+        results: &mut [NanBoxedValue],
     ) -> RecordResult<()> {
         use std::arch::x86_64::*;
 
         if records.len() != results.len() {
-            return Err(RecordError::SimdError("Input/output length mismatch".to_string()));
+            return Err(RecordError::SimdError(
+                "Input/output length mismatch".to_string(),
+            ));
         }
 
         if !is_x86_feature_detected!("avx2") {
@@ -368,7 +380,7 @@ impl BulkRecordOperations {
                 // Pack into SIMD vector
                 let values = [val0, val1, val2, val3];
                 let simd_data = _mm256_loadu_si256(values.as_ptr() as *const __m256i);
-                
+
                 // Store to results
                 _mm256_storeu_si256(results[i..].as_mut_ptr() as *mut __m256i, simd_data);
             }
@@ -386,21 +398,23 @@ impl BulkRecordOperations {
     /// Non-SIMD fallback for bulk field extraction
     #[cfg(not(target_arch = "x86_64"))]
     pub fn extract_field_bulk(
-        records: &[&RecordInstance], 
+        records: &[&RecordInstance],
         field_index: usize,
-        results: &mut [NanBoxedValue]
+        results: &mut [NanBoxedValue],
     ) -> RecordResult<()> {
         Self::extract_field_bulk_fallback(records, field_index, results)
     }
 
     /// Fallback implementation for bulk field extraction
     pub fn extract_field_bulk_fallback(
-        records: &[&RecordInstance], 
+        records: &[&RecordInstance],
         field_index: usize,
-        results: &mut [NanBoxedValue]
+        results: &mut [NanBoxedValue],
     ) -> RecordResult<()> {
         if records.len() != results.len() {
-            return Err(RecordError::SimdError("Input/output length mismatch".to_string()));
+            return Err(RecordError::SimdError(
+                "Input/output length mismatch".to_string(),
+            ));
         }
 
         for (i, &record) in records.iter().enumerate() {
@@ -413,9 +427,9 @@ impl BulkRecordOperations {
     /// Bulk field update across multiple records
     #[cfg(target_arch = "x86_64")]
     pub fn update_field_bulk(
-        records: &mut [&mut RecordInstance], 
+        records: &mut [&mut RecordInstance],
         field_index: usize,
-        values: &[NanBoxedValue]
+        values: &[NanBoxedValue],
     ) -> RecordResult<()> {
         use std::arch::x86_64::*;
 
@@ -433,7 +447,7 @@ impl BulkRecordOperations {
             unsafe {
                 // Load 4 values
                 let simd_values = _mm256_loadu_si256(values[i..].as_ptr() as *const __m256i);
-                
+
                 // Extract individual values
                 let mut temp = [NanBoxedValue::nil(); 4];
                 _mm256_storeu_si256(temp.as_mut_ptr() as *mut __m256i, simd_values);
@@ -458,18 +472,18 @@ impl BulkRecordOperations {
     /// Non-SIMD fallback for bulk field update
     #[cfg(not(target_arch = "x86_64"))]
     pub fn update_field_bulk(
-        records: &mut [&mut RecordInstance], 
+        records: &mut [&mut RecordInstance],
         field_index: usize,
-        values: &[NanBoxedValue]
+        values: &[NanBoxedValue],
     ) -> RecordResult<()> {
         Self::update_field_bulk_fallback(records, field_index, values)
     }
 
     /// Fallback implementation for bulk field update
     pub fn update_field_bulk_fallback(
-        records: &mut [&mut RecordInstance], 
+        records: &mut [&mut RecordInstance],
         field_index: usize,
-        values: &[NanBoxedValue]
+        values: &[NanBoxedValue],
     ) -> RecordResult<()> {
         if records.len() != values.len() {
             return Err(RecordError::SimdError("Input length mismatch".to_string()));
@@ -486,7 +500,7 @@ impl BulkRecordOperations {
     pub fn compare_records_bulk(
         records_a: &[&RecordInstance],
         records_b: &[&RecordInstance],
-        results: &mut [bool]
+        results: &mut [bool],
     ) -> RecordResult<()> {
         if records_a.len() != records_b.len() || records_a.len() != results.len() {
             return Err(RecordError::SimdError("Input length mismatch".to_string()));
@@ -553,15 +567,17 @@ impl TypeChecker {
 
         // Cache miss - update cache and perform check
         let is_match = instance.type_id() == expected_type;
-        
+
         {
             let mut cache = self.type_cache.write().unwrap();
-            let entry = cache.entry(call_site_id).or_insert_with(|| CachedTypeCheck {
-                expected_type,
-                check_count: 0,
-                hit_count: 0,
-            });
-            
+            let entry = cache
+                .entry(call_site_id)
+                .or_insert_with(|| CachedTypeCheck {
+                    expected_type,
+                    check_count: 0,
+                    hit_count: 0,
+                });
+
             entry.check_count += 1;
             if entry.expected_type == expected_type {
                 entry.hit_count += 1;
@@ -579,7 +595,7 @@ impl TypeChecker {
         let total_checks = self.stats.total_checks.load(Ordering::Relaxed);
         let cache_hits = self.stats.cache_hits.load(Ordering::Relaxed);
         let polymorphic_sites = self.stats.polymorphic_sites.load(Ordering::Relaxed);
-        
+
         let hit_rate = if total_checks > 0 {
             (cache_hits as f64) / (total_checks as f64) * 100.0
         } else {
@@ -621,8 +637,8 @@ fn current_timestamp() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::record_type::{RecordTypeDescriptor, GLOBAL_RECORD_REGISTRY};
     use crate::eval::record_instance::RecordInstance;
+    use crate::eval::record_type::{GLOBAL_RECORD_REGISTRY, RecordTypeDescriptor};
 
     fn create_test_type() -> RecordTypeId {
         let desc = RecordTypeDescriptor::new(
@@ -638,28 +654,27 @@ mod tests {
     fn test_field_access_cache() {
         let cache = FieldAccessCache::new();
         let type_id = create_test_type();
-        
-        let values = vec![NanBoxedValue::from_small_int(1).unwrap(), NanBoxedValue::from_small_int(2).unwrap()];
+
+        let values = vec![
+            NanBoxedValue::from_small_int(1).unwrap(),
+            NanBoxedValue::from_small_int(2).unwrap(),
+        ];
         let instance = RecordInstance::new(type_id, &values).unwrap();
-        
+
         let site_id = cache.allocate_site_id();
-        
+
         // First access (cache miss)
-        let result1 = cache.get_field_cached(
-            unsafe { instance.as_ref() },
-            "field1", 
-            site_id
-        ).unwrap();
+        let result1 = cache
+            .get_field_cached(unsafe { instance.as_ref() }, "field1", site_id)
+            .unwrap();
         assert_eq!(result1, NanBoxedValue::from_small_int(1).unwrap());
-        
+
         // Second access (cache hit)
-        let result2 = cache.get_field_cached(
-            unsafe { instance.as_ref() },
-            "field1", 
-            site_id
-        ).unwrap();
+        let result2 = cache
+            .get_field_cached(unsafe { instance.as_ref() }, "field1", site_id)
+            .unwrap();
         assert_eq!(result2, NanBoxedValue::from_small_int(1).unwrap());
-        
+
         let stats = cache.stats();
         assert!(stats.total_lookups >= 2);
         assert!(stats.total_hits >= 1);
@@ -668,22 +683,25 @@ mod tests {
     #[test]
     fn test_bulk_field_extraction() {
         let type_id = create_test_type();
-        
+
         // Create multiple records
-        let records: Vec<_> = (0..8).map(|i| {
-            let values = vec![NanBoxedValue::from_small_int(i).unwrap(), NanBoxedValue::from_small_int(i * 2).unwrap()];
-            RecordInstance::new(type_id, &values).unwrap()
-        }).collect();
-        
-        let record_refs: Vec<_> = records.iter()
-            .map(|r| unsafe { r.as_ref() })
+        let records: Vec<_> = (0..8)
+            .map(|i| {
+                let values = vec![
+                    NanBoxedValue::from_small_int(i).unwrap(),
+                    NanBoxedValue::from_small_int(i * 2).unwrap(),
+                ];
+                RecordInstance::new(type_id, &values).unwrap()
+            })
             .collect();
-        
+
+        let record_refs: Vec<_> = records.iter().map(|r| unsafe { r.as_ref() }).collect();
+
         let mut results = vec![NanBoxedValue::nil_value(); 8];
-        
+
         // Extract field 0 from all records
         BulkRecordOperations::extract_field_bulk(&record_refs, 0, &mut results).unwrap();
-        
+
         // Verify results
         for (i, &result) in results.iter().enumerate() {
             assert_eq!(result, NanBoxedValue::from_small_int(i as i64).unwrap());
@@ -694,28 +712,23 @@ mod tests {
     fn test_type_checker_caching() {
         let checker = TypeChecker::new();
         let type_id = create_test_type();
-        
-        let values = vec![NanBoxedValue::from_small_int(1).unwrap(), NanBoxedValue::from_small_int(2).unwrap()];
+
+        let values = vec![
+            NanBoxedValue::from_small_int(1).unwrap(),
+            NanBoxedValue::from_small_int(2).unwrap(),
+        ];
         let instance = RecordInstance::new(type_id, &values).unwrap();
-        
+
         let site_id = 12345;
-        
+
         // First check (cache miss)
-        let is_type1 = checker.is_type_cached(
-            unsafe { instance.as_ref() }, 
-            type_id, 
-            site_id
-        );
+        let is_type1 = checker.is_type_cached(unsafe { instance.as_ref() }, type_id, site_id);
         assert!(is_type1);
-        
+
         // Second check (cache hit)
-        let is_type2 = checker.is_type_cached(
-            unsafe { instance.as_ref() }, 
-            type_id, 
-            site_id
-        );
+        let is_type2 = checker.is_type_cached(unsafe { instance.as_ref() }, type_id, site_id);
         assert!(is_type2);
-        
+
         let stats = checker.stats();
         assert!(stats.total_checks >= 2);
         assert!(stats.cache_hits >= 1);
@@ -724,15 +737,15 @@ mod tests {
     #[test]
     fn test_call_site_hotspot_detection() {
         let mut call_site = CallSite::new(1);
-        
+
         // Not hot initially
         assert!(!call_site.is_hot());
-        
+
         // Simulate many accesses
         for _ in 0..1500 {
             call_site.record_hit();
         }
-        
+
         // Should be hot now
         assert!(call_site.is_hot());
         assert!(call_site.is_monomorphic());

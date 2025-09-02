@@ -14,18 +14,18 @@ use crate::eval::record_access::{GLOBAL_FIELD_ACCESS_CACHE, GLOBAL_TYPE_CHECKER}
 use crate::eval::record_arena::GLOBAL_RECORD_ARENA;
 use crate::eval::record_instance::{RecordInstance, nan_boxed_to_value, value_to_nan_boxed};
 use crate::eval::record_type::{
-    ConstructorFn, PredicateFn, RecordError, RecordResult, RecordTypeDescriptor, RecordTypeId,
-    GLOBAL_RECORD_REGISTRY,
+    ConstructorFn, GLOBAL_RECORD_REGISTRY, PredicateFn, RecordError, RecordResult,
+    RecordTypeDescriptor, RecordTypeId,
 };
-use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value, Record};
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, Record, ThreadSafeEnvironment, Value};
 use crate::macro_system::MacroExpander;
 use crate::utils::symbol::intern_symbol;
+use once_cell::sync::Lazy;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ptr::NonNull;
 use std::rc::Rc;
-use std::cell::RefCell;
 use std::sync::{Arc, RwLock};
-use once_cell::sync::Lazy;
 
 /// High-performance record constructor function
 #[derive(Debug)]
@@ -58,18 +58,16 @@ impl RecordConstructor {
         }
 
         // Convert values to NaN-boxed format
-        let nan_boxed_values: Vec<NanBoxedValue> = args
-            .iter()
-            .map(value_to_nan_boxed)
-            .collect();
+        let nan_boxed_values: Vec<NanBoxedValue> = args.iter().map(value_to_nan_boxed).collect();
 
         // Create record using the existing Value::Record infrastructure
         let record = Record {
             type_id: self.type_id.value(),
             fields: Rc::new(RefCell::new(
-                nan_boxed_values.iter()
+                nan_boxed_values
+                    .iter()
                     .map(|&nb| nan_boxed_to_value(nb))
-                    .collect()
+                    .collect(),
             )),
         };
 
@@ -99,9 +97,7 @@ impl RecordPredicate {
     /// Checks if a value is an instance of the record type
     pub fn check(&self, value: &Value) -> bool {
         match value {
-            Value::Record(record) => {
-                record.type_id == self.type_id.value()
-            }
+            Value::Record(record) => record.type_id == self.type_id.value(),
             _ => false,
         }
     }
@@ -259,7 +255,10 @@ impl RecordTypeRegistry {
         field_specs: Vec<(String, String, Option<String>)>, // (field, accessor, mutator)
     ) -> RecordResult<RecordTypeDefinition> {
         // Create type descriptor
-        let field_names: Vec<String> = field_specs.iter().map(|(name, _, _)| name.clone()).collect();
+        let field_names: Vec<String> = field_specs
+            .iter()
+            .map(|(name, _, _)| name.clone())
+            .collect();
         let type_desc = RecordTypeDescriptor::new(type_name.clone(), field_names.clone());
         let type_id = type_desc.type_id;
 
@@ -267,10 +266,7 @@ impl RecordTypeRegistry {
         GLOBAL_RECORD_REGISTRY.register_type(type_desc);
 
         // Create constructor
-        let constructor = Arc::new(RecordConstructor::new(
-            type_id,
-            constructor_spec.1.clone(),
-        ));
+        let constructor = Arc::new(RecordConstructor::new(type_id, constructor_spec.1.clone()));
 
         // Create predicate
         let predicate = Arc::new(RecordPredicate::new(type_id, type_name.clone()));
@@ -280,7 +276,9 @@ impl RecordTypeRegistry {
         let mut mutator_names = HashMap::new();
         let mut procedures = self.procedures.write().unwrap();
 
-        for (field_index, (field_name, accessor_name, mutator_name)) in field_specs.iter().enumerate() {
+        for (field_index, (field_name, accessor_name, mutator_name)) in
+            field_specs.iter().enumerate()
+        {
             // Create accessor
             let accessor = Arc::new(RecordAccessor::new(
                 type_id,
@@ -292,11 +290,8 @@ impl RecordTypeRegistry {
 
             // Create mutator if specified
             if let Some(mutator_name) = mutator_name {
-                let mutator = Arc::new(RecordMutator::new(
-                    type_id,
-                    field_name.clone(),
-                    field_index,
-                ));
+                let mutator =
+                    Arc::new(RecordMutator::new(type_id, field_name.clone(), field_index));
                 procedures.insert(mutator_name.clone(), RecordProcedure::Mutator(mutator));
                 mutator_names.insert(field_name.clone(), Some(mutator_name.clone()));
             } else {
@@ -305,8 +300,14 @@ impl RecordTypeRegistry {
         }
 
         // Register constructor and predicate
-        procedures.insert(constructor_spec.0.clone(), RecordProcedure::Constructor(constructor));
-        procedures.insert(predicate_name.clone(), RecordProcedure::Predicate(predicate));
+        procedures.insert(
+            constructor_spec.0.clone(),
+            RecordProcedure::Constructor(constructor),
+        );
+        procedures.insert(
+            predicate_name.clone(),
+            RecordProcedure::Predicate(predicate),
+        );
 
         // Create type definition
         let type_def = RecordTypeDefinition {
@@ -359,7 +360,7 @@ lazy_static::lazy_static! {
 }
 
 /// Global procedure registry for function pointer dispatch
-static GLOBAL_PROCEDURE_REGISTRY: Lazy<RwLock<HashMap<String, RecordProcedure>>> = 
+static GLOBAL_PROCEDURE_REGISTRY: Lazy<RwLock<HashMap<String, RecordProcedure>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Registers a procedure in the global registry
@@ -560,44 +561,36 @@ fn expand_define_record_type(args: &[Value]) -> Result<Value> {
 fn create_procedure_definition(name: &str, procedure: RecordProcedure) -> Value {
     // Register procedure in global registry first
     register_procedure(name.to_string(), procedure.clone());
-    
+
     let primitive = match procedure {
-        RecordProcedure::Constructor(constructor) => {
-            PrimitiveProcedure {
-                name: name.to_string(),
-                arity_min: constructor.field_names.len(),
-                arity_max: Some(constructor.field_names.len()),
-                implementation: PrimitiveImpl::RustFn(constructor_dispatch_by_arity),
-                effects: vec![crate::effects::Effect::State],
-            }
-        }
-        RecordProcedure::Predicate(_) => {
-            PrimitiveProcedure {
-                name: name.to_string(),
-                arity_min: 1,
-                arity_max: Some(1),
-                implementation: PrimitiveImpl::RustFn(predicate_dispatch_generic),
-                effects: vec![],
-            }
-        }
-        RecordProcedure::Accessor(_) => {
-            PrimitiveProcedure {
-                name: name.to_string(),
-                arity_min: 1,
-                arity_max: Some(1),
-                implementation: PrimitiveImpl::RustFn(accessor_dispatch_generic),
-                effects: vec![],
-            }
-        }
-        RecordProcedure::Mutator(_) => {
-            PrimitiveProcedure {
-                name: name.to_string(),
-                arity_min: 2,
-                arity_max: Some(2),
-                implementation: PrimitiveImpl::RustFn(mutator_dispatch_generic),
-                effects: vec![crate::effects::Effect::State],
-            }
-        }
+        RecordProcedure::Constructor(constructor) => PrimitiveProcedure {
+            name: name.to_string(),
+            arity_min: constructor.field_names.len(),
+            arity_max: Some(constructor.field_names.len()),
+            implementation: PrimitiveImpl::RustFn(constructor_dispatch_by_arity),
+            effects: vec![crate::effects::Effect::State],
+        },
+        RecordProcedure::Predicate(_) => PrimitiveProcedure {
+            name: name.to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(predicate_dispatch_generic),
+            effects: vec![],
+        },
+        RecordProcedure::Accessor(_) => PrimitiveProcedure {
+            name: name.to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(accessor_dispatch_generic),
+            effects: vec![],
+        },
+        RecordProcedure::Mutator(_) => PrimitiveProcedure {
+            name: name.to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(mutator_dispatch_generic),
+            effects: vec![crate::effects::Effect::State],
+        },
     };
 
     Value::list(vec![
@@ -612,7 +605,7 @@ fn create_procedure_definition(name: &str, procedure: RecordProcedure) -> Value 
 /// we'll match constructors by their arity (number of arguments)
 fn constructor_dispatch_by_arity(args: &[Value]) -> Result<Value> {
     let registry = GLOBAL_PROCEDURE_REGISTRY.read().unwrap();
-    
+
     for (_, procedure) in registry.iter() {
         if let RecordProcedure::Constructor(constructor) = procedure {
             if constructor.field_names.len() == args.len() {
@@ -624,7 +617,7 @@ fn constructor_dispatch_by_arity(args: &[Value]) -> Result<Value> {
             }
         }
     }
-    
+
     Err(Box::new(Error::runtime_error(
         format!("No matching constructor found for {} arguments", args.len()),
         None,
@@ -640,7 +633,7 @@ fn predicate_dispatch_generic(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Check if it's a record - we can make this more sophisticated later
     let is_record = matches!(args[0], Value::Record(_));
     Ok(Value::boolean(is_record))
@@ -656,7 +649,7 @@ fn accessor_dispatch_generic(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Without knowing which field to access, we can't implement this properly
     // with the current function pointer approach
     Err(Box::new(Error::runtime_error(
@@ -674,7 +667,7 @@ fn mutator_dispatch_generic(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     // Without knowing which field to mutate, we can't implement this properly
     // with the current function pointer approach
     Err(Box::new(Error::runtime_error(
@@ -790,7 +783,8 @@ fn extract_field_specs(values: &[Value]) -> Result<Vec<(String, String, Option<S
 
         if field_list.len() < 2 || field_list.len() > 3 {
             return Err(Box::new(Error::runtime_error(
-                "Field specification must have 2 or 3 elements: (field accessor [mutator])".to_string(),
+                "Field specification must have 2 or 3 elements: (field accessor [mutator])"
+                    .to_string(),
                 None,
             )));
         }
@@ -888,9 +882,7 @@ fn get_record_type(args: &[Value]) -> Result<Value> {
     }
 
     match &args[0] {
-        Value::Record(record) => {
-            Ok(Value::integer(record.type_id as i64))
-        }
+        Value::Record(record) => Ok(Value::integer(record.type_id as i64)),
         _ => Err(Box::new(Error::runtime_error(
             "Argument must be a record".to_string(),
             None,
@@ -931,11 +923,22 @@ mod tests {
         let type_def = registry
             .define_record_type(
                 "point".to_string(),
-                ("make-point".to_string(), vec!["x".to_string(), "y".to_string()]),
+                (
+                    "make-point".to_string(),
+                    vec!["x".to_string(), "y".to_string()],
+                ),
                 "point?".to_string(),
                 vec![
-                    ("x".to_string(), "point-x".to_string(), Some("point-x-set!".to_string())),
-                    ("y".to_string(), "point-y".to_string(), Some("point-y-set!".to_string())),
+                    (
+                        "x".to_string(),
+                        "point-x".to_string(),
+                        Some("point-x-set!".to_string()),
+                    ),
+                    (
+                        "y".to_string(),
+                        "point-y".to_string(),
+                        Some("point-y-set!".to_string()),
+                    ),
                 ],
             )
             .unwrap();
@@ -960,7 +963,7 @@ mod tests {
 
         let constructor = RecordConstructor::new(type_def.type_id, vec!["field1".to_string()]);
         let args = vec![Value::integer(42)];
-        
+
         let result = constructor.construct(&args).unwrap();
         assert!(matches!(result, Value::Record(_)));
     }
@@ -978,10 +981,10 @@ mod tests {
             .unwrap();
 
         let predicate = RecordPredicate::new(type_def.type_id, "test-record".to_string());
-        
+
         // Test with non-record
         assert!(!predicate.check(&Value::integer(42)));
-        
+
         // Test with record would require actual record instance
         // This is tested in integration tests
     }
@@ -990,7 +993,7 @@ mod tests {
     fn test_install_srfi9_procedures() {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         install_srfi9_procedures(&env);
-        
+
         // Verify procedures are installed
         assert!(env.lookup("define-record-type").is_some());
         assert!(env.lookup("record?").is_some());

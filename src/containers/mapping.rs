@@ -48,11 +48,7 @@ struct HamtNode {
 #[derive(Clone, Debug)]
 enum Entry {
     /// Leaf entry with key-value pair and hash
-    Leaf {
-        key: Value,
-        value: Value,
-        hash: u64,
-    },
+    Leaf { key: Value, value: Value, hash: u64 },
     /// Internal node reference
     Node(Arc<HamtNode>),
     /// Collision node for hash conflicts
@@ -89,28 +85,29 @@ impl HamtNode {
         comparator: &Comparator,
     ) -> Option<&Value> {
         let slot_index = hash_fragment(hash, level);
-        
+
         if !self.has_slot(slot_index) {
             return None;
         }
 
         let entry_index = self.slot_to_entry_index(slot_index);
         match &self.entries[entry_index] {
-            Entry::Leaf { key: leaf_key, value, hash: leaf_hash } => {
+            Entry::Leaf {
+                key: leaf_key,
+                value,
+                hash: leaf_hash,
+            } => {
                 if *leaf_hash == hash && comparator.compare(key, leaf_key) == Ordering::Equal {
                     Some(value)
                 } else {
                     None
                 }
             }
-            Entry::Node(child) => {
-                child.lookup(key, hash, level + 1, comparator)
-            }
-            Entry::Collision(pairs) => {
-                pairs.iter()
-                    .find(|(k, _)| comparator.compare(key, k) == Ordering::Equal)
-                    .map(|(_, v)| v)
-            }
+            Entry::Node(child) => child.lookup(key, hash, level + 1, comparator),
+            Entry::Collision(pairs) => pairs
+                .iter()
+                .find(|(k, _)| comparator.compare(key, k) == Ordering::Equal)
+                .map(|(_, v)| v),
         }
     }
 
@@ -132,47 +129,50 @@ impl HamtNode {
         } else {
             // Update existing entry
             match &self.entries[entry_index] {
-                Entry::Leaf { key: existing_key, value: existing_value, hash: existing_hash } => {
+                Entry::Leaf {
+                    key: existing_key,
+                    value: existing_value,
+                    hash: existing_hash,
+                } => {
                     if *existing_hash == hash {
                         if comparator.compare(&key, existing_key) == Ordering::Equal {
                             // Replace existing value
                             self.replace_entry(entry_index, Entry::Leaf { key, value, hash })
                         } else {
                             // Hash collision - create collision node
-                            let collision = vec![
-                                (existing_key.clone(), existing_value.clone()),
-                                (key, value),
-                            ];
+                            let collision =
+                                vec![(existing_key.clone(), existing_value.clone()), (key, value)];
                             self.replace_entry(entry_index, Entry::Collision(collision))
                         }
                     } else {
                         // Different hash - create internal node
-                        let new_node = Arc::new(HamtNode::empty())
-                            .insert_new_entry(
-                                hash_fragment(*existing_hash, level + 1),
-                                Entry::Leaf {
-                                    key: existing_key.clone(),
-                                    value: existing_value.clone(),
-                                    hash: *existing_hash,
-                                },
-                            );
-                        
-                        let updated_node = new_node.insert(
-                            key, value, hash, level + 1, comparator
+                        let new_node = Arc::new(HamtNode::empty()).insert_new_entry(
+                            hash_fragment(*existing_hash, level + 1),
+                            Entry::Leaf {
+                                key: existing_key.clone(),
+                                value: existing_value.clone(),
+                                hash: *existing_hash,
+                            },
                         );
-                        
+
+                        let updated_node = new_node.insert(key, value, hash, level + 1, comparator);
+
                         self.replace_entry(entry_index, Entry::Node(updated_node))
                     }
                 }
                 Entry::Node(child) => {
-                    let updated_child = child.clone().insert(key, value, hash, level + 1, comparator);
+                    let updated_child =
+                        child
+                            .clone()
+                            .insert(key, value, hash, level + 1, comparator);
                     self.replace_entry(entry_index, Entry::Node(updated_child))
                 }
                 Entry::Collision(pairs) => {
                     let mut new_pairs = pairs.clone();
-                    if let Some(pos) = pairs.iter().position(|(k, _)| {
-                        comparator.compare(&key, k) == Ordering::Equal
-                    }) {
+                    if let Some(pos) = pairs
+                        .iter()
+                        .position(|(k, _)| comparator.compare(&key, k) == Ordering::Equal)
+                    {
                         // Replace existing
                         new_pairs[pos] = (key, value);
                     } else {
@@ -194,14 +194,18 @@ impl HamtNode {
         comparator: &Comparator,
     ) -> Option<Arc<Self>> {
         let slot_index = hash_fragment(hash, level);
-        
+
         if !self.has_slot(slot_index) {
             return Some(self);
         }
 
         let entry_index = self.slot_to_entry_index(slot_index);
         match &self.entries[entry_index] {
-            Entry::Leaf { key: leaf_key, hash: leaf_hash, .. } => {
+            Entry::Leaf {
+                key: leaf_key,
+                hash: leaf_hash,
+                ..
+            } => {
                 if *leaf_hash == hash && comparator.compare(key, leaf_key) == Ordering::Equal {
                     Some(self.remove_entry(entry_index))
                 } else {
@@ -209,16 +213,17 @@ impl HamtNode {
                 }
             }
             Entry::Node(child) => {
-                if let Some(updated_child) = child.clone().remove(key, hash, level + 1, comparator) {
+                if let Some(updated_child) = child.clone().remove(key, hash, level + 1, comparator)
+                {
                     // Check if child became empty or has only one entry
                     if updated_child.entries.is_empty() {
                         Some(self.remove_entry(entry_index))
                     } else if updated_child.entries.len() == 1 {
                         // Collapse single-entry node
                         match &updated_child.entries[0] {
-                            Entry::Leaf { .. } => {
-                                Some(self.replace_entry(entry_index, updated_child.entries[0].clone()))
-                            }
+                            Entry::Leaf { .. } => Some(
+                                self.replace_entry(entry_index, updated_child.entries[0].clone()),
+                            ),
                             _ => Some(self.replace_entry(entry_index, Entry::Node(updated_child))),
                         }
                     } else {
@@ -229,17 +234,25 @@ impl HamtNode {
                 }
             }
             Entry::Collision(pairs) => {
-                let new_pairs: Vec<_> = pairs.iter()
+                let new_pairs: Vec<_> = pairs
+                    .iter()
                     .filter(|(k, _)| comparator.compare(key, k) != Ordering::Equal)
                     .cloned()
                     .collect();
-                
+
                 match new_pairs.len() {
                     0 => Some(self.remove_entry(entry_index)),
                     1 => {
                         let (k, v) = new_pairs[0].clone();
                         let hash = comparator.hash(&k);
-                        Some(self.replace_entry(entry_index, Entry::Leaf { key: k, value: v, hash }))
+                        Some(self.replace_entry(
+                            entry_index,
+                            Entry::Leaf {
+                                key: k,
+                                value: v,
+                                hash,
+                            },
+                        ))
                     }
                     _ => Some(self.replace_entry(entry_index, Entry::Collision(new_pairs))),
                 }
@@ -251,10 +264,10 @@ impl HamtNode {
     fn insert_new_entry(self: Arc<Self>, slot_index: usize, entry: Entry) -> Arc<Self> {
         let new_bitmap = self.bitmap | (1 << slot_index);
         let entry_index = self.slot_to_entry_index(slot_index);
-        
+
         let mut new_entries = self.entries.clone();
         new_entries.insert(entry_index, entry);
-        
+
         Arc::new(Self {
             bitmap: new_bitmap,
             entries: new_entries,
@@ -265,7 +278,7 @@ impl HamtNode {
     fn replace_entry(self: Arc<Self>, entry_index: usize, new_entry: Entry) -> Arc<Self> {
         let mut new_entries = self.entries.clone();
         new_entries[entry_index] = new_entry;
-        
+
         Arc::new(Self {
             bitmap: self.bitmap,
             entries: new_entries,
@@ -278,7 +291,7 @@ impl HamtNode {
         let mut remaining_bits = self.bitmap;
         let mut slot_index = 0;
         let mut current_entry_index = 0;
-        
+
         while remaining_bits != 0 {
             if remaining_bits & 1 != 0 {
                 if current_entry_index == entry_index {
@@ -289,11 +302,11 @@ impl HamtNode {
             slot_index += 1;
             remaining_bits >>= 1;
         }
-        
+
         let new_bitmap = self.bitmap & !(1 << slot_index);
         let mut new_entries = self.entries.clone();
         new_entries.remove(entry_index);
-        
+
         Arc::new(Self {
             bitmap: new_bitmap,
             entries: new_entries,
@@ -366,15 +379,18 @@ impl PersistentMapping {
     pub fn insert(&self, key: Value, value: Value) -> Self {
         let hash = self.comparator.hash(&key);
         let old_size = self.size;
-        let new_root = self.root.clone().insert(key.clone(), value, hash, 0, &self.comparator);
-        
+        let new_root = self
+            .root
+            .clone()
+            .insert(key.clone(), value, hash, 0, &self.comparator);
+
         // Check if this was an insert or update
         let new_size = if self.contains_key(&key) {
-            old_size  // Update
+            old_size // Update
         } else {
-            old_size + 1  // Insert
+            old_size + 1 // Insert
         };
-        
+
         Self {
             root: new_root,
             comparator: self.comparator.clone(),
@@ -387,7 +403,7 @@ impl PersistentMapping {
         if !self.contains_key(key) {
             return self.clone();
         }
-        
+
         let hash = self.comparator.hash(key);
         if let Some(new_root) = self.root.clone().remove(key, hash, 0, &self.comparator) {
             Self {
@@ -431,12 +447,12 @@ mod tests {
         let mapping = PersistentMapping::new();
         let key = Value::integer(42);
         let value = Value::string("hello");
-        
+
         let mapping2 = mapping.insert(key.clone(), value.clone());
         assert_eq!(mapping2.size(), 1);
         assert!(!mapping2.is_empty());
         assert_eq!(mapping2.get(&key), Some(&value));
-        
+
         // Original mapping should be unchanged
         assert_eq!(mapping.size(), 0);
     }
@@ -444,16 +460,16 @@ mod tests {
     #[test]
     fn test_multiple_insertions() {
         let mut mapping = PersistentMapping::new();
-        
+
         for i in 0..10 {
             let key = Value::integer(i);
             let value = Value::string(&format!("value_{}", i));
             mapping = mapping.insert(key.clone(), value.clone());
-            
+
             assert_eq!(mapping.size(), (i + 1) as usize);
             assert_eq!(mapping.get(&key), Some(&value));
         }
-        
+
         // Verify all values are still there
         for i in 0..10 {
             let key = Value::integer(i);
@@ -466,10 +482,10 @@ mod tests {
     fn test_key_update() {
         let mapping = PersistentMapping::new();
         let key = Value::integer(1);
-        
+
         let mapping2 = mapping.insert(key.clone(), Value::string("first"));
         let mapping3 = mapping2.insert(key.clone(), Value::string("second"));
-        
+
         assert_eq!(mapping2.size(), 1);
         assert_eq!(mapping3.size(), 1); // Size should stay the same
         assert_eq!(mapping3.get(&key), Some(&Value::string("second")));
@@ -482,18 +498,18 @@ mod tests {
         let key2 = Value::integer(2);
         let value1 = Value::string("one");
         let value2 = Value::string("two");
-        
+
         let mapping2 = mapping
             .insert(key1.clone(), value1.clone())
             .insert(key2.clone(), value2.clone());
-        
+
         assert_eq!(mapping2.size(), 2);
-        
+
         let mapping3 = mapping2.remove(&key1);
         assert_eq!(mapping3.size(), 1);
         assert_eq!(mapping3.get(&key1), None);
         assert_eq!(mapping3.get(&key2), Some(&value2));
-        
+
         // Original should be unchanged
         assert_eq!(mapping2.size(), 2);
         assert_eq!(mapping2.get(&key1), Some(&value1));
@@ -504,17 +520,17 @@ mod tests {
         // This test would require keys with known hash collisions
         // For now, we'll just test with different keys
         let mapping = PersistentMapping::new();
-        
+
         let keys: Vec<Value> = (0..100).map(Value::integer).collect();
         let mut current = mapping;
-        
+
         for (i, key) in keys.iter().enumerate() {
             let value = Value::string(&format!("value_{}", i));
             current = current.insert(key.clone(), value);
         }
-        
+
         assert_eq!(current.size(), 100);
-        
+
         for (i, key) in keys.iter().enumerate() {
             let expected_value = Value::string(&format!("value_{}", i));
             assert_eq!(current.get(key), Some(&expected_value));

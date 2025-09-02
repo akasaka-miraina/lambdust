@@ -23,12 +23,13 @@ fn create_srfi10_environment() -> Environment {
 fn tokenize_and_check(source: &str, expected_tokens: Vec<TokenKind>) {
     let mut lexer = Lexer::new(source, Some("test"));
     let tokens = lexer.tokenize().expect("Tokenization failed");
-    
+
     // Filter out EOF token for easier testing
-    let tokens: Vec<_> = tokens.into_iter()
+    let tokens: Vec<_> = tokens
+        .into_iter()
         .filter(|t| t.kind != TokenKind::Eof)
         .collect();
-    
+
     assert_eq!(tokens.len(), expected_tokens.len());
     for (token, expected) in tokens.iter().zip(expected_tokens.iter()) {
         assert_eq!(token.kind, *expected);
@@ -58,7 +59,7 @@ mod lexer_tests {
                 TokenKind::IntegerNumber,
                 TokenKind::IntegerNumber,
                 TokenKind::RightParen,
-            ]
+            ],
         );
     }
 
@@ -73,7 +74,7 @@ mod lexer_tests {
                 TokenKind::String,
                 TokenKind::String,
                 TokenKind::RightParen,
-            ]
+            ],
         );
     }
 
@@ -97,7 +98,7 @@ mod lexer_tests {
                 TokenKind::IntegerNumber,
                 TokenKind::RightParen,
                 TokenKind::RightParen,
-            ]
+            ],
         );
     }
 
@@ -122,7 +123,7 @@ mod lexer_tests {
                 TokenKind::Identifier,
                 TokenKind::Identifier,
                 TokenKind::RightParen,
-            ]
+            ],
         );
     }
 }
@@ -135,12 +136,12 @@ mod parser_tests {
     fn test_parse_external_form_basic() {
         let program = parse_string("#,(point 3 4)");
         assert_eq!(program.expressions.len(), 1);
-        
+
         match &program.expressions[0].inner {
             Expr::ExternalForm { tag, args } => {
                 assert_eq!(tag, "point");
                 assert_eq!(args.len(), 2);
-                
+
                 match &args[0].inner {
                     Expr::Literal(lit) => {
                         // Check that first arg is number 3
@@ -148,7 +149,7 @@ mod parser_tests {
                     }
                     _ => panic!("Expected literal for first argument"),
                 }
-                
+
                 match &args[1].inner {
                     Expr::Literal(lit) => {
                         // Check that second arg is number 4
@@ -165,12 +166,12 @@ mod parser_tests {
     fn test_parse_external_form_with_strings() {
         let program = parse_string(r#"#,(person "Alice" "Bob")"#);
         assert_eq!(program.expressions.len(), 1);
-        
+
         match &program.expressions[0].inner {
             Expr::ExternalForm { tag, args } => {
                 assert_eq!(tag, "person");
                 assert_eq!(args.len(), 2);
-                
+
                 match &args[0].inner {
                     Expr::Literal(lit) => {
                         assert!(lit.to_string().contains("Alice"));
@@ -186,15 +187,18 @@ mod parser_tests {
     fn test_parse_external_form_nested() {
         let program = parse_string("#,(container (list 1 2 3) (pair a b))");
         assert_eq!(program.expressions.len(), 1);
-        
+
         match &program.expressions[0].inner {
             Expr::ExternalForm { tag, args } => {
                 assert_eq!(tag, "container");
                 assert_eq!(args.len(), 2);
-                
+
                 // First argument should be a list expression
                 match &args[0].inner {
-                    Expr::Application { function, arguments } => {
+                    Expr::Application {
+                        function,
+                        arguments,
+                    } => {
                         match &function.inner {
                             Expr::Identifier(name) => assert_eq!(name, "list"),
                             _ => panic!("Expected identifier 'list'"),
@@ -257,7 +261,11 @@ mod registry_tests {
         assert!(!registry.has_constructor(tag).unwrap());
 
         // Register constructor
-        assert!(registry.define_constructor(tag, constructor.clone()).is_ok());
+        assert!(
+            registry
+                .define_constructor(tag, constructor.clone())
+                .is_ok()
+        );
         assert_eq!(registry.len().unwrap(), 1);
         assert!(!registry.is_empty().unwrap());
         assert!(registry.has_constructor(tag).unwrap());
@@ -274,7 +282,11 @@ mod registry_tests {
         let invalid_constructor = Value::Integer(42);
 
         // Should reject non-procedure values
-        assert!(registry.define_constructor(tag, invalid_constructor).is_err());
+        assert!(
+            registry
+                .define_constructor(tag, invalid_constructor)
+                .is_err()
+        );
     }
 
     #[test]
@@ -317,7 +329,7 @@ mod procedure_tests {
     #[test]
     fn test_define_reader_ctor_basic() {
         let env = create_srfi10_environment();
-        
+
         // Test basic constructor definition
         let tag = Value::symbol("test-tag".to_string());
         let constructor = Value::Primitive {
@@ -328,7 +340,7 @@ mod procedure_tests {
 
         let args = &[tag, constructor];
         let result = lambdust::stdlib::srfi10_procedures::define_reader_ctor(&args, &env);
-        
+
         assert!(result.is_ok());
         assert!(matches!(result.unwrap(), Value::Unspecified));
     }
@@ -338,10 +350,8 @@ mod procedure_tests {
         let env = create_srfi10_environment();
 
         // Test wrong number of arguments
-        let result = lambdust::stdlib::srfi10_procedures::define_reader_ctor(
-            &[Value::Integer(42)], 
-            &env
-        );
+        let result =
+            lambdust::stdlib::srfi10_procedures::define_reader_ctor(&[Value::Integer(42)], &env);
         assert!(result.is_err());
 
         // Test invalid tag type
@@ -352,8 +362,8 @@ mod procedure_tests {
             pointer: std::ptr::null(),
         };
         let result = lambdust::stdlib::srfi10_procedures::define_reader_ctor(
-            &[invalid_tag, constructor], 
-            &env
+            &[invalid_tag, constructor],
+            &env,
         );
         assert!(result.is_err());
 
@@ -361,8 +371,8 @@ mod procedure_tests {
         let tag = Value::symbol("test-tag".to_string());
         let invalid_constructor = Value::Integer(42);
         let result = lambdust::stdlib::srfi10_procedures::define_reader_ctor(
-            &[tag, invalid_constructor], 
-            &env
+            &[tag, invalid_constructor],
+            &env,
         );
         assert!(result.is_err());
     }
@@ -373,7 +383,8 @@ mod procedure_tests {
         let tag = Value::symbol("test-tag".to_string());
 
         // Initially should return false
-        let result = lambdust::stdlib::srfi10_procedures::reader_ctor_predicate(&[tag.clone()], &env);
+        let result =
+            lambdust::stdlib::srfi10_procedures::reader_ctor_predicate(&[tag.clone()], &env);
         assert!(result.is_ok());
         assert!(matches!(result.unwrap(), Value::Boolean(false)));
 
@@ -383,7 +394,8 @@ mod procedure_tests {
             arity: 1,
             pointer: std::ptr::null(),
         };
-        lambdust::stdlib::srfi10_procedures::define_reader_ctor(&[tag.clone(), constructor], &env).unwrap();
+        lambdust::stdlib::srfi10_procedures::define_reader_ctor(&[tag.clone(), constructor], &env)
+            .unwrap();
 
         // Now should return true
         let result = lambdust::stdlib::srfi10_procedures::reader_ctor_predicate(&[tag], &env);
@@ -406,7 +418,11 @@ mod procedure_tests {
         assert!(result.is_err());
 
         // Register a constructor
-        lambdust::stdlib::srfi10_procedures::define_reader_ctor(&[tag.clone(), constructor.clone()], &env).unwrap();
+        lambdust::stdlib::srfi10_procedures::define_reader_ctor(
+            &[tag.clone(), constructor.clone()],
+            &env,
+        )
+        .unwrap();
 
         // Now should return the constructor
         let result = lambdust::stdlib::srfi10_procedures::reader_ctor_ref(&[tag], &env);
@@ -475,7 +491,7 @@ mod integration_tests {
     #[test]
     fn test_global_registry_singleton() {
         use lambdust::stdlib::srfi10_external_forms::global_registry;
-        
+
         let registry1 = global_registry();
         let registry2 = global_registry();
 
@@ -492,10 +508,10 @@ mod error_handling_tests {
     fn test_malformed_external_forms() {
         // Test various malformed external form syntaxes
         let malformed_cases = vec![
-            "#,", // No form at all
-            "#,()", // Empty form (no tag)
+            "#,",     // No form at all
+            "#,()",   // Empty form (no tag)
             "#,(tag", // Unclosed form
-            "#,tag", // No parentheses
+            "#,tag",  // No parentheses
         ];
 
         for case in malformed_cases {
@@ -517,10 +533,10 @@ mod error_handling_tests {
         // This test would require a full evaluator setup to test runtime errors
         // For now, we verify that the registry correctly reports missing constructors
         use lambdust::stdlib::srfi10_external_forms::global_registry;
-        
+
         let registry = global_registry();
         let nonexistent_tag = lambdust::utils::intern_symbol("nonexistent-tag");
-        
+
         let result = registry.get_constructor(nonexistent_tag);
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
@@ -541,10 +557,13 @@ mod error_handling_tests {
             // Test with wrong number of arguments
             let result = proc(&[], &env);
             assert!(result.is_err(), "Procedure should reject empty arguments");
-            
+
             let too_many_args = &[Value::Integer(1), Value::Integer(2), Value::Integer(3)];
             let result = proc(&too_many_args, &env);
-            assert!(result.is_err(), "Procedure should reject too many arguments");
+            assert!(
+                result.is_err(),
+                "Procedure should reject too many arguments"
+            );
         }
     }
 }

@@ -317,16 +317,16 @@ fn primitive_values(args: &[Value]) -> Result<Value> {
     use std::rc::Rc;
     match args.len() {
         // (values) returns no values - but in many Scheme implementations this returns unspecified
-        0 => Ok(Value::Unspecified), 
+        0 => Ok(Value::Unspecified),
         // (values x) returns single value x
         1 => Ok(args[0].clone()),
         // (values x y ...) returns multiple values - temporarily use Vector for compatibility
-        _ => Ok(Value::Vector(Rc::new(RefCell::new(args.to_vec()))))
+        _ => Ok(Value::Vector(Rc::new(RefCell::new(args.to_vec())))),
     }
 }
 
 /// call-with-values procedure - Evaluator-integrated implementation
-/// 
+///
 /// `(call-with-values producer consumer)` calls producer with no arguments,
 /// then calls consumer with the result values as individual arguments.
 ///
@@ -340,19 +340,22 @@ fn primitive_values(args: &[Value]) -> Result<Value> {
 /// we use the evaluator's built-in evaluation loop to handle the complexity of
 /// tail calls, continuations, and other advanced control flow features.
 fn evaluator_call_with_values(
-    evaluator: &mut crate::eval::evaluator::Evaluator, 
-    args: &[Value]
+    evaluator: &mut crate::eval::evaluator::Evaluator,
+    args: &[Value],
 ) -> Result<Value> {
     if args.len() != 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("call-with-values requires exactly 2 arguments, got {}", args.len()),
+            format!(
+                "call-with-values requires exactly 2 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let producer = &args[0];
     let consumer = &args[1];
-    
+
     // Verify both arguments are procedures
     if !producer.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
@@ -360,25 +363,25 @@ fn evaluator_call_with_values(
             None,
         )));
     }
-    
+
     if !consumer.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
             "call-with-values second argument (consumer) must be a procedure".to_string(),
             None,
         )));
     }
-    
+
     // Execute the complete call-with-values operation using the evaluator's trampoline
     // This ensures proper tail call optimization and handles all control flow correctly
     let producer_result = evaluator.evaluate_procedure_call(producer.clone(), vec![])?;
-    
-    // Extract values from producer result  
+
+    // Extract values from producer result
     // TODO: MultipleValues was temporarily replaced with Vector
     let consumer_args = match &producer_result {
         Value::Vector(vec_ref) => vec_ref.borrow().clone(),
         single_value => vec![single_value.clone()],
     };
-    
+
     // Call consumer with the extracted values as arguments
     evaluator.evaluate_procedure_call(consumer.clone(), consumer_args)
 }
@@ -863,7 +866,7 @@ mod tests {
     fn test_values() {
         use std::cell::RefCell;
         use std::rc::Rc;
-        
+
         // Test values with no arguments
         let result = primitive_values(&[]).unwrap();
         assert_eq!(result, Value::Unspecified);

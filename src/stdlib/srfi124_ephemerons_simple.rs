@@ -4,11 +4,11 @@
 //! single-threaded version that focuses on correctness and compatibility with
 //! Lambdust's existing evaluation model.
 
-use crate::eval::Value;
 use crate::ast::literal::Literal;
+use crate::eval::Value;
 use std::cell::RefCell;
-use std::rc::{Rc, Weak};
 use std::collections::HashMap;
+use std::rc::{Rc, Weak};
 
 /// An ephemeron with weak key semantics.
 ///
@@ -32,7 +32,7 @@ impl Ephemeron {
         use std::sync::atomic::{AtomicU64, Ordering};
         static NEXT_ID: AtomicU64 = AtomicU64::new(1);
         let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-        
+
         Rc::new(Ephemeron {
             key: RefCell::new(Some(Rc::downgrade(&key))),
             datum: RefCell::new(datum),
@@ -181,7 +181,7 @@ impl EphemeronRegistry {
     pub fn ephemeron_collection_phase(&self) {
         let mut to_remove = Vec::new();
         let ephemerons = self.ephemerons.borrow();
-        
+
         for (&id, weak_ephemeron) in ephemerons.iter() {
             if let Some(ephemeron) = weak_ephemeron.upgrade() {
                 // Check if the key is still reachable
@@ -193,9 +193,9 @@ impl EphemeronRegistry {
                 to_remove.push(id);
             }
         }
-        
+
         drop(ephemerons);
-        
+
         // Clean up unreachable ephemerons
         let mut ephemerons_mut = self.ephemerons.borrow_mut();
         for id in to_remove {
@@ -216,9 +216,7 @@ thread_local! {
 
 /// Gets the number of registered ephemerons in the global registry.
 pub fn get_ephemeron_count() -> usize {
-    EPHEMERON_REGISTRY.with(|registry| {
-        registry.borrow().count()
-    })
+    EPHEMERON_REGISTRY.with(|registry| registry.borrow().count())
 }
 
 /// Registers an ephemeron with the global registry.
@@ -243,9 +241,9 @@ mod tests {
     fn test_ephemeron_creation() {
         let key = Rc::new(RefCell::new(Value::Literal(Literal::Number(42.into()))));
         let datum = Value::Literal(Literal::String(Box::new("test".to_string())));
-        
+
         let ephemeron = Ephemeron::new(key.clone(), datum.clone());
-        
+
         assert!(!ephemeron.is_broken());
         assert!(ephemeron.key_is_reachable());
     }
@@ -254,25 +252,25 @@ mod tests {
     fn test_ephemeron_weak_semantics() {
         let key = Rc::new(RefCell::new(Value::Literal(Literal::Number(42.into()))));
         let datum = Value::Literal(Literal::String(Box::new("test".to_string())));
-        
+
         let ephemeron = Ephemeron::new(key.clone(), datum);
-        
+
         // While key is held strongly, ephemeron should work
         assert!(!ephemeron.is_broken());
         assert!(ephemeron.key_is_reachable());
-        
+
         // Drop the strong reference to key
         drop(key);
-        
+
         // Now the ephemeron should detect that the key is gone
         assert!(!ephemeron.key_is_reachable());
-        
+
         // Accessing key should mark as broken and return #f
         match ephemeron.key() {
             Value::Literal(Literal::Boolean(false)) => (),
             _ => panic!("Expected #f for broken ephemeron key"),
         }
-        
+
         assert!(ephemeron.is_broken());
     }
 
@@ -280,20 +278,20 @@ mod tests {
     fn test_reference_barrier() {
         let barrier = ReferenceBarrier::new();
         let key = Rc::new(RefCell::new(Value::Literal(Literal::Number(42.into()))));
-        
+
         barrier.ensure_reachable(key.clone());
         assert_eq!(barrier.reference_count(), 1);
-        
+
         // Even if we drop our reference, the barrier keeps it alive
         let weak_key = Rc::downgrade(&key);
         drop(key);
-        
+
         // Should still be reachable through the barrier
         assert!(weak_key.upgrade().is_some());
-        
+
         barrier.release_all();
         assert_eq!(barrier.reference_count(), 0);
-        
+
         // Now it should be gone
         assert!(weak_key.upgrade().is_none());
     }
@@ -302,13 +300,13 @@ mod tests {
     fn test_ephemeron_registry() {
         let registry = EphemeronRegistry::new();
         let count_before = registry.count();
-        
+
         let key = Rc::new(RefCell::new(Value::Literal(Literal::Number(42.into()))));
         let datum = Value::Literal(Literal::String(Box::new("test".to_string())));
         let ephemeron = Ephemeron::new(key.clone(), datum);
-        
+
         registry.register_ephemeron(ephemeron.clone());
-        
+
         let count_after = registry.count();
         assert_eq!(count_after, count_before + 1);
     }
@@ -317,25 +315,25 @@ mod tests {
     fn test_broken_ephemeron_behavior() {
         let key = Rc::new(RefCell::new(Value::Literal(Literal::Number(42.into()))));
         let datum = Value::Literal(Literal::String(Box::new("test".to_string())));
-        
+
         let ephemeron = Ephemeron::new(key.clone(), datum);
-        
+
         // Manually mark as broken (simulating GC behavior)
         ephemeron.mark_broken();
-        
+
         assert!(ephemeron.is_broken());
-        
+
         // Both key and datum should return #f
         match ephemeron.key() {
             Value::Literal(Literal::Boolean(false)) => (),
             _ => panic!("Expected #f for broken ephemeron key"),
         }
-        
+
         match ephemeron.datum() {
             Value::Literal(Literal::Boolean(false)) => (),
             _ => panic!("Expected #f for broken ephemeron datum"),
         }
-        
+
         // Setting datum should fail
         let new_datum = Value::Literal(Literal::String(Box::new("new".to_string())));
         assert!(!ephemeron.set_datum(new_datum));

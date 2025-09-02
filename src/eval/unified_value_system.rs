@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Unified Value System for Phase 8 Optimization
+#![allow(missing_docs)]
+//! Unified Value System for Phase 8 Optimization
 //!
 //! This module implements the optimized value representation that achieves
 //! 30-50% memory reduction through advanced layout optimization techniques.
@@ -10,15 +11,15 @@
 //! - **Zero-Copy Semantics**: Minimize allocations during parsing
 //! - **R7RS Compliance**: Full compatibility with existing Value API
 
-use std::sync::Arc;
-use std::ptr::NonNull;
-use crate::eval::value::Value;
 use crate::eval::nan_boxed_value::NanBoxedValue;
+use crate::eval::value::Value;
 use crate::eval::value_arena::ValueArena;
 use crate::utils::SymbolId;
+use std::ptr::NonNull;
+use std::sync::Arc;
 
 /// Optimized value representation that can pack most values into 64-bit words
-/// 
+///
 /// This enum uses discriminant optimization to minimize memory usage:
 /// - Immediate values (bool, small int, nil, etc.) use NaN boxing
 /// - Small heap values use compact representations  
@@ -29,18 +30,15 @@ pub enum OptimizedValue {
     /// NaN-boxed immediate values (64-bit total)
     /// Contains: bool, small integers (-2^47 to 2^47), nil, unspecified, etc.
     Immediate(NanBoxedValue),
-    
+
     /// Small heap-allocated values (72-bit: discriminant + pointer)
     /// Contains: symbols, characters, small strings (<= 23 bytes)
     SmallHeap(NonNull<SmallValueData>),
-    
+
     /// Large values allocated in arena (72-bit: discriminant + arena reference)
     /// Contains: pairs, vectors, hash tables, procedures, etc.
-    ArenaValue {
-        arena_id: u32,
-        offset: u32,
-    },
-    
+    ArenaValue { arena_id: u32, offset: u32 },
+
     /// Legacy compatibility wrapper for gradual migration
     /// Will be phased out as optimization completes
     Legacy(Box<Value>),
@@ -53,11 +51,11 @@ pub enum OptimizedValue {
 pub struct SmallValueData {
     /// Type tag for the small value
     type_tag: SmallValueType,
-    
+
     /// Inline data storage (56 bytes for strings, symbols, etc.)
     /// This allows strings up to 55 characters to be stored inline
     data: [u8; 56],
-    
+
     /// Length field for variable-length data
     len: u8,
 }
@@ -109,28 +107,27 @@ impl OptimizedValue {
             NanBoxedValue::false_value()
         })
     }
-    
+
     /// Create an optimized value for nil
     pub const fn nil() -> Self {
         Self::Immediate(NanBoxedValue::nil_value())
     }
-    
+
     /// Create an optimized value for unspecified
     pub const fn unspecified() -> Self {
         Self::Immediate(NanBoxedValue::unspecified_value())
     }
-    
+
     /// Create an optimized value from a floating-point number
     pub fn from_number(value: f64) -> Self {
         Self::Immediate(NanBoxedValue::from_number(value))
     }
-    
+
     /// Create an optimized value from a small integer
     pub fn from_small_int(value: i64) -> Option<Self> {
-        NanBoxedValue::from_small_int(value)
-            .map(Self::Immediate)
+        NanBoxedValue::from_small_int(value).map(Self::Immediate)
     }
-    
+
     /// Create an optimized value from a symbol
     pub fn from_symbol(symbol_id: SymbolId, symbol_text: &str) -> Self {
         // If the symbol text is small enough, store it inline
@@ -138,16 +135,16 @@ impl OptimizedValue {
             let mut data = [0u8; 56];
             let bytes = symbol_text.as_bytes();
             data[..bytes.len()].copy_from_slice(bytes);
-            
+
             // Store the symbol ID in the first 4 bytes
             data[..4].copy_from_slice(&(symbol_id.0 as u32).to_le_bytes());
-            
+
             let small_data = SmallValueData {
                 type_tag: SmallValueType::Symbol,
                 data,
                 len: bytes.len() as u8,
             };
-            
+
             // TODO: Allocate in small heap
             // For now, use legacy representation
             Self::Legacy(Box::new(Value::Symbol(symbol_id)))
@@ -156,51 +153,51 @@ impl OptimizedValue {
             Self::Legacy(Box::new(Value::Symbol(symbol_id)))
         }
     }
-    
+
     /// Check if this is an immediate value
     pub fn is_immediate(&self) -> bool {
         matches!(self, Self::Immediate(_))
     }
-    
+
     /// Check if this is a small heap value  
     pub fn is_small_heap(&self) -> bool {
         matches!(self, Self::SmallHeap(_))
     }
-    
+
     /// Check if this is an arena value
     pub fn is_arena_value(&self) -> bool {
         matches!(self, Self::ArenaValue { .. })
     }
-    
+
     /// Get the memory footprint of this value in bytes
     pub fn memory_footprint(&self) -> usize {
         match self {
-            Self::Immediate(_) => 8, // NaN boxed value
-            Self::SmallHeap(_) => 64, // Cache line aligned
+            Self::Immediate(_) => 8,      // NaN boxed value
+            Self::SmallHeap(_) => 64,     // Cache line aligned
             Self::ArenaValue { .. } => 8, // Just the reference
             Self::Legacy(value) => std::mem::size_of_val(value.as_ref()), // Variable
         }
     }
-    
+
     /// Convert to legacy Value for compatibility during migration
     pub fn to_legacy(&self) -> Value {
         match self {
             Self::Immediate(nan_boxed) => {
                 // Convert NaN boxed back to Value enum
                 nan_boxed.to_legacy_value()
-            },
+            }
             Self::SmallHeap(_) => {
                 // TODO: Convert small heap value back
                 Value::Unspecified
-            },
+            }
             Self::ArenaValue { .. } => {
-                // TODO: Convert arena value back  
+                // TODO: Convert arena value back
                 Value::Unspecified
-            },
+            }
             Self::Legacy(value) => (**value).clone(),
         }
     }
-    
+
     /// Create an optimized value from a legacy Value
     /// This is the main conversion function for gradual migration
     pub fn from_legacy(value: &Value) -> Self {
@@ -212,14 +209,14 @@ impl OptimizedValue {
                     crate::ast::Literal::String(s) if s.len() <= 55 => {
                         // Small string optimization
                         Self::Legacy(Box::new(value.clone())) // TODO: Implement inline strings
-                    },
+                    }
                     _ => Self::Legacy(Box::new(value.clone())),
                 }
-            },
+            }
             Value::Symbol(symbol_id) => {
                 // TODO: Get symbol text from interner
                 Self::Legacy(Box::new(value.clone()))
-            },
+            }
             Value::Nil => Self::nil(),
             Value::Unspecified => Self::unspecified(),
             _ => {
@@ -263,21 +260,21 @@ impl ValueLayoutAnalyzer {
         let mut small_heap_count = 0;
         let mut arena_count = 0;
         let mut legacy_count = 0;
-        
+
         for value in values {
             current_size += std::mem::size_of_val(value);
-            
+
             let optimized = OptimizedValue::from_legacy(value);
             optimized_size += optimized.memory_footprint();
-            
+
             match optimized {
                 OptimizedValue::Immediate(_) => immediate_count += 1,
-                OptimizedValue::SmallHeap(_) => small_heap_count += 1, 
+                OptimizedValue::SmallHeap(_) => small_heap_count += 1,
                 OptimizedValue::ArenaValue { .. } => arena_count += 1,
                 OptimizedValue::Legacy(_) => legacy_count += 1,
             }
         }
-        
+
         MemoryAnalysis {
             current_size,
             optimized_size,
@@ -333,34 +330,34 @@ impl std::fmt::Display for MemoryAnalysis {
 mod tests {
     use super::*;
     use crate::ast::Literal;
-    
+
     #[test]
     fn test_immediate_values() {
         let true_val = OptimizedValue::from_bool(true);
         let false_val = OptimizedValue::from_bool(false);
         let nil_val = OptimizedValue::nil();
-        
+
         assert!(true_val.is_immediate());
         assert!(false_val.is_immediate());
         assert!(nil_val.is_immediate());
-        
+
         assert_eq!(true_val.memory_footprint(), 8);
         assert_eq!(false_val.memory_footprint(), 8);
         assert_eq!(nil_val.memory_footprint(), 8);
     }
-    
+
     #[test]
     fn test_number_optimization() {
         let small_int = OptimizedValue::from_small_int(42).unwrap();
         let large_float = OptimizedValue::from_number(3.141592653589793);
-        
+
         assert!(small_int.is_immediate());
         assert!(large_float.is_immediate());
-        
+
         assert_eq!(small_int.memory_footprint(), 8);
         assert_eq!(large_float.memory_footprint(), 8);
     }
-    
+
     #[test]
     fn test_memory_analysis() {
         let values = vec![
@@ -370,9 +367,9 @@ mod tests {
             Value::string("hello"),
             Value::Nil,
         ];
-        
+
         let analysis = ValueLayoutAnalyzer::analyze_memory_savings(&values);
-        
+
         // Should achieve significant memory savings
         assert!(analysis.savings_percent > 20.0);
         assert!(analysis.immediate_count >= 3); // At least bool, bool, nil

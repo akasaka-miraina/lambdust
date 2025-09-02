@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::Expr;
 
 /// A clause in an SRFI-2 and-let* expression.
-/// 
+///
 /// SRFI-2 defines three types of clauses:
 /// 1. (variable expression) - binding clause: bind variable to expression result if not #f
 /// 2. (expression) - guard clause: continue only if expression is not #f  
@@ -21,7 +21,7 @@ pub enum AndLetClause {
         /// Expression to evaluate and bind to the variable
         expression: Spanned<Expr>,
     },
-    
+
     /// Test clause: (expression) or expression
     /// Tests the expression; continues only if result is not #f
     Test {
@@ -38,7 +38,7 @@ impl AndLetClause {
             AndLetClause::Test { expression } => expression,
         }
     }
-    
+
     /// Gets the variable name if this is a binding clause.
     pub fn variable(&self) -> Option<&str> {
         match self {
@@ -46,17 +46,17 @@ impl AndLetClause {
             AndLetClause::Test { .. } => None,
         }
     }
-    
+
     /// Returns true if this is a binding clause.
     pub fn is_binding(&self) -> bool {
         matches!(self, AndLetClause::Binding { .. })
     }
-    
+
     /// Returns true if this is a test clause.
     pub fn is_test(&self) -> bool {
         matches!(self, AndLetClause::Test { .. })
     }
-    
+
     /// Gets the span of this clause.
     pub fn span(&self) -> Span {
         self.expression().span

@@ -513,6 +513,11 @@ impl MultipleValues {
         Self { values }
     }
 
+    /// Create an empty MultipleValues container.
+    pub fn empty() -> Self {
+        Self { values: Vec::new() }
+    }
+
     /// Get the values as a slice.
     pub fn as_slice(&self) -> &[Value] {
         &self.values
@@ -536,6 +541,11 @@ impl MultipleValues {
     /// Get a value by index.
     pub fn get(&self, index: usize) -> Option<&Value> {
         self.values.get(index)
+    }
+
+    /// Get the first value, if any.
+    pub fn first(&self) -> Option<&Value> {
+        self.values.first()
     }
 }
 
@@ -1550,7 +1560,7 @@ impl Value {
     }
 
     /// Creates a new pair value (alias for `pair`).
-    /// 
+    ///
     /// This method provides the traditional Lisp `cons` constructor
     /// as an alias to the `pair` method for compatibility and familiarity.
     pub fn cons(car: Value, cdr: Value) -> Self {
@@ -1851,7 +1861,9 @@ impl Value {
             let borrowed = vector.borrow();
             Arc::new(RwLock::new(borrowed.clone()))
         };
-        Value::Generator(Arc::new(crate::containers::Generator::from_vector(thread_safe_vec)))
+        Value::Generator(Arc::new(crate::containers::Generator::from_vector(
+            thread_safe_vec,
+        )))
     }
 
     /// Creates a new generator from a string.
@@ -2512,7 +2524,7 @@ impl Environment {
             name: None,
         }
     }
-    
+
     /// Creates a new environment with shared binding support (for letrec).
     pub fn new_shared(parent: Option<Rc<Environment>>, generation: Generation) -> Self {
         let shared_storage = Arc::new(RwLock::new(HashMap::new()));
@@ -2539,7 +2551,7 @@ impl Environment {
             name: Some(name),
         }
     }
-    
+
     /// Creates a new environment with a name and shared binding support.
     pub fn with_name_shared(
         parent: Option<Rc<Environment>>,
@@ -2583,8 +2595,10 @@ impl Environment {
     /// Defines a variable in this environment.
     pub fn define(&self, name: String, value: Value) {
         // Update local bindings
-        self.bindings.borrow_mut().insert(name.clone(), value.clone());
-        
+        self.bindings
+            .borrow_mut()
+            .insert(name.clone(), value.clone());
+
         // CRITICAL FIX: Also update shared bindings if present (letrec support)
         if let Some(shared) = &self.shared_bindings {
             if let Ok(mut map) = shared.write() {
@@ -2601,10 +2615,12 @@ impl Environment {
         if let Ok(bindings) = self.bindings.try_borrow() {
             if bindings.contains_key(name) {
                 drop(bindings); // Release the borrow
-                
+
                 // Update local bindings
-                self.bindings.borrow_mut().insert(name.to_string(), value.clone());
-                
+                self.bindings
+                    .borrow_mut()
+                    .insert(name.to_string(), value.clone());
+
                 // CRITICAL FIX: Also update shared bindings if present (letrec support)
                 if let Some(shared) = &self.shared_bindings {
                     if let Ok(mut map) = shared.write() {
@@ -2676,7 +2692,7 @@ impl Environment {
                 .unwrap_or_default();
             Arc::new(std::sync::RwLock::new(local_bindings))
         };
-        
+
         Arc::new(ThreadSafeEnvironment {
             bindings,
             parent,

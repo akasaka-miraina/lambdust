@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Production monitoring and deployment system for SRFI-31 optimization
+#![allow(missing_docs)]
+//! Production monitoring and deployment system for SRFI-31 optimization
 //!
 //! This module provides comprehensive monitoring, alerting, and deployment
 //! infrastructure for the SRFI-31 optimization framework. It ensures
@@ -37,7 +38,7 @@
 //!
 //! // Initialize production monitoring
 //! let mut monitor = OptimizationMonitor::production();
-//! 
+//!
 //! // Report optimization attempt
 //! monitor.record_optimization_attempt("factorial", true, 1.5, 0.3);
 //!
@@ -49,10 +50,13 @@
 //! }
 //! ```
 
-use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex, atomic::{AtomicU64, AtomicBool, Ordering}};
-use std::time::{Duration, Instant, SystemTime};
 use crate::eval::rec_optimization_framework::{RecursivePattern, TailCallOptimization};
+use std::collections::{HashMap, VecDeque};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, AtomicU64, Ordering},
+};
+use std::time::{Duration, Instant, SystemTime};
 
 /// Configuration for production optimization monitoring
 #[derive(Debug, Clone)]
@@ -99,7 +103,7 @@ impl MonitoringConfig {
         Self {
             enabled: true,
             max_metrics_retention: 50000,
-            metrics_window_seconds: 600, // 10 minutes
+            metrics_window_seconds: 600,  // 10 minutes
             failure_rate_threshold: 0.05, // 5% failure rate
             regression_threshold: 0.1,    // 10% regression threshold
             circuit_breaker_threshold: 20,
@@ -114,7 +118,7 @@ impl MonitoringConfig {
         Self {
             enabled: true,
             max_metrics_retention: 1000,
-            metrics_window_seconds: 60, // 1 minute
+            metrics_window_seconds: 60,  // 1 minute
             failure_rate_threshold: 0.2, // 20% failure rate (more lenient)
             regression_threshold: 0.2,   // 20% regression threshold
             circuit_breaker_threshold: 5,
@@ -205,11 +209,15 @@ impl Default for OptimizationStatistics {
 
 impl OptimizationStatistics {
     /// Calculates if the current performance indicates a regression
-    pub fn has_performance_regression(&self, baseline: &OptimizationStatistics, threshold: f64) -> bool {
+    pub fn has_performance_regression(
+        &self,
+        baseline: &OptimizationStatistics,
+        threshold: f64,
+    ) -> bool {
         if baseline.avg_speedup == 0.0 {
             return false; // No baseline to compare
         }
-        
+
         let regression_ratio = (baseline.avg_speedup - self.avg_speedup) / baseline.avg_speedup;
         regression_ratio > threshold
     }
@@ -274,7 +282,7 @@ impl OptimizationCircuitBreaker {
     /// Records a failed optimization
     pub fn record_failure(&self) {
         let failures = self.failure_count.fetch_add(1, Ordering::Relaxed) + 1;
-        
+
         if let Ok(mut last_failure) = self.last_failure_time.lock() {
             *last_failure = Some(Instant::now());
         }
@@ -295,7 +303,9 @@ impl OptimizationCircuitBreaker {
                     // Check if recovery window has passed
                     if let Ok(last_failure) = self.last_failure_time.lock() {
                         if let Some(failure_time) = *last_failure {
-                            if failure_time.elapsed().as_secs() >= self.config.circuit_breaker_recovery_window {
+                            if failure_time.elapsed().as_secs()
+                                >= self.config.circuit_breaker_recovery_window
+                            {
                                 *state = CircuitBreakerState::HalfOpen;
                                 true
                             } else {
@@ -317,11 +327,16 @@ impl OptimizationCircuitBreaker {
 
     /// Gets current circuit breaker state
     pub fn get_state(&self) -> CircuitBreakerState {
-        self.state.lock().unwrap_or_else(|_| {
-            // Default to open on lock contention for safety
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            self.state.lock().expect("Failed to acquire lock after retry")
-        }).clone()
+        self.state
+            .lock()
+            .unwrap_or_else(|_| {
+                // Default to open on lock contention for safety
+                std::thread::sleep(std::time::Duration::from_millis(1));
+                self.state
+                    .lock()
+                    .expect("Failed to acquire lock after retry")
+            })
+            .clone()
     }
 
     /// Gets current failure count
@@ -391,7 +406,9 @@ impl OptimizationMonitor {
     pub fn with_config(config: MonitoringConfig) -> Self {
         Self {
             circuit_breaker: OptimizationCircuitBreaker::new(config.clone()),
-            metrics: Arc::new(Mutex::new(VecDeque::with_capacity(config.max_metrics_retention))),
+            metrics: Arc::new(Mutex::new(VecDeque::with_capacity(
+                config.max_metrics_retention,
+            ))),
             cached_stats: Arc::new(Mutex::new(None)),
             baseline_stats: Arc::new(Mutex::new(None)),
             alert_history: Arc::new(Mutex::new(VecDeque::new())),
@@ -435,18 +452,14 @@ impl OptimizationMonitor {
             RecursivePattern::LinearTailRecursion { confidence, .. } => {
                 ("LinearTailRecursion", *confidence)
             }
-            RecursivePattern::TreeRecursion { confidence, .. } => {
-                ("TreeRecursion", *confidence)
-            }
+            RecursivePattern::TreeRecursion { confidence, .. } => ("TreeRecursion", *confidence),
             RecursivePattern::AccumulatorPattern { confidence, .. } => {
                 ("AccumulatorPattern", *confidence)
             }
             RecursivePattern::LinearRecursion { confidence, .. } => {
                 ("LinearRecursion", *confidence)
             }
-            RecursivePattern::ComplexPattern { confidence, .. } => {
-                ("ComplexPattern", *confidence)
-            }
+            RecursivePattern::ComplexPattern { confidence, .. } => ("ComplexPattern", *confidence),
             RecursivePattern::UnknownPattern => ("UnknownPattern", 0.0),
         };
 
@@ -483,7 +496,7 @@ impl OptimizationMonitor {
                 metrics.pop_front();
             }
             metrics.push_back(metric);
-            
+
             // Invalidate cached statistics
             if let Ok(mut cached) = self.cached_stats.lock() {
                 *cached = None;
@@ -495,8 +508,7 @@ impl OptimizationMonitor {
 
     /// Checks if the system is healthy for optimizations
     pub fn is_healthy(&self) -> bool {
-        self.is_active.load(Ordering::Relaxed) && 
-        self.circuit_breaker.should_allow_optimization()
+        self.is_active.load(Ordering::Relaxed) && self.circuit_breaker.should_allow_optimization()
     }
 
     /// Gets current optimization statistics
@@ -517,7 +529,7 @@ impl OptimizationMonitor {
 
         // Calculate fresh statistics
         let stats = self.calculate_statistics();
-        
+
         // Update cache
         if let Ok(mut cached) = self.cached_stats.lock() {
             *cached = Some((stats.clone(), Instant::now()));
@@ -539,7 +551,8 @@ impl OptimizationMonitor {
         }
 
         let window_start = Instant::now() - Duration::from_secs(self.config.metrics_window_seconds);
-        let windowed_metrics: Vec<_> = metrics.iter()
+        let windowed_metrics: Vec<_> = metrics
+            .iter()
             .filter(|m| m.timestamp >= window_start)
             .collect();
 
@@ -548,27 +561,32 @@ impl OptimizationMonitor {
         }
 
         let total_attempts = windowed_metrics.len() as u64;
-        let successful_optimizations = windowed_metrics.iter()
-            .filter(|m| m.success)
-            .count() as u64;
+        let successful_optimizations = windowed_metrics.iter().filter(|m| m.success).count() as u64;
         let failed_attempts = total_attempts - successful_optimizations;
 
-        let avg_speedup = windowed_metrics.iter()
+        let avg_speedup = windowed_metrics
+            .iter()
             .filter(|m| m.success)
             .map(|m| m.speedup_factor)
-            .sum::<f64>() / successful_optimizations.max(1) as f64;
+            .sum::<f64>()
+            / successful_optimizations.max(1) as f64;
 
-        let avg_memory_reduction = windowed_metrics.iter()
+        let avg_memory_reduction = windowed_metrics
+            .iter()
             .filter(|m| m.success)
             .map(|m| m.memory_reduction)
-            .sum::<f64>() / successful_optimizations.max(1) as f64;
+            .sum::<f64>()
+            / successful_optimizations.max(1) as f64;
 
-        let avg_analysis_time_us = windowed_metrics.iter()
+        let avg_analysis_time_us = windowed_metrics
+            .iter()
             .map(|m| m.analysis_time_us as f64)
-            .sum::<f64>() / total_attempts as f64;
+            .sum::<f64>()
+            / total_attempts as f64;
 
         // Calculate percentiles
-        let mut analysis_times: Vec<u64> = windowed_metrics.iter()
+        let mut analysis_times: Vec<u64> = windowed_metrics
+            .iter()
             .map(|m| m.analysis_time_us)
             .collect();
         analysis_times.sort_unstable();
@@ -598,7 +616,7 @@ impl OptimizationMonitor {
     /// Checks for performance alerts and triggers them if necessary
     fn check_for_alerts(&self) {
         let current_stats = self.get_current_statistics();
-        
+
         // Check for high failure rate
         if current_stats.has_high_failure_rate(self.config.failure_rate_threshold) {
             self.trigger_alert(
@@ -616,14 +634,15 @@ impl OptimizationMonitor {
         // Check for performance regression against baseline
         if let Ok(baseline) = self.baseline_stats.lock() {
             if let Some(baseline_stats) = baseline.as_ref() {
-                if current_stats.has_performance_regression(baseline_stats, self.config.regression_threshold) {
+                if current_stats
+                    .has_performance_regression(baseline_stats, self.config.regression_threshold)
+                {
                     self.trigger_alert(
                         AlertType::PerformanceRegression,
                         AlertSeverity::Critical,
                         format!(
                             "Performance regression detected: {:.2}x -> {:.2}x speedup",
-                            baseline_stats.avg_speedup,
-                            current_stats.avg_speedup
+                            baseline_stats.avg_speedup, current_stats.avg_speedup
                         ),
                         Some(current_stats.clone()),
                     );
@@ -663,7 +682,7 @@ impl OptimizationMonitor {
 
         if let Ok(mut alerts) = self.alert_history.lock() {
             alerts.push_back(alert);
-            
+
             // Maintain alert history size
             while alerts.len() > 100 {
                 alerts.pop_front();
@@ -694,11 +713,7 @@ impl OptimizationMonitor {
     /// Gets recent performance alerts
     pub fn get_recent_alerts(&self, limit: usize) -> Vec<PerformanceAlert> {
         if let Ok(alerts) = self.alert_history.lock() {
-            alerts.iter()
-                .rev()
-                .take(limit)
-                .cloned()
-                .collect()
+            alerts.iter().rev().take(limit).cloned().collect()
         } else {
             Vec::new()
         }
@@ -730,7 +745,11 @@ impl OptimizationMonitor {
              - P95 analysis time: {:.0}μs\n\
              - P99 analysis time: {:.0}μs\n\
              \n",
-            if self.is_healthy() { "HEALTHY" } else { "DEGRADED" },
+            if self.is_healthy() {
+                "HEALTHY"
+            } else {
+                "DEGRADED"
+            },
             circuit_state,
             failure_count,
             total_processed,
@@ -800,7 +819,7 @@ fn percentile(sorted_data: &[u64], percentile: f64) -> u64 {
     if sorted_data.is_empty() {
         return 0;
     }
-    
+
     let index = (percentile / 100.0 * (sorted_data.len() - 1) as f64).round() as usize;
     sorted_data[index.min(sorted_data.len() - 1)]
 }
@@ -968,7 +987,11 @@ mod tests {
 
         let alerts = monitor.get_recent_alerts(10);
         assert!(!alerts.is_empty());
-        assert!(alerts.iter().any(|a| a.alert_type == AlertType::HighFailureRate));
+        assert!(
+            alerts
+                .iter()
+                .any(|a| a.alert_type == AlertType::HighFailureRate)
+        );
     }
 
     #[test]
@@ -993,7 +1016,7 @@ mod tests {
     #[test]
     fn test_percentile_calculation() {
         let data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        
+
         assert_eq!(percentile(&data, 50.0), 5);
         assert_eq!(percentile(&data, 95.0), 10);
         assert_eq!(percentile(&data, 0.0), 1);
@@ -1009,25 +1032,28 @@ mod tests {
         let pattern = RecursivePattern::TreeRecursion {
             confidence: 0.8,
             memoization_candidate: true,
-            complexity_estimate: crate::eval::rec_optimization_framework::ComplexityClass::Exponential,
+            complexity_estimate:
+                crate::eval::rec_optimization_framework::ComplexityClass::Exponential,
         };
 
-        let handles: Vec<_> = (0..4).map(|i| {
-            let monitor = Arc::clone(&monitor);
-            let pattern = pattern.clone();
-            thread::spawn(move || {
-                for j in 0..10 {
-                    monitor.record_optimization_attempt(
-                        &format!("test_{}", i),
-                        j % 2 == 0,
-                        1.5,
-                        0.3,
-                        1000,
-                        &pattern,
-                    );
-                }
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                let monitor = Arc::clone(&monitor);
+                let pattern = pattern.clone();
+                thread::spawn(move || {
+                    for j in 0..10 {
+                        monitor.record_optimization_attempt(
+                            &format!("test_{}", i),
+                            j % 2 == 0,
+                            1.5,
+                            0.3,
+                            1000,
+                            &pattern,
+                        );
+                    }
+                })
             })
-        }).collect();
+            .collect();
 
         for handle in handles {
             handle.join().unwrap();

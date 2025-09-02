@@ -8,12 +8,12 @@
 //! - String formatting and parsing
 //! - System time integration
 
-use crate::eval::Value;
-use crate::diagnostics::{Error as DiagnosticError, Result, Span};
 use crate::ast::literal::Literal;
+use crate::diagnostics::{Error as DiagnosticError, Result, Span};
+use crate::eval::Value;
 use crate::utils::{SymbolId, intern_symbol};
-use std::time::{SystemTime, UNIX_EPOCH, Duration, Instant};
 use std::collections::HashMap;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Time types supported by SRFI-19
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -38,7 +38,7 @@ impl TimeType {
     /// Convert a symbol to a TimeType
     pub fn from_symbol(symbol: SymbolId) -> Self {
         use crate::utils::symbol_name;
-        
+
         if let Some(name) = symbol_name(symbol) {
             match name.as_str() {
                 "time-utc" => TimeType::Utc,
@@ -53,7 +53,7 @@ impl TimeType {
             TimeType::Custom(symbol)
         }
     }
-    
+
     /// Convert TimeType to symbol
     pub fn to_symbol(self) -> SymbolId {
         match self {
@@ -84,74 +84,77 @@ impl Time {
     pub fn new(time_type: TimeType, second: i64, nanosecond: i32) -> Result<Self> {
         if nanosecond < 0 || nanosecond >= 1_000_000_000 {
             return Err(Box::new(DiagnosticError::runtime_error(
-                format!("nanosecond must be between 0 and 999999999, got {}", nanosecond),
+                format!(
+                    "nanosecond must be between 0 and 999999999, got {}",
+                    nanosecond
+                ),
                 Some(Span::new(0, 0)),
             )));
         }
-        
+
         Ok(Time {
             time_type,
             second,
             nanosecond,
         })
     }
-    
+
     /// Get current UTC time
     pub fn current_utc() -> Result<Self> {
-        let system_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|e| Box::new(DiagnosticError::runtime_error(
+        let system_time = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| {
+            Box::new(DiagnosticError::runtime_error(
                 format!("Failed to get current time: {}", e),
                 Some(Span::new(0, 0)),
-            )))?;
-        
+            ))
+        })?;
+
         let second = system_time.as_secs() as i64;
         let nanosecond = system_time.subsec_nanos() as i32;
-        
+
         Self::new(TimeType::Utc, second, nanosecond)
     }
-    
+
     /// Get current monotonic time
     pub fn current_monotonic() -> Result<Self> {
         // Use a thread-local start time for monotonic clock
         thread_local! {
             static START_TIME: Instant = Instant::now();
         }
-        
+
         START_TIME.with(|start| {
             let elapsed = start.elapsed();
             let second = elapsed.as_secs() as i64;
             let nanosecond = elapsed.subsec_nanos() as i32;
-            
+
             Self::new(TimeType::Monotonic, second, nanosecond)
         })
     }
-    
+
     /// Convert to nanoseconds since epoch (for calculations)
     pub fn to_nanos(&self) -> i128 {
         (self.second as i128) * 1_000_000_000 + (self.nanosecond as i128)
     }
-    
+
     /// Create from nanoseconds since epoch
     pub fn from_nanos(time_type: TimeType, nanos: i128) -> Result<Self> {
         let second = (nanos / 1_000_000_000) as i64;
         let nanosecond = (nanos % 1_000_000_000) as i32;
-        
+
         Self::new(time_type, second, nanosecond)
     }
-    
+
     /// Add another time as duration
     pub fn add(&self, other: &Time) -> Result<Self> {
         let total_nanos = self.to_nanos() + other.to_nanos();
         Self::from_nanos(self.time_type, total_nanos)
     }
-    
+
     /// Subtract another time  
     pub fn subtract(&self, other: &Time) -> Result<Self> {
         let diff_nanos = self.to_nanos() - other.to_nanos();
         Self::from_nanos(TimeType::Duration, diff_nanos)
     }
-    
+
     /// Compare times for ordering
     pub fn compare(&self, other: &Time) -> std::cmp::Ordering {
         self.to_nanos().cmp(&other.to_nanos())
@@ -194,46 +197,50 @@ impl Date {
         // Validate ranges
         if nanosecond < 0 || nanosecond >= 1_000_000_000 {
             return Err(Box::new(DiagnosticError::runtime_error(
-                format!("nanosecond must be between 0 and 999999999, got {}", nanosecond),
+                format!(
+                    "nanosecond must be between 0 and 999999999, got {}",
+                    nanosecond
+                ),
                 Some(Span::new(0, 0)),
             )));
         }
-        
-        if second < 0 || second > 60 {  // 60 for leap seconds
+
+        if second < 0 || second > 60 {
+            // 60 for leap seconds
             return Err(Box::new(DiagnosticError::runtime_error(
                 format!("second must be between 0 and 60, got {}", second),
                 Some(Span::new(0, 0)),
             )));
         }
-        
+
         if minute < 0 || minute > 59 {
             return Err(Box::new(DiagnosticError::runtime_error(
                 format!("minute must be between 0 and 59, got {}", minute),
                 Some(Span::new(0, 0)),
             )));
         }
-        
+
         if hour < 0 || hour > 23 {
             return Err(Box::new(DiagnosticError::runtime_error(
                 format!("hour must be between 0 and 23, got {}", hour),
                 Some(Span::new(0, 0)),
             )));
         }
-        
+
         if day < 1 || day > 31 {
             return Err(Box::new(DiagnosticError::runtime_error(
                 format!("day must be between 1 and 31, got {}", day),
                 Some(Span::new(0, 0)),
             )));
         }
-        
+
         if month < 1 || month > 12 {
             return Err(Box::new(DiagnosticError::runtime_error(
                 format!("month must be between 1 and 12, got {}", month),
                 Some(Span::new(0, 0)),
             )));
         }
-        
+
         Ok(Date {
             nanosecond,
             second,
@@ -245,31 +252,31 @@ impl Date {
             zone_offset,
         })
     }
-    
+
     /// Get current date in UTC
     pub fn current_utc() -> Result<Self> {
         let time = Time::current_utc()?;
         time_to_date(&time)
     }
-    
+
     /// Convert to Julian Day Number (for calculations)
     pub fn to_julian_day(&self) -> f64 {
         // Simplified Julian Day calculation
         let a = (14 - self.month) / 12;
         let y = self.year + 4800 - a;
         let m = self.month + 12 * a - 3;
-        
+
         let jdn = self.day + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045;
-        
+
         // Add time of day
-        let day_fraction = (self.hour as f64 - 12.0) / 24.0 + 
-                          self.minute as f64 / 1440.0 + 
-                          self.second as f64 / 86400.0 + 
-                          self.nanosecond as f64 / 86_400_000_000_000.0;
-        
+        let day_fraction = (self.hour as f64 - 12.0) / 24.0
+            + self.minute as f64 / 1440.0
+            + self.second as f64 / 86400.0
+            + self.nanosecond as f64 / 86_400_000_000_000.0;
+
         jdn as f64 + day_fraction
     }
-    
+
     /// Create from Julian Day Number
     pub fn from_julian_day(jd: f64, zone_offset: i32) -> Result<Self> {
         let jd_int = jd as i32 + 32044;
@@ -279,21 +286,30 @@ impl Date {
         let d = (4 * c + 3) / 1461;
         let e = c - (1461 * d) / 4;
         let m = (5 * e + 2) / 153;
-        
+
         let day = e - (153 * m + 2) / 5 + 1;
         let month = m + 3 - 12 * (m / 10);
         let year = 100 * b + d - 4800 + m / 10;
-        
+
         // Extract time components
         let day_fraction = jd - jd.floor();
         let total_seconds = (day_fraction * 86400.0) as i32;
-        
+
         let hour = total_seconds / 3600;
-        let minute = (total_seconds % 3600) / 60;  
+        let minute = (total_seconds % 3600) / 60;
         let second = total_seconds % 60;
         let nanosecond = ((day_fraction * 86400.0 - total_seconds as f64) * 1_000_000_000.0) as i32;
-        
-        Self::new(nanosecond, second, minute, hour, day, month, year, zone_offset)
+
+        Self::new(
+            nanosecond,
+            second,
+            minute,
+            hour,
+            day,
+            month,
+            year,
+            zone_offset,
+        )
     }
 }
 
@@ -303,7 +319,7 @@ pub fn time_to_date(time: &Time) -> Result<Date> {
     const UNIX_EPOCH_JD: f64 = 2440587.5; // Julian day of Unix epoch
     let seconds_since_epoch = time.second as f64 + time.nanosecond as f64 / 1_000_000_000.0;
     let jd = UNIX_EPOCH_JD + seconds_since_epoch / 86400.0;
-    
+
     Date::from_julian_day(jd, 0) // UTC (no offset)
 }
 
@@ -312,17 +328,17 @@ pub fn date_to_time(date: &Date) -> Result<Time> {
     let jd = date.to_julian_day();
     const UNIX_EPOCH_JD: f64 = 2440587.5;
     let seconds_since_epoch = (jd - UNIX_EPOCH_JD) * 86400.0;
-    
+
     let second = seconds_since_epoch.floor() as i64;
     let nanosecond = ((seconds_since_epoch - second as f64) * 1_000_000_000.0) as i32;
-    
+
     Time::new(TimeType::Utc, second, nanosecond)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_time_creation() {
         let time = Time::new(TimeType::Utc, 1234567890, 123456789).unwrap();
@@ -330,13 +346,13 @@ mod tests {
         assert_eq!(time.second, 1234567890);
         assert_eq!(time.nanosecond, 123456789);
     }
-    
+
     #[test]
     fn test_invalid_nanosecond() {
         assert!(Time::new(TimeType::Utc, 0, 1_000_000_000).is_err());
         assert!(Time::new(TimeType::Utc, 0, -1).is_err());
     }
-    
+
     #[test]
     fn test_date_creation() {
         let date = Date::new(0, 0, 0, 12, 25, 12, 2023, 0).unwrap();
@@ -344,30 +360,30 @@ mod tests {
         assert_eq!(date.month, 12);
         assert_eq!(date.day, 25);
     }
-    
+
     #[test]
     fn test_time_arithmetic() {
         let time1 = Time::new(TimeType::Utc, 100, 500_000_000).unwrap();
         let time2 = Time::new(TimeType::Duration, 50, 300_000_000).unwrap();
-        
+
         let sum = time1.add(&time2).unwrap();
         assert_eq!(sum.second, 150);
         assert_eq!(sum.nanosecond, 800_000_000);
     }
-    
+
     #[test]
     fn test_time_type_conversion() {
         let symbol = TimeType::Utc.to_symbol();
         let converted = TimeType::from_symbol(symbol);
         assert_eq!(converted, TimeType::Utc);
     }
-    
+
     #[test]
     fn test_time_date_conversion() {
         let time = Time::new(TimeType::Utc, 1234567890, 0).unwrap();
         let date = time_to_date(&time).unwrap();
         let back_to_time = date_to_time(&date).unwrap();
-        
+
         // Should be approximately equal (within rounding errors)
         assert!((back_to_time.second - time.second).abs() <= 1);
     }

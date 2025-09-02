@@ -7,7 +7,7 @@
 //! - Parameterize enter/exit: <100ns for typical case
 //! - 5-10x performance improvement over naive implementation
 //!
-//! Parameters are first-class objects that can be called as procedures to retrieve 
+//! Parameters are first-class objects that can be called as procedures to retrieve
 //! their current value, and used with the `parameterize` special form to establish
 //! dynamic bindings with proper thread-local isolation.
 
@@ -86,62 +86,62 @@ impl ParameterStorage {
             stats: ParameterStats::default(),
         }
     }
-    
+
     /// Get the current value of a parameter with hot cache optimization
     /// Performance target: <5ns for hot cache hit
     fn get_parameter_value(&mut self, param_id: u64, global_default: &RwLock<Value>) -> Value {
         self.stats.reads += 1;
-        
+
         // First check hot cache for frequently accessed parameters
         if let Some(value) = self.hot_cache.get(&param_id) {
             self.stats.cache_hits += 1;
             return value.clone();
         }
-        
+
         // Search binding stack from most recent to oldest
         for frame in self.binding_stack.iter().rev() {
             for (id, value) in &frame.bindings {
                 if *id == param_id {
                     self.stats.cache_misses += 1;
-                    
+
                     // Update hot cache if this parameter is accessed frequently
                     if self.stats.reads % 10 == 0 && self.hot_cache.len() < 8 {
                         self.hot_cache.insert(param_id, value.clone());
                     }
-                    
+
                     return value.clone();
                 }
             }
         }
-        
+
         // Fall back to global default
         self.stats.cache_misses += 1;
         global_default.read().unwrap().clone()
     }
-    
+
     /// Push a new binding frame with optimizations
     /// Performance target: <50ns for typical case
     fn push_frame(&mut self, bindings: Vec<(u64, Value)>) {
         self.stats.parameterize_calls += 1;
-        
+
         // Try to reuse a frame from the pool
         let mut frame = self.frame_pool.pop().unwrap_or_else(|| ParameterFrame {
             bindings: SmallVec::new(),
         });
-        
+
         frame.bindings.clear();
         frame.bindings.extend(bindings.iter().cloned());
-        
+
         // Update hot cache for parameters being bound
         for (param_id, value) in &bindings {
             if self.hot_cache.len() < 8 {
                 self.hot_cache.insert(*param_id, value.clone());
             }
         }
-        
+
         self.binding_stack.push(frame);
     }
-    
+
     /// Pop the most recent binding frame with cleanup
     /// Performance target: <30ns for typical case
     fn pop_frame(&mut self) -> Option<ParameterFrame> {
@@ -150,26 +150,26 @@ impl ParameterStorage {
             for (param_id, _) in &frame.bindings {
                 self.hot_cache.remove(param_id);
             }
-            
+
             // Clear the frame and return it to the pool for reuse
             frame.bindings.clear();
             if self.frame_pool.len() < 4 {
                 self.frame_pool.push(frame.clone());
             }
-            
+
             Some(frame)
         } else {
             None
         }
     }
-    
+
     /// Get performance statistics
     fn get_stats(&self) -> &ParameterStats {
         &self.stats
     }
 
     /// Inherit parameter bindings from parent thread (SRFI-18 integration)
-    /// 
+    ///
     /// When a new thread is spawned, it inherits the current parameter bindings
     /// from the parent thread. This provides proper dynamic scope semantics
     /// across thread boundaries.
@@ -182,25 +182,27 @@ impl ParameterStorage {
         // Clear current bindings and hot cache
         self.binding_stack.clear();
         self.hot_cache.clear();
-        
+
         // Clone parent frames efficiently
         self.binding_stack.reserve(parent_frames.len());
         for parent_frame in parent_frames {
             let mut inherited_frame = self.frame_pool.pop().unwrap_or_else(|| ParameterFrame {
                 bindings: SmallVec::new(),
             });
-            
+
             inherited_frame.bindings.clear();
-            inherited_frame.bindings.extend(parent_frame.bindings.iter().cloned());
+            inherited_frame
+                .bindings
+                .extend(parent_frame.bindings.iter().cloned());
             self.binding_stack.push(inherited_frame);
         }
-        
+
         // Update statistics
         self.stats.thread_inheritances += 1;
     }
 
     /// Capture current parameter bindings for thread spawning
-    /// 
+    ///
     /// Creates a snapshot of current parameter bindings that can be passed
     /// to a child thread for inheritance. This is called when spawning a new
     /// thread to ensure proper parameter inheritance.
@@ -245,7 +247,7 @@ impl Parameter {
     /// Gets the current value of this parameter with high-performance optimizations.
     ///
     /// Performance target: <5ns for hot cache hit, <50ns for typical case.
-    /// First checks hot cache, then thread-local parameter stack, 
+    /// First checks hot cache, then thread-local parameter stack,
     /// finally falls back to the global default value.
     pub fn get(&self) -> Value {
         PARAMETER_STORAGE.with(|storage| {
@@ -308,7 +310,7 @@ impl ParameterBinding {
     {
         // Convert HashMap to Vec for optimized storage
         let bindings_vec: Vec<(u64, Value)> = bindings.into_iter().collect();
-        
+
         // Push new parameter frame with optimizations
         PARAMETER_STORAGE.with(|storage| {
             storage.borrow_mut().push_frame(bindings_vec);
@@ -328,7 +330,8 @@ impl ParameterBinding {
     /// Gets the current depth of the parameter stack.
     pub fn stack_depth() -> usize {
         PARAMETER_STORAGE.with(|storage| {
-            storage.try_borrow()
+            storage
+                .try_borrow()
                 .map(|s| s.binding_stack.len())
                 .unwrap_or(0)
         })
@@ -344,16 +347,24 @@ impl ParameterBinding {
             storage.frame_pool.clear();
         });
     }
-    
+
     /// Gets parameter performance statistics (for monitoring and benchmarking)
     pub fn get_statistics() -> Option<(u64, u64, u64, u64, u64)> {
-        PARAMETER_STORAGE.try_with(|storage| {
-            let storage = storage.borrow();
-            let stats = storage.get_stats();
-            (stats.reads, stats.writes, stats.cache_hits, stats.cache_misses, stats.parameterize_calls)
-        }).ok()
+        PARAMETER_STORAGE
+            .try_with(|storage| {
+                let storage = storage.borrow();
+                let stats = storage.get_stats();
+                (
+                    stats.reads,
+                    stats.writes,
+                    stats.cache_hits,
+                    stats.cache_misses,
+                    stats.parameterize_calls,
+                )
+            })
+            .ok()
     }
-    
+
     /// Resets parameter statistics (useful for benchmarking)
     pub fn reset_statistics() {
         PARAMETER_STORAGE.with(|storage| {
@@ -405,9 +416,7 @@ impl ParameterFrame {
 
 /// Captures current parameter bindings for thread inheritance (SRFI-18 support)
 pub fn capture_parameter_bindings() -> Vec<ParameterFrame> {
-    PARAMETER_STORAGE.with(|storage| {
-        storage.borrow().capture_bindings()
-    })
+    PARAMETER_STORAGE.with(|storage| storage.borrow().capture_bindings())
 }
 
 /// Sets up parameter inheritance for a new thread (SRFI-18 support)

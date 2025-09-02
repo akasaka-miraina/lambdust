@@ -19,7 +19,8 @@ pub mod suggestions;
 pub mod unified_error;
 
 pub use custom_error::{
-    ErrorLabel, LabelStyle, EvalUnifiedError, RuntimeError as CustomRuntimeError, utils as error_utils,
+    ErrorLabel, EvalUnifiedError, LabelStyle, RuntimeError as CustomRuntimeError,
+    utils as error_utils,
 };
 pub use error::*;
 pub use gc_diagnostics::{

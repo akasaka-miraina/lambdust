@@ -418,9 +418,9 @@ mod tests {
 impl NanBoxedValue {
     /// Creates a NanBoxedValue from a legacy Value
     pub fn from_value(value: crate::eval::value::Value) -> Self {
-        use crate::eval::value::Value;
         use crate::ast::Literal;
-        
+        use crate::eval::value::Value;
+
         match value {
             Value::Literal(lit) => match lit {
                 Literal::Boolean(b) => Self::from_bool(b),
@@ -430,7 +430,7 @@ impl NanBoxedValue {
                     } else {
                         Self::from_number(i as f64)
                     }
-                },
+                }
                 // Literal::Float doesn't exist, use pattern matching on Number
                 Literal::Character(c) => Self::from_char(c),
                 Literal::Number(n) => Self::from_number(n),
@@ -442,11 +442,11 @@ impl NanBoxedValue {
             _ => Self::unspecified_value(), // Fallback for complex values
         }
     }
-    
+
     /// Converts this NanBoxedValue back to a legacy Value
     pub fn to_value(&self) -> crate::eval::value::Value {
         use crate::eval::value::Value;
-        
+
         if self.is_boolean() {
             Value::boolean(self.as_bool().unwrap_or(false))
         } else if self.is_number() {
@@ -458,7 +458,9 @@ impl NanBoxedValue {
         } else if self.is_unspecified() {
             Value::Unspecified
         } else if self.is_character() {
-            Value::Literal(crate::ast::Literal::Character(self.as_char().unwrap_or('\0')))
+            Value::Literal(crate::ast::Literal::Character(
+                self.as_char().unwrap_or('\0'),
+            ))
         } else {
             Value::Unspecified // Fallback
         }

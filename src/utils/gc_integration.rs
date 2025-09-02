@@ -159,13 +159,13 @@ impl ValueGcWrapper {
             Value::Environment(_) => 128, // Environment with bindings
             Value::Box(_) => 16,          // SRFI-111 box
             // SRFI extensions
-            Value::Ephemeron(_) => 32,    // SRFI-124 ephemeron
-            Value::Time(_) => 64,         // SRFI-19 time
-            Value::Date(_) => 128,        // SRFI-19 date
-            Value::Thread(_) => 256,      // SRFI-21 thread
-            Value::Mutex(_) => 64,        // SRFI-21 mutex (different from async mutex)
-            Value::ConditionVariable(_) => 64,      // SRFI-21 condition variable  
-            Value::Time21(_) => 32,       // SRFI-21 time
+            Value::Ephemeron(_) => 32,         // SRFI-124 ephemeron
+            Value::Time(_) => 64,              // SRFI-19 time
+            Value::Date(_) => 128,             // SRFI-19 date
+            Value::Thread(_) => 256,           // SRFI-21 thread
+            Value::Mutex(_) => 64,             // SRFI-21 mutex (different from async mutex)
+            Value::ConditionVariable(_) => 64, // SRFI-21 condition variable
+            Value::Time21(_) => 32,            // SRFI-21 time
             // Additional types
             Value::HomogeneousVector(_) => 256, // SRFI-4 homogeneous vector
             Value::MultipleValues(_) => 128,    // Multiple values
@@ -173,9 +173,9 @@ impl ValueGcWrapper {
             Value::Comparator(_) => 64,         // SRFI-128 comparator
             Value::Condition(_) => 128,         // SRFI-35 condition
             #[cfg(feature = "async-runtime")]
-            Value::AsyncMutex(_) => 64,   // Concurrency mutex
+            Value::AsyncMutex(_) => 64, // Concurrency mutex
             Value::ConditionType(_) => 32,      // SRFI-35 condition type
-            Value::Stream(_) => 256,             // SRFI-41 stream
+            Value::Stream(_) => 256,            // SRFI-41 stream
         }
     }
 

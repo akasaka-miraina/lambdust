@@ -846,7 +846,7 @@ impl Parser {
     /// Parses a rec form: `(rec <variable> <expression>)`.
     ///
     /// The rec special form provides syntactic sugar for simple recursive definitions.
-    /// It is more concise than letrec for cases where you're defining a single 
+    /// It is more concise than letrec for cases where you're defining a single
     /// recursive binding and immediately returning it.
     ///
     /// # SRFI-31 Specification
@@ -868,7 +868,7 @@ impl Parser {
     /// (define factorial
     ///   (rec f (lambda (n)
     ///            (if (= n 0) 1 (* n (f (- n 1)))))))
-    /// 
+    ///
     /// ;; Fibonacci using rec  
     /// (define fibonacci
     ///   (rec fib (lambda (n)
@@ -884,7 +884,7 @@ impl Parser {
     ///
     /// This method performs immediate transformation during parsing:
     /// 1. Parse the variable name (must be identifier)
-    /// 2. Parse the expression 
+    /// 2. Parse the expression
     /// 3. Create equivalent letrec structure: `(letrec ((var expr)) var)`
     /// 4. Return the desugared letrec expression
     ///
@@ -2160,19 +2160,19 @@ impl Parser {
     pub fn parse_cut_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         // Parse procedure
         let procedure = self.parse_expression()?;
-        
+
         // Parse arguments (slot placeholders and expressions)
         let mut arguments = Vec::new();
         while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
             let arg_expr = self.parse_expression()?;
-            
+
             // Convert placeholder identifiers to CutArgument types
             let cut_arg = match &arg_expr.inner {
                 Expr::Identifier(name) if name == "<>" => CutArgument::slot(),
                 Expr::Identifier(name) if name == "<...>" => CutArgument::rest_slot(),
                 _ => CutArgument::expression(arg_expr),
             };
-            
+
             arguments.push(cut_arg);
         }
 
@@ -2205,19 +2205,19 @@ impl Parser {
     pub fn parse_cute_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         // Parse procedure
         let procedure = self.parse_expression()?;
-        
+
         // Parse arguments (slot placeholders and expressions)
         let mut arguments = Vec::new();
         while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
             let arg_expr = self.parse_expression()?;
-            
+
             // Convert placeholder identifiers to CutArgument types
             let cut_arg = match &arg_expr.inner {
                 Expr::Identifier(name) if name == "<>" => CutArgument::slot(),
                 Expr::Identifier(name) if name == "<...>" => CutArgument::rest_slot(),
                 _ => CutArgument::expression(arg_expr),
             };
-            
+
             arguments.push(cut_arg);
         }
 
@@ -2238,7 +2238,7 @@ impl Parser {
     /// Validates cut/cute arguments according to SRFI-26 rules
     fn validate_cut_arguments(&self, arguments: &[CutArgument]) -> Result<()> {
         let mut rest_slot_position = None;
-        
+
         // Find rest slot and check for validity
         for (i, arg) in arguments.iter().enumerate() {
             if let CutArgument::RestSlot = arg {

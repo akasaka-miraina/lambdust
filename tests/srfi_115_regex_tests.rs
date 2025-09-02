@@ -1,5 +1,5 @@
 //! Comprehensive test suite for SRFI-115 (Scheme Regular Expressions)
-//! 
+//!
 //! TEMPORARILY DISABLED - Structural issues need to be resolved
 #![cfg(disabled)]
 //!
@@ -17,14 +17,14 @@
 //! 2. Interpreter integration tests for end-to-end validation
 
 use lambdust::eval::Value;
-use lambdust::stdlib::srfi115_regex::*;
 use lambdust::stdlib::srfi115_regex::ast::*;
-use lambdust::stdlib::srfi115_regex::parser::SreParser;
 use lambdust::stdlib::srfi115_regex::compiler::PatternCompiler;
-use lambdust::stdlib::srfi115_regex::match_object::*;
-use lambdust::stdlib::srfi115_regex::procedures::*;
 use lambdust::stdlib::srfi115_regex::error::*;
+use lambdust::stdlib::srfi115_regex::match_object::*;
+use lambdust::stdlib::srfi115_regex::parser::SreParser;
+use lambdust::stdlib::srfi115_regex::procedures::*;
 use lambdust::stdlib::srfi115_regex::unicode::*;
+use lambdust::stdlib::srfi115_regex::*;
 use std::collections::HashMap;
 
 /// Test module for SRE AST functionality.
@@ -81,7 +81,7 @@ mod ast_tests {
     #[test]
     fn test_quantifiers() {
         let base = SreNode::literal("a");
-        
+
         let zero_or_more = SreNode::ZeroOrMore(Box::new(base.clone()));
         assert!(zero_or_more.can_match_empty());
 
@@ -173,9 +173,18 @@ mod ast_tests {
         assert!(SreNode::literal("").can_match_empty());
         assert!(SreNode::ZeroOrMore(Box::new(SreNode::literal("a"))).can_match_empty());
         assert!(SreNode::Optional(Box::new(SreNode::literal("a"))).can_match_empty());
-        assert!(SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::Exactly(0)).can_match_empty());
-        assert!(SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::AtLeast(0)).can_match_empty());
-        assert!(SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::Between(0, 5)).can_match_empty());
+        assert!(
+            SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::Exactly(0))
+                .can_match_empty()
+        );
+        assert!(
+            SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::AtLeast(0))
+                .can_match_empty()
+        );
+        assert!(
+            SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::Between(0, 5))
+                .can_match_empty()
+        );
 
         // Test anchors (they match empty positions)
         assert!(SreNode::StartOfString.can_match_empty());
@@ -189,9 +198,18 @@ mod ast_tests {
         // Test patterns that cannot match empty strings
         assert!(!SreNode::literal("a").can_match_empty());
         assert!(!SreNode::OneOrMore(Box::new(SreNode::literal("a"))).can_match_empty());
-        assert!(!SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::Exactly(1)).can_match_empty());
-        assert!(!SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::AtLeast(1)).can_match_empty());
-        assert!(!SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::Between(1, 5)).can_match_empty());
+        assert!(
+            !SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::Exactly(1))
+                .can_match_empty()
+        );
+        assert!(
+            !SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::AtLeast(1))
+                .can_match_empty()
+        );
+        assert!(
+            !SreNode::Repeat(Box::new(SreNode::literal("a")), RepeatSpec::Between(1, 5))
+                .can_match_empty()
+        );
         assert!(!SreNode::Any.can_match_empty());
         assert!(!SreNode::CharClass(CharClass::from_chars("abc")).can_match_empty());
     }
@@ -245,7 +263,7 @@ mod parser_tests {
     #[test]
     fn test_parse_literals() {
         let mut parser = SreParser::new(&default_flags());
-        
+
         // Test string literal
         let result = parser.parse(Value::string("hello".to_string())).unwrap();
         assert_eq!(result, SreNode::Literal("hello".to_string()));
@@ -262,7 +280,7 @@ mod parser_tests {
     #[test]
     fn test_parse_symbols() {
         let mut parser = SreParser::new(&default_flags());
-        
+
         // Test basic patterns
         let result = parser.parse(Value::symbol("any".to_string())).unwrap();
         assert_eq!(result, SreNode::Any);
@@ -299,7 +317,7 @@ mod parser_tests {
             Value::symbol("any".to_string()),
             Value::string("world".to_string()),
         ]);
-        
+
         let result = parser.parse(sre).unwrap();
         match result {
             SreNode::Sequence(nodes) => {
@@ -321,7 +339,7 @@ mod parser_tests {
             Value::string("hi".to_string()),
             Value::string("hey".to_string()),
         ]);
-        
+
         let result = parser.parse(sre).unwrap();
         match result {
             SreNode::Alternation(nodes) => {
@@ -337,7 +355,7 @@ mod parser_tests {
     #[test]
     fn test_parse_quantifiers() {
         let mut parser = SreParser::new(&default_flags());
-        
+
         // Test zero-or-more
         let sre = Value::List(vec![
             Value::symbol("*".to_string()),
@@ -381,7 +399,7 @@ mod parser_tests {
     #[test]
     fn test_parse_repetition() {
         let mut parser = SreParser::new(&default_flags());
-        
+
         // Test exact repetition
         let sre = Value::List(vec![
             Value::symbol("=".to_string()),
@@ -429,7 +447,7 @@ mod parser_tests {
     #[test]
     fn test_parse_character_classes() {
         let mut parser = SreParser::new(&default_flags());
-        
+
         // Test basic character class
         let sre = Value::List(vec![
             Value::symbol("/".to_string()),
@@ -478,7 +496,7 @@ mod parser_tests {
     #[test]
     fn test_parse_submatches() {
         let mut parser = SreParser::new(&default_flags());
-        
+
         // Test unnamed submatch
         let sre = Value::List(vec![
             Value::symbol("submatch".to_string()),
@@ -511,11 +529,11 @@ mod parser_tests {
     #[test]
     fn test_parse_errors() {
         let mut parser = SreParser::new(&default_flags());
-        
+
         // Test empty list
         let result = parser.parse(Value::List(vec![]));
         assert!(result.is_err());
-        
+
         // Test unknown operator
         let sre = Value::List(vec![
             Value::symbol("unknown".to_string()),
@@ -523,14 +541,12 @@ mod parser_tests {
         ]);
         let result = parser.parse(sre);
         assert!(result.is_err());
-        
+
         // Test invalid quantifier arguments
-        let sre = Value::List(vec![
-            Value::symbol("*".to_string()),
-        ]);
+        let sre = Value::List(vec![Value::symbol("*".to_string())]);
         let result = parser.parse(sre);
         assert!(result.is_err());
-        
+
         // Test invalid repetition counts
         let sre = Value::List(vec![
             Value::symbol("**".to_string()),
@@ -545,7 +561,7 @@ mod parser_tests {
     #[test]
     fn test_complex_patterns() {
         let mut parser = SreParser::new(&default_flags());
-        
+
         // Test complex nested pattern
         let sre = Value::List(vec![
             Value::symbol(":".to_string()),
@@ -564,13 +580,13 @@ mod parser_tests {
             ]),
             Value::symbol("eow".to_string()),
         ]);
-        
+
         let result = parser.parse(sre);
         assert!(result.is_ok());
-        
+
         let ast = result.unwrap();
         assert_eq!(ast.count_groups(), 1);
-        
+
         let named_groups = ast.named_groups();
         assert_eq!(named_groups.len(), 1);
         assert!(named_groups.contains_key("word"));
@@ -585,16 +601,13 @@ mod match_object_tests {
     fn test_match_object_creation() {
         let input = "hello world test";
         let submatches = vec![
-            SubMatch::new(0, 5, input),   // "hello"
-            SubMatch::new(6, 11, input),  // "world"
+            SubMatch::new(0, 5, input),  // "hello"
+            SubMatch::new(6, 11, input), // "world"
         ];
-        let named_groups = HashMap::from([
-            ("greeting".to_string(), 1),
-            ("subject".to_string(), 2),
-        ]);
-        
+        let named_groups = HashMap::from([("greeting".to_string(), 1), ("subject".to_string(), 2)]);
+
         let match_obj = MatchObject::new(0, 16, input, submatches, named_groups);
-        
+
         assert_eq!(match_obj.start(), 0);
         assert_eq!(match_obj.end(), 16);
         assert_eq!(match_obj.len(), 16);
@@ -611,12 +624,12 @@ mod match_object_tests {
             SubMatch::new(12, 16, input),
         ];
         let match_obj = MatchObject::new(0, 16, input, submatches, HashMap::new());
-        
+
         // Test 1-based indexing
         assert_eq!(match_obj.submatch(1).unwrap().as_str(), "hello");
         assert_eq!(match_obj.submatch(2).unwrap().as_str(), "world");
         assert_eq!(match_obj.submatch(3).unwrap().as_str(), "test");
-        
+
         // Test out of bounds
         assert!(match_obj.submatch(0).is_none());
         assert!(match_obj.submatch(4).is_none());
@@ -625,24 +638,24 @@ mod match_object_tests {
     #[test]
     fn test_named_submatches() {
         let input = "hello world";
-        let submatches = vec![
-            SubMatch::new(0, 5, input),
-            SubMatch::new(6, 11, input),
-        ];
-        let named_groups = HashMap::from([
-            ("greeting".to_string(), 1),
-            ("subject".to_string(), 2),
-        ]);
+        let submatches = vec![SubMatch::new(0, 5, input), SubMatch::new(6, 11, input)];
+        let named_groups = HashMap::from([("greeting".to_string(), 1), ("subject".to_string(), 2)]);
         let match_obj = MatchObject::new(0, 11, input, submatches, named_groups);
-        
-        assert_eq!(match_obj.named_submatch("greeting").unwrap().as_str(), "hello");
-        assert_eq!(match_obj.named_submatch("subject").unwrap().as_str(), "world");
+
+        assert_eq!(
+            match_obj.named_submatch("greeting").unwrap().as_str(),
+            "hello"
+        );
+        assert_eq!(
+            match_obj.named_submatch("subject").unwrap().as_str(),
+            "world"
+        );
         assert!(match_obj.named_submatch("nonexistent").is_none());
-        
+
         assert!(match_obj.has_named_group("greeting"));
         assert!(match_obj.has_named_group("subject"));
         assert!(!match_obj.has_named_group("nonexistent"));
-        
+
         let names: Vec<_> = match_obj.named_group_names();
         assert_eq!(names.len(), 2);
         assert!(names.contains(&&"greeting".to_string()));
@@ -653,7 +666,7 @@ mod match_object_tests {
     fn test_match_context() {
         let input = "prefix_MATCH_suffix";
         let match_obj = MatchObject::new(7, 12, input, &[], HashMap::new());
-        
+
         assert_eq!(match_obj.as_str(), "MATCH");
         assert_eq!(match_obj.before(), "prefix_");
         assert_eq!(match_obj.after(), "_suffix");
@@ -669,7 +682,7 @@ mod match_object_tests {
             .add_submatch(12, 16)
             .build()
             .unwrap();
-        
+
         assert_eq!(match_obj.as_str(), "hello world test");
         assert_eq!(match_obj.submatch_count(), 3);
         assert_eq!(match_obj.submatch(1).unwrap().as_str(), "hello");
@@ -680,17 +693,17 @@ mod match_object_tests {
     #[test]
     fn test_builder_errors() {
         let input = "hello";
-        
+
         // Test missing range
         let result = MatchObjectBuilder::new(input).build();
         assert!(result.is_err());
-        
+
         // Test invalid range
         let result = MatchObjectBuilder::new(input)
             .with_range(3, 2) // start > end
             .build();
         assert!(result.is_err());
-        
+
         // Test range beyond input
         let result = MatchObjectBuilder::new(input)
             .with_range(0, 10) // end > input.len()
@@ -702,7 +715,7 @@ mod match_object_tests {
     fn test_empty_matches() {
         let input = "hello";
         let match_obj = MatchObject::new(2, 2, input, &[], HashMap::new());
-        
+
         assert!(match_obj.is_empty());
         assert_eq!(match_obj.len(), 0);
         assert_eq!(match_obj.as_str(), "");
@@ -714,7 +727,7 @@ mod match_object_tests {
     fn test_submatch_methods() {
         let input = "prefix_test_suffix";
         let submatch = SubMatch::new(7, 11, input);
-        
+
         assert_eq!(submatch.start(), 7);
         assert_eq!(submatch.end(), 11);
         assert_eq!(submatch.len(), 4);
@@ -733,13 +746,13 @@ mod match_object_tests {
             SubMatch::new(8, 13, input),
         ];
         let match_obj = MatchObject::new(0, 13, input, submatches, HashMap::new());
-        
+
         let strings: Vec<&str> = match_obj.submatch_strings();
         assert_eq!(strings, &["one", "two", "three"]);
-        
+
         let positions: Vec<(usize, usize)> = match_obj.submatch_positions();
         assert_eq!(positions, &[(0, 3), (4, 7), (8, 13)]);
-        
+
         let count = match_obj.iter_submatches().count();
         assert_eq!(count, 3);
     }
@@ -757,7 +770,8 @@ mod unicode_tests {
         assert!(!letter_matcher.matches('1'));
         assert!(!letter_matcher.matches(' '));
 
-        let digit_matcher = PropertyMatcher::for_general_category(GeneralCategory::DecimalDigitNumber);
+        let digit_matcher =
+            PropertyMatcher::for_general_category(GeneralCategory::DecimalDigitNumber);
         assert!(digit_matcher.matches('0'));
         assert!(digit_matcher.matches('9'));
         assert!(!digit_matcher.matches('A'));
@@ -866,7 +880,7 @@ mod procedure_tests {
         // Test basic regexp creation
         let args = &[Value::string("hello".to_string())];
         let result = regexp_procedure(args).unwrap();
-        
+
         match result {
             Value::string(s) if s.starts_with("#<regexp") => (),
             _ => panic!("Expected regexp object representation"),
@@ -918,7 +932,7 @@ mod procedure_tests {
     fn test_regexp_matches_procedure() {
         let regexp_obj = Value::string("#<regexp \"hello\">".to_string());
         let text = Value::string("hello world".to_string());
-        
+
         let result = regexp_matches_procedure(&[regexp_obj, text]);
         // For now, should succeed with placeholder implementation
         assert!(result.is_ok());
@@ -928,7 +942,7 @@ mod procedure_tests {
     fn test_regexp_search_procedure() {
         let regexp_obj = Value::string("#<regexp \"hello\">".to_string());
         let text = Value::string("hello world".to_string());
-        
+
         let result = regexp_search_procedure(&[regexp_obj, text]).unwrap();
         // Placeholder implementation returns #f
         assert_eq!(result, Value::Boolean(false));
@@ -939,7 +953,7 @@ mod procedure_tests {
         let regexp_obj = Value::string("#<regexp \"hello\">".to_string());
         let text = Value::string("hello world".to_string());
         let replacement = Value::string("hi".to_string());
-        
+
         let result = regexp_replace_procedure(&[regexp_obj, text.clone(), replacement]).unwrap();
         // Placeholder implementation returns original string
         assert_eq!(result, text);
@@ -949,7 +963,7 @@ mod procedure_tests {
     fn test_regexp_split_procedure() {
         let regexp_obj = Value::string("#<regexp \" \">".to_string());
         let text = Value::string("hello world test".to_string());
-        
+
         let result = regexp_split_procedure(&[regexp_obj, text]).unwrap();
         match result {
             Value::List(elements) => {
@@ -963,7 +977,7 @@ mod procedure_tests {
     #[test]
     fn test_match_object_procedures() {
         let match_obj = Value::string("#<match 0-5: \"hello\">".to_string());
-        
+
         // Test match predicate
         let result = regexp_match_predicate(&[match_obj.clone()]).unwrap();
         assert_eq!(result, Value::Boolean(true));
@@ -977,18 +991,23 @@ mod procedure_tests {
         assert_eq!(result, Value::Integer(0));
 
         // Test submatch access (placeholder returns #f)
-        let result = regexp_match_submatch_procedure(&[match_obj.clone(), Value::Integer(1)]).unwrap();
+        let result =
+            regexp_match_submatch_procedure(&[match_obj.clone(), Value::Integer(1)]).unwrap();
         assert_eq!(result, Value::Boolean(false));
 
         // Test submatch positions (placeholder returns #f)
-        let result = regexp_match_submatch_start_procedure(&[match_obj.clone(), Value::Integer(1)]).unwrap();
+        let result =
+            regexp_match_submatch_start_procedure(&[match_obj.clone(), Value::Integer(1)]).unwrap();
         assert_eq!(result, Value::Boolean(false));
 
-        let result = regexp_match_submatch_end_procedure(&[match_obj.clone(), Value::Integer(1)]).unwrap();
+        let result =
+            regexp_match_submatch_end_procedure(&[match_obj.clone(), Value::Integer(1)]).unwrap();
         assert_eq!(result, Value::Boolean(false));
 
         // Test named submatch (placeholder returns #f)
-        let result = regexp_match_named_submatch_procedure(&[match_obj, Value::string("name".to_string())]).unwrap();
+        let result =
+            regexp_match_named_submatch_procedure(&[match_obj, Value::string("name".to_string())])
+                .unwrap();
         assert_eq!(result, Value::Boolean(false));
     }
 
@@ -1011,7 +1030,7 @@ mod procedure_tests {
     #[test]
     fn test_procedure_registration() {
         let procedures = register_srfi115_procedures();
-        
+
         // Test that all expected procedures are registered
         let expected_procedures = vec![
             "regexp",
@@ -1028,12 +1047,15 @@ mod procedure_tests {
             "regexp-match-submatch-end",
             "regexp-match-named-submatch",
         ];
-        
+
         for proc_name in expected_procedures {
-            assert!(procedures.contains_key(proc_name), 
-                "Missing procedure: {}", proc_name);
+            assert!(
+                procedures.contains_key(proc_name),
+                "Missing procedure: {}",
+                proc_name
+            );
         }
-        
+
         assert_eq!(procedures.len(), expected_procedures.len());
     }
 }
@@ -1048,7 +1070,7 @@ mod error_tests {
             message: "test error".to_string(),
             position: Some(5),
         };
-        
+
         let srfi_err: SrfiError = parse_err.into();
         match srfi_err {
             SrfiError::ParseError(_) => (),
@@ -1089,10 +1111,12 @@ mod error_tests {
             message: "test".to_string(),
             position: None,
         };
-        
+
         let positioned_err = err.with_position(10);
         match positioned_err {
-            ParseError::InvalidSyntax { position: Some(10), .. } => (),
+            ParseError::InvalidSyntax {
+                position: Some(10), ..
+            } => (),
             _ => panic!("Expected positioned error"),
         }
     }
@@ -1101,7 +1125,10 @@ mod error_tests {
     fn test_error_helpers() {
         let err = parse_error("test message");
         match err {
-            ParseError::InvalidSyntax { message, position: None } => {
+            ParseError::InvalidSyntax {
+                message,
+                position: None,
+            } => {
                 assert_eq!(message, "test message");
             }
             _ => panic!("Expected InvalidSyntax error"),
@@ -1229,11 +1256,11 @@ mod performance_tests {
         // Test that parsing doesn't regress significantly
         let flags = RegexpFlags::default();
         let mut parser = SreParser::new(&flags);
-        
+
         let simple_pattern = Value::string("hello".to_string());
         let result = parser.parse(simple_pattern);
         assert!(result.is_ok());
-        
+
         // In a real benchmark, we'd measure time here
         // and compare against baseline performance
     }
@@ -1244,27 +1271,29 @@ mod performance_tests {
         let flags = RegexpFlags::default();
         let mut parser = SreParser::new(&flags);
         let mut compiler = PatternCompiler::new(&flags);
-        
+
         // Simple pattern
         let simple = parser.parse(Value::string("test".to_string())).unwrap();
         let result = compiler.compile(simple);
         assert!(result.is_ok());
-        
+
         // More complex pattern
-        let complex = parser.parse(Value::List(vec![
-            Value::symbol(":".to_string()),
-            Value::symbol("bow".to_string()),
-            Value::List(vec![
-                Value::symbol("+".to_string()),
+        let complex = parser
+            .parse(Value::List(vec![
+                Value::symbol(":".to_string()),
+                Value::symbol("bow".to_string()),
                 Value::List(vec![
-                    Value::symbol("/".to_string()),
-                    Value::string("a-z".to_string()),
-                    Value::string("A-Z".to_string()),
+                    Value::symbol("+".to_string()),
+                    Value::List(vec![
+                        Value::symbol("/".to_string()),
+                        Value::string("a-z".to_string()),
+                        Value::string("A-Z".to_string()),
+                    ]),
                 ]),
-            ]),
-            Value::symbol("eow".to_string()),
-        ])).unwrap();
-        
+                Value::symbol("eow".to_string()),
+            ]))
+            .unwrap();
+
         let result = compiler.compile(complex);
         assert!(result.is_ok());
     }
@@ -1273,10 +1302,10 @@ mod performance_tests {
     fn test_memory_usage() {
         // Test that memory usage is reasonable for various pattern types
         // In a real implementation, this would measure actual memory consumption
-        
+
         let flags = RegexpFlags::default();
         let mut parser = SreParser::new(&flags);
-        
+
         // Create various patterns and ensure they don't consume excessive memory
         let patterns = vec![
             Value::string("simple".to_string()),
@@ -1291,7 +1320,7 @@ mod performance_tests {
                 Value::string("0-9".to_string()),
             ]),
         ];
-        
+
         for pattern in patterns {
             let result = parser.parse(pattern);
             assert!(result.is_ok());

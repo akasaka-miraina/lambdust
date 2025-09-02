@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Parallel compilation coordination and SIMD vectorization algorithms
+#![allow(missing_docs)]
+//! Parallel compilation coordination and SIMD vectorization algorithms
 //!
 //! This module implements sophisticated parallel optimization strategies based on
 //! advanced computer science algorithms:

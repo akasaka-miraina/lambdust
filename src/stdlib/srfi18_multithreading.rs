@@ -20,31 +20,31 @@
 //! - `(condition-variable-broadcast! condvar)` - Signals all waiting threads
 //! - `(condition-variable? obj)` - Condition variable predicate
 
-use crate::diagnostics::{Error, Result};
-use num_traits::cast::ToPrimitive;
-use crate::eval::value::{Value, PrimitiveImpl, PrimitiveProcedure};
-use crate::eval::parameter::{capture_parameter_bindings, ParameterFrame};
-use crate::eval::evaluator::EvalStep;
 use crate::concurrency::scheme_threading::{
-    SchemeThread, SchemeMutex, SchemeConditionVariable, ThreadRegistry,
-    current_thread_id, set_current_thread_id,
+    SchemeConditionVariable, SchemeMutex, SchemeThread, ThreadRegistry, current_thread_id,
+    set_current_thread_id,
 };
+use crate::diagnostics::{Error, Result};
+use crate::eval::evaluator::EvalStep;
+use crate::eval::parameter::{ParameterFrame, capture_parameter_bindings};
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, Value};
+use lazy_static::lazy_static;
+use num_traits::cast::ToPrimitive;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
-use std::collections::HashMap;
-use lazy_static::lazy_static;
 
 lazy_static! {
     /// Global thread registry for managing all threads
     static ref THREAD_REGISTRY: ThreadRegistry = ThreadRegistry::new()
         .expect("Failed to initialize thread registry");
-        
+
     /// Global mutex registry for managing all mutexes
-    static ref MUTEX_REGISTRY: StdMutex<HashMap<u64, Arc<SchemeMutex>>> = 
+    static ref MUTEX_REGISTRY: StdMutex<HashMap<u64, Arc<SchemeMutex>>> =
         StdMutex::new(HashMap::new());
-        
+
     /// Global condition variable registry
-    static ref CONDVAR_REGISTRY: StdMutex<HashMap<u64, Arc<SchemeConditionVariable>>> = 
+    static ref CONDVAR_REGISTRY: StdMutex<HashMap<u64, Arc<SchemeConditionVariable>>> =
         StdMutex::new(HashMap::new());
 }
 
@@ -67,7 +67,10 @@ pub fn current_thread() -> Result<Value> {
             Ok(Value::Thread(main_thread))
         }
     } else {
-        Err(Box::new(Error::runtime_error("No current thread available", None)))
+        Err(Box::new(Error::runtime_error(
+            "No current thread available",
+            None,
+        )))
     }
 }
 
@@ -89,7 +92,12 @@ pub fn make_thread(args: &[Value]) -> Result<Value> {
     let name = if args.len() == 2 {
         match &args[1] {
             Value::Literal(crate::ast::literal::Literal::String(s)) => Some((**s).clone()),
-            _ => return Err(Box::new(Error::runtime_error("Thread name must be a string", None))),
+            _ => {
+                return Err(Box::new(Error::runtime_error(
+                    "Thread name must be a string",
+                    None,
+                )));
+            }
         }
     } else {
         None
@@ -100,7 +108,7 @@ pub fn make_thread(args: &[Value]) -> Result<Value> {
 
     // Create the thread
     let thread = Arc::new(SchemeThread::new(name, inherited_parameters));
-    
+
     // Register the thread
     THREAD_REGISTRY.register_thread(Arc::clone(&thread));
 
@@ -128,7 +136,10 @@ pub fn thread_start(args: Vec<Value>) -> Result<EvalStep> {
                 name: thread.name.clone(),
             })
         }
-        _ => Err(Box::new(Error::runtime_error("Argument must be a thread object", None))),
+        _ => Err(Box::new(Error::runtime_error(
+            "Argument must be a thread object",
+            None,
+        ))),
     }
 }
 
@@ -144,7 +155,12 @@ pub fn thread_join(args: Vec<Value>) -> Result<EvalStep> {
 
     let thread = match &args[0] {
         Value::Thread(thread) => thread,
-        _ => return Err(Box::new(Error::runtime_error("First argument must be a thread object", None))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "First argument must be a thread object",
+                None,
+            )));
+        }
     };
 
     let timeout = if args.len() == 2 {
@@ -154,13 +170,24 @@ pub fn thread_join(args: Vec<Value>) -> Result<EvalStep> {
                     if seconds >= 0.0 {
                         Some(Duration::from_secs_f64(seconds))
                     } else {
-                        return Err(Box::new(Error::runtime_error("Timeout must be non-negative", None)));
+                        return Err(Box::new(Error::runtime_error(
+                            "Timeout must be non-negative",
+                            None,
+                        )));
                     }
                 } else {
-                    return Err(Box::new(Error::runtime_error("Invalid timeout value", None)));
+                    return Err(Box::new(Error::runtime_error(
+                        "Invalid timeout value",
+                        None,
+                    )));
                 }
             }
-            _ => return Err(Box::new(Error::runtime_error("Timeout must be a number", None))),
+            _ => {
+                return Err(Box::new(Error::runtime_error(
+                    "Timeout must be a number",
+                    None,
+                )));
+            }
         }
     } else {
         None
@@ -184,7 +211,9 @@ pub fn thread_predicate(args: &[Value]) -> Result<Value> {
     }
 
     let is_thread = matches!(args[0], Value::Thread(_));
-    Ok(Value::Literal(crate::ast::literal::Literal::Boolean(is_thread)))
+    Ok(Value::Literal(crate::ast::literal::Literal::Boolean(
+        is_thread,
+    )))
 }
 
 // ============= MUTEX PROCEDURES =============
@@ -201,14 +230,19 @@ pub fn make_mutex(args: &[Value]) -> Result<Value> {
     let name = if args.len() == 1 {
         match &args[0] {
             Value::Literal(crate::ast::literal::Literal::String(s)) => Some((**s).clone()),
-            _ => return Err(Box::new(Error::runtime_error("Mutex name must be a string", None))),
+            _ => {
+                return Err(Box::new(Error::runtime_error(
+                    "Mutex name must be a string",
+                    None,
+                )));
+            }
         }
     } else {
         None
     };
 
     let mutex = Arc::new(SchemeMutex::new(name));
-    
+
     // Register the mutex
     {
         let mut registry = MUTEX_REGISTRY.lock().unwrap();
@@ -230,7 +264,12 @@ pub fn mutex_lock(args: Vec<Value>) -> Result<EvalStep> {
 
     let mutex = match &args[0] {
         Value::Mutex(mutex) => mutex,
-        _ => return Err(Box::new(Error::runtime_error("First argument must be a mutex object", None))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "First argument must be a mutex object",
+                None,
+            )));
+        }
     };
 
     let timeout = if args.len() == 2 {
@@ -240,13 +279,24 @@ pub fn mutex_lock(args: Vec<Value>) -> Result<EvalStep> {
                     if seconds >= 0.0 {
                         Some(Duration::from_secs_f64(seconds))
                     } else {
-                        return Err(Box::new(Error::runtime_error("Timeout must be non-negative", None)));
+                        return Err(Box::new(Error::runtime_error(
+                            "Timeout must be non-negative",
+                            None,
+                        )));
                     }
                 } else {
-                    return Err(Box::new(Error::runtime_error("Invalid timeout value", None)));
+                    return Err(Box::new(Error::runtime_error(
+                        "Invalid timeout value",
+                        None,
+                    )));
                 }
             }
-            _ => return Err(Box::new(Error::runtime_error("Timeout must be a number", None))),
+            _ => {
+                return Err(Box::new(Error::runtime_error(
+                    "Timeout must be a number",
+                    None,
+                )));
+            }
         }
     } else {
         None
@@ -272,7 +322,12 @@ pub fn mutex_unlock(args: Vec<Value>) -> Result<EvalStep> {
 
     let mutex = match &args[0] {
         Value::Mutex(mutex) => mutex,
-        _ => return Err(Box::new(Error::runtime_error("Argument must be a mutex object", None))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "Argument must be a mutex object",
+                None,
+            )));
+        }
     };
 
     // Return a MutexUnlock step for the evaluator to handle
@@ -292,7 +347,9 @@ pub fn mutex_predicate(args: &[Value]) -> Result<Value> {
     }
 
     let is_mutex = matches!(args[0], Value::Mutex(_));
-    Ok(Value::Literal(crate::ast::literal::Literal::Boolean(is_mutex)))
+    Ok(Value::Literal(crate::ast::literal::Literal::Boolean(
+        is_mutex,
+    )))
 }
 
 // ============= CONDITION VARIABLE PROCEDURES =============
@@ -308,20 +365,30 @@ pub fn make_condition_variable(args: &[Value]) -> Result<Value> {
 
     let mutex = match &args[0] {
         Value::Mutex(mutex) => Arc::clone(mutex),
-        _ => return Err(Box::new(Error::runtime_error("First argument must be a mutex object", None))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "First argument must be a mutex object",
+                None,
+            )));
+        }
     };
 
     let name = if args.len() == 2 {
         match &args[1] {
             Value::Literal(crate::ast::literal::Literal::String(s)) => Some((**s).clone()),
-            _ => return Err(Box::new(Error::runtime_error("Condition variable name must be a string", None))),
+            _ => {
+                return Err(Box::new(Error::runtime_error(
+                    "Condition variable name must be a string",
+                    None,
+                )));
+            }
         }
     } else {
         None
     };
 
     let condvar = Arc::new(SchemeConditionVariable::new(name, mutex));
-    
+
     // Register the condition variable
     {
         let mut registry = CONDVAR_REGISTRY.lock().unwrap();
@@ -343,7 +410,12 @@ pub fn condition_variable_wait(args: Vec<Value>) -> Result<EvalStep> {
 
     let condvar = match &args[0] {
         Value::ConditionVariable(condvar) => condvar,
-        _ => return Err(Box::new(Error::runtime_error("First argument must be a condition variable object", None))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "First argument must be a condition variable object",
+                None,
+            )));
+        }
     };
 
     let timeout = if args.len() == 2 {
@@ -353,13 +425,24 @@ pub fn condition_variable_wait(args: Vec<Value>) -> Result<EvalStep> {
                     if seconds >= 0.0 {
                         Some(Duration::from_secs_f64(seconds))
                     } else {
-                        return Err(Box::new(Error::runtime_error("Timeout must be non-negative", None)));
+                        return Err(Box::new(Error::runtime_error(
+                            "Timeout must be non-negative",
+                            None,
+                        )));
                     }
                 } else {
-                    return Err(Box::new(Error::runtime_error("Invalid timeout value", None)));
+                    return Err(Box::new(Error::runtime_error(
+                        "Invalid timeout value",
+                        None,
+                    )));
                 }
             }
-            _ => return Err(Box::new(Error::runtime_error("Timeout must be a number", None))),
+            _ => {
+                return Err(Box::new(Error::runtime_error(
+                    "Timeout must be a number",
+                    None,
+                )));
+            }
         }
     } else {
         None
@@ -385,7 +468,12 @@ pub fn condition_variable_signal(args: Vec<Value>) -> Result<EvalStep> {
 
     let condvar = match &args[0] {
         Value::ConditionVariable(condvar) => condvar,
-        _ => return Err(Box::new(Error::runtime_error("Argument must be a condition variable object", None))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "Argument must be a condition variable object",
+                None,
+            )));
+        }
     };
 
     // Return a CondvarNotify step for the evaluator to handle
@@ -408,7 +496,12 @@ pub fn condition_variable_broadcast(args: Vec<Value>) -> Result<EvalStep> {
 
     let condvar = match &args[0] {
         Value::ConditionVariable(condvar) => condvar,
-        _ => return Err(Box::new(Error::runtime_error("Argument must be a condition variable object", None))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "Argument must be a condition variable object",
+                None,
+            )));
+        }
     };
 
     // Return a CondvarNotify step for the evaluator to handle
@@ -429,7 +522,9 @@ pub fn condition_variable_predicate(args: &[Value]) -> Result<Value> {
     }
 
     let is_condvar = matches!(args[0], Value::ConditionVariable(_));
-    Ok(Value::Literal(crate::ast::literal::Literal::Boolean(is_condvar)))
+    Ok(Value::Literal(crate::ast::literal::Literal::Boolean(
+        is_condvar,
+    )))
 }
 
 // ============= PRIMITIVE PROCEDURE REGISTRATION =============
@@ -470,7 +565,6 @@ pub fn create_srfi18_primitives() -> Vec<(String, PrimitiveProcedure)> {
                 effects: vec![crate::effects::Effect::Pure],
             },
         ),
-        
         // Mutex procedures
         (
             "make-mutex".to_string(),
@@ -492,7 +586,6 @@ pub fn create_srfi18_primitives() -> Vec<(String, PrimitiveProcedure)> {
                 effects: vec![crate::effects::Effect::Pure],
             },
         ),
-        
         // Condition variable procedures
         (
             "make-condition-variable".to_string(),
@@ -514,11 +607,10 @@ pub fn create_srfi18_primitives() -> Vec<(String, PrimitiveProcedure)> {
                 effects: vec![crate::effects::Effect::Pure],
             },
         ),
-        
         // NOTE: The following procedures return EvalStep and cannot be registered
         // as regular primitives. They need special handling in the evaluator:
         // - thread-start!
-        // - thread-join!  
+        // - thread-join!
         // - mutex-lock!
         // - mutex-unlock!
         // - condition-variable-wait!
@@ -562,33 +654,45 @@ mod tests {
     fn test_thread_predicate() {
         let thread = Arc::new(SchemeThread::new(None, Arc::new(Vec::new())));
         let thread_value = Value::Thread(thread);
-        
+
         let result = thread_predicate(&[thread_value]).unwrap();
-        assert_eq!(result, Value::Literal(crate::ast::literal::Literal::Boolean(true)));
-        
+        assert_eq!(
+            result,
+            Value::Literal(crate::ast::literal::Literal::Boolean(true))
+        );
+
         let non_thread_value = Value::Nil;
         let result = thread_predicate(&[non_thread_value]).unwrap();
-        assert_eq!(result, Value::Literal(crate::ast::literal::Literal::Boolean(false)));
+        assert_eq!(
+            result,
+            Value::Literal(crate::ast::literal::Literal::Boolean(false))
+        );
     }
 
     #[test]
     fn test_mutex_predicate() {
         let mutex = Arc::new(SchemeMutex::new(None));
         let mutex_value = Value::Mutex(mutex);
-        
+
         let result = mutex_predicate(&[mutex_value]).unwrap();
-        assert_eq!(result, Value::Literal(crate::ast::literal::Literal::Boolean(true)));
-        
+        assert_eq!(
+            result,
+            Value::Literal(crate::ast::literal::Literal::Boolean(true))
+        );
+
         let non_mutex_value = Value::Nil;
         let result = mutex_predicate(&[non_mutex_value]).unwrap();
-        assert_eq!(result, Value::Literal(crate::ast::literal::Literal::Boolean(false)));
+        assert_eq!(
+            result,
+            Value::Literal(crate::ast::literal::Literal::Boolean(false))
+        );
     }
 
     #[test]
     fn test_make_thread() {
         // Create a simple procedure for the thread
         let procedure = Value::Nil; // Simplified for testing
-        
+
         let result = make_thread(&[procedure]).unwrap();
         assert!(matches!(result, Value::Thread(_)));
     }
@@ -597,8 +701,10 @@ mod tests {
     fn test_make_mutex() {
         let result = make_mutex(&[]).unwrap();
         assert!(matches!(result, Value::Mutex(_)));
-        
-        let name = Value::Literal(crate::ast::literal::Literal::String(Box::new("test-mutex".to_string())));
+
+        let name = Value::Literal(crate::ast::literal::Literal::String(Box::new(
+            "test-mutex".to_string(),
+        )));
         let result = make_mutex(&[name]).unwrap();
         assert!(matches!(result, Value::Mutex(_)));
     }

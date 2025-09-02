@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! SRFI-8: receive - Binding to multiple values
+#![allow(missing_docs)]
+//! SRFI-8: receive - Binding to multiple values
 //!
 //! This module implements SRFI-8, which provides the `receive` syntax form for
 //! conveniently binding multiple values returned by a producer expression.
@@ -132,7 +133,9 @@ pub fn enhanced_primitive_values(args: &[Value]) -> Result<Value> {
         1 => Ok(args[0].clone()),
         _ => {
             // Create proper multiple values object
-            Ok(Value::MultipleValues(Arc::new(MultipleValues::new(args.to_vec()))))
+            Ok(Value::MultipleValues(Arc::new(MultipleValues::new(
+                args.to_vec(),
+            ))))
         }
     }
 }
@@ -424,7 +427,10 @@ mod tests {
         assert_eq!(result, Value::boolean(false));
 
         // Test with multiple values
-        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(vec![Value::integer(1), Value::integer(2)])));
+        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(vec![
+            Value::integer(1),
+            Value::integer(2),
+        ])));
         let result = primitive_multiple_values_p(&[mv]).unwrap();
         assert_eq!(result, Value::boolean(true));
     }
@@ -436,7 +442,11 @@ mod tests {
         assert_eq!(result, Value::integer(1));
 
         // Test with multiple values
-        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(vec![Value::integer(1), Value::integer(2), Value::integer(3)])));
+        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(vec![
+            Value::integer(1),
+            Value::integer(2),
+            Value::integer(3),
+        ])));
         let result = primitive_values_length(&[mv]).unwrap();
         assert_eq!(result, Value::integer(3));
     }

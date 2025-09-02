@@ -158,10 +158,7 @@ fn test_library_identifiers() {
             // Check second clause: (lambdust core)
             match &clauses[1].feature_requirement {
                 FeatureRequirement::Library(components) => {
-                    assert_eq!(
-                        components,
-                        &&["lambdust".to_string(), "core".to_string()]
-                    );
+                    assert_eq!(components, &&["lambdust".to_string(), "core".to_string()]);
                 }
                 _ => panic!("Expected Library requirement for (lambdust core)"),
             }

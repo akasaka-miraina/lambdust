@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! High-Performance Record Type System for SRFI-9
+#![allow(missing_docs)]
+//! High-Performance Record Type System for SRFI-9
 //!
 //! This module implements an optimized record type system designed to achieve
 //! 5-10x performance improvements through:
@@ -8,7 +9,7 @@
 //! - Memory layout optimization for SIMD operations
 
 use crate::eval::nan_boxed_value::NanBoxedValue;
-use std::alloc::{alloc, dealloc, Layout};
+use std::alloc::{Layout, alloc, dealloc};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 use std::ptr::{self, NonNull};
@@ -200,14 +201,14 @@ impl RecordTypeDescriptor {
             // Align to 8-byte boundaries for NaN-boxing compatibility
             let alignment = 8u32;
             let size = 8u32; // All fields are NaN-boxed values
-            
+
             // Align current offset
             let aligned_offset = (current_offset + alignment - 1) & !(alignment - 1);
-            
+
             let field = FieldDescriptor::new(field_name.clone(), aligned_offset, size, alignment);
             fields.push(field);
             field_index.insert(field_name, index);
-            
+
             current_offset = aligned_offset + size;
         }
 
@@ -280,14 +281,15 @@ impl RecordTypeDescriptor {
     /// Updates access statistics and optimization flags
     pub fn update_optimization_profile(&mut self) {
         // Update hot/cold field classification
-        let mut field_stats: Vec<(usize, u64)> = self.fields
+        let mut field_stats: Vec<(usize, u64)> = self
+            .fields
             .iter()
             .enumerate()
             .map(|(i, f)| (i, f.access_count()))
             .collect();
-        
+
         field_stats.sort_by_key(|&(_, count)| std::cmp::Reverse(count));
-        
+
         // Top 20% are hot fields
         let hot_threshold = field_stats.len() / 5;
         self.access_stats.hot_fields = field_stats
@@ -295,7 +297,7 @@ impl RecordTypeDescriptor {
             .take(hot_threshold.max(1))
             .map(|&(i, _)| i)
             .collect();
-            
+
         // Bottom 20% are cold fields
         let cold_threshold = field_stats.len() - (field_stats.len() / 5);
         self.access_stats.cold_fields = field_stats
@@ -358,12 +360,12 @@ impl RecordTypeRegistry {
     pub fn register_type(&self, descriptor: RecordTypeDescriptor) -> RecordTypeId {
         let type_id = descriptor.type_id;
         let name = descriptor.name.clone();
-        
+
         {
             let mut types = self.types.write().unwrap();
             types.insert(type_id, Arc::new(RwLock::new(descriptor)));
         }
-        
+
         {
             let mut name_index = self.name_index.write().unwrap();
             name_index.insert(name, type_id);
@@ -469,10 +471,8 @@ mod tests {
 
     #[test]
     fn test_record_type_descriptor_creation() {
-        let desc = RecordTypeDescriptor::new(
-            "point".to_string(),
-            vec!["x".to_string(), "y".to_string()],
-        );
+        let desc =
+            RecordTypeDescriptor::new("point".to_string(), vec!["x".to_string(), "y".to_string()]);
 
         assert_eq!(desc.name, "point");
         assert_eq!(desc.fields.len(), 2);
@@ -484,10 +484,10 @@ mod tests {
     fn test_field_descriptor_access_tracking() {
         let field = FieldDescriptor::new("test".to_string(), 0, 8, 8);
         assert_eq!(field.access_count(), 0);
-        
+
         field.record_access();
         assert_eq!(field.access_count(), 1);
-        
+
         field.record_access();
         assert_eq!(field.access_count(), 2);
     }
@@ -495,18 +495,15 @@ mod tests {
     #[test]
     fn test_record_type_registry() {
         let registry = RecordTypeRegistry::new();
-        
-        let desc = RecordTypeDescriptor::new(
-            "test-type".to_string(),
-            vec!["field1".to_string()],
-        );
+
+        let desc = RecordTypeDescriptor::new("test-type".to_string(), vec!["field1".to_string()]);
         let type_id = desc.type_id;
-        
+
         registry.register_type(desc);
-        
+
         // Test lookup by ID
         assert!(registry.get_type(type_id).is_some());
-        
+
         // Test lookup by name
         assert!(registry.get_type_by_name("test-type").is_some());
         assert!(registry.get_type_by_name("nonexistent").is_none());
@@ -516,7 +513,12 @@ mod tests {
     fn test_simd_layout_calculation() {
         let desc = RecordTypeDescriptor::new(
             "simd-type".to_string(),
-            vec!["a".to_string(), "b".to_string(), "c".to_string(), "d".to_string()],
+            vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+            ],
         );
 
         if let Some(layout) = desc.simd_layout() {

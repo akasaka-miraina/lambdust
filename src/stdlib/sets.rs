@@ -444,7 +444,7 @@ fn apply_procedure_with_evaluator(
             } => {
                 // Non-local jump immediately returns the value
                 return Ok(value);
-            },
+            }
             EvalStep::Parameterize { .. } => todo!("Parameterize not implemented in sets"),
             EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented in sets"),
             EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented in sets"),

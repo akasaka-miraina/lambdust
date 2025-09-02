@@ -289,7 +289,7 @@ impl MemoryMeasurer {
             Value::Box(_) => 1,         // Arc<Box> (SRFI-111)
             Value::Opaque(_) => 1,      // Arc<dyn Any>
             Value::Environment(_) => 1, // Arc<ThreadSafeEnvironment>
-            
+
             // Note: Many SRFI-specific values were removed from Value enum
             // TODO: Update this match to reflect current Value variants
             _ => 1, // Default for any unhandled variants

@@ -539,7 +539,7 @@ pub fn get_value_type_name(value: &Value) -> String {
         Value::Opaque(_) => "opaque".to_string(),
         Value::Environment(_) => "environment".to_string(),
         Value::Box(_) => "box".to_string(),
-        
+
         // SRFI-specific types
         Value::Ephemeron(_) => "ephemeron".to_string(),
         Value::Time(_) => "time".to_string(),

@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! First-class Continuation Support for JIT Compiled Code
+#![allow(missing_docs)]
+//! First-class Continuation Support for JIT Compiled Code
 //!
 //! This module implements R7RS-compliant call/cc (call-with-current-continuation)
 //! support in JIT-compiled code, including stack capture, continuation objects,

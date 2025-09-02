@@ -83,7 +83,7 @@ impl CharSet {
     pub fn new() -> Self {
         Self::with_config(CharSetConfig::default())
     }
-    
+
     /// Creates a new empty character set with specific configuration.
     pub fn with_config(_config: CharSetConfig) -> Self {
         let inner = CharSetInner::Standard(BTreeSet::new());
@@ -95,12 +95,16 @@ impl CharSet {
     where
         I: IntoIterator<Item = char>,
     {
-        Self { inner: CharSetInner::Standard(chars.into_iter().collect()) }
+        Self {
+            inner: CharSetInner::Standard(chars.into_iter().collect()),
+        }
     }
 
     /// Creates a character set from a string.
     pub fn from_string(s: &str) -> Self {
-        Self { inner: CharSetInner::Standard(s.chars().collect()) }
+        Self {
+            inner: CharSetInner::Standard(s.chars().collect()),
+        }
     }
 
     /// Creates a character set from a Unicode range.
@@ -108,18 +112,22 @@ impl CharSet {
         if start > end {
             return Self::new();
         }
-        
+
         let start_code = start as u32;
         let end_code = end as u32;
         let chars = (start_code..=end_code).filter_map(char::from_u32).collect();
-        Self { inner: CharSetInner::Standard(chars) }
+        Self {
+            inner: CharSetInner::Standard(chars),
+        }
     }
 
     /// Creates a character set with a single character.
     pub fn singleton(c: char) -> Self {
         let mut chars = BTreeSet::new();
         chars.insert(c);
-        Self { inner: CharSetInner::Standard(chars) }
+        Self {
+            inner: CharSetInner::Standard(chars),
+        }
     }
 
     /// Checks if the character set is empty.
@@ -163,7 +171,9 @@ impl CharSet {
         match (&self.inner, &other.inner) {
             (CharSetInner::Standard(a), CharSetInner::Standard(b)) => {
                 let chars = a.union(b).cloned().collect();
-                Self { inner: CharSetInner::Standard(chars) }
+                Self {
+                    inner: CharSetInner::Standard(chars),
+                }
             }
         }
     }
@@ -173,7 +183,9 @@ impl CharSet {
         match (&self.inner, &other.inner) {
             (CharSetInner::Standard(a), CharSetInner::Standard(b)) => {
                 let chars = a.intersection(b).cloned().collect();
-                Self { inner: CharSetInner::Standard(chars) }
+                Self {
+                    inner: CharSetInner::Standard(chars),
+                }
             }
         }
     }
@@ -183,7 +195,9 @@ impl CharSet {
         match (&self.inner, &other.inner) {
             (CharSetInner::Standard(a), CharSetInner::Standard(b)) => {
                 let chars = a.difference(b).cloned().collect();
-                Self { inner: CharSetInner::Standard(chars) }
+                Self {
+                    inner: CharSetInner::Standard(chars),
+                }
             }
         }
     }
@@ -193,7 +207,9 @@ impl CharSet {
         match (&self.inner, &other.inner) {
             (CharSetInner::Standard(a), CharSetInner::Standard(b)) => {
                 let chars = a.symmetric_difference(b).cloned().collect();
-                Self { inner: CharSetInner::Standard(chars) }
+                Self {
+                    inner: CharSetInner::Standard(chars),
+                }
             }
         }
     }
@@ -238,7 +254,7 @@ impl CharSet {
         if self.size() != other.size() {
             return false;
         }
-        
+
         match (&self.inner, &other.inner) {
             (CharSetInner::Standard(a), CharSetInner::Standard(b)) => a == b,
         }
@@ -265,7 +281,9 @@ impl CharSet {
     /// Note: This creates a new optimized representation - not truly destructive.
     pub fn delete_chars(&mut self, chars: impl IntoIterator<Item = char>) {
         let to_remove: BTreeSet<char> = chars.into_iter().collect();
-        let remaining: Vec<char> = self.to_vec().into_iter()
+        let remaining: Vec<char> = self
+            .to_vec()
+            .into_iter()
             .filter(|c| !to_remove.contains(c))
             .collect();
         *self = Self::from_chars(remaining);
@@ -307,7 +325,11 @@ impl CharSet {
     where
         F: Fn(char) -> bool,
     {
-        let chars: Vec<char> = self.to_vec().into_iter().filter(|&c| predicate(c)).collect();
+        let chars: Vec<char> = self
+            .to_vec()
+            .into_iter()
+            .filter(|&c| predicate(c))
+            .collect();
         Self::from_chars(chars)
     }
 
@@ -1338,10 +1360,16 @@ fn primitive_char_set_cursor(args: &[Value]) -> Result<Value> {
 
     let charset = get_charset(&args[0])?;
     let cursor = CharSetCursor::new(charset);
-    
+
     // For now, return the cursor as a vector representation
     // In a full implementation, we'd need a Cursor Value variant
-    Ok(Value::list(cursor.chars.into_iter().map(|c| Value::Literal(Literal::Character(c))).collect()))
+    Ok(Value::list(
+        cursor
+            .chars
+            .into_iter()
+            .map(|c| Value::Literal(Literal::Character(c)))
+            .collect(),
+    ))
 }
 
 fn primitive_char_set_ref(_args: &[Value]) -> Result<Value> {
@@ -1424,12 +1452,12 @@ fn primitive_char_set_adjoin_destructive(args: &[Value]) -> Result<Value> {
     // For now, we return a new character set with the characters added
     let charset = get_charset(&args[0])?.clone();
     let mut chars = Vec::new();
-    
+
     for arg in &args[1..] {
         let c = get_char(arg)?;
         chars.push(c);
     }
-    
+
     let new_charset = chars.into_iter().fold(charset, |acc, c| acc.insert(c));
     Ok(Value::CharSet(Arc::new(new_charset)))
 }
@@ -1446,12 +1474,12 @@ fn primitive_char_set_delete_destructive(args: &[Value]) -> Result<Value> {
     // For now, we return a new character set with the characters removed
     let charset = get_charset(&args[0])?.clone();
     let mut chars = Vec::new();
-    
+
     for arg in &args[1..] {
         let c = get_char(arg)?;
         chars.push(c);
     }
-    
+
     let new_charset = chars.into_iter().fold(charset, |acc, c| acc.remove(c));
     Ok(Value::CharSet(Arc::new(new_charset)))
 }

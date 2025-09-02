@@ -12,8 +12,8 @@ pub mod cache;
 pub mod detector;
 pub mod evaluator;
 pub mod integration;
-pub mod registry;
 pub mod optimization_features;
+pub mod registry;
 
 pub use cache::{CacheConfig, FeatureCache};
 pub use detector::{CapabilityInfo, FeatureDetector, PlatformInfo};

@@ -28,8 +28,8 @@
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::effects::Effect;
-use crate::eval::value::{PrimitiveProcedure, PrimitiveImpl, Value};
 use crate::eval::value::{Environment, Generation};
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, Value};
 use std::sync::Arc;
 
 /// Install SRFI-98 environment variable access procedures into the environment.
@@ -91,7 +91,8 @@ pub fn get_environment_variable(args: &[Value]) -> Result<Value> {
         )));
     }
 
-    let var_name = crate::stdlib::strings::common::extract_string(&args[0], "get-environment-variable")?;
+    let var_name =
+        crate::stdlib::strings::common::extract_string(&args[0], "get-environment-variable")?;
 
     match std::env::var(&var_name) {
         Ok(value) => Ok(Value::string(value)),
@@ -126,7 +127,7 @@ pub fn get_environment_variables(args: &[Value]) -> Result<Value> {
     }
 
     let mut env_vars = Vec::new();
-    
+
     for (key, value) in std::env::vars() {
         // Create a pair (name . value)
         let pair = Value::cons(Value::string(key), Value::string(value));
@@ -163,7 +164,9 @@ mod tests {
     fn test_environment_variable_access_errors() {
         // Wrong number of arguments for get-environment-variable
         assert!(get_environment_variable(&[]).is_err());
-        assert!(get_environment_variable(&[Value::string("PATH"), Value::string("extra")]).is_err());
+        assert!(
+            get_environment_variable(&[Value::string("PATH"), Value::string("extra")]).is_err()
+        );
 
         // Wrong number of arguments for get-environment-variables
         assert!(get_environment_variables(&[Value::string("unexpected")]).is_err());
@@ -185,7 +188,8 @@ mod tests {
         assert_eq!(result, Value::string("test_value"));
 
         // Test getting non-existing variable
-        let result = get_environment_variable(&[Value::string("LAMBDUST_NONEXISTENT_VAR")]).unwrap();
+        let result =
+            get_environment_variable(&[Value::string("LAMBDUST_NONEXISTENT_VAR")]).unwrap();
         assert_eq!(result, Value::boolean(false));
 
         // Clean up
@@ -214,19 +218,26 @@ mod tests {
                 // Should contain our test variables somewhere in the list
                 let mut found_a = false;
                 let mut found_b = false;
-                
+
                 let mut current = &result;
                 loop {
                     match current {
                         Value::Pair(car, cdr) => {
                             // Each element should be a pair (name . value)
                             if let Value::Pair(name, value) = car.as_ref() {
-                                if let (Value::Literal(crate::ast::Literal::String(name_str)), 
-                                        Value::Literal(crate::ast::Literal::String(value_str))) = (name.as_ref(), value.as_ref()) {
-                                    if name_str.as_ref() == "LAMBDUST_TEST_A" && value_str.as_ref() == "value_a" {
+                                if let (
+                                    Value::Literal(crate::ast::Literal::String(name_str)),
+                                    Value::Literal(crate::ast::Literal::String(value_str)),
+                                ) = (name.as_ref(), value.as_ref())
+                                {
+                                    if name_str.as_ref() == "LAMBDUST_TEST_A"
+                                        && value_str.as_ref() == "value_a"
+                                    {
                                         found_a = true;
                                     }
-                                    if name_str.as_ref() == "LAMBDUST_TEST_B" && value_str.as_ref() == "value_b" {
+                                    if name_str.as_ref() == "LAMBDUST_TEST_B"
+                                        && value_str.as_ref() == "value_b"
+                                    {
                                         found_b = true;
                                     }
                                 }
@@ -237,9 +248,15 @@ mod tests {
                         _ => panic!("Environment variables list should be a proper list"),
                     }
                 }
-                
-                assert!(found_a, "Should find LAMBDUST_TEST_A in environment variables");
-                assert!(found_b, "Should find LAMBDUST_TEST_B in environment variables");
+
+                assert!(
+                    found_a,
+                    "Should find LAMBDUST_TEST_A in environment variables"
+                );
+                assert!(
+                    found_b,
+                    "Should find LAMBDUST_TEST_B in environment variables"
+                );
             }
             _ => panic!("get-environment-variables should return a list"),
         }
@@ -275,7 +292,7 @@ mod tests {
         // Test PATH which should exist on most systems
         let result = get_environment_variable(&[Value::string("PATH")]);
         assert!(result.is_ok());
-        
+
         match result.unwrap() {
             Value::Literal(crate::ast::Literal::String(_)) => {
                 // PATH exists and is a string - good
@@ -287,7 +304,8 @@ mod tests {
         }
 
         // Test definitely non-existent variable
-        let result = get_environment_variable(&[Value::string("DEFINITELY_DOES_NOT_EXIST_XYZ123")]).unwrap();
+        let result =
+            get_environment_variable(&[Value::string("DEFINITELY_DOES_NOT_EXIST_XYZ123")]).unwrap();
         assert_eq!(result, Value::boolean(false));
     }
 }

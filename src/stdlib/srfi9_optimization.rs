@@ -8,14 +8,12 @@
 
 use crate::eval::nan_boxed_value::NanBoxedValue;
 use crate::eval::record_access::{
-    BulkRecordOperations, FieldAccessCache, FieldAccessCacheStats, 
-    GLOBAL_FIELD_ACCESS_CACHE, GLOBAL_TYPE_CHECKER
+    BulkRecordOperations, FieldAccessCache, FieldAccessCacheStats, GLOBAL_FIELD_ACCESS_CACHE,
+    GLOBAL_TYPE_CHECKER,
 };
-use crate::eval::record_arena::{GLOBAL_RECORD_ARENA, ArenaStatsSnapshot, GcStats};
+use crate::eval::record_arena::{ArenaStatsSnapshot, GLOBAL_RECORD_ARENA, GcStats};
 use crate::eval::record_instance::RecordInstance;
-use crate::eval::record_type::{
-    RecordError, RecordResult, RecordTypeId, GLOBAL_RECORD_REGISTRY
-};
+use crate::eval::record_type::{GLOBAL_RECORD_REGISTRY, RecordError, RecordResult, RecordTypeId};
 use crate::eval::value::Value;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -63,13 +61,31 @@ impl Clone for TypePerformanceMetrics {
     fn clone(&self) -> Self {
         Self {
             type_id: self.type_id,
-            instances_created: AtomicU64::new(self.instances_created.load(std::sync::atomic::Ordering::Relaxed)),
-            field_accesses: AtomicU64::new(self.field_accesses.load(std::sync::atomic::Ordering::Relaxed)),
-            bulk_operations: AtomicU64::new(self.bulk_operations.load(std::sync::atomic::Ordering::Relaxed)),
-            avg_access_time: AtomicU64::new(self.avg_access_time.load(std::sync::atomic::Ordering::Relaxed)),
+            instances_created: AtomicU64::new(
+                self.instances_created
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            ),
+            field_accesses: AtomicU64::new(
+                self.field_accesses
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            ),
+            bulk_operations: AtomicU64::new(
+                self.bulk_operations
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            ),
+            avg_access_time: AtomicU64::new(
+                self.avg_access_time
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            ),
             hot_fields: self.hot_fields.clone(),
-            simd_utilization: AtomicU64::new(self.simd_utilization.load(std::sync::atomic::Ordering::Relaxed)),
-            memory_efficiency: AtomicU64::new(self.memory_efficiency.load(std::sync::atomic::Ordering::Relaxed)),
+            simd_utilization: AtomicU64::new(
+                self.simd_utilization
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            ),
+            memory_efficiency: AtomicU64::new(
+                self.memory_efficiency
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            ),
             created_at: self.created_at,
         }
     }
@@ -99,7 +115,7 @@ impl TypePerformanceMetrics {
     /// Records a field access with timing
     pub fn record_access(&self, access_time_ns: u64) {
         self.field_accesses.fetch_add(1, Ordering::Relaxed);
-        
+
         // Update rolling average
         let current_avg = self.avg_access_time.load(Ordering::Relaxed);
         let new_avg = if current_avg == 0 {
@@ -120,7 +136,7 @@ impl TypePerformanceMetrics {
         let avg_time = self.avg_access_time.load(Ordering::Relaxed) as f64;
         let bulk_ops = self.bulk_operations.load(Ordering::Relaxed) as f64;
         let total_accesses = self.field_accesses.load(Ordering::Relaxed) as f64;
-        
+
         if total_accesses == 0.0 {
             return 50.0; // Neutral score for unused types
         }
@@ -148,7 +164,7 @@ impl TypePerformanceMetrics {
     pub fn should_jit_compile(&self) -> bool {
         let accesses = self.field_accesses.load(Ordering::Relaxed);
         let avg_time = self.avg_access_time.load(Ordering::Relaxed);
-        
+
         // JIT compile if:
         // 1. Very hot (>10000 accesses) OR
         // 2. Hot (>1000 accesses) with slow access (>5ns)
@@ -193,7 +209,8 @@ impl GlobalRecordStats {
 
     /// Records bulk operation
     pub fn record_bulk_operation(&self, count: u64) {
-        self.total_bulk_operations.fetch_add(count, Ordering::Relaxed);
+        self.total_bulk_operations
+            .fetch_add(count, Ordering::Relaxed);
     }
 
     /// Records SIMD operation
@@ -290,7 +307,7 @@ impl JitCompilationTracker {
     /// Records successful JIT compilation
     pub fn record_compilation(&self, site_id: u64, speedup_percent: u64) {
         self.compilations.fetch_add(1, Ordering::Relaxed);
-        
+
         // Update speedup moving average
         let current = self.jit_speedup.load(Ordering::Relaxed);
         let new_avg = if current == 0 {
@@ -299,7 +316,7 @@ impl JitCompilationTracker {
             (current * 7 + speedup_percent) / 8 // 7/8 weighted average
         };
         self.jit_speedup.store(new_avg, Ordering::Relaxed);
-        
+
         // Mark candidate as compiled
         let mut hot_sites = self.hot_sites.write().unwrap();
         if let Some(candidate) = hot_sites.get_mut(&site_id) {
@@ -467,7 +484,7 @@ impl RecordPerformanceMonitor {
                 };
 
                 self.jit_tracker.add_candidate(candidate);
-                
+
                 recommendations.push(OptimizationRecommendation::JitCompile {
                     site_id: 0,
                     type_id,
@@ -478,7 +495,7 @@ impl RecordPerformanceMonitor {
             // Check for SIMD opportunity
             let bulk_ratio = type_metrics.bulk_operations.load(Ordering::Relaxed) as f64
                 / type_metrics.field_accesses.load(Ordering::Relaxed).max(1) as f64;
-                
+
             if bulk_ratio > 0.1 && type_metrics.simd_utilization.load(Ordering::Relaxed) < 50 {
                 recommendations.push(OptimizationRecommendation::EnableSimd {
                     type_id,
@@ -558,7 +575,10 @@ impl RecordPerformanceMonitor {
         recommendation: &OptimizationRecommendation,
     ) -> RecordResult<Option<PerformanceImprovement>> {
         match recommendation {
-            OptimizationRecommendation::EnableSimd { type_id, potential_speedup } => {
+            OptimizationRecommendation::EnableSimd {
+                type_id,
+                potential_speedup,
+            } => {
                 // Enable SIMD for the given type
                 if let Some(type_desc) = GLOBAL_RECORD_REGISTRY.get_type(*type_id) {
                     let mut type_desc = type_desc.write().unwrap();
@@ -576,10 +596,15 @@ impl RecordPerformanceMonitor {
                     Err(RecordError::TypeNotFound(format!("TypeId({:?})", type_id)))
                 }
             }
-            OptimizationRecommendation::JitCompile { site_id, type_id, expected_speedup } => {
+            OptimizationRecommendation::JitCompile {
+                site_id,
+                type_id,
+                expected_speedup,
+            } => {
                 // Trigger JIT compilation (placeholder - actual JIT would be more complex)
-                self.jit_tracker.record_compilation(*site_id, *expected_speedup as u64);
-                
+                self.jit_tracker
+                    .record_compilation(*site_id, *expected_speedup as u64);
+
                 Ok(Some(PerformanceImprovement {
                     optimization_type: "JIT Compile".to_string(),
                     type_id: Some(*type_id),
@@ -597,7 +622,7 @@ impl RecordPerformanceMonitor {
     /// Triggers garbage collection and optimization
     pub fn optimize_memory(&self) -> MemoryOptimizationResults {
         let gc_stats = GLOBAL_RECORD_ARENA.garbage_collect();
-        
+
         // Update performance profiles
         let mut updated_types = 0;
         {
@@ -685,7 +710,7 @@ pub struct MemoryOptimizationResults {
 fn calculate_jit_priority(metrics: &TypePerformanceMetrics) -> u8 {
     let accesses = metrics.field_accesses.load(Ordering::Relaxed);
     let avg_time = metrics.avg_access_time.load(Ordering::Relaxed);
-    
+
     let access_score = (accesses.min(10000) as f64 / 10000.0 * 50.0) as u8;
     let time_score = if avg_time > 10 {
         50
@@ -694,13 +719,13 @@ fn calculate_jit_priority(metrics: &TypePerformanceMetrics) -> u8 {
     } else {
         0
     };
-    
+
     (access_score + time_score).min(100)
 }
 
 fn estimate_jit_speedup(metrics: &TypePerformanceMetrics) -> f64 {
     let avg_time = metrics.avg_access_time.load(Ordering::Relaxed) as f64;
-    
+
     if avg_time <= 1.0 {
         1.5 // Modest improvement for already fast access
     } else if avg_time <= 5.0 {
@@ -717,7 +742,7 @@ fn estimate_simd_speedup(bulk_ratio: f64) -> f64 {
 
 /// Global performance monitor instance
 lazy_static::lazy_static! {
-    pub static ref GLOBAL_RECORD_PERFORMANCE_MONITOR: RecordPerformanceMonitor = 
+    pub static ref GLOBAL_RECORD_PERFORMANCE_MONITOR: RecordPerformanceMonitor =
         RecordPerformanceMonitor::new();
 }
 
@@ -741,7 +766,7 @@ pub fn optimize_memory() -> MemoryOptimizationResults {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::record_type::{RecordTypeDescriptor, GLOBAL_RECORD_REGISTRY};
+    use crate::eval::record_type::{GLOBAL_RECORD_REGISTRY, RecordTypeDescriptor};
 
     fn create_test_type() -> RecordTypeId {
         let desc = RecordTypeDescriptor::new(
@@ -757,12 +782,12 @@ mod tests {
     fn test_performance_metrics() {
         let type_id = create_test_type();
         let metrics = TypePerformanceMetrics::new(type_id);
-        
+
         // Record some operations
         metrics.record_creation();
         metrics.record_access(5); // 5ns access time
         metrics.record_bulk_operation(4);
-        
+
         assert_eq!(metrics.instances_created.load(Ordering::Relaxed), 1);
         assert_eq!(metrics.field_accesses.load(Ordering::Relaxed), 1);
         assert_eq!(metrics.bulk_operations.load(Ordering::Relaxed), 4);
@@ -773,12 +798,12 @@ mod tests {
     fn test_jit_priority_calculation() {
         let type_id = create_test_type();
         let metrics = TypePerformanceMetrics::new(type_id);
-        
+
         // Simulate high access count with slow access time
         for _ in 0..5000 {
             metrics.record_access(10); // 10ns - slow access
         }
-        
+
         let priority = calculate_jit_priority(&metrics);
         assert!(priority > 50); // Should have high priority
     }
@@ -787,12 +812,13 @@ mod tests {
     fn test_performance_monitor() {
         let monitor = RecordPerformanceMonitor::new();
         let type_id = create_test_type();
-        
+
         // Record some operations
         monitor.record_type_performance(type_id, RecordOperation::Create);
-        monitor.record_type_performance(type_id, RecordOperation::FieldAccess { access_time_ns: 3 });
+        monitor
+            .record_type_performance(type_id, RecordOperation::FieldAccess { access_time_ns: 3 });
         monitor.record_type_performance(type_id, RecordOperation::BulkOperation { count: 8 });
-        
+
         let report = monitor.performance_report();
         assert!(report.global_stats.total_instances > 0);
         assert!(report.global_stats.total_accesses > 0);
@@ -803,7 +829,7 @@ mod tests {
     fn test_simd_speedup_estimation() {
         let speedup = estimate_simd_speedup(0.5); // 50% bulk operations
         assert!(speedup >= 2.0 && speedup <= 8.0);
-        
+
         let high_speedup = estimate_simd_speedup(1.0); // 100% bulk operations
         assert!(high_speedup >= 7.0);
     }
@@ -812,12 +838,15 @@ mod tests {
     fn test_optimization_recommendations() {
         let monitor = RecordPerformanceMonitor::new();
         let type_id = create_test_type();
-        
+
         // Generate enough activity to trigger recommendations
         for _ in 0..2000 {
-            monitor.record_type_performance(type_id, RecordOperation::FieldAccess { access_time_ns: 10 });
+            monitor.record_type_performance(
+                type_id,
+                RecordOperation::FieldAccess { access_time_ns: 10 },
+            );
         }
-        
+
         let report = monitor.performance_report();
         assert!(!report.recommendations.is_empty());
     }

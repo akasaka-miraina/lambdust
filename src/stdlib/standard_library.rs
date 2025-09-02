@@ -31,7 +31,7 @@ impl StandardLibrary {
 
         // Vector operations
         crate::stdlib::vectors::create_vector_bindings(env);
-        
+
         // SRFI-133 Vector Library Phase 1 - Enhanced vector operations
         crate::stdlib::srfi133_vectors::create_srfi133_phase1_bindings(env);
 

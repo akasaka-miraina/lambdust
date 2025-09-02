@@ -5,8 +5,8 @@
 //! It tests various scenarios including deep nesting, frequent lookups,
 //! cache behavior, and mathematical correctness.
 
-use crate::eval::{Environment, Value};
 use crate::eval::cached_environment::CachedEnvironment;
+use crate::eval::{Environment, Value};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 

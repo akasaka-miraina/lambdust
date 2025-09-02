@@ -3,7 +3,7 @@
 //! This module will implement unfold and unfold-right operations.
 //! Currently a placeholder for the Phase 1 implementation.
 
-use crate::eval::value::{ThreadSafeEnvironment};
+use crate::eval::value::ThreadSafeEnvironment;
 
 /// Binds unfold operations (placeholder)
 pub fn bind_unfold_operations(_env: &std::sync::Arc<ThreadSafeEnvironment>) {
@@ -13,8 +13,8 @@ pub fn bind_unfold_operations(_env: &std::sync::Arc<ThreadSafeEnvironment>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use crate::eval::value::ThreadSafeEnvironment;
+    use std::sync::Arc;
 
     #[test]
     fn test_unfold_placeholder() {

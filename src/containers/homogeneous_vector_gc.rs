@@ -7,12 +7,17 @@
 //! - Memory pressure adaptation and load balancing
 //! - Cache-conscious object layout for GC metadata
 
-use crate::containers::homogeneous_vector::{HomogeneousVector, HomogeneousVectorType, RawHomogeneousStorage};
-use std::sync::{Arc, atomic::{AtomicU64, AtomicUsize, AtomicBool, Ordering}};
-use std::sync::Weak;
-use parking_lot::{RwLock, Mutex};
+use crate::containers::homogeneous_vector::{
+    HomogeneousVector, HomogeneousVectorType, RawHomogeneousStorage,
+};
+use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::ptr::NonNull;
+use std::sync::Weak;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+};
 
 /// GC generation for generational garbage collection
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -80,17 +85,18 @@ impl GCMetadata {
 
     /// Updates last access timestamp
     pub fn touch(&self) {
-        self.last_access.store(Self::current_timestamp(), Ordering::Relaxed);
+        self.last_access
+            .store(Self::current_timestamp(), Ordering::Relaxed);
     }
 
     /// Increments survival count and potentially promotes to next generation
     pub fn survive(&self) -> bool {
         let count = self.survival_count.fetch_add(1, Ordering::Relaxed);
-        
+
         // Promotion heuristics
         match self.generation {
-            GCGeneration::Young if count > 5 => true,  // Promote to Old after 5 survivals
-            GCGeneration::Old if count > 20 => true,   // Promote to Permanent after 20 survivals
+            GCGeneration::Young if count > 5 => true, // Promote to Old after 5 survivals
+            GCGeneration::Old if count > 20 => true,  // Promote to Permanent after 20 survivals
             _ => false,
         }
     }
@@ -144,17 +150,17 @@ impl GCHomogeneousVector {
         let storage = RawHomogeneousStorage::new(element_type, capacity);
         let size_bytes = capacity * element_type.element_size();
         let object_id = gc_system.next_object_id();
-        
+
         let gc_metadata = Arc::new(GCMetadata::new(object_id, size_bytes));
         let vector = Self {
             inner: Arc::new(RwLock::new(storage)),
             gc_metadata: gc_metadata.clone(),
             gc_system: Arc::downgrade(&gc_system),
         };
-        
+
         // Register with GC system
         gc_system.register_object(object_id, gc_metadata);
-        
+
         vector
     }
 
@@ -179,19 +185,19 @@ impl GCHomogeneousVector {
     /// Reserves additional capacity with GC memory pressure check
     pub fn reserve(&self, additional: usize) {
         self.gc_metadata.touch();
-        
+
         // Check memory pressure before allocation
         if let Some(gc_system) = self.gc_system.upgrade() {
             let current_len = self.len();
             let element_size = self.element_type().element_size();
             let additional_bytes = additional * element_size;
-            
+
             // Trigger GC if memory pressure is high
             if gc_system.should_trigger_gc(additional_bytes) {
                 gc_system.request_collection(GCGeneration::Young);
             }
         }
-        
+
         self.inner.write().reserve(self.len() + additional);
         self.gc_metadata.set_dirty();
     }
@@ -199,10 +205,10 @@ impl GCHomogeneousVector {
     /// Clones the vector with proper GC integration
     pub fn clone_gc(&self, gc_system: Arc<GCSystem>) -> Self {
         self.gc_metadata.touch();
-        
+
         let inner = self.inner.read();
         let new_vector = Self::new(inner.element_type(), inner.capacity(), gc_system);
-        
+
         // Copy data (this would need unsafe code in practice)
         // For now, just create an empty vector of same type
         new_vector
@@ -257,17 +263,18 @@ impl GCSystem {
         let mut registry = self.object_registry.lock();
         let size_bytes = metadata.size_bytes;
         registry.insert(object_id, metadata);
-        
+
         let current_usage = self.statistics.current_memory_usage.load(Ordering::Relaxed);
-        self.statistics.current_memory_usage.store(
-            current_usage + size_bytes as u64,
-            Ordering::Relaxed,
-        );
-        
+        self.statistics
+            .current_memory_usage
+            .store(current_usage + size_bytes as u64, Ordering::Relaxed);
+
         // Update peak usage if necessary
         let peak = self.statistics.peak_memory_usage.load(Ordering::Relaxed);
         if current_usage > peak {
-            self.statistics.peak_memory_usage.store(current_usage, Ordering::Relaxed);
+            self.statistics
+                .peak_memory_usage
+                .store(current_usage, Ordering::Relaxed);
         }
     }
 
@@ -287,7 +294,7 @@ impl GCSystem {
     pub fn should_trigger_gc(&self, additional_bytes: usize) -> bool {
         let current_usage = self.statistics.current_memory_usage.load(Ordering::Relaxed);
         let threshold = self.memory_pressure_threshold.load(Ordering::Relaxed) as u64;
-        
+
         current_usage + additional_bytes as u64 > threshold
     }
 
@@ -300,7 +307,7 @@ impl GCSystem {
     }
 
     /// Performs mark-and-sweep collection for specified generation
-    /// 
+    ///
     /// Time Complexity: O(n) where n is number of objects in generation
     /// Space Complexity: O(1) using mark bits in object metadata
     pub fn collect_generation(&self, target_generation: GCGeneration) -> usize {
@@ -310,7 +317,7 @@ impl GCSystem {
 
         {
             let registry = self.object_registry.lock();
-            
+
             // Mark phase: clear all mark bits for target generation
             for metadata in registry.values() {
                 if metadata.generation <= target_generation {
@@ -322,10 +329,11 @@ impl GCSystem {
             // In a real implementation, this would trace from root set
             // For demonstration, we mark objects with references
             for metadata in registry.values() {
-                if metadata.generation <= target_generation && 
-                   metadata.ref_count.load(Ordering::Relaxed) > 0 {
+                if metadata.generation <= target_generation
+                    && metadata.ref_count.load(Ordering::Relaxed) > 0
+                {
                     metadata.marked.store(true, Ordering::Relaxed);
-                    
+
                     // Age the object
                     if metadata.survive() {
                         // In practice, we'd promote during a separate phase
@@ -338,10 +346,10 @@ impl GCSystem {
         // Sweep phase: collect unmarked objects
         let mut registry = self.object_registry.lock();
         let mut to_remove = Vec::new();
-        
+
         for (&object_id, metadata) in registry.iter() {
-            if metadata.generation <= target_generation && 
-               !metadata.marked.load(Ordering::Relaxed) {
+            if metadata.generation <= target_generation && !metadata.marked.load(Ordering::Relaxed)
+            {
                 to_remove.push(object_id);
                 memory_reclaimed += metadata.size_bytes;
             }
@@ -357,10 +365,16 @@ impl GCSystem {
 
         // Update statistics
         let elapsed = start_time.elapsed().as_micros() as u64;
-        self.statistics.total_collections.fetch_add(1, Ordering::Relaxed);
-        self.statistics.total_gc_time_us.fetch_add(elapsed, Ordering::Relaxed);
-        self.statistics.memory_reclaimed.fetch_add(memory_reclaimed as u64, Ordering::Relaxed);
-        
+        self.statistics
+            .total_collections
+            .fetch_add(1, Ordering::Relaxed);
+        self.statistics
+            .total_gc_time_us
+            .fetch_add(elapsed, Ordering::Relaxed);
+        self.statistics
+            .memory_reclaimed
+            .fetch_add(memory_reclaimed as u64, Ordering::Relaxed);
+
         let current_usage = self.statistics.current_memory_usage.load(Ordering::Relaxed);
         self.statistics.current_memory_usage.store(
             current_usage.saturating_sub(memory_reclaimed as u64),
@@ -371,7 +385,7 @@ impl GCSystem {
     }
 
     /// Performs concurrent incremental collection
-    /// 
+    ///
     /// This uses write barriers to track mutations during collection
     /// Time Complexity: O(k) where k is amount of work per increment
     pub fn incremental_collect(&self, work_budget: usize) -> bool {
@@ -398,31 +412,35 @@ impl GCSystem {
     pub fn statistics(&self) -> GCStatistics {
         GCStatistics {
             total_collections: AtomicU64::new(
-                self.statistics.total_collections.load(Ordering::Relaxed)
+                self.statistics.total_collections.load(Ordering::Relaxed),
             ),
             total_gc_time_us: AtomicU64::new(
-                self.statistics.total_gc_time_us.load(Ordering::Relaxed)
+                self.statistics.total_gc_time_us.load(Ordering::Relaxed),
             ),
             objects_promoted: AtomicU64::new(
-                self.statistics.objects_promoted.load(Ordering::Relaxed)
+                self.statistics.objects_promoted.load(Ordering::Relaxed),
             ),
             memory_reclaimed: AtomicU64::new(
-                self.statistics.memory_reclaimed.load(Ordering::Relaxed)
+                self.statistics.memory_reclaimed.load(Ordering::Relaxed),
             ),
             peak_memory_usage: AtomicU64::new(
-                self.statistics.peak_memory_usage.load(Ordering::Relaxed)
+                self.statistics.peak_memory_usage.load(Ordering::Relaxed),
             ),
             current_memory_usage: AtomicU64::new(
-                self.statistics.current_memory_usage.load(Ordering::Relaxed)
+                self.statistics.current_memory_usage.load(Ordering::Relaxed),
             ),
         }
     }
 
     /// Starts background GC thread
     pub fn start_background_collection(self: Arc<Self>) {
-        if self.gc_thread_active.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+        if self
+            .gc_thread_active
+            .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
             let gc_system = Arc::clone(&self);
-            
+
             std::thread::spawn(move || {
                 while gc_system.gc_thread_active.load(Ordering::Relaxed) {
                     // Check for collection requests
@@ -472,9 +490,13 @@ impl HomogeneousVectorPool {
     }
 
     /// Allocates a vector from the pool or creates a new one
-    /// 
+    ///
     /// Time Complexity: O(1) average, O(log n) worst case for pool lookup
-    pub fn allocate(&self, element_type: HomogeneousVectorType, capacity: usize) -> GCHomogeneousVector {
+    pub fn allocate(
+        &self,
+        element_type: HomogeneousVectorType,
+        capacity: usize,
+    ) -> GCHomogeneousVector {
         let size_class = Self::capacity_to_size_class(capacity);
         let key = (element_type, size_class);
 
@@ -486,9 +508,10 @@ impl HomogeneousVectorPool {
                     let object_id = self.gc_system.next_object_id();
                     let size_bytes = size_class * element_type.element_size();
                     let gc_metadata = Arc::new(GCMetadata::new(object_id, size_bytes));
-                    
-                    self.gc_system.register_object(object_id, gc_metadata.clone());
-                    
+
+                    self.gc_system
+                        .register_object(object_id, gc_metadata.clone());
+
                     return GCHomogeneousVector {
                         inner: storage,
                         gc_metadata,
@@ -511,7 +534,7 @@ impl HomogeneousVectorPool {
 
         let mut pools = self.pools.lock();
         let pool = pools.entry(key).or_insert_with(Vec::new);
-        
+
         // Limit pool size to prevent unbounded growth
         if pool.len() < 16 {
             // Clear the vector contents before returning to pool
@@ -524,15 +547,25 @@ impl HomogeneousVectorPool {
     /// Converts capacity to standardized size class
     fn capacity_to_size_class(capacity: usize) -> usize {
         // Round up to next power of 2 for better pooling
-        if capacity <= 8 { 8 }
-        else if capacity <= 16 { 16 }
-        else if capacity <= 32 { 32 }
-        else if capacity <= 64 { 64 }
-        else if capacity <= 128 { 128 }
-        else if capacity <= 256 { 256 }
-        else if capacity <= 512 { 512 }
-        else if capacity <= 1024 { 1024 }
-        else { capacity.next_power_of_two() }
+        if capacity <= 8 {
+            8
+        } else if capacity <= 16 {
+            16
+        } else if capacity <= 32 {
+            32
+        } else if capacity <= 64 {
+            64
+        } else if capacity <= 128 {
+            128
+        } else if capacity <= 256 {
+            256
+        } else if capacity <= 512 {
+            512
+        } else if capacity <= 1024 {
+            1024
+        } else {
+            capacity.next_power_of_two()
+        }
     }
 }
 
@@ -551,11 +584,7 @@ mod tests {
     #[test]
     fn test_gc_homogeneous_vector() {
         let gc_system = GCSystem::new(1024 * 1024);
-        let vector = GCHomogeneousVector::new(
-            HomogeneousVectorType::F64, 
-            100, 
-            gc_system.clone()
-        );
+        let vector = GCHomogeneousVector::new(HomogeneousVectorType::F64, 100, gc_system.clone());
 
         assert_eq!(vector.element_type(), HomogeneousVectorType::F64);
         assert_eq!(vector.len(), 0);
@@ -576,9 +605,9 @@ mod tests {
         // Request collection
         gc_system.request_collection(GCGeneration::Young);
         let collected = gc_system.collect_generation(GCGeneration::Young);
-        
+
         println!("Collected {} objects", collected);
-        
+
         let stats = gc_system.statistics();
         assert!(stats.total_collections.load(Ordering::Relaxed) >= 1);
     }
@@ -590,13 +619,13 @@ mod tests {
 
         let vector1 = pool.allocate(HomogeneousVectorType::U8, 64);
         let vector2 = pool.allocate(HomogeneousVectorType::U8, 64);
-        
+
         assert_eq!(vector1.element_type(), HomogeneousVectorType::U8);
         assert_eq!(vector2.element_type(), HomogeneousVectorType::U8);
 
         // Return to pool
         pool.deallocate(vector1);
-        
+
         // Allocate again - should reuse from pool
         let vector3 = pool.allocate(HomogeneousVectorType::U8, 64);
         assert_eq!(vector3.element_type(), HomogeneousVectorType::U8);
@@ -613,7 +642,7 @@ mod tests {
     #[test]
     fn test_incremental_collection() {
         let gc_system = GCSystem::new(1024);
-        
+
         // Create some objects and mark them dirty
         let vector = GCHomogeneousVector::new(HomogeneousVectorType::F64, 100, gc_system.clone());
         vector.gc_metadata.set_dirty();
@@ -621,18 +650,23 @@ mod tests {
         // Perform incremental collection
         let complete = gc_system.incremental_collect(10);
         assert!(complete); // Should complete with small workload
-        
+
         // Check that dirty bit was cleared
-        assert!(!vector.gc_metadata.write_barrier_dirty.load(Ordering::Relaxed));
+        assert!(
+            !vector
+                .gc_metadata
+                .write_barrier_dirty
+                .load(Ordering::Relaxed)
+        );
     }
 
     #[test]
     fn test_background_gc_thread() {
         let gc_system = GCSystem::new(1024);
-        
+
         // Start background collection
         gc_system.clone().start_background_collection();
-        
+
         // Create some vectors to generate work
         let _vectors: Vec<_> = (0..10)
             .map(|_| GCHomogeneousVector::new(HomogeneousVectorType::U32, 50, gc_system.clone()))
@@ -640,13 +674,15 @@ mod tests {
 
         // Let background thread work
         std::thread::sleep(std::time::Duration::from_millis(50));
-        
+
         // Stop background collection
         gc_system.stop_background_collection();
-        
+
         let stats = gc_system.statistics();
-        println!("Final stats: current_usage={}, collections={}", 
-                 stats.current_memory_usage.load(Ordering::Relaxed),
-                 stats.total_collections.load(Ordering::Relaxed));
+        println!(
+            "Final stats: current_usage={}, collections={}",
+            stats.current_memory_usage.load(Ordering::Relaxed),
+            stats.total_collections.load(Ordering::Relaxed)
+        );
     }
 }

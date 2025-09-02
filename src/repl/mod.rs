@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Enhanced REPL system for Lambdust with debugging, history, and completion features.
+#![allow(missing_docs)]
+//! Enhanced REPL system for Lambdust with debugging, history, and completion features.
 //!
 //! This module provides a modern, developer-friendly interactive experience with:
 //! - Step-through debugging with breakpoints

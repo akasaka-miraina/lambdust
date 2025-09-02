@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Just-In-Time (JIT) compilation system for Lambdust Scheme
+#![allow(missing_docs)]
+//! Just-In-Time (JIT) compilation system for Lambdust Scheme
 //!
 //! This module provides comprehensive JIT compilation capabilities targeting
 //! 10-100x performance improvements over pure interpretation while maintaining

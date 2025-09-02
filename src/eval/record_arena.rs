@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! High-Performance Arena Allocation System for SRFI-9 Records
+#![allow(missing_docs)]
+//! High-Performance Arena Allocation System for SRFI-9 Records
 //!
 //! This module implements a multi-tier arena allocation system specifically
 //! optimized for record instance allocation with the following features:
@@ -8,7 +9,7 @@
 //! - Thread-local optimization for reduced contention
 
 use crate::eval::record_type::{RecordTypeDescriptor, RecordTypeId, SimdLayout};
-use std::alloc::{alloc, dealloc, Layout};
+use std::alloc::{Layout, alloc, dealloc};
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -58,11 +59,11 @@ impl SizeClass {
     /// Gets the region size for this class
     pub fn region_size(&self) -> usize {
         match self {
-            SizeClass::Tiny => 4096,     // 256 tiny objects per region
-            SizeClass::Small => 8192,    // 128 small objects per region
-            SizeClass::Medium => 16384,  // 64 medium objects per region
-            SizeClass::Large => 32768,   // 32 large objects per region
-            SizeClass::XLarge => 65536,  // 16 xlarge objects per region
+            SizeClass::Tiny => 4096,    // 256 tiny objects per region
+            SizeClass::Small => 8192,   // 128 small objects per region
+            SizeClass::Medium => 16384, // 64 medium objects per region
+            SizeClass::Large => 32768,  // 32 large objects per region
+            SizeClass::XLarge => 65536, // 16 xlarge objects per region
         }
     }
 
@@ -143,7 +144,7 @@ impl ArenaRegion {
         for i in (0..self.capacity).rev() {
             let offset = i * allocation_size;
             let node = unsafe { self.memory.as_ptr().add(offset) as *mut FreeNode };
-            
+
             unsafe {
                 (*node).next = prev;
             }
@@ -162,7 +163,7 @@ impl ArenaRegion {
             }
 
             let next = unsafe { (*head).next };
-            
+
             // Try to update free stack head
             match self.free_stack.compare_exchange_weak(
                 head,
@@ -174,12 +175,16 @@ impl ArenaRegion {
                     // Successfully allocated
                     self.allocated_count.fetch_add(1, Ordering::Relaxed);
                     self.alloc_count.fetch_add(1, Ordering::Relaxed);
-                    
+
                     // Clear the allocated memory
                     unsafe {
-                        ptr::write_bytes(head as *mut u8, 0, self.size_class.allocation_size() as usize);
+                        ptr::write_bytes(
+                            head as *mut u8,
+                            0,
+                            self.size_class.allocation_size() as usize,
+                        );
                     }
-                    
+
                     return Some(unsafe { NonNull::new_unchecked(head as *mut u8) });
                 }
                 Err(_) => {
@@ -196,7 +201,7 @@ impl ArenaRegion {
         let ptr_addr = ptr.as_ptr() as usize;
         let region_start = self.memory.as_ptr() as usize;
         let region_end = region_start + self.size;
-        
+
         if ptr_addr < region_start || ptr_addr >= region_end {
             return false; // Pointer doesn't belong to this region
         }
@@ -208,14 +213,14 @@ impl ArenaRegion {
         }
 
         let node = ptr.as_ptr() as *mut FreeNode;
-        
+
         // Add to free stack
         loop {
             let head = self.free_stack.load(Ordering::Acquire);
             unsafe {
                 (*node).next = head;
             }
-            
+
             match self.free_stack.compare_exchange_weak(
                 head,
                 node,
@@ -328,7 +333,7 @@ impl ThreadCache {
                 return Some(region.clone());
             }
         }
-        
+
         self.cache_misses += 1;
         None
     }
@@ -417,7 +422,7 @@ impl RecordArena {
     /// Deallocates memory for a record instance
     pub fn deallocate(&self, ptr: NonNull<u8>, size: u32) -> bool {
         let size_class = SizeClass::from_size(size);
-        
+
         // Find the region containing this pointer
         let regions = self.regions.read().unwrap();
         if let Some(region_list) = regions.get(&size_class) {
@@ -439,7 +444,8 @@ impl RecordArena {
 
         CACHE.with(|cache| {
             let cache = unsafe { &mut *cache.get() };
-            cache.get_cached_region(size_class)
+            cache
+                .get_cached_region(size_class)
                 .and_then(|region| region.allocate())
         })
     }
@@ -465,7 +471,7 @@ impl RecordArena {
         // Check if we've reached the maximum regions for this class
         let mut regions = self.regions.write().unwrap();
         let region_list = regions.entry(size_class).or_insert_with(Vec::new);
-        
+
         if region_list.len() >= self.config.max_regions_per_class {
             return None; // Too many regions
         }
@@ -485,14 +491,12 @@ impl RecordArena {
 
     /// Records an allocation for statistics
     fn record_allocation(&self, size_class: SizeClass) {
-        self.global_stats.allocations[size_class as usize]
-            .fetch_add(1, Ordering::Relaxed);
+        self.global_stats.allocations[size_class as usize].fetch_add(1, Ordering::Relaxed);
     }
 
     /// Records a deallocation for statistics
     fn record_deallocation(&self, size_class: SizeClass) {
-        self.global_stats.deallocations[size_class as usize]
-            .fetch_add(1, Ordering::Relaxed);
+        self.global_stats.deallocations[size_class as usize].fetch_add(1, Ordering::Relaxed);
     }
 
     /// Gets overall arena statistics
@@ -505,10 +509,10 @@ impl RecordArena {
             let allocs = self.global_stats.allocations[i].load(Ordering::Relaxed);
             let deallocs = self.global_stats.deallocations[i].load(Ordering::Relaxed);
             let region_count = self.global_stats.region_counts[i].load(Ordering::Relaxed);
-            
+
             total_allocations += allocs;
             total_deallocations += deallocs;
-            
+
             let size_class = unsafe { std::mem::transmute::<u8, SizeClass>(i as u8) };
             region_stats.push(SizeClassStats {
                 size_class,
@@ -565,11 +569,11 @@ impl RecordArena {
         let current_time = std::time::Instant::now();
 
         let mut regions = self.regions.write().unwrap();
-        
+
         for (size_class, region_list) in regions.iter_mut() {
             region_list.retain(|region| {
                 let stats = region.stats();
-                
+
                 // Check if region should be collected
                 let should_collect = stats.utilization < self.config.min_utilization
                     && stats.age > self.config.max_region_age
@@ -654,36 +658,36 @@ mod tests {
     #[test]
     fn test_basic_allocation_deallocation() {
         let region = Arc::new(ArenaRegion::new(SizeClass::Small).unwrap());
-        
+
         // Allocate an object
         let ptr1 = region.allocate().unwrap();
         assert!(!region.is_empty());
-        
+
         // Allocate another object
         let ptr2 = region.allocate().unwrap();
         assert_ne!(ptr1, ptr2);
-        
+
         // Deallocate first object
         assert!(region.deallocate(ptr1));
-        
+
         // Deallocate second object
         assert!(region.deallocate(ptr2));
-        
+
         assert!(region.is_empty());
     }
 
     #[test]
     fn test_record_arena_basic_operations() {
         let arena = RecordArena::new(ArenaConfig::default());
-        
+
         // Allocate objects of different sizes
         let ptr1 = arena.allocate(32).unwrap(); // Small
         let ptr2 = arena.allocate(128).unwrap(); // Medium
-        
+
         // Deallocate them
         assert!(arena.deallocate(ptr1, 32));
         assert!(arena.deallocate(ptr2, 128));
-        
+
         let stats = arena.stats();
         assert_eq!(stats.total_allocations, 2);
         assert_eq!(stats.total_deallocations, 2);
@@ -692,12 +696,12 @@ mod tests {
     #[test]
     fn test_arena_statistics() {
         let arena = RecordArena::new(ArenaConfig::default());
-        
+
         // Perform some allocations
         let _ptr1 = arena.allocate(64); // Small
         let _ptr2 = arena.allocate(256); // Medium
         let _ptr3 = arena.allocate(64); // Small
-        
+
         let stats = arena.stats();
         assert!(stats.total_allocations >= 3);
         assert!(stats.memory_utilization > 0.0);
@@ -707,7 +711,7 @@ mod tests {
     fn test_region_utilization_calculation() {
         let region = Arc::new(ArenaRegion::new(SizeClass::Tiny).unwrap());
         let capacity = region.capacity;
-        
+
         // Fill half the region
         let mut ptrs = Vec::new();
         for _ in 0..(capacity / 2) {
@@ -715,7 +719,7 @@ mod tests {
                 ptrs.push(ptr);
             }
         }
-        
+
         let utilization = region.utilization();
         assert!((utilization - 50.0).abs() < 1.0); // Should be ~50%
     }

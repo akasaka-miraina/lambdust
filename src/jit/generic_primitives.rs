@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Generic primitive system for eliminating JIT primitive redundancy.
+#![allow(missing_docs)]
+//! Generic primitive system for eliminating JIT primitive redundancy.
 //!
 //! This module provides a zero-cost abstraction system that generates
 //! optimized JIT primitive implementations from high-level specifications.

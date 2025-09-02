@@ -13,8 +13,8 @@ pub fn bind_searching_operations(_env: &std::sync::Arc<ThreadSafeEnvironment>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use crate::eval::value::ThreadSafeEnvironment;
+    use std::sync::Arc;
 
     #[test]
     fn test_searching_placeholder() {

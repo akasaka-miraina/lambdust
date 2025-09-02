@@ -171,11 +171,15 @@ impl ExceptionObject {
     }
 
     /// Creates an exception object from a SRFI-35 condition
-    pub fn from_condition(condition: Arc<crate::stdlib::srfi35_conditions::ConditionValue>, continuable: bool) -> Self {
+    pub fn from_condition(
+        condition: Arc<crate::stdlib::srfi35_conditions::ConditionValue>,
+        continuable: bool,
+    ) -> Self {
         // Try to extract a message if available
         let system = crate::stdlib::srfi35_conditions::condition_system();
         let message_field = crate::utils::SymbolId::new(0); // Temporary placeholder
-        let message = condition.condition
+        let message = condition
+            .condition
             .condition_ref(message_field, &system.registry)
             .and_then(|v| match v {
                 Value::Literal(crate::ast::Literal::String(s)) => Some((*s).clone()),
@@ -237,11 +241,15 @@ impl ErrorObject {
     // ============= SRFI-35 CONDITION INTEGRATION =============
 
     /// Creates an exception object from a SRFI-35 condition
-    pub fn from_condition(condition: Arc<crate::stdlib::srfi35_conditions::ConditionValue>, continuable: bool) -> Self {
+    pub fn from_condition(
+        condition: Arc<crate::stdlib::srfi35_conditions::ConditionValue>,
+        continuable: bool,
+    ) -> Self {
         // Try to extract a message if available
         let system = crate::stdlib::srfi35_conditions::condition_system();
         let message_field = crate::utils::SymbolId::new(0); // Temporary placeholder
-        let message = condition.condition
+        let message = condition
+            .condition
             .condition_ref(message_field, &system.registry)
             .and_then(|v| match v {
                 Value::Literal(crate::ast::Literal::String(s)) => Some(*s.clone()),
@@ -249,9 +257,15 @@ impl ErrorObject {
             });
 
         // Determine exception type based on condition hierarchy
-        let exception_type = if condition.condition.has_type(system.standard_types.error, &system.registry) {
+        let exception_type = if condition
+            .condition
+            .has_type(system.standard_types.error, &system.registry)
+        {
             "error"
-        } else if condition.condition.has_type(system.standard_types.violation, &system.registry) {
+        } else if condition
+            .condition
+            .has_type(system.standard_types.violation, &system.registry)
+        {
             "violation"
         } else {
             "condition"
@@ -300,14 +314,18 @@ impl ErrorObject {
         // Convert ErrorObject to a simple condition with message
         let system = crate::stdlib::srfi35_conditions::condition_system();
         let mut fields = std::collections::HashMap::new();
-        
+
         let message_field = crate::utils::SymbolId::new(0); // Temporary placeholder
         fields.insert(message_field, Value::string(self.message.clone()));
-        
+
         let condition_type = system.standard_types.error;
-        let simple_condition = crate::stdlib::srfi35_conditions::SimpleCondition::new(condition_type, fields);
-        let condition_obj = crate::stdlib::srfi35_conditions::ConditionObject::simple(simple_condition);
-        Ok(Arc::new(crate::stdlib::srfi35_conditions::ConditionValue::new(condition_obj)))
+        let simple_condition =
+            crate::stdlib::srfi35_conditions::SimpleCondition::new(condition_type, fields);
+        let condition_obj =
+            crate::stdlib::srfi35_conditions::ConditionObject::simple(simple_condition);
+        Ok(Arc::new(
+            crate::stdlib::srfi35_conditions::ConditionValue::new(condition_obj),
+        ))
     }
 }
 
@@ -1527,14 +1545,28 @@ fn execute_thunk_with_exception_handling(
             } => {
                 // For non-local jumps, return the value
                 return Ok(value);
-            },
-            crate::eval::evaluator::EvalStep::Parameterize { .. } => todo!("Parameterize not implemented in exceptions"),
-            crate::eval::evaluator::EvalStep::ThreadSpawn { .. } => todo!("ThreadSpawn not implemented in exceptions"),
-            crate::eval::evaluator::EvalStep::ThreadJoin { .. } => todo!("ThreadJoin not implemented in exceptions"),
-            crate::eval::evaluator::EvalStep::MutexLock { .. } => todo!("MutexLock not implemented in exceptions"),
-            crate::eval::evaluator::EvalStep::MutexUnlock { .. } => todo!("MutexUnlock not implemented in exceptions"),
-            crate::eval::evaluator::EvalStep::CondvarWait { .. } => todo!("CondvarWait not implemented in exceptions"),
-            crate::eval::evaluator::EvalStep::CondvarNotify { .. } => todo!("CondvarNotify not implemented in exceptions"),
+            }
+            crate::eval::evaluator::EvalStep::Parameterize { .. } => {
+                todo!("Parameterize not implemented in exceptions")
+            }
+            crate::eval::evaluator::EvalStep::ThreadSpawn { .. } => {
+                todo!("ThreadSpawn not implemented in exceptions")
+            }
+            crate::eval::evaluator::EvalStep::ThreadJoin { .. } => {
+                todo!("ThreadJoin not implemented in exceptions")
+            }
+            crate::eval::evaluator::EvalStep::MutexLock { .. } => {
+                todo!("MutexLock not implemented in exceptions")
+            }
+            crate::eval::evaluator::EvalStep::MutexUnlock { .. } => {
+                todo!("MutexUnlock not implemented in exceptions")
+            }
+            crate::eval::evaluator::EvalStep::CondvarWait { .. } => {
+                todo!("CondvarWait not implemented in exceptions")
+            }
+            crate::eval::evaluator::EvalStep::CondvarNotify { .. } => {
+                todo!("CondvarNotify not implemented in exceptions")
+            }
         }
     }
 }

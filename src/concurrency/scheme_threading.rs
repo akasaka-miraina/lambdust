@@ -9,17 +9,17 @@
 //! - Memory overhead: <4KB per thread
 
 use crate::diagnostics::{Error, Result};
-use crate::eval::value::Value;
 use crate::eval::parameter::ParameterFrame;
+use crate::eval::value::Value;
+use crossbeam_utils::Backoff;
+use parking_lot::{Condvar as ParkingCondvar, Mutex as ParkingMutex, RwLock as ParkingRwLock};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicU64, AtomicUsize, AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, Condvar, RwLock};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
-use crossbeam_utils::Backoff;
-use parking_lot::{Mutex as ParkingMutex, Condvar as ParkingCondvar, RwLock as ParkingRwLock};
 
 /// Global thread ID counter for unique thread identification
 static NEXT_THREAD_ID: AtomicU64 = AtomicU64::new(1);
@@ -229,12 +229,9 @@ pub struct CondvarStatistics {
 
 impl SchemeThread {
     /// Creates a new Scheme thread with inherited parameter bindings
-    pub fn new(
-        name: Option<String>,
-        inherited_parameters: Arc<Vec<ParameterFrame>>,
-    ) -> Self {
+    pub fn new(name: Option<String>, inherited_parameters: Arc<Vec<ParameterFrame>>) -> Self {
         let id = NEXT_THREAD_ID.fetch_add(1, Ordering::SeqCst);
-        
+
         Self {
             id,
             name,
@@ -250,14 +247,13 @@ impl SchemeThread {
     }
 
     /// Starts the thread with the given procedure and arguments
-    pub fn start(
-        &self,
-        procedure: Value,
-        args: Vec<Value>,
-    ) -> Result<()> {
+    pub fn start(&self, procedure: Value, args: Vec<Value>) -> Result<()> {
         let mut state = self.state.write().unwrap();
         if *state != ThreadState::Created {
-            return Err(Box::new(Error::runtime_error("Thread already started", None)));
+            return Err(Box::new(Error::runtime_error(
+                "Thread already started",
+                None,
+            )));
         }
 
         *state = ThreadState::Running;
@@ -275,24 +271,18 @@ impl SchemeThread {
         // Spawn the actual OS thread
         let handle = thread::spawn(move || {
             let start_time = Instant::now();
-            
+
             // Set up thread-local parameter storage with inherited bindings
             Self::setup_thread_local_parameters(&inherited_params);
-            
+
             // Execute the procedure
-            let execution_result = Self::execute_procedure(
-                thread_id,
-                procedure,
-                args,
-                &stats_arc,
-            );
+            let execution_result = Self::execute_procedure(thread_id, procedure, args, &stats_arc);
 
             // Record completion
             let execution_time = start_time.elapsed();
-            stats_arc.execution_time_ns.store(
-                execution_time.as_nanos() as u64,
-                Ordering::SeqCst,
-            );
+            stats_arc
+                .execution_time_ns
+                .store(execution_time.as_nanos() as u64, Ordering::SeqCst);
 
             // Update thread state based on execution result
             match execution_result {
@@ -323,7 +313,7 @@ impl SchemeThread {
     pub fn join(&self, timeout: Option<Duration>) -> Result<Value> {
         // Take the join handle to ensure we can only join once
         let handle = self.join_handle.lock().unwrap().take();
-        
+
         if let Some(handle) = handle {
             // Wait for the OS thread to complete
             if let Some(timeout_duration) = timeout {
@@ -336,7 +326,7 @@ impl SchemeThread {
                         _ => thread::sleep(Duration::from_millis(1)),
                     }
                 }
-                
+
                 // Check if we timed out
                 let state = *self.state.read().unwrap();
                 if state == ThreadState::Running || state == ThreadState::Blocked {
@@ -345,17 +335,15 @@ impl SchemeThread {
             }
 
             // Actually join the thread
-            handle.join().map_err(|_| {
-                Box::new(Error::runtime_error("Thread join failed", None))
-            })?;
+            handle
+                .join()
+                .map_err(|_| Box::new(Error::runtime_error("Thread join failed", None)))?;
         }
 
         // Return the result or propagate the exception
         let state = *self.state.read().unwrap();
         match state {
-            ThreadState::Completed => {
-                Ok(self.result.read().unwrap().clone().unwrap_or(Value::Nil))
-            }
+            ThreadState::Completed => Ok(self.result.read().unwrap().clone().unwrap_or(Value::Nil)),
             ThreadState::Failed => {
                 let exception = self.exception.read().unwrap().clone();
                 Err(Box::new(Error::runtime_error(
@@ -363,7 +351,10 @@ impl SchemeThread {
                     None,
                 )))
             }
-            _ => Err(Box::new(Error::runtime_error("Thread in unexpected state", None))),
+            _ => Err(Box::new(Error::runtime_error(
+                "Thread in unexpected state",
+                None,
+            ))),
         }
     }
 
@@ -383,7 +374,7 @@ impl SchemeThread {
     ) -> Result<Value> {
         // Increment procedure call counter
         stats.procedure_calls.fetch_add(1, Ordering::SeqCst);
-        
+
         // TODO: Implement actual procedure execution
         // This will integrate with the main evaluator
         // For now, return a placeholder value
@@ -395,7 +386,7 @@ impl SchemeMutex {
     /// Creates a new Scheme mutex
     pub fn new(name: Option<String>) -> Self {
         let id = NEXT_MUTEX_ID.fetch_add(1, Ordering::SeqCst);
-        
+
         Self {
             id,
             name,
@@ -409,7 +400,7 @@ impl SchemeMutex {
     /// Attempts to acquire the mutex with optional timeout
     pub fn lock(&self, thread_id: u64, timeout: Option<Duration>) -> Result<()> {
         let start_time = Instant::now();
-        
+
         // Try to acquire the lock
         let acquired = if let Some(timeout_duration) = timeout {
             self.inner.try_lock_for(timeout_duration).is_some()
@@ -426,10 +417,10 @@ impl SchemeMutex {
         // Update ownership and timing information
         *self.owner.write().unwrap() = Some(thread_id);
         *self.locked_at.write().unwrap() = Some(start_time);
-        
+
         // Update statistics
         self.stats.lock_count.fetch_add(1, Ordering::SeqCst);
-        
+
         Ok(())
     }
 
@@ -447,26 +438,30 @@ impl SchemeMutex {
         // Update timing statistics
         if let Some(locked_at) = *self.locked_at.read().unwrap() {
             let held_time = locked_at.elapsed().as_nanos() as u64;
-            self.stats.total_held_time_ns.fetch_add(held_time, Ordering::SeqCst);
-            
+            self.stats
+                .total_held_time_ns
+                .fetch_add(held_time, Ordering::SeqCst);
+
             // Update maximum held time
             let max_held = self.stats.max_held_time_ns.load(Ordering::SeqCst);
             if held_time > max_held {
-                self.stats.max_held_time_ns.store(held_time, Ordering::SeqCst);
+                self.stats
+                    .max_held_time_ns
+                    .store(held_time, Ordering::SeqCst);
             }
         }
 
         // Clear ownership
         *self.owner.write().unwrap() = None;
         *self.locked_at.write().unwrap() = None;
-        
+
         // Release the actual mutex
         // Note: parking_lot mutexes are automatically released when dropped
         // This is a design consideration - we may need to adjust this
-        
+
         // Update statistics
         self.stats.unlock_count.fetch_add(1, Ordering::SeqCst);
-        
+
         Ok(())
     }
 
@@ -480,7 +475,7 @@ impl SchemeConditionVariable {
     /// Creates a new condition variable associated with a mutex
     pub fn new(name: Option<String>, mutex: Arc<SchemeMutex>) -> Self {
         let id = NEXT_CONDVAR_ID.fetch_add(1, Ordering::SeqCst);
-        
+
         Self {
             id,
             name,
@@ -493,12 +488,15 @@ impl SchemeConditionVariable {
     /// Waits on the condition variable with optional timeout
     pub fn wait(&self, timeout: Option<Duration>) -> Result<()> {
         let start_time = Instant::now();
-        
+
         // Verify that the current thread owns the associated mutex
         // This is a requirement for condition variable semantics
-        
+
         let timed_out = if let Some(timeout_duration) = timeout {
-            !self.inner.wait_for(&mut self.mutex.inner.lock(), timeout_duration).timed_out()
+            !self
+                .inner
+                .wait_for(&mut self.mutex.inner.lock(), timeout_duration)
+                .timed_out()
         } else {
             self.inner.wait(&mut self.mutex.inner.lock());
             false
@@ -507,15 +505,22 @@ impl SchemeConditionVariable {
         // Update statistics
         let wait_time = start_time.elapsed().as_nanos() as u64;
         self.stats.wait_count.fetch_add(1, Ordering::SeqCst);
-        self.stats.total_wait_time_ns.fetch_add(wait_time, Ordering::SeqCst);
-        
+        self.stats
+            .total_wait_time_ns
+            .fetch_add(wait_time, Ordering::SeqCst);
+
         let max_wait = self.stats.max_wait_time_ns.load(Ordering::SeqCst);
         if wait_time > max_wait {
-            self.stats.max_wait_time_ns.store(wait_time, Ordering::SeqCst);
+            self.stats
+                .max_wait_time_ns
+                .store(wait_time, Ordering::SeqCst);
         }
 
         if timed_out {
-            Err(Box::new(Error::runtime_error("Condition variable wait timeout", None)))
+            Err(Box::new(Error::runtime_error(
+                "Condition variable wait timeout",
+                None,
+            )))
         } else {
             Ok(())
         }
@@ -538,16 +543,19 @@ impl SchemeThreadPool {
     /// Creates a new thread pool with the specified number of worker threads
     pub fn new(worker_count: usize) -> Result<Self> {
         if worker_count == 0 {
-            return Err(Box::new(Error::runtime_error("Thread pool must have at least one worker", None)));
+            return Err(Box::new(Error::runtime_error(
+                "Thread pool must have at least one worker",
+                None,
+            )));
         }
 
         let global_queue = Arc::new(ParkingMutex::new(VecDeque::new()));
         let work_available = Arc::new(ParkingCondvar::new());
         let shutdown = Arc::new(AtomicBool::new(false));
         let stats = Arc::new(PoolStatistics::default());
-        
+
         let mut worker_threads = Vec::with_capacity(worker_count);
-        
+
         // Create worker threads
         for i in 0..worker_count {
             let worker = Arc::new(WorkerThread::new(
@@ -557,7 +565,7 @@ impl SchemeThreadPool {
                 Arc::clone(&shutdown),
                 Arc::clone(&stats),
             ));
-            
+
             worker_threads.push(worker);
         }
 
@@ -577,25 +585,30 @@ impl SchemeThreadPool {
     /// Submits a work item to the thread pool
     pub fn submit(&self, work_item: WorkItem) -> Result<()> {
         if self.shutdown.load(Ordering::SeqCst) {
-            return Err(Box::new(Error::runtime_error("Thread pool is shutdown", None)));
+            return Err(Box::new(Error::runtime_error(
+                "Thread pool is shutdown",
+                None,
+            )));
         }
 
         // Add to global queue
         {
             let mut queue = self.global_queue.lock();
             queue.push_back(work_item);
-            
+
             // Update peak queue depth
             let current_depth = queue.len();
             let peak_depth = self.stats.peak_queue_depth.load(Ordering::SeqCst);
             if current_depth > peak_depth {
-                self.stats.peak_queue_depth.store(current_depth, Ordering::SeqCst);
+                self.stats
+                    .peak_queue_depth
+                    .store(current_depth, Ordering::SeqCst);
             }
         }
 
         // Notify workers
         self.work_available.notify_one();
-        
+
         Ok(())
     }
 
@@ -603,7 +616,7 @@ impl SchemeThreadPool {
     pub fn shutdown(&self) -> Result<()> {
         self.shutdown.store(true, Ordering::SeqCst);
         self.work_available.notify_all();
-        
+
         // Wait for all workers to complete
         for worker in &self.worker_threads {
             if let Some(handle) = worker.handle.lock().unwrap().take() {
@@ -612,7 +625,7 @@ impl SchemeThreadPool {
                 })?;
             }
         }
-        
+
         Ok(())
     }
 
@@ -635,7 +648,7 @@ impl WorkerThread {
     ) -> Self {
         let local_queue = Arc::new(ParkingMutex::new(VecDeque::new()));
         let stats = Arc::new(WorkerStatistics::default());
-        
+
         // Clone data for the worker thread
         let worker_id = id;
         let local_queue_clone = Arc::clone(&local_queue);
@@ -643,7 +656,7 @@ impl WorkerThread {
         let work_available_clone = work_available;
         let shutdown_clone = shutdown;
         let stats_clone = Arc::clone(&stats);
-        
+
         // Spawn the worker thread
         let handle = thread::spawn(move || {
             Self::worker_loop(
@@ -674,7 +687,7 @@ impl WorkerThread {
         stats: Arc<WorkerStatistics>,
     ) {
         let backoff = Backoff::new();
-        
+
         while !shutdown.load(Ordering::SeqCst) {
             // Try to get work from local queue first
             let work_item = {
@@ -704,20 +717,18 @@ impl WorkerThread {
     }
 
     /// Executes a single work item
-    fn execute_work_item(
-        _worker_id: u64,
-        work_item: WorkItem,
-        stats: &WorkerStatistics,
-    ) {
+    fn execute_work_item(_worker_id: u64, work_item: WorkItem, stats: &WorkerStatistics) {
         let start_time = Instant::now();
-        
+
         // TODO: Implement actual procedure execution
         // This will integrate with the main evaluator
-        
+
         // Update statistics
         let execution_time = start_time.elapsed().as_nanos() as u64;
         stats.tasks_executed.fetch_add(1, Ordering::SeqCst);
-        stats.total_execution_time_ns.fetch_add(execution_time, Ordering::SeqCst);
+        stats
+            .total_execution_time_ns
+            .fetch_add(execution_time, Ordering::SeqCst);
     }
 }
 
@@ -735,9 +746,9 @@ impl ThreadRegistry {
         let thread_count = thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
-        
+
         let thread_pool = Arc::new(SchemeThreadPool::new(thread_count)?);
-        
+
         Ok(Self {
             threads: Arc::new(RwLock::new(FxHashMap::default())),
             thread_pool,
@@ -806,11 +817,8 @@ mod tests {
 
     #[test]
     fn test_thread_creation() {
-        let thread = SchemeThread::new(
-            Some("test-thread".to_string()),
-            Arc::new(Vec::new()),
-        );
-        
+        let thread = SchemeThread::new(Some("test-thread".to_string()), Arc::new(Vec::new()));
+
         assert_eq!(thread.name, Some("test-thread".to_string()));
         assert_eq!(*thread.state.read().unwrap(), ThreadState::Created);
     }
@@ -836,12 +844,12 @@ mod tests {
             Some("test".to_string()),
             Arc::new(Vec::new()),
         ));
-        
+
         let thread_id = thread.id;
         registry.register_thread(Arc::clone(&thread));
-        
+
         assert!(registry.get_thread(thread_id).is_some());
-        
+
         registry.unregister_thread(thread_id);
         assert!(registry.get_thread(thread_id).is_none());
     }

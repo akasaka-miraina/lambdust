@@ -58,7 +58,7 @@ impl Default for PropertyConfig {
 pub trait Generator<T> {
     /// Generate a random value of type T
     fn generate(&self, rng: &mut XorShiftRng, size: usize) -> T;
-    
+
     /// Generate a smaller version of the given value for shrinking
     fn shrink(&self, value: &T) -> Vec<T> {
         // Default implementation: no shrinking
@@ -71,7 +71,7 @@ pub trait Property {
     /// Test the property with the given values
     /// Returns true if the property holds, false otherwise
     fn test(&self, values: &[Value]) -> PropertyResult;
-    
+
     /// Get the name of this property for reporting
     fn name(&self) -> &str;
 }
@@ -92,7 +92,7 @@ impl PropertyResult {
     pub fn passed(&self) -> bool {
         matches!(self, PropertyResult::Pass)
     }
-    
+
     /// Returns true if this result represents a failing test
     pub fn failed(&self) -> bool {
         matches!(self, PropertyResult::Fail(_))
@@ -128,11 +128,11 @@ impl TestSummary {
             duration_ms: 0,
         }
     }
-    
+
     /// Record a test result
     pub fn record(&mut self, result: PropertyResult, test_values: Vec<Value>) {
         self.total_tests += 1;
-        
+
         match result {
             PropertyResult::Pass => self.passed += 1,
             PropertyResult::Fail(msg) => {
@@ -144,7 +144,7 @@ impl TestSummary {
             PropertyResult::Skip(_) => self.skipped += 1,
         }
     }
-    
+
     /// Returns true if all tests passed
     pub fn all_passed(&self) -> bool {
         self.failed == 0 && self.total_tests > 0
@@ -188,7 +188,7 @@ macro_rules! property {
                             ),
                         };
                     )*
-                    
+
                     // Execute the property
                     match std::panic::catch_unwind(|| $body) {
                         Ok(true) => $crate::property_testing::PropertyResult::Pass,
@@ -200,12 +200,12 @@ macro_rules! property {
                         ),
                     }
                 }
-                
+
                 fn name(&self) -> &str {
                     $name
                 }
             }
-            
+
             std::sync::Arc::new(PropertyImpl)
         }
     };
@@ -215,36 +215,36 @@ macro_rules! property {
 mod tests {
     use super::*;
     use crate::property_testing::generators::SchemeValueGenerator;
-    
+
     #[test]
     fn test_property_framework_basic() {
         let property = property!("always_true", |_x: Value| true);
         let generator = Arc::new(SchemeValueGenerator::new());
-        
+
         let config = PropertyConfig {
             test_cases: 10,
             max_size: 5,
             parallel: false,
             ..PropertyConfig::default()
         };
-        
+
         let summary = check_property(property, vec![generator], config);
         assert!(summary.all_passed());
         assert_eq!(summary.total_tests, 10);
     }
-    
+
     #[test]
     fn test_property_framework_failure() {
         let property = property!("always_false", |_x: Value| false);
         let generator = Arc::new(SchemeValueGenerator::new());
-        
+
         let config = PropertyConfig {
             test_cases: 5,
             max_size: 5,
             parallel: false,
             ..PropertyConfig::default()
         };
-        
+
         let summary = check_property(property, vec![generator], config);
         assert!(!summary.all_passed());
         assert_eq!(summary.failed, 5);

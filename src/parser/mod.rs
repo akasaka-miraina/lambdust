@@ -20,12 +20,12 @@ pub type ListElements = (Vec<Spanned<Expr>>, Option<Spanned<Expr>>);
 pub mod expression;
 /// Literal parsing utilities.
 pub mod literals;
+/// SRFI-31 optimization integration.
+pub mod rec_optimization_integration;
 /// Special form parsing utilities.
 pub mod special_forms;
 /// Type expression parsing utilities.
 pub mod type_expr_parser;
-/// SRFI-31 optimization integration.
-pub mod rec_optimization_integration;
 /// Zero-copy parser for Phase 8 optimization.
 pub mod zero_copy_parser;
 

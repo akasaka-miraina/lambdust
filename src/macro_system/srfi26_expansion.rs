@@ -24,7 +24,7 @@
 
 use crate::ast::{CutArgument, Expr, Formals};
 use crate::diagnostics::{Result, Span, Spanned};
-use crate::utils::{intern, InternedString};
+use crate::utils::{InternedString, intern};
 use lru::LruCache;
 use smallvec::SmallVec;
 use std::cell::RefCell;
@@ -197,7 +197,7 @@ pub enum SlotPattern {
         /// Position of the slot (0-based)
         position: usize,
     },
-    
+
     /// Multiple slots: (cut proc <> expr <> expr2)
     /// Uses SmallVec for stack allocation in common cases (≤4 slots)
     MultipleSlots {
@@ -206,7 +206,7 @@ pub enum SlotPattern {
         /// Total number of arguments
         total_args: usize,
     },
-    
+
     /// Rest slot pattern: (cut proc <> <...>)
     /// Requires special lambda generation with rest parameters
     RestSlot {
@@ -215,7 +215,7 @@ pub enum SlotPattern {
         /// Position of rest slot (should be last)
         rest_position: usize,
     },
-    
+
     /// No slots: (cut proc expr1 expr2)
     /// Degenerate case - becomes thunk
     NoSlots,
@@ -229,7 +229,7 @@ impl SlotPattern {
     pub fn analyze(args: &[CutArgument]) -> Self {
         let mut slot_positions = SmallVec::<[usize; 4]>::new();
         let mut rest_position = None;
-        
+
         for (i, arg) in args.iter().enumerate() {
             match arg {
                 CutArgument::Slot => slot_positions.push(i),
@@ -242,7 +242,7 @@ impl SlotPattern {
                 }
             }
         }
-        
+
         match (slot_positions.len(), rest_position) {
             (0, None) => SlotPattern::NoSlots,
             (1, None) => SlotPattern::SingleSlot {
@@ -258,7 +258,7 @@ impl SlotPattern {
             },
         }
     }
-    
+
     /// Returns the number of lambda parameters needed for this pattern.
     #[inline]
     pub fn parameter_count(&self) -> usize {
@@ -266,16 +266,18 @@ impl SlotPattern {
             SlotPattern::NoSlots => 0,
             SlotPattern::SingleSlot { .. } => 1,
             SlotPattern::MultipleSlots { positions, .. } => positions.len(),
-            SlotPattern::RestSlot { fixed_positions, .. } => fixed_positions.len() + 1,
+            SlotPattern::RestSlot {
+                fixed_positions, ..
+            } => fixed_positions.len() + 1,
         }
     }
-    
+
     /// Returns true if this pattern requires rest parameters.
     #[inline]
     pub fn needs_rest_params(&self) -> bool {
         matches!(self, SlotPattern::RestSlot { .. })
     }
-    
+
     /// Returns complexity score for cache prioritization (lower = simpler).
     #[inline]
     pub fn complexity(&self) -> u8 {
@@ -283,7 +285,9 @@ impl SlotPattern {
             SlotPattern::NoSlots => 1,
             SlotPattern::SingleSlot { .. } => 2,
             SlotPattern::MultipleSlots { positions, .. } => 3 + positions.len() as u8,
-            SlotPattern::RestSlot { fixed_positions, .. } => 10 + fixed_positions.len() as u8,
+            SlotPattern::RestSlot {
+                fixed_positions, ..
+            } => 10 + fixed_positions.len() as u8,
         }
     }
 }
@@ -297,7 +301,8 @@ pub struct LambdaTemplate {
     /// Optimized formals for this template
     formals: Formals,
     /// Template body generation function
-    body_generator: Box<dyn Fn(&[CutArgument], Spanned<Expr>) -> Result<Vec<Spanned<Expr>>> + Send + Sync>,
+    body_generator:
+        Box<dyn Fn(&[CutArgument], Spanned<Expr>) -> Result<Vec<Spanned<Expr>>> + Send + Sync>,
 }
 
 impl LambdaTemplate {
@@ -313,7 +318,7 @@ impl LambdaTemplate {
                 let param = generate_optimized_parameter_name();
                 let mut call_args = Vec::with_capacity(args.len());
                 let procedure_span = procedure.span;
-                
+
                 for arg in args {
                     match arg {
                         CutArgument::Slot => {
@@ -333,7 +338,7 @@ impl LambdaTemplate {
                         }
                     }
                 }
-                
+
                 let call_expr = Spanned::new(
                     Expr::Application {
                         operator: Box::new(procedure),
@@ -341,12 +346,12 @@ impl LambdaTemplate {
                     },
                     procedure_span,
                 );
-                
+
                 Ok(vec![call_expr])
             }),
         }
     }
-    
+
     /// Creates a template for multiple-slot patterns.
     ///
     /// Handles patterns like: (cut proc <> expr <> expr2)
@@ -357,14 +362,14 @@ impl LambdaTemplate {
             let param = generate_optimized_parameter_name();
             param_names.push(param.as_str().to_string());
         }
-        
+
         Self {
             formals: Formals::Fixed(param_names),
             body_generator: Box::new(move |args, procedure| {
                 let mut param_iter = 0;
                 let mut call_args = Vec::with_capacity(args.len());
                 let procedure_span = procedure.span;
-                
+
                 for arg in args {
                     match arg {
                         CutArgument::Slot => {
@@ -386,7 +391,7 @@ impl LambdaTemplate {
                         }
                     }
                 }
-                
+
                 let call_expr = Spanned::new(
                     Expr::Application {
                         operator: Box::new(procedure),
@@ -394,12 +399,12 @@ impl LambdaTemplate {
                     },
                     procedure_span,
                 );
-                
+
                 Ok(vec![call_expr])
             }),
         }
     }
-    
+
     /// Generates the lambda body for this template.
     pub fn generate_body(
         &self,
@@ -408,7 +413,7 @@ impl LambdaTemplate {
     ) -> Result<Vec<Spanned<Expr>>> {
         (self.body_generator)(args, procedure)
     }
-    
+
     /// Returns the formal parameters for this template.
     pub fn formals(&self) -> &Formals {
         &self.formals
@@ -433,16 +438,16 @@ impl ExpansionCacheKey {
     /// Creates a cache key from expansion parameters.
     pub fn new(args: &[CutArgument], is_cute: bool, procedure: &Spanned<Expr>) -> Self {
         use std::collections::hash_map::DefaultHasher;
-        
+
         let pattern = SlotPattern::analyze(args);
-        
+
         // Create a simple hash of the procedure for cache uniqueness
         // We use format! as a simple way to create a hash-able representation
         let procedure_repr = format!("{:?}", procedure.inner);
         let mut hasher = DefaultHasher::new();
         procedure_repr.hash(&mut hasher);
         let procedure_hash = hasher.finish();
-        
+
         Self {
             pattern,
             is_cute,
@@ -474,7 +479,7 @@ impl ExpansionCache {
     pub fn new() -> Self {
         Self::with_capacity(256)
     }
-    
+
     /// Creates a cache with specified capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -483,7 +488,7 @@ impl ExpansionCache {
             misses: AtomicUsize::new(0),
         }
     }
-    
+
     /// Attempts to get a cached expansion result.
     ///
     /// Returns Some(result) if found in cache, None otherwise.
@@ -497,18 +502,18 @@ impl ExpansionCache {
             None
         }
     }
-    
+
     /// Caches an expansion result for future lookups.
     pub fn put(&mut self, key: ExpansionCacheKey, result: Spanned<Expr>) {
         self.cache.put(key, Arc::new(result));
     }
-    
+
     /// Returns cache performance statistics.
     pub fn stats(&self) -> ExpansionCacheStats {
         let hits = self.hits.load(Ordering::Relaxed);
         let misses = self.misses.load(Ordering::Relaxed);
         let total_requests = hits + misses;
-        
+
         ExpansionCacheStats {
             hits,
             misses,
@@ -594,18 +599,18 @@ impl OptimizedCutExpander {
         span: Span,
     ) -> Result<Spanned<Expr>> {
         let start_time = std::time::Instant::now();
-        
+
         // Reset parameter pool for this expansion
         reset_parameter_pool();
-        
+
         let result = self.expand_internal(procedure, arguments, false, span);
-        
+
         // Update performance metrics
         let duration = start_time.elapsed();
         if let Ok(mut metrics) = self.metrics.write() {
             metrics.record_expansion(duration, result.is_ok());
         }
-        
+
         result
     }
 
@@ -620,18 +625,18 @@ impl OptimizedCutExpander {
         span: Span,
     ) -> Result<Spanned<Expr>> {
         let start_time = std::time::Instant::now();
-        
+
         // Reset parameter pool for this expansion
         reset_parameter_pool();
-        
+
         let result = self.expand_internal(procedure, arguments, true, span);
-        
+
         // Update performance metrics
         let duration = start_time.elapsed();
         if let Ok(mut metrics) = self.metrics.write() {
             metrics.record_expansion(duration, result.is_ok());
         }
-        
+
         result
     }
 
@@ -645,7 +650,7 @@ impl OptimizedCutExpander {
     ) -> Result<Spanned<Expr>> {
         // Step 1: Analyze pattern for optimization selection
         let pattern = SlotPattern::analyze(arguments);
-        
+
         // Step 2: Check cache for previous expansion
         let cache_key = ExpansionCacheKey::new(arguments, is_cute, procedure);
         if let Ok(mut cache) = self.cache.write() {
@@ -656,11 +661,11 @@ impl OptimizedCutExpander {
                 return Ok((*cached_result).clone());
             }
         }
-        
+
         if let Ok(mut metrics) = self.metrics.write() {
             metrics.record_cache_miss();
         }
-        
+
         // Step 3: Select expansion strategy based on pattern
         let expansion_result = match pattern {
             SlotPattern::SingleSlot { position } => {
@@ -669,21 +674,26 @@ impl OptimizedCutExpander {
             SlotPattern::MultipleSlots { positions, .. } => {
                 self.expand_multiple_slots_optimized(procedure, arguments, &positions, span)
             }
-            SlotPattern::RestSlot { fixed_positions, rest_position } => {
-                self.expand_rest_slot_optimized(procedure, arguments, &fixed_positions, rest_position, span)
-            }
-            SlotPattern::NoSlots => {
-                self.expand_no_slots_optimized(procedure, arguments, span)
-            }
+            SlotPattern::RestSlot {
+                fixed_positions,
+                rest_position,
+            } => self.expand_rest_slot_optimized(
+                procedure,
+                arguments,
+                &fixed_positions,
+                rest_position,
+                span,
+            ),
+            SlotPattern::NoSlots => self.expand_no_slots_optimized(procedure, arguments, span),
         };
-        
+
         // Step 4: Cache successful results for future use
         if let Ok(result) = &expansion_result {
             if let Ok(mut cache) = self.cache.write() {
                 cache.put(cache_key, result.clone());
             }
         }
-        
+
         expansion_result
     }
 
@@ -704,7 +714,7 @@ impl OptimizedCutExpander {
         // Generate parameter name from optimized pool
         let param_name = generate_optimized_parameter_name();
         let formals = Formals::Fixed(vec![param_name.as_str().to_string()]);
-        
+
         // Build optimized call arguments
         let mut call_args = Vec::with_capacity(arguments.len());
         for arg in arguments {
@@ -726,7 +736,7 @@ impl OptimizedCutExpander {
                 }
             }
         }
-        
+
         // Create optimized lambda expression
         let lambda_body = vec![Spanned::new(
             Expr::Application {
@@ -735,7 +745,7 @@ impl OptimizedCutExpander {
             },
             span,
         )];
-        
+
         Ok(Spanned::new(
             Expr::Lambda {
                 formals,
@@ -764,13 +774,13 @@ impl OptimizedCutExpander {
             let param = generate_optimized_parameter_name();
             param_names.push(param.as_str().to_string());
         }
-        
+
         let formals = Formals::Fixed(param_names.clone());
-        
+
         // Build call arguments with slot substitution
         let mut call_args = Vec::with_capacity(arguments.len());
         let mut param_index = 0;
-        
+
         for arg in arguments {
             match arg {
                 CutArgument::Slot => {
@@ -791,7 +801,7 @@ impl OptimizedCutExpander {
                 }
             }
         }
-        
+
         // Create lambda expression
         let lambda_body = vec![Spanned::new(
             Expr::Application {
@@ -800,7 +810,7 @@ impl OptimizedCutExpander {
             },
             span,
         )];
-        
+
         Ok(Spanned::new(
             Expr::Lambda {
                 formals,
@@ -830,18 +840,18 @@ impl OptimizedCutExpander {
             let param = generate_optimized_parameter_name();
             fixed_params.push(param.as_str().to_string());
         }
-        
+
         // Generate rest parameter name
         let rest_param = generate_optimized_parameter_name();
         let formals = Formals::Mixed {
             fixed: fixed_params.clone(),
             rest: rest_param.as_str().to_string(),
         };
-        
+
         // Build call arguments with slot substitution
         let mut call_args = Vec::with_capacity(arguments.len());
         let mut fixed_param_index = 0;
-        
+
         for arg in arguments {
             match arg {
                 CutArgument::Slot => {
@@ -864,7 +874,7 @@ impl OptimizedCutExpander {
                 }
             }
         }
-        
+
         // Create lambda expression with apply for rest parameters
         let lambda_body = if call_args.len() > 1 {
             // Use apply when we have rest parameters
@@ -875,7 +885,10 @@ impl OptimizedCutExpander {
                         procedure.clone(),
                         Spanned::new(
                             Expr::Application {
-                                operator: Box::new(Spanned::new(Expr::Identifier("list".to_string()), span)),
+                                operator: Box::new(Spanned::new(
+                                    Expr::Identifier("list".to_string()),
+                                    span,
+                                )),
                                 operands: call_args[..call_args.len() - 1].to_vec(),
                             },
                             span,
@@ -890,15 +903,12 @@ impl OptimizedCutExpander {
             vec![Spanned::new(
                 Expr::Application {
                     operator: Box::new(Spanned::new(Expr::Identifier("apply".to_string()), span)),
-                    operands: vec![
-                        procedure.clone(),
-                        call_args[0].clone(),
-                    ],
+                    operands: vec![procedure.clone(), call_args[0].clone()],
                 },
                 span,
             )]
         };
-        
+
         Ok(Spanned::new(
             Expr::Lambda {
                 formals,
@@ -921,7 +931,7 @@ impl OptimizedCutExpander {
         span: Span,
     ) -> Result<Spanned<Expr>> {
         let formals = Formals::Fixed(vec![]);
-        
+
         // Extract all expressions (no slots to substitute)
         let mut call_args = Vec::with_capacity(arguments.len());
         for arg in arguments {
@@ -937,7 +947,7 @@ impl OptimizedCutExpander {
                 }
             }
         }
-        
+
         // Create thunk (zero-argument lambda)
         let lambda_body = vec![Spanned::new(
             Expr::Application {
@@ -946,7 +956,7 @@ impl OptimizedCutExpander {
             },
             span,
         )];
-        
+
         Ok(Spanned::new(
             Expr::Lambda {
                 formals,
@@ -965,14 +975,17 @@ impl OptimizedCutExpander {
 
     /// Returns cache performance statistics.
     pub fn cache_stats(&self) -> ExpansionCacheStats {
-        self.cache.read().map(|c| c.stats()).unwrap_or_else(|_| ExpansionCacheStats {
-            hits: 0,
-            misses: 0,
-            total_requests: 0,
-            hit_rate: 0.0,
-            cache_size: 0,
-            cache_capacity: 0,
-        })
+        self.cache
+            .read()
+            .map(|c| c.stats())
+            .unwrap_or_else(|_| ExpansionCacheStats {
+                hits: 0,
+                misses: 0,
+                total_requests: 0,
+                hit_rate: 0.0,
+                cache_size: 0,
+                cache_capacity: 0,
+            })
     }
 }
 
@@ -1022,13 +1035,13 @@ impl ExpanderMetrics {
     fn record_expansion(&mut self, duration: std::time::Duration, success: bool) {
         self.total_expansions += 1;
         self.total_time_micros += duration.as_micros();
-        
+
         if success {
             self.successful_expansions += 1;
         } else {
             self.failed_expansions += 1;
         }
-        
+
         self.update_average_time();
     }
 
@@ -1139,21 +1152,21 @@ mod tests {
     #[test]
     fn test_parameter_pool_basic_functionality() {
         let mut pool = ParameterPool::new();
-        
+
         // Test parameter generation
         let p1 = pool.get_parameter_name();
         let p2 = pool.get_parameter_name();
         let p3 = pool.get_parameter_name();
-        
+
         assert_eq!(p1.as_str(), "x1");
         assert_eq!(p2.as_str(), "x2");
         assert_eq!(p3.as_str(), "x3");
-        
+
         // Test reset functionality
         pool.reset();
         let p1_again = pool.get_parameter_name();
         assert_eq!(p1_again.as_str(), "x1");
-        
+
         // Should reuse the interned string
         assert_eq!(p1.id(), p1_again.id());
     }
@@ -1161,19 +1174,23 @@ mod tests {
     #[test]
     fn test_parameter_pool_performance() {
         let mut pool = ParameterPool::new();
-        
+
         let start = std::time::Instant::now();
-        
+
         // Generate 1000 parameters to test performance
         for _ in 0..1000 {
             pool.get_parameter_name();
             pool.reset(); // Reset to reuse pool
         }
-        
+
         let duration = start.elapsed();
-        
+
         // Should complete very quickly (adjust threshold based on hardware)
-        assert!(duration.as_millis() < 10, "Parameter generation too slow: {:?}", duration);
+        assert!(
+            duration.as_millis() < 10,
+            "Parameter generation too slow: {:?}",
+            duration
+        );
     }
 
     #[test]
@@ -1183,9 +1200,9 @@ mod tests {
             CutArgument::slot(),
             CutArgument::expression(create_test_expr()),
         ];
-        
+
         let pattern = SlotPattern::analyze(&args);
-        
+
         match pattern {
             SlotPattern::SingleSlot { position } => {
                 assert_eq!(position, 1);
@@ -1202,11 +1219,14 @@ mod tests {
             CutArgument::slot(),
             CutArgument::slot(),
         ];
-        
+
         let pattern = SlotPattern::analyze(&args);
-        
+
         match pattern {
-            SlotPattern::MultipleSlots { positions, total_args } => {
+            SlotPattern::MultipleSlots {
+                positions,
+                total_args,
+            } => {
                 assert_eq!(positions, SmallVec::<[usize; 4]>::from_slice(&[0, 2, 3]));
                 assert_eq!(total_args, 4);
             }
@@ -1221,11 +1241,14 @@ mod tests {
             CutArgument::expression(create_test_expr()),
             CutArgument::rest_slot(),
         ];
-        
+
         let pattern = SlotPattern::analyze(&args);
-        
+
         match pattern {
-            SlotPattern::RestSlot { fixed_positions, rest_position } => {
+            SlotPattern::RestSlot {
+                fixed_positions,
+                rest_position,
+            } => {
                 assert_eq!(fixed_positions, SmallVec::<[usize; 4]>::from_slice(&[0]));
                 assert_eq!(rest_position, 2);
             }
@@ -1239,9 +1262,9 @@ mod tests {
             CutArgument::expression(create_test_expr()),
             CutArgument::expression(create_test_expr()),
         ];
-        
+
         let pattern = SlotPattern::analyze(&args);
-        
+
         match pattern {
             SlotPattern::NoSlots => {
                 // Expected
@@ -1253,22 +1276,22 @@ mod tests {
     #[test]
     fn test_expansion_cache_basic() {
         let mut cache = ExpansionCache::with_capacity(4);
-        
+
         let args = vec![CutArgument::slot()];
         let procedure = create_test_expr();
         let key = ExpansionCacheKey::new(&args, false, &procedure);
-        
+
         // Cache miss
         assert!(cache.get(&key).is_none());
-        
+
         // Store result
         let result = create_test_expr();
         cache.put(key.clone(), result.clone());
-        
+
         // Cache hit
         let cached = cache.get(&key).unwrap();
         assert_eq!(cached.inner, result.inner);
-        
+
         // Check stats
         let stats = cache.stats();
         assert_eq!(stats.hits, 1);
@@ -1280,17 +1303,14 @@ mod tests {
     #[test]
     fn test_lambda_template_single_slot() {
         reset_parameter_pool(); // Ensure clean state
-        
+
         let template = LambdaTemplate::single_slot();
         let args = vec![CutArgument::slot()];
-        let procedure = Spanned::new(
-            Expr::Identifier("+".to_string()),
-            dummy_span()
-        );
-        
+        let procedure = Spanned::new(Expr::Identifier("+".to_string()), dummy_span());
+
         let body = template.generate_body(&args, procedure.clone()).unwrap();
         assert_eq!(body.len(), 1);
-        
+
         // Should generate application expression
         match &body[0].inner {
             Expr::Application { operator, operands } => {
@@ -1304,12 +1324,12 @@ mod tests {
     #[test]
     fn test_parameter_pool_stats() {
         let mut pool = ParameterPool::with_capacity(8, 16);
-        
+
         // Generate some parameters
         for _ in 0..5 {
             pool.get_parameter_name();
         }
-        
+
         let stats = pool.stats();
         assert_eq!(stats.total_params, 8);
         assert_eq!(stats.current_position, 5);
@@ -1323,16 +1343,16 @@ mod tests {
         let p1 = generate_optimized_parameter_name();
         let p2 = generate_optimized_parameter_name();
         let p3 = generate_optimized_parameter_name();
-        
+
         assert_eq!(p1.as_str(), "x1");
         assert_eq!(p2.as_str(), "x2");
         assert_eq!(p3.as_str(), "x3");
-        
+
         reset_parameter_pool();
-        
+
         let p1_again = generate_optimized_parameter_name();
         assert_eq!(p1_again.as_str(), "x1");
-        
+
         // Should be the same interned string
         assert_eq!(p1.id(), p1_again.id());
     }
@@ -1349,7 +1369,7 @@ mod tests {
             fixed_positions: SmallVec::<[usize; 4]>::from_slice(&[0, 1]),
             rest_position: 3,
         };
-        
+
         assert!(no_slots.complexity() < single.complexity());
         assert!(single.complexity() < multiple.complexity());
         assert!(multiple.complexity() < rest.complexity());

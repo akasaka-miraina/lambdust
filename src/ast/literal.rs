@@ -534,74 +534,88 @@ impl fmt::Display for Literal {
             }
             Literal::Nil => write!(f, "()"),
             Literal::Unspecified => write!(f, "#<unspecified>"),
-            Literal::HomogeneousVector(hv) => {
-                match hv.as_ref() {
-                    HomogeneousVectorLiteral::U8Vector(v) => {
-                        write!(f, "#u8(")?;
-                        for (i, val) in v.iter().enumerate() {
-                            if i > 0 { write!(f, " ")?; }
-                            write!(f, "{val}")?;
+            Literal::HomogeneousVector(hv) => match hv.as_ref() {
+                HomogeneousVectorLiteral::U8Vector(v) => {
+                    write!(f, "#u8(")?;
+                    for (i, val) in v.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, " ")?;
                         }
-                        write!(f, ")")
+                        write!(f, "{val}")?;
                     }
-                    HomogeneousVectorLiteral::S8Vector(v) => {
-                        write!(f, "#s8(")?;
-                        for (i, val) in v.iter().enumerate() {
-                            if i > 0 { write!(f, " ")?; }
-                            write!(f, "{val}")?;
-                        }
-                        write!(f, ")")
-                    }
-                    HomogeneousVectorLiteral::U16Vector(v) => {
-                        write!(f, "#u16(")?;
-                        for (i, val) in v.iter().enumerate() {
-                            if i > 0 { write!(f, " ")?; }
-                            write!(f, "{val}")?;
-                        }
-                        write!(f, ")")
-                    }
-                    HomogeneousVectorLiteral::S16Vector(v) => {
-                        write!(f, "#s16(")?;
-                        for (i, val) in v.iter().enumerate() {
-                            if i > 0 { write!(f, " ")?; }
-                            write!(f, "{val}")?;
-                        }
-                        write!(f, ")")
-                    }
-                    HomogeneousVectorLiteral::U32Vector(v) => {
-                        write!(f, "#u32(")?;
-                        for (i, val) in v.iter().enumerate() {
-                            if i > 0 { write!(f, " ")?; }
-                            write!(f, "{val}")?;
-                        }
-                        write!(f, ")")
-                    }
-                    HomogeneousVectorLiteral::S32Vector(v) => {
-                        write!(f, "#s32(")?;
-                        for (i, val) in v.iter().enumerate() {
-                            if i > 0 { write!(f, " ")?; }
-                            write!(f, "{val}")?;
-                        }
-                        write!(f, ")")
-                    }
-                    HomogeneousVectorLiteral::F32Vector(v) => {
-                        write!(f, "#f32(")?;
-                        for (i, val) in v.iter().enumerate() {
-                            if i > 0 { write!(f, " ")?; }
-                            write!(f, "{val}")?;
-                        }
-                        write!(f, ")")
-                    }
-                    HomogeneousVectorLiteral::F64Vector(v) => {
-                        write!(f, "#f64(")?;
-                        for (i, val) in v.iter().enumerate() {
-                            if i > 0 { write!(f, " ")?; }
-                            write!(f, "{val}")?;
-                        }
-                        write!(f, ")")
-                    }
+                    write!(f, ")")
                 }
-            }
+                HomogeneousVectorLiteral::S8Vector(v) => {
+                    write!(f, "#s8(")?;
+                    for (i, val) in v.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
+                        write!(f, "{val}")?;
+                    }
+                    write!(f, ")")
+                }
+                HomogeneousVectorLiteral::U16Vector(v) => {
+                    write!(f, "#u16(")?;
+                    for (i, val) in v.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
+                        write!(f, "{val}")?;
+                    }
+                    write!(f, ")")
+                }
+                HomogeneousVectorLiteral::S16Vector(v) => {
+                    write!(f, "#s16(")?;
+                    for (i, val) in v.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
+                        write!(f, "{val}")?;
+                    }
+                    write!(f, ")")
+                }
+                HomogeneousVectorLiteral::U32Vector(v) => {
+                    write!(f, "#u32(")?;
+                    for (i, val) in v.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
+                        write!(f, "{val}")?;
+                    }
+                    write!(f, ")")
+                }
+                HomogeneousVectorLiteral::S32Vector(v) => {
+                    write!(f, "#s32(")?;
+                    for (i, val) in v.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
+                        write!(f, "{val}")?;
+                    }
+                    write!(f, ")")
+                }
+                HomogeneousVectorLiteral::F32Vector(v) => {
+                    write!(f, "#f32(")?;
+                    for (i, val) in v.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
+                        write!(f, "{val}")?;
+                    }
+                    write!(f, ")")
+                }
+                HomogeneousVectorLiteral::F64Vector(v) => {
+                    write!(f, "#f64(")?;
+                    for (i, val) in v.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
+                        write!(f, "{val}")?;
+                    }
+                    write!(f, ")")
+                }
+            },
         }
     }
 }
@@ -892,7 +906,7 @@ impl HomogeneousVectorLiteral {
     pub fn type_name(&self) -> &'static str {
         match self {
             HomogeneousVectorLiteral::U8Vector(_) => "u8vector",
-            HomogeneousVectorLiteral::S8Vector(_) => "s8vector", 
+            HomogeneousVectorLiteral::S8Vector(_) => "s8vector",
             HomogeneousVectorLiteral::U16Vector(_) => "u16vector",
             HomogeneousVectorLiteral::S16Vector(_) => "s16vector",
             HomogeneousVectorLiteral::U32Vector(_) => "u32vector",
@@ -907,8 +921,9 @@ impl HomogeneousVectorLiteral {
         match self {
             HomogeneousVectorLiteral::U8Vector(_) | HomogeneousVectorLiteral::S8Vector(_) => 1,
             HomogeneousVectorLiteral::U16Vector(_) | HomogeneousVectorLiteral::S16Vector(_) => 2,
-            HomogeneousVectorLiteral::U32Vector(_) | HomogeneousVectorLiteral::S32Vector(_) |
-            HomogeneousVectorLiteral::F32Vector(_) => 4,
+            HomogeneousVectorLiteral::U32Vector(_)
+            | HomogeneousVectorLiteral::S32Vector(_)
+            | HomogeneousVectorLiteral::F32Vector(_) => 4,
             HomogeneousVectorLiteral::F64Vector(_) => 8,
         }
     }

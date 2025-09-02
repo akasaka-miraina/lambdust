@@ -36,7 +36,7 @@ impl AccessPatternAnalyzer {
             window_size,
         }
     }
-    
+
     /// Record a memory access and analyze pattern
     pub fn record_access(&mut self, position: usize) {
         // Add to recent accesses
@@ -51,21 +51,23 @@ impl AccessPatternAnalyzer {
             }
         }
         self.recent_accesses.push(position);
-        
+
         // Update frequency
         *self.frequency_map.entry(position).or_insert(0) += 1;
-        
+
         // Detect stride pattern
         self.update_stride_detection();
     }
-    
+
     /// Detect stride in access pattern
     fn update_stride_detection(&mut self) {
         if self.recent_accesses.len() >= 3 {
             let len = self.recent_accesses.len();
-            let stride1 = self.recent_accesses[len - 1].saturating_sub(self.recent_accesses[len - 2]);
-            let stride2 = self.recent_accesses[len - 2].saturating_sub(self.recent_accesses[len - 3]);
-            
+            let stride1 =
+                self.recent_accesses[len - 1].saturating_sub(self.recent_accesses[len - 2]);
+            let stride2 =
+                self.recent_accesses[len - 2].saturating_sub(self.recent_accesses[len - 3]);
+
             if stride1 == stride2 && stride1 > 0 {
                 self.detected_stride = Some(stride1);
             } else {
@@ -73,10 +75,11 @@ impl AccessPatternAnalyzer {
             }
         }
     }
-    
+
     /// Predict next access position
     pub fn predict_next_access(&self) -> Option<usize> {
-        if let (Some(stride), Some(&last_pos)) = (self.detected_stride, self.recent_accesses.last()) {
+        if let (Some(stride), Some(&last_pos)) = (self.detected_stride, self.recent_accesses.last())
+        {
             Some(last_pos + stride)
         } else {
             // Return most frequent position
@@ -86,22 +89,22 @@ impl AccessPatternAnalyzer {
                 .map(|(&pos, _)| pos)
         }
     }
-    
+
     /// Get recommended prefetch distance
     pub fn get_prefetch_distance(&self) -> usize {
         self.detected_stride.unwrap_or(64) // Default to cache line size
     }
-    
+
     /// Check if access pattern is sequential
     pub fn is_sequential(&self) -> bool {
         self.detected_stride.is_some()
     }
-    
+
     /// Get cache hit probability for position
     pub fn get_hit_probability(&self, position: usize) -> f64 {
         let frequency = self.frequency_map.get(&position).copied().unwrap_or(0);
         let total_accesses = self.recent_accesses.len() as u32;
-        
+
         if total_accesses > 0 {
             frequency as f64 / total_accesses as f64
         } else {
@@ -129,7 +132,7 @@ pub struct CacheOptimizedStringOps {
 impl CacheOptimizedStringOps {
     pub fn new() -> Self {
         Self {
-            prefetch_distance: 64,  // Cache line size
+            prefetch_distance: 64, // Cache line size
             access_pattern_analyzer: AccessPatternAnalyzer::new(32),
             string_cache: Arc::new(RwLock::new(HashMap::new())),
             position_cache: HashMap::new(),
@@ -137,7 +140,7 @@ impl CacheOptimizedStringOps {
             position_cache_max: 1024,
         }
     }
-    
+
     /// Cache-friendly string scanning with prefetch simulation
     pub fn cache_friendly_scan<F>(&mut self, text: &str, predicate: F) -> Vec<usize>
     where
@@ -145,31 +148,31 @@ impl CacheOptimizedStringOps {
     {
         let mut matches = Vec::new();
         let chars: Vec<char> = text.chars().collect();
-        
+
         // Simulate prefetch behavior
         let mut prefetch_pos = 0;
-        
+
         for (pos, &ch) in chars.iter().enumerate() {
             // Record access for pattern analysis
             self.access_pattern_analyzer.record_access(pos);
-            
+
             // Simulate prefetch
             if pos >= prefetch_pos {
                 prefetch_pos = pos + self.access_pattern_analyzer.get_prefetch_distance();
             }
-            
+
             // Check predicate
             if predicate(ch) {
                 matches.push(pos);
             }
-            
+
             // Update cache with character access
             self.cache_character_access(text, pos, ch);
         }
-        
+
         matches
     }
-    
+
     /// Cache character access for future lookup
     fn cache_character_access(&mut self, text: &str, position: usize, character: char) {
         if self.position_cache.len() >= self.position_cache_max {
@@ -182,11 +185,11 @@ impl CacheOptimizedStringOps {
                 self.position_cache.remove(&key);
             }
         }
-        
+
         let key = (text.to_string(), position);
         self.position_cache.insert(key, character);
     }
-    
+
     /// Optimized string fold with cache-friendly access
     pub fn optimized_string_fold<F>(&mut self, text: &str, init: Value, func: F) -> Result<Value>
     where
@@ -194,69 +197,74 @@ impl CacheOptimizedStringOps {
     {
         let mut accumulator = init;
         let chars: Vec<char> = text.chars().collect();
-        
+
         // Process in blocks for better cache locality
-        const BLOCK_SIZE: usize = 64;  // Cache-friendly block size
-        
+        const BLOCK_SIZE: usize = 64; // Cache-friendly block size
+
         for block in chars.chunks(BLOCK_SIZE) {
             // Prefetch next block (simulated)
             let next_start = block.as_ptr() as usize;
             self.access_pattern_analyzer.record_access(next_start);
-            
+
             for &ch in block {
                 accumulator = func(accumulator, ch)?;
             }
         }
-        
+
         Ok(accumulator)
     }
-    
+
     /// Cache-optimized character search with spatial locality
     pub fn cache_optimized_char_search(&mut self, text: &str, target: char) -> Option<usize> {
         let bytes = text.as_bytes();
-        
+
         // Search in cache-line sized blocks
         const CACHE_LINE_SIZE: usize = 64;
         let mut pos = 0;
-        
+
         while pos < bytes.len() {
             let block_end = std::cmp::min(pos + CACHE_LINE_SIZE, bytes.len());
             let block = &bytes[pos..block_end];
-            
+
             // Record block access
             self.access_pattern_analyzer.record_access(pos);
-            
+
             // Search within block
             for (i, &byte) in block.iter().enumerate() {
                 if byte as char == target {
                     return Some(pos + i);
                 }
             }
-            
+
             pos = block_end;
         }
-        
+
         None
     }
-    
+
     /// Multi-pattern search with cache optimization
-    pub fn cache_optimized_multi_search(&mut self, text: &str, patterns: &[&str]) -> Vec<(usize, usize)> {
+    pub fn cache_optimized_multi_search(
+        &mut self,
+        text: &str,
+        patterns: &[&str],
+    ) -> Vec<(usize, usize)> {
         let mut matches = Vec::new();
         let text_len = text.len();
-        
+
         // Sort patterns by length for better cache behavior
-        let mut sorted_patterns: Vec<(usize, &str)> = patterns.iter().enumerate().map(|(i, &p)| (i, p)).collect();
+        let mut sorted_patterns: Vec<(usize, &str)> =
+            patterns.iter().enumerate().map(|(i, &p)| (i, p)).collect();
         sorted_patterns.sort_by_key(|(_, pattern)| pattern.len());
-        
+
         // Search in blocks to maintain cache locality
         const BLOCK_SIZE: usize = 256;
         for block_start in (0..text_len).step_by(BLOCK_SIZE) {
             let block_end = std::cmp::min(block_start + BLOCK_SIZE, text_len);
             let block = &text[block_start..block_end];
-            
+
             // Record block access
             self.access_pattern_analyzer.record_access(block_start);
-            
+
             // Search all patterns in this block
             for &(pattern_idx, pattern) in &sorted_patterns {
                 let mut search_pos = 0;
@@ -266,16 +274,16 @@ impl CacheOptimizedStringOps {
                 }
             }
         }
-        
+
         // Sort matches by position
         matches.sort_by_key(|&(pos, _)| pos);
         matches
     }
-    
+
     /// Cache string for repeated access
     pub fn cache_string(&self, text: &str) -> Arc<String> {
         let key = text.to_string();
-        
+
         // Check cache first
         {
             let cache = self.string_cache.read().unwrap();
@@ -283,7 +291,7 @@ impl CacheOptimizedStringOps {
                 return cached.clone();
             }
         }
-        
+
         // Create and cache new string
         let arc_string = Arc::new(key.clone());
         {
@@ -292,14 +300,14 @@ impl CacheOptimizedStringOps {
                 cache.insert(key, arc_string.clone());
             }
         }
-        
+
         arc_string
     }
-    
+
     /// Get cache hit rate statistics
     pub fn get_cache_stats(&self) -> CacheStats {
         let string_cache = self.string_cache.read().unwrap();
-        
+
         CacheStats {
             string_cache_size: string_cache.len(),
             position_cache_size: self.position_cache.len(),
@@ -308,50 +316,50 @@ impl CacheOptimizedStringOps {
             prefetch_distance: self.access_pattern_analyzer.get_prefetch_distance(),
         }
     }
-    
+
     /// Optimize for specific access pattern
     pub fn optimize_for_pattern(&mut self, pattern: AccessPattern) {
         match pattern {
             AccessPattern::Sequential => {
-                self.prefetch_distance = 128;  // Aggressive prefetch
+                self.prefetch_distance = 128; // Aggressive prefetch
             }
             AccessPattern::Random => {
-                self.prefetch_distance = 32;   // Conservative prefetch
+                self.prefetch_distance = 32; // Conservative prefetch
             }
             AccessPattern::Strided(stride) => {
                 self.prefetch_distance = stride * 2; // Prefetch two strides ahead
             }
             AccessPattern::Locality => {
-                self.prefetch_distance = 64;   // Standard cache line
+                self.prefetch_distance = 64; // Standard cache line
             }
         }
     }
-    
+
     /// Temporal locality optimized string comparison
     pub fn cache_optimized_string_compare(&mut self, s1: &str, s2: &str) -> std::cmp::Ordering {
         use std::cmp::Ordering;
-        
+
         let len1 = s1.len();
         let len2 = s2.len();
         let min_len = std::cmp::min(len1, len2);
-        
+
         let bytes1 = s1.as_bytes();
         let bytes2 = s2.as_bytes();
-        
+
         // Compare in cache-friendly blocks
         const BLOCK_SIZE: usize = 64;
         let mut pos = 0;
-        
+
         while pos < min_len {
             let block_end = std::cmp::min(pos + BLOCK_SIZE, min_len);
-            
+
             // Record access pattern
             self.access_pattern_analyzer.record_access(pos);
-            
+
             // Compare block
             let block1 = &bytes1[pos..block_end];
             let block2 = &bytes2[pos..block_end];
-            
+
             match block1.cmp(block2) {
                 Ordering::Equal => {
                     pos = block_end;
@@ -360,7 +368,7 @@ impl CacheOptimizedStringOps {
                 other => return other,
             }
         }
-        
+
         len1.cmp(&len2)
     }
 }
@@ -413,7 +421,7 @@ impl CacheOptimizedStringInterner {
             max_size,
         }
     }
-    
+
     /// Intern a string with cache optimization
     pub fn intern(&mut self, s: &str) -> Arc<String> {
         if let Some(interned) = self.strings.get(s) {
@@ -421,24 +429,25 @@ impl CacheOptimizedStringInterner {
             *self.access_counts.entry(interned.clone()).or_insert(0) += 1;
             return interned.clone();
         }
-        
+
         // Need to intern new string
         let arc_string = Arc::new(s.to_string());
-        
+
         // Evict if necessary
         if self.strings.len() >= self.max_size {
             self.evict_least_accessed();
         }
-        
+
         self.strings.insert(s.to_string(), arc_string.clone());
         self.access_counts.insert(arc_string.clone(), 1);
-        
+
         arc_string
     }
-    
+
     /// Evict least accessed string
     fn evict_least_accessed(&mut self) {
-        if let Some((least_accessed, _)) = self.access_counts
+        if let Some((least_accessed, _)) = self
+            .access_counts
             .iter()
             .min_by_key(|&(_, count)| count)
             .map(|(k, v)| (k.clone(), *v))
@@ -448,7 +457,7 @@ impl CacheOptimizedStringInterner {
             self.access_counts.remove(&least_accessed);
         }
     }
-    
+
     /// Get cache statistics
     pub fn stats(&self) -> (usize, usize, usize) {
         (
@@ -461,7 +470,7 @@ impl CacheOptimizedStringInterner {
 
 /// Global cache-optimized operations instance
 lazy_static::lazy_static! {
-    static ref GLOBAL_CACHE_OPS: std::sync::Mutex<CacheOptimizedStringOps> = 
+    static ref GLOBAL_CACHE_OPS: std::sync::Mutex<CacheOptimizedStringOps> =
         std::sync::Mutex::new(CacheOptimizedStringOps::new());
 }
 
@@ -486,119 +495,131 @@ pub fn get_global_cache_stats() -> CacheStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_access_pattern_analyzer() {
         let mut analyzer = AccessPatternAnalyzer::new(10);
-        
+
         // Sequential access pattern
         for i in 0..5 {
             analyzer.record_access(i);
         }
-        
+
         assert!(analyzer.is_sequential());
         assert_eq!(analyzer.get_prefetch_distance(), 1);
         assert_eq!(analyzer.predict_next_access(), Some(5));
     }
-    
+
     #[test]
     fn test_cache_friendly_scan() {
         let mut ops = CacheOptimizedStringOps::new();
-        
+
         let text = "hello world";
         let vowel_positions = ops.cache_friendly_scan(text, |c| "aeiou".contains(c));
-        
+
         assert_eq!(vowel_positions, vec![1, 4, 7]); // e, o, o
     }
-    
+
     #[test]
     fn test_cache_optimized_char_search() {
         let mut ops = CacheOptimizedStringOps::new();
-        
+
         assert_eq!(ops.cache_optimized_char_search("hello world", 'w'), Some(6));
         assert_eq!(ops.cache_optimized_char_search("hello world", 'x'), None);
     }
-    
+
     #[test]
     fn test_cache_optimized_multi_search() {
         let mut ops = CacheOptimizedStringOps::new();
-        
+
         let text = "hello world hello universe";
         let patterns = vec!["hello", "world", "universe"];
         let matches = ops.cache_optimized_multi_search(text, &patterns);
-        
+
         // Should find hello at 0, world at 6, hello at 12, universe at 18
         assert_eq!(matches.len(), 4);
-        assert_eq!(matches[0], (0, 0));   // "hello" at position 0
-        assert_eq!(matches[1], (6, 1));   // "world" at position 6
-        assert_eq!(matches[2], (12, 0));  // "hello" at position 12
-        assert_eq!(matches[3], (18, 2));  // "universe" at position 18
+        assert_eq!(matches[0], (0, 0)); // "hello" at position 0
+        assert_eq!(matches[1], (6, 1)); // "world" at position 6
+        assert_eq!(matches[2], (12, 0)); // "hello" at position 12
+        assert_eq!(matches[3], (18, 2)); // "universe" at position 18
     }
-    
+
     #[test]
     fn test_string_caching() {
         let ops = CacheOptimizedStringOps::new();
-        
+
         let s1 = ops.cache_string("test");
         let s2 = ops.cache_string("test");
-        
+
         // Should be the same Arc
         assert!(Arc::ptr_eq(&s1, &s2));
     }
-    
+
     #[test]
     fn test_cache_optimized_string_compare() {
         let mut ops = CacheOptimizedStringOps::new();
-        
+
         use std::cmp::Ordering;
-        assert_eq!(ops.cache_optimized_string_compare("abc", "abc"), Ordering::Equal);
-        assert_eq!(ops.cache_optimized_string_compare("abc", "def"), Ordering::Less);
-        assert_eq!(ops.cache_optimized_string_compare("def", "abc"), Ordering::Greater);
+        assert_eq!(
+            ops.cache_optimized_string_compare("abc", "abc"),
+            Ordering::Equal
+        );
+        assert_eq!(
+            ops.cache_optimized_string_compare("abc", "def"),
+            Ordering::Less
+        );
+        assert_eq!(
+            ops.cache_optimized_string_compare("def", "abc"),
+            Ordering::Greater
+        );
     }
-    
+
     #[test]
     fn test_string_interner() {
         let mut interner = CacheOptimizedStringInterner::new(3);
-        
+
         let s1 = interner.intern("hello");
         let s2 = interner.intern("hello");
         let s3 = interner.intern("world");
-        
+
         assert!(Arc::ptr_eq(&s1, &s2));
         assert!(!Arc::ptr_eq(&s1, &s3));
-        
+
         let (size, max, total_accesses) = interner.stats();
         assert_eq!(size, 2); // "hello" and "world"
         assert_eq!(max, 3);
         assert_eq!(total_accesses, 3); // 2 for "hello", 1 for "world"
     }
-    
+
     #[test]
     fn test_access_pattern_optimization() {
         let mut ops = CacheOptimizedStringOps::new();
-        
+
         // Test different optimization patterns
         ops.optimize_for_pattern(AccessPattern::Sequential);
         assert_eq!(ops.prefetch_distance, 128);
-        
+
         ops.optimize_for_pattern(AccessPattern::Random);
         assert_eq!(ops.prefetch_distance, 32);
-        
+
         ops.optimize_for_pattern(AccessPattern::Strided(16));
         assert_eq!(ops.prefetch_distance, 32);
-        
+
         ops.optimize_for_pattern(AccessPattern::Locality);
         assert_eq!(ops.prefetch_distance, 64);
     }
-    
+
     #[test]
     fn test_enhanced_functions() {
         // Test enhanced cache-optimized functions
         assert_eq!(enhanced_cache_optimized_search("hello", 'e'), Some(1));
-        
+
         use std::cmp::Ordering;
-        assert_eq!(enhanced_cache_optimized_compare("abc", "abc"), Ordering::Equal);
-        
+        assert_eq!(
+            enhanced_cache_optimized_compare("abc", "abc"),
+            Ordering::Equal
+        );
+
         // Test stats retrieval
         let stats = get_global_cache_stats();
         assert!(stats.string_cache_size >= 0); // Should be non-negative

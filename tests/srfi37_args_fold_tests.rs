@@ -12,9 +12,9 @@
 //! - Error handling and edge cases
 
 use lambdust::diagnostics::{Error, ErrorKind, Result};
-use lambdust::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use lambdust::effects::Effect;
-use lambdust::stdlib::srfi37_args_fold::{args_fold, option, bind_srfi37_procedures};
+use lambdust::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
+use lambdust::stdlib::srfi37_args_fold::{args_fold, bind_srfi37_procedures, option};
 use std::sync::Arc;
 
 /// Helper function to create a simple test environment
@@ -34,13 +34,13 @@ fn create_accumulator_proc(tag: &str) -> Value {
         implementation: PrimitiveImpl::Native(move |args| {
             // Extract the current seed (last argument)
             let seed = args.last().unwrap_or(&Value::Nil);
-            
+
             // Create a tagged entry for this processing event
             let entry = Value::List(vec![
                 Value::symbol(tag.clone()),
                 args[0].clone(), // The processed argument/option
             ]);
-            
+
             // Add to seed list or create new list
             match seed {
                 Value::List(list) => {
@@ -80,7 +80,7 @@ fn test_option_creation_basic() {
 
     let result = option(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(desc)) = result {
         assert_eq!(desc.len(), 5);
         assert!(matches!(desc[0], Value::symbol(ref s) if s == "option-descriptor"));
@@ -98,7 +98,7 @@ fn test_option_creation_multiple_names() {
         Value::character('h'),
         Value::string("help".to_string()),
     ]);
-    
+
     let args = [
         names,
         Value::boolean(false),
@@ -108,7 +108,7 @@ fn test_option_creation_multiple_names() {
 
     let result = option(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(desc)) = result {
         if let Value::List(names_list) = &desc[1] {
             assert_eq!(names_list.len(), 2);
@@ -134,9 +134,9 @@ fn test_option_with_required_arg() {
 
     let result = option(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(desc)) = result {
-        assert!(matches!(desc[2], Value::boolean(true)));  // required-arg?
+        assert!(matches!(desc[2], Value::boolean(true))); // required-arg?
         assert!(matches!(desc[3], Value::boolean(false))); // optional-arg?
     }
 }
@@ -153,10 +153,10 @@ fn test_option_with_optional_arg() {
 
     let result = option(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(desc)) = result {
         assert!(matches!(desc[2], Value::boolean(false))); // required-arg?
-        assert!(matches!(desc[3], Value::boolean(true)));  // optional-arg?
+        assert!(matches!(desc[3], Value::boolean(true))); // optional-arg?
     }
 }
 
@@ -172,7 +172,7 @@ fn test_option_error_both_required_and_optional() {
 
     let result = option(&args);
     assert!(result.is_err());
-    
+
     if let Err(error) = result {
         assert!(matches!(error.kind(), ErrorKind::ArgumentError));
     }
@@ -183,7 +183,7 @@ fn test_option_error_wrong_arity() {
     // Test with wrong number of arguments
     let result = option(&[Value::Nil]);
     assert!(result.is_err());
-    
+
     let result = option(&[]);
     assert!(result.is_err());
 }
@@ -200,7 +200,7 @@ fn test_option_error_invalid_names() {
 
     let result = option(&args);
     assert!(result.is_err());
-    
+
     // Test with invalid name types in list
     let names = Value::List(vec![
         Value::integer(42), // Invalid - should be character or string
@@ -219,9 +219,7 @@ fn test_option_error_invalid_names() {
 #[test]
 fn test_args_fold_basic_short_option() {
     // Test basic short option processing: -h
-    let args_list = Value::List(vec![
-        Value::string("-h".to_string()),
-    ]);
+    let args_list = Value::List(vec![Value::string("-h".to_string())]);
 
     let help_option = Value::List(vec![
         Value::symbol("option-descriptor".to_string()),
@@ -245,7 +243,7 @@ fn test_args_fold_basic_short_option() {
 
     let result = args_fold(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(events)) = result {
         assert_eq!(events.len(), 1);
         if let Value::List(event) = &events[0] {
@@ -257,9 +255,7 @@ fn test_args_fold_basic_short_option() {
 #[test]
 fn test_args_fold_basic_long_option() {
     // Test basic long option processing: --help
-    let args_list = Value::List(vec![
-        Value::string("--help".to_string()),
-    ]);
+    let args_list = Value::List(vec![Value::string("--help".to_string())]);
 
     let help_option = Value::List(vec![
         Value::symbol("option-descriptor".to_string()),
@@ -283,7 +279,7 @@ fn test_args_fold_basic_long_option() {
 
     let result = args_fold(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(events)) = result {
         assert_eq!(events.len(), 1);
         if let Value::List(event) = &events[0] {
@@ -314,7 +310,7 @@ fn test_args_fold_operand_processing() {
 
     let result = args_fold(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(events)) = result {
         assert_eq!(events.len(), 2);
         // Both should be operand events
@@ -356,7 +352,7 @@ fn test_args_fold_option_with_required_argument() {
 
     let result = args_fold(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(events)) = result {
         assert_eq!(events.len(), 1);
         if let Value::List(event) = &events[0] {
@@ -368,9 +364,7 @@ fn test_args_fold_option_with_required_argument() {
 #[test]
 fn test_args_fold_long_option_with_embedded_argument() {
     // Test long option with embedded argument: --file=input.txt
-    let args_list = Value::List(vec![
-        Value::string("--file=input.txt".to_string()),
-    ]);
+    let args_list = Value::List(vec![Value::string("--file=input.txt".to_string())]);
 
     let file_option = Value::List(vec![
         Value::symbol("option-descriptor".to_string()),
@@ -394,7 +388,7 @@ fn test_args_fold_long_option_with_embedded_argument() {
 
     let result = args_fold(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(events)) = result {
         assert_eq!(events.len(), 1);
         if let Value::List(event) = &events[0] {
@@ -425,7 +419,7 @@ fn test_args_fold_unrecognized_option() {
 
     let result = args_fold(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(events)) = result {
         assert_eq!(events.len(), 2);
         // Both should be unrecognized events
@@ -469,7 +463,7 @@ fn test_args_fold_double_dash_separator() {
 
     let result = args_fold(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(events)) = result {
         assert_eq!(events.len(), 3);
         // First should be help option, then two operands
@@ -490,7 +484,7 @@ fn test_args_fold_error_cases() {
     // Test error: wrong number of arguments
     let result = args_fold(&[]);
     assert!(result.is_err());
-    
+
     let result = args_fold(&[Value::Nil, Value::Nil]);
     assert!(result.is_err());
 
@@ -562,13 +556,8 @@ fn test_args_fold_complex_scenario() {
         create_accumulator_proc("a-opt"),
     ]);
 
-    let options = Value::List(vec![
-        verbose_option,
-        output_option, 
-        flag_option,
-        a_option,
-    ]);
-    
+    let options = Value::List(vec![verbose_option, output_option, flag_option, a_option]);
+
     let unrecognized = create_accumulator_proc("unrecognized");
     let operand = create_accumulator_proc("operand");
 
@@ -582,13 +571,14 @@ fn test_args_fold_complex_scenario() {
 
     let result = args_fold(&args);
     assert!(result.is_ok());
-    
+
     if let Ok(Value::List(events)) = result {
         // Should process: -v, --output result.txt, -a (from -abc), -b/-c (unrecognized), input.txt (operand), --flag
         assert!(events.len() >= 5);
-        
+
         // Check that we have the expected event types
-        let event_types: Vec<String> = events.iter()
+        let event_types: Vec<String> = events
+            .iter()
             .filter_map(|event| {
                 if let Value::List(parts) = event {
                     if let Value::symbol(tag) = &parts[0] {
@@ -601,7 +591,7 @@ fn test_args_fold_complex_scenario() {
                 }
             })
             .collect();
-        
+
         // Should contain verbose, output, a-opt, and operand events
         assert!(event_types.contains(&"verbose".to_string()));
         assert!(event_types.contains(&"output".to_string()));
@@ -611,16 +601,16 @@ fn test_args_fold_complex_scenario() {
     }
 }
 
-#[test] 
+#[test]
 fn test_environment_integration() {
     // Test that SRFI-37 procedures are properly bound in environment
     let env = create_test_environment();
-    
+
     // Check that option procedure is bound
     let option_val = env.lookup("option");
     assert!(option_val.is_some());
     assert!(matches!(option_val.unwrap(), Value::Primitive(_)));
-    
+
     // Check that args-fold procedure is bound
     let args_fold_val = env.lookup("args-fold");
     assert!(args_fold_val.is_some());

@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Dependent type-aware hotspot detection for JIT compilation
+#![allow(missing_docs)]
+//! Dependent type-aware hotspot detection for JIT compilation
 //!
 //! This module extends the base hotspot detection system with sophisticated
 //! analysis of dependent type patterns, proof obligations, and type computation

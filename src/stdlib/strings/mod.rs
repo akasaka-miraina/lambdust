@@ -30,11 +30,11 @@ pub mod srfi13_transform;
 pub mod srfi13_utility;
 
 // High-performance optimization modules
-pub mod srfi13_optimized_search;
-pub mod srfi13_simd_chars;
 pub mod srfi13_arena_builder;
 pub mod srfi13_cache_optimizer;
 pub mod srfi13_optimized_integration;
+pub mod srfi13_optimized_search;
+pub mod srfi13_simd_chars;
 
 // Re-export commonly used functions
 pub use common::{

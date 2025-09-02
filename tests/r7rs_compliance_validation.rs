@@ -253,7 +253,7 @@ impl R7RSComplianceValidator {
             (define result (+ 1/3 1/3 1/3))
             (and (exact? result) (= result 1))
             "#,
-            // Inexact real arithmetic  
+            // Inexact real arithmetic
             r#"
             (define result (+ 0.33 0.33 0.34))
             (and (inexact? result) (< 0.99 result 1.01))
@@ -355,12 +355,18 @@ impl R7RSComplianceValidator {
     /// Analyze optimization trade-offs between performance and correctness
     fn analyze_optimization_trade_offs(&mut self) {
         println!("📊 Analyzing optimization trade-offs...");
-        
+
         // Performance benchmark tests
         let benchmark_tests = vec![
             ("list_operations", "(fold + 0 (iota 10000))"),
-            ("recursive_fibonacci", "(define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 30)"),
-            ("macro_expansion_heavy", "(define-syntax repeat (syntax-rules () ((repeat n body) (let loop ((i 0)) (if (< i n) (begin body (loop (+ i 1)))))))) (repeat 1000 'test)"),
+            (
+                "recursive_fibonacci",
+                "(define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 30)",
+            ),
+            (
+                "macro_expansion_heavy",
+                "(define-syntax repeat (syntax-rules () ((repeat n body) (let loop ((i 0)) (if (< i n) (begin body (loop (+ i 1)))))))) (repeat 1000 'test)",
+            ),
         ];
 
         for (name, test) in benchmark_tests {
@@ -372,7 +378,7 @@ impl R7RSComplianceValidator {
     /// Run a single test case with full error handling
     fn run_test_case(&self, test_name: &str, code: &str) -> ValidationResult {
         let start_time = std::time::Instant::now();
-        
+
         match self.runtime.eval_string(code) {
             Ok(result) => ValidationResult {
                 test_name: test_name.to_string(),
@@ -424,12 +430,14 @@ impl R7RSComplianceValidator {
     /// Record test result and update metrics
     fn record_test_result(&mut self, result: ValidationResult) {
         self.optimization_metrics.total_tests += 1;
-        
+
         if result.passed {
             self.optimization_metrics.passed_tests += 1;
         } else {
             self.optimization_metrics.failed_tests += 1;
-            self.optimization_metrics.semantic_violations.push(result.test_name.clone());
+            self.optimization_metrics
+                .semantic_violations
+                .push(result.test_name.clone());
         }
 
         self.test_results.insert(result.test_name.clone(), result);
@@ -438,20 +446,25 @@ impl R7RSComplianceValidator {
     /// Record performance impact measurement
     fn record_performance_impact(&mut self, impact: PerformanceImpact) {
         if impact.improvement_ratio > 1.0 {
-            self.optimization_metrics.memory_improvements.push(
-                format!("Performance improved by {:.2}x", impact.improvement_ratio)
-            );
+            self.optimization_metrics.memory_improvements.push(format!(
+                "Performance improved by {:.2}x",
+                impact.improvement_ratio
+            ));
         } else if impact.improvement_ratio < 0.9 {
-            self.optimization_metrics.performance_regressions.push(
-                format!("Performance regressed by {:.2}x", 1.0 / impact.improvement_ratio)
-            );
+            self.optimization_metrics
+                .performance_regressions
+                .push(format!(
+                    "Performance regressed by {:.2}x",
+                    1.0 / impact.improvement_ratio
+                ));
         }
     }
 
     /// Generate comprehensive validation summary
     fn generate_validation_summary(&self) -> ValidationSummary {
         let compliance_rate = if self.optimization_metrics.total_tests > 0 {
-            (self.optimization_metrics.passed_tests as f64) / (self.optimization_metrics.total_tests as f64)
+            (self.optimization_metrics.passed_tests as f64)
+                / (self.optimization_metrics.total_tests as f64)
         } else {
             0.0
         };
@@ -501,9 +514,15 @@ impl ValidationSummary {
     pub fn print_report(&self) {
         println!("\n🎯 R7RS Compliance Validation Report");
         println!("=====================================");
-        println!("Overall Compliance Rate: {:.1}%", self.overall_compliance_rate * 100.0);
+        println!(
+            "Overall Compliance Rate: {:.1}%",
+            self.overall_compliance_rate * 100.0
+        );
         println!("Total Tests: {}", self.total_tests_run);
-        println!("Passed: {} | Failed: {}", self.passed_tests, self.failed_tests);
+        println!(
+            "Passed: {} | Failed: {}",
+            self.passed_tests, self.failed_tests
+        );
         println!("Status: {:?}", self.r7rs_compliance_status);
 
         if !self.semantic_violations.is_empty() {

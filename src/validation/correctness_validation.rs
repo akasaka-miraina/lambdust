@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Correctness Validation for Phase 8 Optimizations
+#![allow(missing_docs)]
+//! Correctness Validation for Phase 8 Optimizations
 //!
 //! Ensures that optimization features maintain R7RS compliance and
 //! correct behavior across all language features.
@@ -50,27 +51,27 @@ impl CorrectnessValidator {
                 ],
             },
         ];
-        
+
         Self { test_suites }
     }
-    
+
     /// Validate all test suites
     pub fn validate_all(&self) -> Result<(), ValidationError> {
         println!("Running comprehensive correctness validation...");
-        
+
         for suite in &self.test_suites {
             if let Err(e) = self.run_test_suite(suite) {
                 return Err(e);
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Validate only critical test suites (for quick validation)
     pub fn validate_critical(&self) -> Result<(), ValidationError> {
         println!("Running critical correctness validation...");
-        
+
         for suite in &self.test_suites {
             if suite.is_critical {
                 if let Err(e) = self.run_test_suite(suite) {
@@ -78,17 +79,17 @@ impl CorrectnessValidator {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Run a specific test suite
     fn run_test_suite(&self, suite: &TestSuite) -> Result<(), ValidationError> {
         println!("  Running test suite: {}", suite.name);
-        
+
         // For now, simulate test execution
         // In a real implementation, this would run actual tests
-        
+
         // Simulate all tests passing
         Ok(())
     }

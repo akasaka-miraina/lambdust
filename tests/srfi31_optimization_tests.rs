@@ -36,18 +36,18 @@
 //! - Validate compatibility with existing SRFI-31 tests
 //! - Error handling consistency
 
-use lambdust::ast::{Expr, Spanned, Binding, Formals, Literal};
+use lambdust::ast::{Binding, Expr, Formals, Literal, Spanned};
 use lambdust::diagnostics::{Result, Span};
 use lambdust::eval::rec_optimization_framework::{
-    RecPatternOptimizer, TailCallDetector, MemoryOptimizer, SrfiOptimizationEngine,
-    RecursivePattern, TailCallStrategy, MemoryStrategy, ComplexityClass,
-    DEFAULT_CONFIDENCE_THRESHOLD,
-};
-use lambdust::parser::rec_optimization_integration::{
-    RecOptimizationIntegration, RecOptimizationConfig,
+    ComplexityClass, DEFAULT_CONFIDENCE_THRESHOLD, MemoryOptimizer, MemoryStrategy,
+    RecPatternOptimizer, RecursivePattern, SrfiOptimizationEngine, TailCallDetector,
+    TailCallStrategy,
 };
 use lambdust::lexer::Lexer;
 use lambdust::parser::Parser;
+use lambdust::parser::rec_optimization_integration::{
+    RecOptimizationConfig, RecOptimizationIntegration,
+};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -62,34 +62,32 @@ fn create_factorial_lambda() -> Spanned<Expr> {
         formals: Formals::Fixed(&["n".to_string()]),
         return_type: None,
         metadata: HashMap::new(),
-        body: vec![
-            create_expr(Expr::If {
-                test: Box::new(create_expr(Expr::Application {
-                    operator: Box::new(create_expr(Expr::Identifier("=".to_string()))),
-                    operands: vec![
-                        create_expr(Expr::Identifier("n".to_string())),
-                        create_expr(Expr::Literal(Literal::Integer(0))),
-                    ],
-                })),
-                consequent: Box::new(create_expr(Expr::Literal(Literal::Integer(1)))),
-                alternative: Some(Box::new(create_expr(Expr::Application {
-                    operator: Box::new(create_expr(Expr::Identifier("*".to_string()))),
-                    operands: vec![
-                        create_expr(Expr::Identifier("n".to_string())),
-                        create_expr(Expr::Application {
-                            operator: Box::new(create_expr(Expr::Identifier("factorial".to_string()))),
-                            operands: vec![create_expr(Expr::Application {
-                                operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
-                                operands: vec![
-                                    create_expr(Expr::Identifier("n".to_string())),
-                                    create_expr(Expr::Literal(Literal::Integer(1))),
-                                ],
-                            })],
-                        }),
-                    ],
-                }))),
-            })
-        ],
+        body: vec![create_expr(Expr::If {
+            test: Box::new(create_expr(Expr::Application {
+                operator: Box::new(create_expr(Expr::Identifier("=".to_string()))),
+                operands: vec![
+                    create_expr(Expr::Identifier("n".to_string())),
+                    create_expr(Expr::Literal(Literal::Integer(0))),
+                ],
+            })),
+            consequent: Box::new(create_expr(Expr::Literal(Literal::Integer(1)))),
+            alternative: Some(Box::new(create_expr(Expr::Application {
+                operator: Box::new(create_expr(Expr::Identifier("*".to_string()))),
+                operands: vec![
+                    create_expr(Expr::Identifier("n".to_string())),
+                    create_expr(Expr::Application {
+                        operator: Box::new(create_expr(Expr::Identifier("factorial".to_string()))),
+                        operands: vec![create_expr(Expr::Application {
+                            operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
+                            operands: vec![
+                                create_expr(Expr::Identifier("n".to_string())),
+                                create_expr(Expr::Literal(Literal::Integer(1))),
+                            ],
+                        })],
+                    }),
+                ],
+            }))),
+        })],
     })
 }
 
@@ -99,37 +97,35 @@ fn create_tail_recursive_factorial() -> Spanned<Expr> {
         formals: Formals::Fixed(&["n".to_string(), "acc".to_string()]),
         return_type: None,
         metadata: HashMap::new(),
-        body: vec![
-            create_expr(Expr::If {
-                test: Box::new(create_expr(Expr::Application {
-                    operator: Box::new(create_expr(Expr::Identifier("=".to_string()))),
-                    operands: vec![
-                        create_expr(Expr::Identifier("n".to_string())),
-                        create_expr(Expr::Literal(Literal::Integer(0))),
-                    ],
-                })),
-                consequent: Box::new(create_expr(Expr::Identifier("acc".to_string()))),
-                alternative: Some(Box::new(create_expr(Expr::Application {
-                    operator: Box::new(create_expr(Expr::Identifier("factorial".to_string()))),
-                    operands: vec![
-                        create_expr(Expr::Application {
-                            operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
-                            operands: vec![
-                                create_expr(Expr::Identifier("n".to_string())),
-                                create_expr(Expr::Literal(Literal::Integer(1))),
-                            ],
-                        }),
-                        create_expr(Expr::Application {
-                            operator: Box::new(create_expr(Expr::Identifier("*".to_string()))),
-                            operands: vec![
-                                create_expr(Expr::Identifier("n".to_string())),
-                                create_expr(Expr::Identifier("acc".to_string())),
-                            ],
-                        }),
-                    ],
-                }))),
-            })
-        ],
+        body: vec![create_expr(Expr::If {
+            test: Box::new(create_expr(Expr::Application {
+                operator: Box::new(create_expr(Expr::Identifier("=".to_string()))),
+                operands: vec![
+                    create_expr(Expr::Identifier("n".to_string())),
+                    create_expr(Expr::Literal(Literal::Integer(0))),
+                ],
+            })),
+            consequent: Box::new(create_expr(Expr::Identifier("acc".to_string()))),
+            alternative: Some(Box::new(create_expr(Expr::Application {
+                operator: Box::new(create_expr(Expr::Identifier("factorial".to_string()))),
+                operands: vec![
+                    create_expr(Expr::Application {
+                        operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
+                        operands: vec![
+                            create_expr(Expr::Identifier("n".to_string())),
+                            create_expr(Expr::Literal(Literal::Integer(1))),
+                        ],
+                    }),
+                    create_expr(Expr::Application {
+                        operator: Box::new(create_expr(Expr::Identifier("*".to_string()))),
+                        operands: vec![
+                            create_expr(Expr::Identifier("n".to_string())),
+                            create_expr(Expr::Identifier("acc".to_string())),
+                        ],
+                    }),
+                ],
+            }))),
+        })],
     })
 }
 
@@ -139,43 +135,41 @@ fn create_fibonacci_lambda() -> Spanned<Expr> {
         formals: Formals::Fixed(&["n".to_string()]),
         return_type: None,
         metadata: HashMap::new(),
-        body: vec![
-            create_expr(Expr::If {
-                test: Box::new(create_expr(Expr::Application {
-                    operator: Box::new(create_expr(Expr::Identifier("<=".to_string()))),
-                    operands: vec![
-                        create_expr(Expr::Identifier("n".to_string())),
-                        create_expr(Expr::Literal(Literal::Integer(1))),
-                    ],
-                })),
-                consequent: Box::new(create_expr(Expr::Identifier("n".to_string()))),
-                alternative: Some(Box::new(create_expr(Expr::Application {
-                    operator: Box::new(create_expr(Expr::Identifier("+".to_string()))),
-                    operands: vec![
-                        create_expr(Expr::Application {
-                            operator: Box::new(create_expr(Expr::Identifier("fibonacci".to_string()))),
-                            operands: vec![create_expr(Expr::Application {
-                                operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
-                                operands: vec![
-                                    create_expr(Expr::Identifier("n".to_string())),
-                                    create_expr(Expr::Literal(Literal::Integer(1))),
-                                ],
-                            })],
-                        }),
-                        create_expr(Expr::Application {
-                            operator: Box::new(create_expr(Expr::Identifier("fibonacci".to_string()))),
-                            operands: vec![create_expr(Expr::Application {
-                                operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
-                                operands: vec![
-                                    create_expr(Expr::Identifier("n".to_string())),
-                                    create_expr(Expr::Literal(Literal::Integer(2))),
-                                ],
-                            })],
-                        }),
-                    ],
-                }))),
-            })
-        ],
+        body: vec![create_expr(Expr::If {
+            test: Box::new(create_expr(Expr::Application {
+                operator: Box::new(create_expr(Expr::Identifier("<=".to_string()))),
+                operands: vec![
+                    create_expr(Expr::Identifier("n".to_string())),
+                    create_expr(Expr::Literal(Literal::Integer(1))),
+                ],
+            })),
+            consequent: Box::new(create_expr(Expr::Identifier("n".to_string()))),
+            alternative: Some(Box::new(create_expr(Expr::Application {
+                operator: Box::new(create_expr(Expr::Identifier("+".to_string()))),
+                operands: vec![
+                    create_expr(Expr::Application {
+                        operator: Box::new(create_expr(Expr::Identifier("fibonacci".to_string()))),
+                        operands: vec![create_expr(Expr::Application {
+                            operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
+                            operands: vec![
+                                create_expr(Expr::Identifier("n".to_string())),
+                                create_expr(Expr::Literal(Literal::Integer(1))),
+                            ],
+                        })],
+                    }),
+                    create_expr(Expr::Application {
+                        operator: Box::new(create_expr(Expr::Identifier("fibonacci".to_string()))),
+                        operands: vec![create_expr(Expr::Application {
+                            operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
+                            operands: vec![
+                                create_expr(Expr::Identifier("n".to_string())),
+                                create_expr(Expr::Literal(Literal::Integer(2))),
+                            ],
+                        })],
+                    }),
+                ],
+            }))),
+        })],
     })
 }
 
@@ -185,7 +179,7 @@ fn create_fibonacci_lambda() -> Spanned<Expr> {
 fn test_pattern_optimizer_initialization() {
     let optimizer = RecPatternOptimizer::new();
     let stats = optimizer.get_statistics();
-    
+
     assert_eq!(stats.patterns_analyzed, 0);
     assert_eq!(stats.patterns_optimized, 0);
     assert_eq!(stats.cache_hit_rate, 0.0);
@@ -194,11 +188,11 @@ fn test_pattern_optimizer_initialization() {
 #[test]
 fn test_pattern_optimizer_custom_config() {
     let optimizer = RecPatternOptimizer::with_config(0.9, 500, true);
-    
+
     // Test configuration through behavior
     let simple_expr = create_expr(Expr::Literal(Literal::Integer(42)));
     let pattern = optimizer.clone().analyze_pattern("test", &simple_expr);
-    
+
     // Should recognize pattern as unknown for non-lambda
     assert_eq!(pattern, RecursivePattern::UnknownPattern);
 }
@@ -207,18 +201,30 @@ fn test_pattern_optimizer_custom_config() {
 fn test_linear_recursion_pattern_detection() {
     let mut optimizer = RecPatternOptimizer::new();
     let factorial_lambda = create_factorial_lambda();
-    
+
     let pattern = optimizer.analyze_pattern("factorial", &factorial_lambda);
-    
+
     match pattern {
-        RecursivePattern::LinearRecursion { confidence, tail_call_opportunities } => {
-            assert!(confidence > 0.3, "Should have reasonable confidence for linear recursion");
-            assert_eq!(tail_call_opportunities, 0, "Standard factorial is not tail recursive");
+        RecursivePattern::LinearRecursion {
+            confidence,
+            tail_call_opportunities,
+        } => {
+            assert!(
+                confidence > 0.3,
+                "Should have reasonable confidence for linear recursion"
+            );
+            assert_eq!(
+                tail_call_opportunities, 0,
+                "Standard factorial is not tail recursive"
+            );
         }
         RecursivePattern::TreeRecursion { .. } => {
             // Also acceptable for factorial depending on analysis
         }
-        _ => panic!("Expected LinearRecursion or TreeRecursion pattern for factorial, got {:?}", pattern),
+        _ => panic!(
+            "Expected LinearRecursion or TreeRecursion pattern for factorial, got {:?}",
+            pattern
+        ),
     }
 }
 
@@ -226,19 +232,38 @@ fn test_linear_recursion_pattern_detection() {
 fn test_tail_recursion_pattern_detection() {
     let mut optimizer = RecPatternOptimizer::new();
     let tail_factorial = create_tail_recursive_factorial();
-    
+
     let pattern = optimizer.analyze_pattern("factorial", &tail_factorial);
-    
+
     match pattern {
-        RecursivePattern::LinearTailRecursion { confidence, strategy, estimated_speedup } => {
-            assert!(confidence >= 0.5, "Should have good confidence for tail recursion");
-            assert!(estimated_speedup > 1.0, "Should estimate performance improvement");
-            assert!(matches!(strategy, TailCallStrategy::SimpleIteration | TailCallStrategy::TrampolineIteration));
+        RecursivePattern::LinearTailRecursion {
+            confidence,
+            strategy,
+            estimated_speedup,
+        } => {
+            assert!(
+                confidence >= 0.5,
+                "Should have good confidence for tail recursion"
+            );
+            assert!(
+                estimated_speedup > 1.0,
+                "Should estimate performance improvement"
+            );
+            assert!(matches!(
+                strategy,
+                TailCallStrategy::SimpleIteration | TailCallStrategy::TrampolineIteration
+            ));
         }
         RecursivePattern::AccumulatorPattern { confidence, .. } => {
-            assert!(confidence >= 0.4, "Accumulator pattern also acceptable for tail factorial");
+            assert!(
+                confidence >= 0.4,
+                "Accumulator pattern also acceptable for tail factorial"
+            );
         }
-        _ => panic!("Expected tail recursion or accumulator pattern, got {:?}", pattern),
+        _ => panic!(
+            "Expected tail recursion or accumulator pattern, got {:?}",
+            pattern
+        ),
     }
 }
 
@@ -246,16 +271,29 @@ fn test_tail_recursion_pattern_detection() {
 fn test_tree_recursion_pattern_detection() {
     let mut optimizer = RecPatternOptimizer::new();
     let fibonacci_lambda = create_fibonacci_lambda();
-    
+
     let pattern = optimizer.analyze_pattern("fibonacci", &fibonacci_lambda);
-    
+
     match pattern {
-        RecursivePattern::TreeRecursion { confidence, memoization_candidate, complexity_estimate } => {
-            assert!(confidence > 0.3, "Should detect tree recursion in fibonacci");
-            assert!(memoization_candidate, "Fibonacci should be a memoization candidate");
+        RecursivePattern::TreeRecursion {
+            confidence,
+            memoization_candidate,
+            complexity_estimate,
+        } => {
+            assert!(
+                confidence > 0.3,
+                "Should detect tree recursion in fibonacci"
+            );
+            assert!(
+                memoization_candidate,
+                "Fibonacci should be a memoization candidate"
+            );
             assert_eq!(complexity_estimate, ComplexityClass::Exponential);
         }
-        _ => panic!("Expected TreeRecursion pattern for fibonacci, got {:?}", pattern),
+        _ => panic!(
+            "Expected TreeRecursion pattern for fibonacci, got {:?}",
+            pattern
+        ),
     }
 }
 
@@ -263,25 +301,28 @@ fn test_tree_recursion_pattern_detection() {
 fn test_pattern_cache_functionality() {
     let mut optimizer = RecPatternOptimizer::new();
     let factorial_lambda = create_factorial_lambda();
-    
+
     // First analysis - cache miss
     let start_time = Instant::now();
     let pattern1 = optimizer.analyze_pattern("factorial", &factorial_lambda);
     let first_duration = start_time.elapsed();
-    
+
     // Second analysis - should be cache hit
     let start_time = Instant::now();
     let pattern2 = optimizer.analyze_pattern("factorial", &factorial_lambda);
     let second_duration = start_time.elapsed();
-    
+
     // Results should be the same
     assert_eq!(format!("{:?}", pattern1), format!("{:?}", pattern2));
-    
+
     // Cache hit should be faster (though this might be flaky in CI)
     if second_duration < Duration::from_millis(1) {
-        assert!(second_duration < first_duration, "Cache hit should be faster");
+        assert!(
+            second_duration < first_duration,
+            "Cache hit should be faster"
+        );
     }
-    
+
     let stats = optimizer.get_statistics();
     assert_eq!(stats.patterns_analyzed, 2);
 }
@@ -290,16 +331,22 @@ fn test_pattern_cache_functionality() {
 fn test_confidence_threshold_application() {
     let mut high_threshold_optimizer = RecPatternOptimizer::with_config(0.95, 100, false);
     let mut low_threshold_optimizer = RecPatternOptimizer::with_config(0.1, 100, false);
-    
+
     let factorial_lambda = create_factorial_lambda();
-    
+
     let high_pattern = high_threshold_optimizer.analyze_pattern("factorial", &factorial_lambda);
     let low_pattern = low_threshold_optimizer.analyze_pattern("factorial", &factorial_lambda);
-    
+
     // Both should detect the pattern, but confidence interpretation differs
     // This test mainly ensures the API works correctly
-    assert!(matches!(high_pattern, RecursivePattern::LinearRecursion { .. } | RecursivePattern::TreeRecursion { .. }));
-    assert!(matches!(low_pattern, RecursivePattern::LinearRecursion { .. } | RecursivePattern::TreeRecursion { .. }));
+    assert!(matches!(
+        high_pattern,
+        RecursivePattern::LinearRecursion { .. } | RecursivePattern::TreeRecursion { .. }
+    ));
+    assert!(matches!(
+        low_pattern,
+        RecursivePattern::LinearRecursion { .. } | RecursivePattern::TreeRecursion { .. }
+    ));
 }
 
 // ============= TAIL CALL OPTIMIZATION TESTS =============
@@ -308,7 +355,7 @@ fn test_confidence_threshold_application() {
 fn test_tail_call_detector_initialization() {
     let detector = TailCallDetector::new();
     let stats = detector.get_statistics();
-    
+
     assert_eq!(stats.expressions_analyzed, 0);
     assert_eq!(stats.optimizations_applied, 0);
 }
@@ -317,15 +364,18 @@ fn test_tail_call_detector_initialization() {
 fn test_tail_call_detection_simple() {
     let mut detector = TailCallDetector::new();
     let tail_factorial = create_tail_recursive_factorial();
-    
+
     let optimization = detector.optimize_tail_recursion("factorial", &tail_factorial);
-    
+
     if let Some(opt) = optimization {
-        assert!(matches!(opt.strategy, TailCallStrategy::SimpleIteration | TailCallStrategy::TrampolineIteration));
+        assert!(matches!(
+            opt.strategy,
+            TailCallStrategy::SimpleIteration | TailCallStrategy::TrampolineIteration
+        ));
         assert!(opt.estimated_improvement > 1.0);
         assert!(opt.memory_reduction > 0.0);
     }
-    
+
     let stats = detector.get_statistics();
     assert_eq!(stats.expressions_analyzed, 1);
 }
@@ -334,9 +384,9 @@ fn test_tail_call_detection_simple() {
 fn test_tail_call_detection_non_tail() {
     let mut detector = TailCallDetector::new();
     let factorial_lambda = create_factorial_lambda();
-    
+
     let optimization = detector.optimize_tail_recursion("factorial", &factorial_lambda);
-    
+
     // Standard factorial is not tail recursive, so optimization may be None or have low confidence
     match optimization {
         None => {
@@ -346,7 +396,7 @@ fn test_tail_call_detection_non_tail() {
             assert!(opt.estimated_improvement >= 1.0);
         }
     }
-    
+
     let stats = detector.get_statistics();
     assert_eq!(stats.expressions_analyzed, 1);
 }
@@ -355,11 +405,17 @@ fn test_tail_call_detection_non_tail() {
 fn test_tail_call_memory_estimation() {
     let mut detector = TailCallDetector::new();
     let tail_factorial = create_tail_recursive_factorial();
-    
+
     if let Some(optimization) = detector.optimize_tail_recursion("factorial", &tail_factorial) {
         // Memory reduction should be significant for tail recursive functions
-        assert!(optimization.memory_reduction > 0.5, "Tail recursion should provide significant memory reduction");
-        assert!(optimization.memory_reduction <= 1.0, "Memory reduction should not exceed 100%");
+        assert!(
+            optimization.memory_reduction > 0.5,
+            "Tail recursion should provide significant memory reduction"
+        );
+        assert!(
+            optimization.memory_reduction <= 1.0,
+            "Memory reduction should not exceed 100%"
+        );
     }
 }
 
@@ -369,7 +425,7 @@ fn test_tail_call_memory_estimation() {
 fn test_memory_optimizer_initialization() {
     let optimizer = MemoryOptimizer::new();
     let stats = optimizer.get_statistics();
-    
+
     assert_eq!(stats.optimizations_applied, 0);
     assert_eq!(stats.bytes_saved, 0);
 }
@@ -377,30 +433,30 @@ fn test_memory_optimizer_initialization() {
 #[test]
 fn test_memory_strategy_selection() {
     let mut optimizer = MemoryOptimizer::new();
-    
+
     // Test different pattern types
     let tail_pattern = RecursivePattern::LinearTailRecursion {
         confidence: 0.9,
         strategy: TailCallStrategy::SimpleIteration,
         estimated_speedup: 2.0,
     };
-    
+
     let tree_pattern = RecursivePattern::TreeRecursion {
         confidence: 0.8,
         memoization_candidate: true,
         complexity_estimate: ComplexityClass::Exponential,
     };
-    
+
     let accumulator_pattern = RecursivePattern::AccumulatorPattern {
         confidence: 0.9,
         optimization_level: 4,
         memory_reduction_estimate: 0.7,
     };
-    
+
     let tail_strategy = optimizer.optimize_allocation_pattern(&tail_pattern);
     let tree_strategy = optimizer.optimize_allocation_pattern(&tree_pattern);
     let acc_strategy = optimizer.optimize_allocation_pattern(&accumulator_pattern);
-    
+
     assert_eq!(tail_strategy, MemoryStrategy::StackOptimization);
     assert_eq!(tree_strategy, MemoryStrategy::AllocationPooling);
     assert_eq!(acc_strategy, MemoryStrategy::StackOptimization);
@@ -409,24 +465,24 @@ fn test_memory_strategy_selection() {
 #[test]
 fn test_memory_optimizer_with_custom_config() {
     use lambdust::eval::rec_optimization_framework::MemoryOptimizerConfig;
-    
+
     let config = MemoryOptimizerConfig {
         enable_stack_optimization: false,
         enable_allocation_pooling: true,
         cache_line_size: 128,
         max_pool_size: 2048,
     };
-    
+
     let mut optimizer = MemoryOptimizer::with_config(config);
-    
+
     let tail_pattern = RecursivePattern::LinearTailRecursion {
         confidence: 0.9,
         strategy: TailCallStrategy::SimpleIteration,
         estimated_speedup: 2.0,
     };
-    
+
     let strategy = optimizer.optimize_allocation_pattern(&tail_pattern);
-    
+
     // With stack optimization disabled, should use arena allocation
     assert_eq!(strategy, MemoryStrategy::ArenaAllocation);
 }
@@ -437,7 +493,7 @@ fn test_memory_optimizer_with_custom_config() {
 fn test_optimization_integration_basic() {
     let integration = RecOptimizationIntegration::new();
     assert!(integration.is_enabled());
-    
+
     let stats = integration.get_statistics();
     assert_eq!(stats.rec_forms_processed, 0);
 }
@@ -446,7 +502,7 @@ fn test_optimization_integration_basic() {
 fn test_optimization_integration_disabled() {
     let integration = RecOptimizationIntegration::disabled();
     assert!(!integration.is_enabled());
-    
+
     // Test that optimization is skipped
     let variable_name = "test";
     let expression = create_factorial_lambda();
@@ -458,14 +514,14 @@ fn test_optimization_integration_disabled() {
         body: &[create_expr(Expr::Identifier("test".to_string()))],
     });
     let span = Span::new(0, 10);
-    
+
     let result = integration.optimize_rec_form(&variable_name, &expression, &original_letrec, span);
     assert!(result.is_ok());
-    
+
     // Should return original without modification
     let optimized = result.unwrap();
     assert!(matches!(optimized.inner, Expr::LetRec { .. }));
-    
+
     let stats = integration.get_statistics();
     assert_eq!(stats.rec_forms_processed, 0); // Should not process when disabled
 }
@@ -494,7 +550,7 @@ fn test_optimization_integration_timeout_protection() {
         ..RecOptimizationConfig::default()
     };
     let integration = RecOptimizationIntegration::with_config(config);
-    
+
     let variable_name = "factorial";
     let expression = create_factorial_lambda();
     let original_letrec = create_expr(Expr::LetRec {
@@ -505,10 +561,10 @@ fn test_optimization_integration_timeout_protection() {
         body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
-    
+
     let result = integration.optimize_rec_form(&variable_name, &expression, &original_letrec, span);
     assert!(result.is_ok());
-    
+
     // Should fall back to original due to timeout
     let optimized = result.unwrap();
     assert!(matches!(optimized.inner, Expr::LetRec { .. }));
@@ -517,7 +573,7 @@ fn test_optimization_integration_timeout_protection() {
 #[test]
 fn test_optimization_integration_statistics_collection() {
     let integration = RecOptimizationIntegration::new();
-    
+
     // Simulate some optimization attempts
     let variable_name = "factorial";
     let expression = create_factorial_lambda();
@@ -529,12 +585,12 @@ fn test_optimization_integration_statistics_collection() {
         body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
-    
+
     // Process multiple rec forms
     for _ in 0..3 {
         let _ = integration.optimize_rec_form(&variable_name, &expression, &original_letrec, span);
     }
-    
+
     let stats = integration.get_statistics();
     assert_eq!(stats.rec_forms_processed, 3);
     assert!(stats.avg_analysis_time() > Duration::from_nanos(0));
@@ -544,7 +600,7 @@ fn test_optimization_integration_statistics_collection() {
 fn test_optimization_integration_report_generation() {
     let integration = RecOptimizationIntegration::new();
     let report = integration.generate_integration_report();
-    
+
     // Verify report contains expected sections
     assert!(report.contains("SRFI-31 Optimization Integration Report"));
     assert!(report.contains("Configuration:"));
@@ -559,7 +615,7 @@ fn test_optimization_integration_report_generation() {
 fn test_srfi_optimization_engine_creation() {
     let engine = SrfiOptimizationEngine::new();
     assert!(engine.enabled);
-    
+
     let production_engine = SrfiOptimizationEngine::production();
     assert!(production_engine.enabled);
 }
@@ -567,7 +623,7 @@ fn test_srfi_optimization_engine_creation() {
 #[test]
 fn test_srfi_optimization_engine_optimization_flow() {
     let mut engine = SrfiOptimizationEngine::new();
-    
+
     let variable_name = "factorial";
     let expression = create_factorial_lambda();
     let original_letrec = create_expr(Expr::LetRec {
@@ -577,20 +633,23 @@ fn test_srfi_optimization_engine_optimization_flow() {
         }],
         body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
     });
-    
+
     let result = engine.optimize_rec_form(&variable_name, &expression, &original_letrec);
     assert!(result.is_ok());
-    
+
     // Should return some form of expression (optimized or original)
     let optimized = result.unwrap();
-    assert!(matches!(optimized.inner, Expr::LetRec { .. } | Expr::Lambda { .. }));
+    assert!(matches!(
+        optimized.inner,
+        Expr::LetRec { .. } | Expr::Lambda { .. }
+    ));
 }
 
 #[test]
 fn test_srfi_optimization_engine_report() {
     let engine = SrfiOptimizationEngine::new();
     let report = engine.generate_optimization_report();
-    
+
     assert!(report.contains("SRFI-31 Optimization Engine Report"));
     assert!(report.contains("Pattern Recognition:"));
     assert!(report.contains("Tail Call Optimization:"));
@@ -602,7 +661,7 @@ fn test_srfi_optimization_engine_report() {
 #[test]
 fn test_optimization_performance_overhead() {
     let integration = RecOptimizationIntegration::new();
-    
+
     let variable_name = "factorial";
     let expression = create_factorial_lambda();
     let original_letrec = create_expr(Expr::LetRec {
@@ -613,17 +672,21 @@ fn test_optimization_performance_overhead() {
         body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
-    
+
     // Time multiple optimization attempts
     let start_time = Instant::now();
     for _ in 0..10 {
         let _ = integration.optimize_rec_form(&variable_name, &expression, &original_letrec, span);
     }
     let total_time = start_time.elapsed();
-    
+
     // Should complete reasonably quickly (adjust threshold as needed)
-    assert!(total_time < Duration::from_millis(100), "Optimization should be fast: {:?}", total_time);
-    
+    assert!(
+        total_time < Duration::from_millis(100),
+        "Optimization should be fast: {:?}",
+        total_time
+    );
+
     let stats = integration.get_statistics();
     assert_eq!(stats.rec_forms_processed, 10);
     assert!(stats.avg_analysis_time() < Duration::from_millis(50));
@@ -632,7 +695,7 @@ fn test_optimization_performance_overhead() {
 #[test]
 fn test_disabled_optimization_zero_overhead() {
     let disabled_integration = RecOptimizationIntegration::disabled();
-    
+
     let variable_name = "factorial";
     let expression = create_factorial_lambda();
     let original_letrec = create_expr(Expr::LetRec {
@@ -643,17 +706,26 @@ fn test_disabled_optimization_zero_overhead() {
         body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
-    
+
     // Time disabled optimization - should be extremely fast
     let start_time = Instant::now();
     for _ in 0..1000 {
-        let _ = disabled_integration.optimize_rec_form(&variable_name, &expression, &original_letrec, span);
+        let _ = disabled_integration.optimize_rec_form(
+            &variable_name,
+            &expression,
+            &original_letrec,
+            span,
+        );
     }
     let total_time = start_time.elapsed();
-    
+
     // Should complete very quickly since optimization is disabled
-    assert!(total_time < Duration::from_millis(10), "Disabled optimization should be nearly zero overhead: {:?}", total_time);
-    
+    assert!(
+        total_time < Duration::from_millis(10),
+        "Disabled optimization should be nearly zero overhead: {:?}",
+        total_time
+    );
+
     // Statistics should not be updated when disabled
     let stats = disabled_integration.get_statistics();
     assert_eq!(stats.rec_forms_processed, 0);
@@ -664,7 +736,7 @@ fn test_disabled_optimization_zero_overhead() {
 #[test]
 fn test_optimization_with_malformed_expressions() {
     let mut optimizer = RecPatternOptimizer::new();
-    
+
     // Test with empty expression
     let empty_expr = create_expr(Expr::Lambda {
         formals: Formals::Fixed(&[]),
@@ -672,7 +744,7 @@ fn test_optimization_with_malformed_expressions() {
         metadata: HashMap::new(),
         body: &[],
     });
-    
+
     let pattern = optimizer.analyze_pattern("test", &empty_expr);
     // Should handle gracefully
     assert_eq!(pattern, RecursivePattern::UnknownPattern);
@@ -681,17 +753,17 @@ fn test_optimization_with_malformed_expressions() {
 #[test]
 fn test_optimization_with_non_lambda_expressions() {
     let mut optimizer = RecPatternOptimizer::new();
-    
+
     // Test with literal expression
     let literal_expr = create_expr(Expr::Literal(Literal::Integer(42)));
     let pattern = optimizer.analyze_pattern("test", &literal_expr);
-    
+
     assert_eq!(pattern, RecursivePattern::UnknownPattern);
-    
-    // Test with identifier expression  
+
+    // Test with identifier expression
     let id_expr = create_expr(Expr::Identifier("test".to_string()));
     let pattern = optimizer.analyze_pattern("test", &id_expr);
-    
+
     // Should detect self-reference but classify as complex
     match pattern {
         RecursivePattern::ComplexPattern { .. } => {
@@ -700,14 +772,17 @@ fn test_optimization_with_non_lambda_expressions() {
         RecursivePattern::UnknownPattern => {
             // Also acceptable
         }
-        _ => panic!("Unexpected pattern for identifier self-reference: {:?}", pattern),
+        _ => panic!(
+            "Unexpected pattern for identifier self-reference: {:?}",
+            pattern
+        ),
     }
 }
 
 #[test]
 fn test_optimization_cache_limits() {
     let mut optimizer = RecPatternOptimizer::with_config(0.5, 2, false); // Small cache size
-    
+
     // Fill cache beyond capacity
     for i in 0..5 {
         let expr = create_expr(Expr::Lambda {
@@ -716,10 +791,10 @@ fn test_optimization_cache_limits() {
             metadata: HashMap::new(),
             body: &[create_expr(Expr::Literal(Literal::Integer(i as i64)))],
         });
-        
+
         optimizer.analyze_pattern(&format!("func{}", i), &expr);
     }
-    
+
     let stats = optimizer.get_statistics();
     assert_eq!(stats.patterns_analyzed, 5);
     // Cache should evict old entries
@@ -729,9 +804,9 @@ fn test_optimization_cache_limits() {
 fn test_concurrent_optimization_safety() {
     use std::sync::Arc;
     use std::thread;
-    
+
     let integration = Arc::new(RecOptimizationIntegration::new());
-    
+
     let variable_name = "factorial";
     let expression = create_factorial_lambda();
     let original_letrec = create_expr(Expr::LetRec {
@@ -742,26 +817,33 @@ fn test_concurrent_optimization_safety() {
         body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
-    
+
     // Spawn multiple threads doing optimization
-    let handles: Vec<_> = (0..4).map(|_| {
-        let integration = Arc::clone(&integration);
-        let expression = expression.clone();
-        let original_letrec = original_letrec.clone();
-        
-        thread::spawn(move || {
-            for _ in 0..5 {
-                let result = integration.optimize_rec_form(&variable_name, &expression, &original_letrec, span);
-                assert!(result.is_ok());
-            }
+    let handles: Vec<_> = (0..4)
+        .map(|_| {
+            let integration = Arc::clone(&integration);
+            let expression = expression.clone();
+            let original_letrec = original_letrec.clone();
+
+            thread::spawn(move || {
+                for _ in 0..5 {
+                    let result = integration.optimize_rec_form(
+                        &variable_name,
+                        &expression,
+                        &original_letrec,
+                        span,
+                    );
+                    assert!(result.is_ok());
+                }
+            })
         })
-    }).collect();
-    
+        .collect();
+
     // Wait for all threads
     for handle in handles {
         handle.join().unwrap();
     }
-    
+
     // Verify statistics consistency
     let stats = integration.get_statistics();
     assert_eq!(stats.rec_forms_processed, 20); // 4 threads × 5 iterations
@@ -773,19 +855,19 @@ fn test_concurrent_optimization_safety() {
 fn test_compatibility_with_existing_srfi31_tests() {
     // This test ensures that our optimization doesn't break existing SRFI-31 functionality
     // We parse the same expressions that existing tests use and ensure they still work
-    
+
     let source = r#"(rec factorial 
                       (lambda (n) 
                         (if (= n 0) 
                             1 
                             (* n (factorial (- n 1))))))"#;
-    
+
     // Parse using standard parser
     let mut lexer = Lexer::new(source, Some("test"));
     let tokens = lexer.tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let ast = parser.parse_expression().unwrap();
-    
+
     // Should still parse to LetRec as before
     match ast.inner {
         Expr::LetRec { bindings, body } => {
@@ -805,9 +887,9 @@ fn test_optimization_preserves_semantics() {
     // This test would ideally execute both optimized and unoptimized versions
     // and verify they produce the same results. Since we don't have a full
     // evaluator setup in this test, we do structural checks.
-    
+
     let integration = RecOptimizationIntegration::new();
-    
+
     let variable_name = "factorial";
     let expression = create_factorial_lambda();
     let original_letrec = create_expr(Expr::LetRec {
@@ -818,9 +900,11 @@ fn test_optimization_preserves_semantics() {
         body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
-    
-    let optimized_result = integration.optimize_rec_form(&variable_name, &expression, &original_letrec, span).unwrap();
-    
+
+    let optimized_result = integration
+        .optimize_rec_form(&variable_name, &expression, &original_letrec, span)
+        .unwrap();
+
     // The optimized result should be a valid expression
     match optimized_result.inner {
         Expr::LetRec { bindings, body } => {
@@ -846,7 +930,7 @@ fn test_performance_monitoring_accuracy() {
         production_monitoring: true,
         ..RecOptimizationConfig::default()
     });
-    
+
     // Perform some optimizations
     let variable_name = "factorial";
     let expression = create_factorial_lambda();
@@ -858,15 +942,15 @@ fn test_performance_monitoring_accuracy() {
         body: &[create_expr(Expr::Identifier(variable_name.to_string()))],
     });
     let span = Span::new(0, 100);
-    
+
     for _ in 0..5 {
         let _ = integration.optimize_rec_form(&variable_name, &expression, &original_letrec, span);
     }
-    
+
     let stats = integration.get_statistics();
     assert_eq!(stats.rec_forms_processed, 5);
     assert!(stats.total_analysis_time > Duration::from_nanos(0));
-    
+
     // Success rate should be meaningful
     let success_rate = stats.success_rate();
     assert!(success_rate >= 0.0 && success_rate <= 1.0);
@@ -877,12 +961,12 @@ fn test_performance_monitoring_accuracy() {
 #[test]
 fn test_benchmark_suite_creation_and_reporting() {
     use lambdust::eval::rec_optimization_framework::RecBenchmarkSuite;
-    
+
     let suite = RecBenchmarkSuite::new();
     assert_eq!(suite.factorial_benchmarks.name, "Factorial");
     assert_eq!(suite.fibonacci_benchmarks.name, "Fibonacci");
     assert_eq!(suite.list_processing_benchmarks.name, "List Processing");
-    
+
     let report = suite.generate_report();
     assert!(report.contains("SRFI-31 Optimization Performance Report"));
     assert!(report.contains("Factorial Benchmarks:"));
@@ -894,14 +978,14 @@ fn test_benchmark_suite_creation_and_reporting() {
 #[test]
 fn test_end_to_end_optimization_pipeline() {
     let integration = RecOptimizationIntegration::production();
-    
+
     // Test with different types of recursive functions
     let test_cases = vec![
         ("factorial", create_factorial_lambda()),
         ("tail_factorial", create_tail_recursive_factorial()),
         ("fibonacci", create_fibonacci_lambda()),
     ];
-    
+
     for (name, expression) in test_cases {
         let original_letrec = create_expr(Expr::LetRec {
             bindings: vec![Binding {
@@ -911,24 +995,32 @@ fn test_end_to_end_optimization_pipeline() {
             body: &[create_expr(Expr::Identifier(name.to_string()))],
         });
         let span = Span::new(0, 100);
-        
+
         let result = integration.optimize_rec_form(name, &expression, &original_letrec, span);
-        assert!(result.is_ok(), "Optimization failed for {}: {:?}", name, result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Optimization failed for {}: {:?}",
+            name,
+            result.err()
+        );
+
         let optimized = result.unwrap();
         // Verify the result is a valid expression
         match &optimized.inner {
             Expr::LetRec { .. } | Expr::Lambda { .. } => {
                 // Valid optimized forms
             }
-            _ => panic!("Unexpected optimized form for {}: {:?}", name, optimized.inner),
+            _ => panic!(
+                "Unexpected optimized form for {}: {:?}",
+                name, optimized.inner
+            ),
         }
     }
-    
+
     // Verify statistics were collected
     let stats = integration.get_statistics();
     assert_eq!(stats.rec_forms_processed, 3);
-    
+
     // Generate and verify report
     let report = integration.generate_integration_report();
     assert!(report.contains("Rec forms processed: 3"));

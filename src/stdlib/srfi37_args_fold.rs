@@ -10,8 +10,8 @@
 
 use crate::ast::Literal;
 use crate::diagnostics::{Error, Result, Span};
-use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use crate::effects::Effect;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -97,22 +97,24 @@ impl ArgsProcessor {
     fn process_short_option(&mut self, arg: &str) -> Result<()> {
         // Handle clustered short options like -abc
         let chars: Vec<char> = arg.chars().skip(1).collect(); // Skip the '-'
-        
+
         for (i, ch) in chars.iter().enumerate() {
             let option_name = ch.to_string();
-            
+
             if let Some(descriptor) = self.option_map.get(&option_name).cloned() {
                 let option_value = self.create_option_value(&descriptor)?;
-                
+
                 // Determine argument handling
                 let argument = if descriptor.required_arg || descriptor.optional_arg {
                     if i == chars.len() - 1 {
                         // Last option in cluster, can take next arg
                         if descriptor.required_arg {
-                            self.next().ok_or_else(|| Box::new(Error::runtime_error(
-                                format!("Option -{} requires an argument", ch),
-                                None
-                            )))?
+                            self.next().ok_or_else(|| {
+                                Box::new(Error::runtime_error(
+                                    format!("Option -{} requires an argument", ch),
+                                    None,
+                                ))
+                            })?
                         } else {
                             // Optional argument - take next if it doesn't look like option
                             if let Some(next_arg) = self.peek() {
@@ -128,7 +130,7 @@ impl ArgsProcessor {
                     } else if descriptor.required_arg {
                         return Err(Box::new(Error::runtime_error(
                             format!("Option -{} in cluster requires an argument", ch),
-                            None
+                            None,
                         )));
                     } else {
                         String::new() // Optional arg not available in cluster
@@ -137,20 +139,16 @@ impl ArgsProcessor {
                     String::new()
                 };
 
-                let arg_value = if argument.is_empty() { 
-                    Value::boolean(false) 
-                } else { 
-                    Value::string(argument) 
+                let arg_value = if argument.is_empty() {
+                    Value::boolean(false)
+                } else {
+                    Value::string(argument)
                 };
 
                 // Call processor: (option name arg . seeds) -> seeds
                 self.seeds = self.call_processor(
                     &descriptor.processor,
-                    vec![
-                        option_value,
-                        Value::string(option_name),
-                        arg_value,
-                    ],
+                    vec![option_value, Value::string(option_name), arg_value],
                 )?;
             } else {
                 // Unrecognized short option
@@ -164,28 +162,33 @@ impl ArgsProcessor {
                 )?;
             }
         }
-        
+
         Ok(())
     }
 
     /// Process a long option (starts with double dash)
     fn process_long_option(&mut self, arg: &str) -> Result<()> {
         let (option_name, embedded_arg) = if let Some(eq_pos) = arg.find('=') {
-            (arg[2..eq_pos].to_string(), Some(arg[eq_pos + 1..].to_string()))
+            (
+                arg[2..eq_pos].to_string(),
+                Some(arg[eq_pos + 1..].to_string()),
+            )
         } else {
             (arg[2..].to_string(), None)
         };
 
         if let Some(descriptor) = self.option_map.get(&option_name).cloned() {
             let option_value = self.create_option_value(&descriptor)?;
-            
+
             let argument = if let Some(embedded) = embedded_arg {
                 embedded
             } else if descriptor.required_arg {
-                self.next().ok_or_else(|| Box::new(Error::runtime_error(
-                    format!("Option --{} requires an argument", option_name),
-                    None
-                )))?
+                self.next().ok_or_else(|| {
+                    Box::new(Error::runtime_error(
+                        format!("Option --{} requires an argument", option_name),
+                        None,
+                    ))
+                })?
             } else if descriptor.optional_arg {
                 if let Some(next_arg) = self.peek() {
                     if !next_arg.starts_with('-') {
@@ -200,19 +203,15 @@ impl ArgsProcessor {
                 String::new()
             };
 
-            let arg_value = if argument.is_empty() { 
-                Value::boolean(false) 
-            } else { 
-                Value::string(argument) 
+            let arg_value = if argument.is_empty() {
+                Value::boolean(false)
+            } else {
+                Value::string(argument)
             };
 
             self.seeds = self.call_processor(
                 &descriptor.processor,
-                vec![
-                    option_value,
-                    Value::string(option_name),
-                    arg_value,
-                ],
+                vec![option_value, Value::string(option_name), arg_value],
             )?;
         } else {
             // Unrecognized long option
@@ -237,10 +236,8 @@ impl ArgsProcessor {
 
     /// Process an operand (non-option argument)
     fn process_operand(&mut self, operand: String) -> Result<()> {
-        self.seeds = self.call_processor(
-            &self.operand_proc.clone(),
-            vec![Value::string(operand)],
-        )?;
+        self.seeds =
+            self.call_processor(&self.operand_proc.clone(), vec![Value::string(operand)])?;
         Ok(())
     }
 
@@ -248,7 +245,9 @@ impl ArgsProcessor {
     fn create_option_value(&self, descriptor: &OptionDescriptor) -> Result<Value> {
         // Create a list: (option names required-arg? optional-arg? processor)
         let names_list = Value::list(
-            descriptor.names.iter()
+            descriptor
+                .names
+                .iter()
                 .map(|name| {
                     if name.len() == 1 {
                         // Short option - represent as character
@@ -258,7 +257,7 @@ impl ArgsProcessor {
                         Value::string(name.clone())
                     }
                 })
-                .collect()
+                .collect(),
         );
 
         Ok(Value::list(vec![
@@ -274,24 +273,22 @@ impl ArgsProcessor {
     fn call_processor(&self, proc: &Value, mut args: Vec<Value>) -> Result<Vec<Value>> {
         // Add current seeds to argument list
         args.extend(self.seeds.iter().cloned());
-        
+
         match proc {
-            Value::Primitive(prim) => {
-                match &prim.implementation {
-                    PrimitiveImpl::Native(func) => {
-                        let result = func(&args)?;
-                        Ok(vec![result])
-                    }
-                    PrimitiveImpl::RustFn(func) => {
-                        let result = func(&args)?;
-                        Ok(vec![result])
-                    }
-                    _ => Err(Box::new(Error::runtime_error(
-                        "Expected native procedure for args-fold processor",
-                        None
-                    )))
+            Value::Primitive(prim) => match &prim.implementation {
+                PrimitiveImpl::Native(func) => {
+                    let result = func(&args)?;
+                    Ok(vec![result])
                 }
-            }
+                PrimitiveImpl::RustFn(func) => {
+                    let result = func(&args)?;
+                    Ok(vec![result])
+                }
+                _ => Err(Box::new(Error::runtime_error(
+                    "Expected native procedure for args-fold processor",
+                    None,
+                ))),
+            },
             Value::Procedure(_) => {
                 // TODO: Implement procedure call through evaluator
                 // For now, return unchanged seeds
@@ -299,8 +296,8 @@ impl ArgsProcessor {
             }
             _ => Err(Box::new(Error::runtime_error(
                 "Expected procedure for args-fold processor",
-                None
-            )))
+                None,
+            ))),
         }
     }
 
@@ -308,7 +305,7 @@ impl ArgsProcessor {
     fn process(&mut self) -> Result<Vec<Value>> {
         while self.has_next() {
             let arg = self.next().unwrap();
-            
+
             if arg == "--" {
                 // End of options marker - rest are operands
                 while self.has_next() {
@@ -338,7 +335,7 @@ pub fn option(args: &[Value]) -> Result<Value> {
     if args.len() != 4 {
         return Err(Box::new(Error::runtime_error(
             format!("option: expected 4 arguments, got {}", args.len()),
-            None
+            None,
         )));
     }
 
@@ -353,11 +350,13 @@ pub fn option(args: &[Value]) -> Result<Value> {
                 Value::Symbol(_) => {
                     // For now, just use a placeholder - symbol to string conversion is complex
                     names.push("symbol".to_string());
-                },
-                _ => return Err(Box::new(Error::runtime_error(
-                    "option: names must be characters or strings",
-                    None
-                )))
+                }
+                _ => {
+                    return Err(Box::new(Error::runtime_error(
+                        "option: names must be characters or strings",
+                        None,
+                    )));
+                }
             }
             current = cdr.as_ref();
         }
@@ -365,30 +364,34 @@ pub fn option(args: &[Value]) -> Result<Value> {
     } else {
         return Err(Box::new(Error::runtime_error(
             "option: first argument must be a list of names",
-            None
+            None,
         )));
     };
 
     let required_arg = match &args[1] {
         Value::Literal(Literal::Boolean(b)) => *b,
-        _ => return Err(Box::new(Error::runtime_error(
-            "option: required-arg? must be a boolean",
-            None
-        )))
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "option: required-arg? must be a boolean",
+                None,
+            )));
+        }
     };
 
     let optional_arg = match &args[2] {
         Value::Literal(Literal::Boolean(b)) => *b,
-        _ => return Err(Box::new(Error::runtime_error(
-            "option: optional-arg? must be a boolean", 
-            None
-        )))
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "option: optional-arg? must be a boolean",
+                None,
+            )));
+        }
     };
 
     if required_arg && optional_arg {
         return Err(Box::new(Error::runtime_error(
             "option: cannot have both required and optional arguments",
-            None
+            None,
         )));
     }
 
@@ -410,8 +413,11 @@ pub fn option(args: &[Value]) -> Result<Value> {
 pub fn args_fold(args: &[Value]) -> Result<Value> {
     if args.len() < 4 {
         return Err(Box::new(Error::runtime_error(
-            format!("args-fold: expected at least 4 arguments, got {}", args.len()),
-            None
+            format!(
+                "args-fold: expected at least 4 arguments, got {}",
+                args.len()
+            ),
+            None,
         )));
     }
 
@@ -422,10 +428,12 @@ pub fn args_fold(args: &[Value]) -> Result<Value> {
         while let Value::Pair(car, cdr) = current {
             match car.as_ref() {
                 Value::Literal(Literal::String(s)) => strings.push(s.to_string()),
-                _ => return Err(Box::new(Error::runtime_error(
-                    "args-fold: args must be a list of strings",
-                    None
-                )))
+                _ => {
+                    return Err(Box::new(Error::runtime_error(
+                        "args-fold: args must be a list of strings",
+                        None,
+                    )));
+                }
             }
             current = cdr.as_ref();
         }
@@ -433,7 +441,7 @@ pub fn args_fold(args: &[Value]) -> Result<Value> {
     } else {
         return Err(Box::new(Error::runtime_error(
             "args-fold: first argument must be a list",
-            None
+            None,
         )));
     };
 
@@ -451,7 +459,7 @@ pub fn args_fold(args: &[Value]) -> Result<Value> {
                     desc_items.push(desc_car.as_ref());
                     desc_current = desc_cdr.as_ref();
                 }
-                
+
                 // Check if this looks like an option descriptor
                 if desc_items.len() >= 5 && matches!(desc_items[0], Value::Symbol(_)) {
                     // Extract names from the second element
@@ -469,8 +477,10 @@ pub fn args_fold(args: &[Value]) -> Result<Value> {
                         Vec::new()
                     };
 
-                    let required_arg = matches!(desc_items[2], Value::Literal(Literal::Boolean(true)));
-                    let optional_arg = matches!(desc_items[3], Value::Literal(Literal::Boolean(true)));
+                    let required_arg =
+                        matches!(desc_items[2], Value::Literal(Literal::Boolean(true)));
+                    let optional_arg =
+                        matches!(desc_items[3], Value::Literal(Literal::Boolean(true)));
                     let processor = desc_items[4].clone();
 
                     descriptors.push(OptionDescriptor {
@@ -487,7 +497,7 @@ pub fn args_fold(args: &[Value]) -> Result<Value> {
     } else {
         return Err(Box::new(Error::runtime_error(
             "args-fold: second argument must be a list of options",
-            None
+            None,
         )));
     };
 
@@ -538,14 +548,7 @@ pub fn bind_srfi37_procedures(env: &Arc<ThreadSafeEnvironment>) {
     }
 
     // Bind core SRFI-37 procedures
-    bind_primitive(
-        env,
-        "option",
-        4,
-        Some(4),
-        option,
-        vec![Effect::Pure],
-    );
+    bind_primitive(env, "option", 4, Some(4), option, vec![Effect::Pure]);
 
     bind_primitive(
         env,
@@ -569,7 +572,7 @@ mod tests {
             Value::Literal(Literal::Character('h')),
             Value::string("help"),
         ]);
-        
+
         let args = [
             names,
             Value::boolean(false),
@@ -585,7 +588,7 @@ mod tests {
 
         let result = option(&args);
         assert!(result.is_ok());
-        
+
         // Check that result is a list structure
         if let Ok(result_value) = result {
             assert!(result_value.is_list());
@@ -602,8 +605,8 @@ mod tests {
         let names = Value::list(vec![Value::Literal(Literal::Character('h'))]);
         let args = [
             names,
-            Value::boolean(true),  // required
-            Value::boolean(true),  // optional - should be error
+            Value::boolean(true), // required
+            Value::boolean(true), // optional - should be error
             Value::Nil,
         ];
         let result = option(&args);

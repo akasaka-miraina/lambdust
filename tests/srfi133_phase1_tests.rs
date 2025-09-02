@@ -13,10 +13,10 @@ use std::sync::Arc;
 fn create_test_env() -> Arc<ThreadSafeEnvironment> {
     let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
     create_srfi133_phase1_bindings(&env);
-    
+
     // Add some utility procedures for testing
     add_test_procedures(&env);
-    
+
     env
 }
 
@@ -29,9 +29,7 @@ fn add_test_procedures(env: &Arc<ThreadSafeEnvironment>) {
             name: "equal?".to_string(),
             arity_min: 2,
             arity_max: Some(2),
-            implementation: PrimitiveImpl::RustFn(|args| {
-                Ok(Value::boolean(args[0] == args[1]))
-            }),
+            implementation: PrimitiveImpl::RustFn(|args| Ok(Value::boolean(args[0] == args[1]))),
             effects: &[Effect::Pure],
         })),
     );
@@ -137,16 +135,14 @@ fn call_procedure(env: &Arc<ThreadSafeEnvironment>, name: &str, args: &[Value]) 
     })?;
 
     match &proc {
-        Value::Primitive(prim) => {
-            match &prim.implementation {
-                PrimitiveImpl::RustFn(func) => func(args),
-                PrimitiveImpl::Native(func) => func(args),
-                _ => Err(Box::new(lambdust::diagnostics::Error::runtime_error(
-                    "Unsupported primitive type in test".to_string(),
-                    None,
-                ))),
-            }
-        }
+        Value::Primitive(prim) => match &prim.implementation {
+            PrimitiveImpl::RustFn(func) => func(args),
+            PrimitiveImpl::Native(func) => func(args),
+            _ => Err(Box::new(lambdust::diagnostics::Error::runtime_error(
+                "Unsupported primitive type in test".to_string(),
+                None,
+            ))),
+        },
         _ => Err(Box::new(lambdust::diagnostics::Error::runtime_error(
             "Expected primitive procedure".to_string(),
             None,
@@ -183,7 +179,11 @@ fn test_vector_empty_errors() {
     let result = call_procedure(&env, "vector-empty?", &[]);
     assert!(result.is_err());
 
-    let result = call_procedure(&env, "vector-empty?", &[Value::integer(1), Value::integer(2)]);
+    let result = call_procedure(
+        &env,
+        "vector-empty?",
+        &[Value::integer(1), Value::integer(2)],
+    );
     assert!(result.is_err());
 
     // Test non-vector argument
@@ -200,22 +200,30 @@ fn test_vector_equal_comprehensive() {
     let vec2 = Value::vector(&[Value::integer(1), Value::integer(2), Value::integer(3)]);
     let equal_proc = env.lookup("equal?").unwrap();
 
-    let result = call_procedure(&env, "vector=", &[equal_proc.clone(), vec1.clone(), vec2]).unwrap();
+    let result =
+        call_procedure(&env, "vector=", &[equal_proc.clone(), vec1.clone(), vec2]).unwrap();
     assert_eq!(result, Value::boolean(true));
 
     // Test unequal vectors (different elements)
     let vec3 = Value::vector(&[Value::integer(1), Value::integer(2), Value::integer(4)]);
-    let result = call_procedure(&env, "vector=", &[equal_proc.clone(), vec1.clone(), vec3]).unwrap();
+    let result =
+        call_procedure(&env, "vector=", &[equal_proc.clone(), vec1.clone(), vec3]).unwrap();
     assert_eq!(result, Value::boolean(false));
 
     // Test unequal vectors (different lengths)
     let vec4 = Value::vector(&[Value::integer(1), Value::integer(2)]);
-    let result = call_procedure(&env, "vector=", &[equal_proc.clone(), vec1.clone(), vec4]).unwrap();
+    let result =
+        call_procedure(&env, "vector=", &[equal_proc.clone(), vec1.clone(), vec4]).unwrap();
     assert_eq!(result, Value::boolean(false));
 
     // Test multiple equal vectors
     let vec5 = Value::vector(&[Value::integer(1), Value::integer(2), Value::integer(3)]);
-    let result = call_procedure(&env, "vector=", &[equal_proc.clone(), vec1.clone(), vec1.clone(), vec5]).unwrap();
+    let result = call_procedure(
+        &env,
+        "vector=",
+        &[equal_proc.clone(), vec1.clone(), vec1.clone(), vec5],
+    )
+    .unwrap();
     assert_eq!(result, Value::boolean(true));
 
     // Test single vector (should be true)
@@ -250,11 +258,8 @@ fn test_vector_fold_basic() {
         Value::number(4.0),
     ]);
 
-    let result = call_procedure(&env, "vector-fold", &[
-        add_proc,
-        Value::number(0.0),
-        vector,
-    ]).unwrap();
+    let result =
+        call_procedure(&env, "vector-fold", &[add_proc, Value::number(0.0), vector]).unwrap();
 
     assert_eq!(result, Value::number(10.0));
 }
@@ -268,12 +273,12 @@ fn test_vector_fold_multiple_vectors() {
     let vec1 = Value::vector(&[Value::number(1.0), Value::number(2.0)]);
     let vec2 = Value::vector(&[Value::number(3.0), Value::number(4.0)]);
 
-    let result = call_procedure(&env, "vector-fold", &[
-        add_proc,
-        Value::number(0.0),
-        vec1,
-        vec2,
-    ]).unwrap();
+    let result = call_procedure(
+        &env,
+        "vector-fold",
+        &[add_proc, Value::number(0.0), vec1, vec2],
+    )
+    .unwrap();
 
     // Should be 0 + 1 + 3 + 2 + 4 = 10
     assert_eq!(result, Value::number(10.0));
@@ -286,11 +291,12 @@ fn test_vector_fold_empty() {
 
     // Test fold over empty vector
     let empty_vec = Value::vector(Vec::new());
-    let result = call_procedure(&env, "vector-fold", &[
-        add_proc,
-        Value::number(42.0),
-        empty_vec,
-    ]).unwrap();
+    let result = call_procedure(
+        &env,
+        "vector-fold",
+        &[add_proc, Value::number(42.0), empty_vec],
+    )
+    .unwrap();
 
     // Should return initial value
     assert_eq!(result, Value::number(42.0));
@@ -299,7 +305,7 @@ fn test_vector_fold_empty() {
 #[test]
 fn test_vector_fold_right_basic() {
     let env = create_test_env();
-    
+
     // Use a non-associative operation to test right-fold behavior
     let subtract_proc = Arc::new(PrimitiveProcedure {
         name: "-".to_string(),
@@ -309,13 +315,14 @@ fn test_vector_fold_right_basic() {
             if args.is_empty() {
                 return Ok(Value::number(0.0));
             }
-            
+
             let first = args[0].as_number().unwrap_or(0.0);
             if args.len() == 1 {
                 return Ok(Value::number(-first));
             }
-            
-            let rest_sum = args[1..].iter()
+
+            let rest_sum = args[1..]
+                .iter()
                 .filter_map(|v| v.as_number())
                 .fold(0.0, |acc, n| acc + n);
             Ok(Value::number(first - rest_sum))
@@ -334,11 +341,12 @@ fn test_vector_fold_right_basic() {
         Value::number(3.0),
     ]);
 
-    let result = call_procedure(&test_env, "vector-fold-right", &[
-        minus_proc,
-        Value::number(0.0),
-        vector,
-    ]).unwrap();
+    let result = call_procedure(
+        &test_env,
+        "vector-fold-right",
+        &[minus_proc, Value::number(0.0), vector],
+    )
+    .unwrap();
 
     // For right fold: 0 - 3 - 2 - 1 = -6
     assert_eq!(result, Value::number(-6.0));
@@ -499,20 +507,15 @@ fn test_vector_map_inplace_multiple_vectors() {
     let env = create_test_env();
     let add_proc = env.lookup("+").unwrap();
 
-    let target_vec = Value::vector(vec![
-        Value::number(1.0),
-        Value::number(2.0),
-    ]);
-    let source_vec = Value::vector(vec![
-        Value::number(10.0),
-        Value::number(20.0),
-    ]);
+    let target_vec = Value::vector(vec![Value::number(1.0), Value::number(2.0)]);
+    let source_vec = Value::vector(vec![Value::number(10.0), Value::number(20.0)]);
 
-    let result = call_procedure(&env, "vector-map!", &[
-        add_proc,
-        target_vec.clone(),
-        source_vec,
-    ]).unwrap();
+    let result = call_procedure(
+        &env,
+        "vector-map!",
+        &[add_proc, target_vec.clone(), source_vec],
+    )
+    .unwrap();
     assert_eq!(result, Value::Unspecified);
 
     // Verify the target vector was modified
@@ -555,12 +558,13 @@ fn test_large_vector_performance() {
 
     // Test vector-fold on large vector
     let add_proc = env.lookup("+").unwrap();
-    let result = call_procedure(&env, "vector-fold", &[
-        add_proc,
-        Value::number(0.0),
-        large_vector,
-    ]).unwrap();
-    
+    let result = call_procedure(
+        &env,
+        "vector-fold",
+        &[add_proc, Value::number(0.0), large_vector],
+    )
+    .unwrap();
+
     // Sum of 0 to 9999 = 9999 * 10000 / 2 = 49995000
     assert_eq!(result, Value::number(49995000.0));
 }
@@ -574,7 +578,8 @@ fn test_cache_friendly_processing() {
     let double_proc = env.lookup("double").unwrap();
 
     // Test in-place mapping which should use cache-friendly block processing
-    let result = call_procedure(&env, "vector-map!", &[double_proc, medium_vector.clone()]).unwrap();
+    let result =
+        call_procedure(&env, "vector-map!", &[double_proc, medium_vector.clone()]).unwrap();
     assert_eq!(result, Value::Unspecified);
 
     // Verify results
@@ -597,38 +602,70 @@ fn test_comprehensive_error_handling() {
 
     // Test all procedures with wrong argument counts
     let procedures = [
-        "vector-empty?", "vector=", "vector-fold", "vector-fold-right",
-        "vector-index", "vector-any", "vector-every", "vector-map!"
+        "vector-empty?",
+        "vector=",
+        "vector-fold",
+        "vector-fold-right",
+        "vector-index",
+        "vector-any",
+        "vector-every",
+        "vector-map!",
     ];
 
     for proc_name in &procedures {
         // Test with no arguments (should fail for all)
         let result = call_procedure(&env, proc_name, &[]);
-        assert!(result.is_err(), "Procedure {} should fail with no arguments", proc_name);
+        assert!(
+            result.is_err(),
+            "Procedure {} should fail with no arguments",
+            proc_name
+        );
     }
 
     // Test with non-procedure arguments where procedures are expected
     let non_proc = Value::integer(42);
     let test_vector = Value::vector(&[Value::integer(1)]);
 
-    for proc_name in &["vector=", "vector-fold", "vector-fold-right", "vector-index", "vector-any", "vector-every", "vector-map!"] {
+    for proc_name in &[
+        "vector=",
+        "vector-fold",
+        "vector-fold-right",
+        "vector-index",
+        "vector-any",
+        "vector-every",
+        "vector-map!",
+    ] {
         let result = call_procedure(&env, proc_name, &[non_proc.clone(), test_vector.clone()]);
-        assert!(result.is_err(), "Procedure {} should fail with non-procedure argument", proc_name);
+        assert!(
+            result.is_err(),
+            "Procedure {} should fail with non-procedure argument",
+            proc_name
+        );
     }
 
     // Test with non-vector arguments where vectors are expected
     let non_vector = Value::integer(42);
     let test_proc = env.lookup("even?").unwrap();
 
-    for proc_name in &["vector-empty?", "vector-index", "vector-any", "vector-every", "vector-map!"] {
+    for proc_name in &[
+        "vector-empty?",
+        "vector-index",
+        "vector-any",
+        "vector-every",
+        "vector-map!",
+    ] {
         let args = if proc_name == &"vector-empty?" {
             &[non_vector.clone()]
         } else {
             &[test_proc.clone(), non_vector.clone()]
         };
-        
+
         let result = call_procedure(&env, proc_name, &args);
-        assert!(result.is_err(), "Procedure {} should fail with non-vector argument", proc_name);
+        assert!(
+            result.is_err(),
+            "Procedure {} should fail with non-vector argument",
+            proc_name
+        );
     }
 }
 
@@ -648,7 +685,8 @@ fn test_procedure_composition() {
 
     // First, check if any element is even
     let even_proc = env.lookup("even?").unwrap();
-    let has_even = call_procedure(&env, "vector-any", &[even_proc.clone(), vector.clone()]).unwrap();
+    let has_even =
+        call_procedure(&env, "vector-any", &[even_proc.clone(), vector.clone()]).unwrap();
     assert_eq!(has_even, Value::boolean(true));
 
     // Find the index of first even element
@@ -661,11 +699,7 @@ fn test_procedure_composition() {
 
     // Sum all elements
     let add_proc = env.lookup("+").unwrap();
-    let sum = call_procedure(&env, "vector-fold", &[
-        add_proc,
-        Value::number(0.0),
-        vector,
-    ]).unwrap();
+    let sum = call_procedure(&env, "vector-fold", &[add_proc, Value::number(0.0), vector]).unwrap();
     assert_eq!(sum, Value::number(10.0));
 }
 
@@ -692,12 +726,13 @@ fn test_mixed_data_types() {
         Value::boolean(true),
         Value::number(2.0),
     ]);
-    
+
     let equal_proc = env.lookup("equal?").unwrap();
-    let result = call_procedure(&env, "vector=", &[
-        equal_proc,
-        mixed_vector.clone(),
-        mixed_vector2,
-    ]).unwrap();
+    let result = call_procedure(
+        &env,
+        "vector=",
+        &[equal_proc, mixed_vector.clone(), mixed_vector2],
+    )
+    .unwrap();
     assert_eq!(result, Value::boolean(true));
 }

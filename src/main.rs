@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Lambdust Command-Line Interface
+#![allow(missing_docs)]
+//! Lambdust Command-Line Interface
 //!
 //! This binary provides a REPL and file execution capabilities for the Lambdust language.
 

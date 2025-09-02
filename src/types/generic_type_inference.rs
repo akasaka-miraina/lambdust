@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Generic Type Inference Engine
+#![allow(missing_docs)]
+//! Generic Type Inference Engine
 //!
 //! This module provides a unified type inference engine that can work with
 //! any type system implementing the generic type system traits. It supports

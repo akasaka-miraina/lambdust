@@ -173,9 +173,9 @@ impl Runtime {
             })),
         );
 
-        // Install SRFI-71 procedures  
+        // Install SRFI-71 procedures
         // We need to manually install each procedure since env is behind Rc
-        
+
         env.define(
             "uncons".to_string(),
             Value::Primitive(Arc::new(PrimitiveProcedure {
@@ -204,7 +204,9 @@ impl Runtime {
                 name: "values->list".to_string(),
                 arity_min: 1,
                 arity_max: Some(1),
-                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::values_to_list),
+                implementation: PrimitiveImpl::RustFn(
+                    crate::stdlib::srfi71_let_syntax::values_to_list,
+                ),
                 effects: vec![Effect::Pure],
             })),
         );
@@ -215,7 +217,9 @@ impl Runtime {
                 name: "values->vector".to_string(),
                 arity_min: 1,
                 arity_max: Some(1),
-                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::values_to_vector),
+                implementation: PrimitiveImpl::RustFn(
+                    crate::stdlib::srfi71_let_syntax::values_to_vector,
+                ),
                 effects: vec![Effect::Pure],
             })),
         );
@@ -226,7 +230,9 @@ impl Runtime {
                 name: "list->values".to_string(),
                 arity_min: 1,
                 arity_max: Some(1),
-                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::list_to_values),
+                implementation: PrimitiveImpl::RustFn(
+                    crate::stdlib::srfi71_let_syntax::list_to_values,
+                ),
                 effects: vec![Effect::Pure],
             })),
         );
@@ -237,7 +243,9 @@ impl Runtime {
                 name: "vector->values".to_string(),
                 arity_min: 1,
                 arity_max: Some(1),
-                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::vector_to_values),
+                implementation: PrimitiveImpl::RustFn(
+                    crate::stdlib::srfi71_let_syntax::vector_to_values,
+                ),
                 effects: vec![Effect::Pure],
             })),
         );

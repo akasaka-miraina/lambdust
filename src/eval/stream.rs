@@ -17,11 +17,11 @@
 //! - Memory overhead: Exactly 32 bytes per StreamNode
 //! - Cache hit rate: 95%+ with three-tier memoization
 
-use crate::eval::value::{Value, Promise};
-use std::sync::{Arc, Weak};
-use std::cell::{RefCell, OnceCell};
-use std::rc::Rc;
+use crate::eval::value::{Promise, Value};
+use std::cell::{OnceCell, RefCell};
 use std::fmt;
+use std::rc::Rc;
+use std::sync::{Arc, Weak};
 
 /// Metadata for arena allocation integration.
 /// This enables efficient batch allocation and deallocation of stream nodes.
@@ -47,22 +47,22 @@ pub type WeakStreamRef = Weak<StreamNode>;
 pub enum StreamTail {
     /// Empty stream tail (stream-null)
     Empty,
-    
+
     /// Promise-based tail that will be evaluated lazily
     /// Uses Rc<RefCell<Promise>> for thread-safe lazy evaluation
     Promise(Rc<RefCell<Promise>>),
-    
+
     /// Already evaluated tail pointing to the next StreamNode
     /// Uses Arc for efficient sharing and reference counting
     Evaluated(Arc<StreamNode>),
-    
+
     /// Circular reference detected - contains weak reference to break cycles
     /// Enables bounded cycle detection with O(k) complexity
     Circular(WeakStreamRef),
 }
 
 /// Core stream node with 32-byte cache-optimized layout.
-/// 
+///
 /// Memory layout (32 bytes total):
 /// - head: OnceCell<Value> (16 bytes) - Memoized head value
 /// - tail: StreamTail (8 bytes) - Tail representation  
@@ -79,15 +79,15 @@ pub struct StreamNode {
     /// Memoized head value using OnceCell for thread-safe lazy initialization.
     /// Once computed, subsequent accesses are O(1) with <2ns overhead.
     head: OnceCell<Value>,
-    
+
     /// Tail of the stream in various evaluation states.
     /// This implements the core lazy evaluation semantics.
     tail: StreamTail,
-    
+
     /// Generation counter for garbage collection integration.
     /// Enables efficient generational GC for stream structures.
     generation: u32,
-    
+
     /// Arena allocation metadata for optimized memory management.
     /// Optional to minimize overhead for non-arena allocated streams.
     arena_meta: Option<ArenaMetadata>,
@@ -99,7 +99,7 @@ pub type StreamRef = Arc<StreamNode>;
 
 impl StreamNode {
     /// Creates a new empty stream node (stream-null).
-    /// 
+    ///
     /// This is the most common stream constructor and is heavily optimized:
     /// - Uses arena allocation when available
     /// - Pre-initializes head with null value
@@ -113,9 +113,9 @@ impl StreamNode {
             arena_meta: None,
         })
     }
-    
+
     /// Creates a stream node with a computed head value and lazy tail.
-    /// 
+    ///
     /// This implements `stream-cons` semantics:
     /// - Stores head value immediately (no lazy evaluation needed)
     /// - Wraps tail computation in a Promise for lazy evaluation
@@ -128,15 +128,15 @@ impl StreamNode {
             generation: 0,
             arena_meta: None,
         };
-        
+
         // Pre-populate head for immediate access
         let _ = node.head.set(head);
-        
+
         Arc::new(node)
     }
-    
+
     /// Creates a stream node with both head and tail already evaluated.
-    /// 
+    ///
     /// This is used for optimized construction when both values are known:
     /// - No lazy evaluation overhead
     /// - Immediate access to both head and tail
@@ -149,89 +149,87 @@ impl StreamNode {
             generation: 0,
             arena_meta: None,
         };
-        
+
         // Pre-populate head for immediate access
         let _ = node.head.set(head);
-        
+
         Arc::new(node)
     }
-    
+
     /// Gets the head of the stream, forcing evaluation if necessary.
-    /// 
+    ///
     /// Performance characteristics:
     /// - Cached access: <2ns (OnceCell fast path)
     /// - First evaluation: <50ns (includes promise forcing)
     /// - Thread-safe through OnceCell synchronization
-    /// 
+    ///
     /// This implements the core `stream-car` semantics with optimal caching.
     pub fn head(&self) -> Result<&Value, StreamError> {
         if let Some(head) = self.head.get() {
             // Fast path: already computed
             return Ok(head);
         }
-        
+
         // Slow path: need to compute head (this should be rare for well-formed streams)
         // For properly constructed streams, head should always be pre-populated
         Err(StreamError::UninitializedHead)
     }
-    
+
     /// Gets the tail of the stream, forcing evaluation if necessary.
-    /// 
+    ///
     /// Performance characteristics:
     /// - Evaluated tail: <5ns (direct Arc access)
     /// - Promise tail: <50ns (includes promise forcing and caching)
     /// - Empty tail: <1ns (immediate return)
     /// - Circular tail: <10ns (weak reference upgrade)
-    /// 
+    ///
     /// This implements the core `stream-cdr` semantics with lazy evaluation.
     pub fn tail(&self) -> Result<Option<StreamRef>, StreamError> {
         match &self.tail {
             StreamTail::Empty => Ok(None),
-            
+
             StreamTail::Evaluated(tail) => Ok(Some(Arc::clone(tail))),
-            
+
             StreamTail::Promise(promise_ref) => {
                 // Force the promise and cache the result
                 // This will be implemented when Promise system is extended
                 // For now, return an error to indicate unimplemented functionality
                 Err(StreamError::PromiseEvaluationPending)
             }
-            
-            StreamTail::Circular(weak_ref) => {
-                match weak_ref.upgrade() {
-                    Some(stream_ref) => Ok(Some(stream_ref)),
-                    None => Err(StreamError::CircularReferenceDropped),
-                }
-            }
+
+            StreamTail::Circular(weak_ref) => match weak_ref.upgrade() {
+                Some(stream_ref) => Ok(Some(stream_ref)),
+                None => Err(StreamError::CircularReferenceDropped),
+            },
         }
     }
-    
+
     /// Checks if this stream is empty (stream-null?).
-    /// 
+    ///
     /// This is the fastest stream operation with <1ns overhead.
     /// Essential for stream termination detection in algorithms.
     pub fn is_empty(&self) -> bool {
         matches!(self.tail, StreamTail::Empty)
     }
-    
+
     /// Gets the generation number for GC integration.
     /// This enables efficient generational garbage collection.
     pub fn generation(&self) -> u32 {
         self.generation
     }
-    
+
     /// Updates the generation for GC aging.
     /// Used by the garbage collector to track stream node ages.
     pub fn age_generation(&mut self) {
         self.generation = self.generation.saturating_add(1);
     }
-    
+
     /// Sets arena metadata for optimized allocation tracking.
     /// This enables batch deallocation and memory pool management.
     pub fn set_arena_metadata(&mut self, meta: ArenaMetadata) {
         self.arena_meta = Some(meta);
     }
-    
+
     /// Gets arena metadata for memory management operations.
     pub fn arena_metadata(&self) -> Option<&ArenaMetadata> {
         self.arena_meta.as_ref()
@@ -244,19 +242,19 @@ impl StreamNode {
 pub enum StreamError {
     /// Head value was not properly initialized during construction
     UninitializedHead,
-    
+
     /// Promise evaluation is not yet implemented (temporary)
     PromiseEvaluationPending,
-    
+
     /// Circular reference was dropped (weak reference became invalid)
     CircularReferenceDropped,
-    
+
     /// Stream operation would create infinite recursion
     InfiniteRecursion,
-    
+
     /// Memory allocation failed during stream construction
     AllocationFailed,
-    
+
     /// Arena allocation failed or arena was corrupted
     ArenaCorrupted,
 }
@@ -265,7 +263,9 @@ impl fmt::Display for StreamError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StreamError::UninitializedHead => write!(f, "stream head not initialized"),
-            StreamError::PromiseEvaluationPending => write!(f, "promise evaluation not implemented"),
+            StreamError::PromiseEvaluationPending => {
+                write!(f, "promise evaluation not implemented")
+            }
             StreamError::CircularReferenceDropped => write!(f, "circular reference dropped"),
             StreamError::InfiniteRecursion => write!(f, "infinite recursion in stream"),
             StreamError::AllocationFailed => write!(f, "stream allocation failed"),
@@ -292,14 +292,14 @@ impl Clone for StreamTail {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_empty_stream_creation() {
         let empty = StreamNode::empty();
         assert!(empty.is_empty());
         assert_eq!(empty.generation(), 0);
     }
-    
+
     #[test]
     fn test_stream_node_size() {
         use std::mem;
@@ -307,13 +307,13 @@ mod tests {
         // Ensure reasonable size for cache efficiency
         assert!(size <= 64, "StreamNode size {} exceeds cache line", size);
     }
-    
+
     #[test]
     fn test_evaluated_stream_construction() {
         let empty = StreamNode::empty();
         let head_value = Value::Literal(crate::ast::literal::Literal::Integer(42));
         let stream = StreamNode::evaluated(head_value.clone(), empty);
-        
+
         assert!(!stream.is_empty());
         assert_eq!(stream.head().unwrap(), &head_value);
     }

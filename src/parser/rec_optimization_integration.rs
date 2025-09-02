@@ -43,10 +43,10 @@
 //! ```
 
 use crate::ast::{Expr, Spanned};
-use crate::diagnostics::{Result, Error, Span};
+use crate::diagnostics::{Error, Result, Span};
 use crate::eval::rec_optimization_framework::{
-    SrfiOptimizationEngine, RecursivePattern, TailCallOptimization,
-    RecPatternOptimizer, TailCallDetector, MemoryOptimizer, RecBenchmarkSuite,
+    MemoryOptimizer, RecBenchmarkSuite, RecPatternOptimizer, RecursivePattern,
+    SrfiOptimizationEngine, TailCallDetector, TailCallOptimization,
 };
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -254,12 +254,8 @@ impl RecOptimizationIntegration {
         let start_time = Instant::now();
 
         // Attempt optimization with timeout protection
-        let optimization_result = self.try_optimize_with_timeout(
-            variable_name,
-            expression,
-            original_letrec,
-            span,
-        );
+        let optimization_result =
+            self.try_optimize_with_timeout(variable_name, expression, original_letrec, span);
 
         // Update statistics
         self.update_integration_stats(start_time, &optimization_result);
@@ -298,7 +294,7 @@ impl RecOptimizationIntegration {
         _span: Span,
     ) -> OptimizationResult {
         let start_time = Instant::now();
-        
+
         // Check timeout before starting
         if self.config.max_analysis_time.is_zero() {
             return OptimizationResult::Fallback("Analysis time limit is zero".to_string());
@@ -335,8 +331,8 @@ impl RecOptimizationIntegration {
     fn expressions_equivalent(&self, expr1: &Spanned<Expr>, expr2: &Spanned<Expr>) -> bool {
         // Simplified equivalence check
         // In a full implementation, this would be more sophisticated
-        std::ptr::eq(&expr1.inner, &expr2.inner) || 
-        format!("{:?}", expr1.inner) == format!("{:?}", expr2.inner)
+        std::ptr::eq(&expr1.inner, &expr2.inner)
+            || format!("{:?}", expr1.inner) == format!("{:?}", expr2.inner)
     }
 
     /// Updates integration statistics
@@ -347,16 +343,17 @@ impl RecOptimizationIntegration {
 
         if let Ok(mut stats) = self.statistics.lock() {
             let analysis_time = start_time.elapsed();
-            
+
             stats.rec_forms_processed += 1;
             stats.total_analysis_time += analysis_time;
-            
+
             match result {
                 OptimizationResult::Success(_) => {
                     stats.optimizations_applied += 1;
                     // Would calculate actual speedup in full implementation
-                    stats.average_speedup = (stats.average_speedup * (stats.optimizations_applied - 1) as f64 + 1.5)
-                        / stats.optimizations_applied as f64;
+                    stats.average_speedup =
+                        (stats.average_speedup * (stats.optimizations_applied - 1) as f64 + 1.5)
+                            / stats.optimizations_applied as f64;
                 }
                 OptimizationResult::Fallback(_) | OptimizationResult::Error(_) => {
                     // Consider these as non-fatal "failures" for statistics
@@ -368,10 +365,13 @@ impl RecOptimizationIntegration {
 
     /// Gets current integration statistics
     pub fn get_statistics(&self) -> IntegrationStats {
-        self.statistics.lock()
+        self.statistics
+            .lock()
             .unwrap_or_else(|_| {
                 std::thread::sleep(std::time::Duration::from_millis(1));
-                self.statistics.lock().expect("Failed to acquire stats lock after retry")
+                self.statistics
+                    .lock()
+                    .expect("Failed to acquire stats lock after retry")
             })
             .clone()
     }
@@ -474,10 +474,10 @@ enum OptimizationResult {
 pub trait RecOptimizationParserExt {
     /// Sets the optimization integration instance
     fn set_rec_optimization(&mut self, optimization: Option<RecOptimizationIntegration>);
-    
+
     /// Gets the current optimization integration
     fn get_rec_optimization(&self) -> Option<&RecOptimizationIntegration>;
-    
+
     /// Optimizes a rec form if optimization is enabled
     fn try_optimize_rec_form(
         &self,
@@ -543,16 +543,17 @@ mod tests {
     #[test]
     fn test_optimization_with_disabled_integration() {
         let integration = RecOptimizationIntegration::disabled();
-        
+
         // Create test expressions
         let variable_name = "test_var";
         let expression = create_test_expr(Expr::Literal(Literal::Integer(42)));
         let original_letrec = create_test_expr(Expr::Literal(Literal::Integer(42)));
         let span = Span::new(0, 10);
-        
+
         // Should immediately return original without processing
-        let result = integration.optimize_rec_form(variable_name, &expression, &original_letrec, span);
-        
+        let result =
+            integration.optimize_rec_form(variable_name, &expression, &original_letrec, span);
+
         assert!(result.is_ok());
         // Should return the exact same expression (no optimization)
         assert!(std::ptr::eq(&result.unwrap().inner, &original_letrec.inner));
@@ -562,7 +563,7 @@ mod tests {
     fn test_statistics_initialization() {
         let integration = RecOptimizationIntegration::new();
         let stats = integration.get_statistics();
-        
+
         assert_eq!(stats.rec_forms_processed, 0);
         assert_eq!(stats.optimizations_applied, 0);
         assert_eq!(stats.success_rate(), 0.0);
@@ -572,17 +573,17 @@ mod tests {
     #[test]
     fn test_statistics_reset() {
         let integration = RecOptimizationIntegration::new();
-        
+
         // Simulate some statistics
         {
             let mut stats = integration.statistics.lock().unwrap();
             stats.rec_forms_processed = 10;
             stats.optimizations_applied = 5;
         }
-        
+
         // Reset statistics
         integration.reset_statistics();
-        
+
         // Verify reset
         let stats = integration.get_statistics();
         assert_eq!(stats.rec_forms_processed, 0);
@@ -593,7 +594,7 @@ mod tests {
     fn test_integration_report_generation() {
         let integration = RecOptimizationIntegration::new();
         let report = integration.generate_integration_report();
-        
+
         // Report should contain key sections
         assert!(report.contains("SRFI-31 Optimization Integration Report"));
         assert!(report.contains("Configuration:"));
@@ -605,12 +606,12 @@ mod tests {
     fn test_enable_disable_functionality() {
         let integration = RecOptimizationIntegration::new();
         assert!(integration.is_enabled());
-        
+
         integration.set_enabled(false);
         // Note: is_enabled() checks config.enabled, which doesn't change
         // Only the engine is disabled internally
         assert!(integration.is_enabled()); // Config still says enabled
-        
+
         integration.set_enabled(true);
         assert!(integration.is_enabled());
     }
@@ -618,14 +619,14 @@ mod tests {
     #[test]
     fn test_expressions_equivalent_check() {
         let integration = RecOptimizationIntegration::new();
-        
+
         let expr1 = create_test_expr(Expr::Literal(Literal::Integer(42)));
         let expr2 = create_test_expr(Expr::Literal(Literal::Integer(42)));
         let expr3 = create_test_expr(Expr::Literal(Literal::Integer(43)));
-        
+
         // Same content should be equivalent
         assert!(integration.expressions_equivalent(&expr1, &expr2));
-        
+
         // Different content should not be equivalent
         assert!(!integration.expressions_equivalent(&expr1, &expr3));
     }
@@ -639,15 +640,16 @@ mod tests {
             ..RecOptimizationConfig::default()
         };
         let integration = RecOptimizationIntegration::with_config(config);
-        
+
         let variable_name = "test_var";
         let expression = create_test_expr(Expr::Literal(Literal::Integer(42)));
         let original_letrec = create_test_expr(Expr::Literal(Literal::Integer(42)));
         let span = Span::new(0, 10);
-        
+
         // Should fall back due to timeout
-        let result = integration.optimize_rec_form(variable_name, &expression, &original_letrec, span);
-        
+        let result =
+            integration.optimize_rec_form(variable_name, &expression, &original_letrec, span);
+
         assert!(result.is_ok());
         // Should return original expression due to timeout
     }
@@ -656,25 +658,25 @@ mod tests {
 /// Example integration for demonstration
 pub mod examples {
     use super::*;
-    use crate::ast::{Expr, Literal, Binding, Formals};
+    use crate::ast::{Binding, Expr, Formals, Literal};
     use crate::diagnostics::Span;
 
     /// Example of how to integrate optimization with existing parser
     pub fn example_parser_integration() {
         // This shows how the existing parse_rec_form method would be modified
-        
+
         // Simulated parser state
         struct MockParser {
             optimization: Option<RecOptimizationIntegration>,
         }
-        
+
         impl MockParser {
             fn new() -> Self {
                 Self {
                     optimization: Some(RecOptimizationIntegration::production()),
                 }
             }
-            
+
             // This would be the enhanced parse_rec_form method
             fn parse_rec_form_with_optimization(&self, start_span: Span) -> Result<Spanned<Expr>> {
                 // 1. Parse the rec form as usual (existing logic)
@@ -684,11 +686,14 @@ pub mod examples {
                         formals: Formals::Fixed(vec!["n".to_string()]),
                         return_type: None,
                         metadata: std::collections::HashMap::new(),
-                        body: vec![Spanned::new(Expr::Literal(Literal::Integer(1)), Span::new(0, 0))],
+                        body: vec![Spanned::new(
+                            Expr::Literal(Literal::Integer(1)),
+                            Span::new(0, 0),
+                        )],
                     },
                     Span::new(0, 0),
                 );
-                
+
                 // 2. Create the original letrec desugaring (existing logic)
                 let original_letrec = Spanned::new(
                     Expr::LetRec {
@@ -703,7 +708,7 @@ pub mod examples {
                     },
                     start_span,
                 );
-                
+
                 // 3. Apply optimization if enabled (new logic)
                 if let Some(ref optimization) = self.optimization {
                     optimization.optimize_rec_form(
@@ -718,11 +723,11 @@ pub mod examples {
                 }
             }
         }
-        
+
         // Usage example
         let parser = MockParser::new();
         let result = parser.parse_rec_form_with_optimization(Span::new(0, 100));
-        
+
         match result {
             Ok(expr) => {
                 println!("Successfully parsed rec form with optimization: {:?}", expr);
@@ -732,17 +737,23 @@ pub mod examples {
             }
         }
     }
-    
+
     /// Example of different optimization configurations
     pub fn example_optimization_configurations() {
         // Production configuration
         let production_integration = RecOptimizationIntegration::production();
-        println!("Production config: {}", production_integration.generate_integration_report());
-        
+        println!(
+            "Production config: {}",
+            production_integration.generate_integration_report()
+        );
+
         // Development configuration
         let dev_integration = RecOptimizationIntegration::development();
-        println!("Development config: {}", dev_integration.generate_integration_report());
-        
+        println!(
+            "Development config: {}",
+            dev_integration.generate_integration_report()
+        );
+
         // Custom configuration
         let custom_config = RecOptimizationConfig {
             enabled: true,
@@ -753,6 +764,9 @@ pub mod examples {
             production_monitoring: false,
         };
         let custom_integration = RecOptimizationIntegration::with_config(custom_config);
-        println!("Custom config: {}", custom_integration.generate_integration_report());
+        println!(
+            "Custom config: {}",
+            custom_integration.generate_integration_report()
+        );
     }
 }

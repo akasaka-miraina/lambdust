@@ -4,7 +4,7 @@
 //! These are fundamental I/O abstractions that allow treating strings as input or output ports.
 //!
 //! ## Specification
-//! 
+//!
 //! SRFI-6 defines three essential procedures:
 //! - `(open-input-string string)` - Creates an input port that reads from the given string
 //! - `(open-output-string)` - Creates an output port that collects written output as a string  
@@ -33,8 +33,8 @@
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::effects::Effect;
-use crate::eval::value::{PrimitiveProcedure, PrimitiveImpl, Value};
 use crate::eval::value::{Environment, Generation};
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, Value};
 use std::sync::Arc;
 
 /// Install SRFI-6 basic string port procedures into the environment.
@@ -56,7 +56,7 @@ pub fn install_srfi6_procedures(env: &mut Environment) {
         })),
     );
 
-    // open-output-string  
+    // open-output-string
     env.define(
         "open-output-string".to_string(),
         Value::Primitive(Arc::new(PrimitiveProcedure {
@@ -101,15 +101,13 @@ pub fn install_srfi6_procedures(env: &mut Environment) {
 pub fn open_input_string(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!(
-                "open-input-string expects 1 argument, got {}",
-                args.len()
-            ),
+            format!("open-input-string expects 1 argument, got {}", args.len()),
             None,
         )));
     }
 
-    let string = crate::stdlib::strings::common::extract_string(&args[0], "open-input-string")?.to_string();
+    let string =
+        crate::stdlib::strings::common::extract_string(&args[0], "open-input-string")?.to_string();
     let port = crate::eval::value::Port::new_string_input(string);
     Ok(Value::Port(Arc::new(port)))
 }
@@ -129,17 +127,14 @@ pub fn open_input_string(args: &[Value]) -> Result<Value> {
 /// ```scheme
 /// (define port (open-output-string))
 /// (write "hello" port)
-/// (write-char #\space port) 
+/// (write-char #\space port)
 /// (write "world" port)
 /// (get-output-string port)  ; => "hello world"
 /// ```
 pub fn open_output_string(args: &[Value]) -> Result<Value> {
     if !args.is_empty() {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!(
-                "open-output-string expects 0 arguments, got {}",
-                args.len()
-            ),
+            format!("open-output-string expects 0 arguments, got {}", args.len()),
             None,
         )));
     }
@@ -169,10 +164,7 @@ pub fn open_output_string(args: &[Value]) -> Result<Value> {
 pub fn get_output_string(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!(
-                "get-output-string expects 1 argument, got {}",
-                args.len()
-            ),
+            format!("get-output-string expects 1 argument, got {}", args.len()),
             None,
         )));
     }

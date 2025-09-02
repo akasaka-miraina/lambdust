@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Unified error handling system for JIT compilation modules.
+#![allow(missing_docs)]
+//! Unified error handling system for JIT compilation modules.
 //!
 //! This module eliminates redundant error handling patterns in the JIT system
 //! and provides compile-time optimized error management for all JIT operations.

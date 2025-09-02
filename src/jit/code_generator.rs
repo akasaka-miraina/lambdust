@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! Native code generation using Cranelift backend
+#![allow(missing_docs)]
+//! Native code generation using Cranelift backend
 //!
 //! This module implements a high-performance native code generator for Scheme expressions
 //! using the Cranelift compiler backend. It provides both basic and optimized compilation

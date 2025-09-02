@@ -696,7 +696,7 @@ fn install_assert_macro(expander: &mut MacroExpander) {
 }
 
 /// Installs the `cut` macro from SRFI-26.
-/// 
+///
 /// SRFI-26 cut/cute macros are implemented in Scheme using syntax-rules.
 /// The actual implementation is in stdlib/modules/srfi/26.scm and should
 /// be loaded through the module system rather than installed as Rust-level builtins.
@@ -728,7 +728,7 @@ fn install_cut_macro(expander: &mut MacroExpander) {
 }
 
 /// Installs the `cute` macro from SRFI-26.
-/// 
+///
 /// Like cut, cute is properly implemented in Scheme. This is a basic fallback.
 fn install_cute_macro(expander: &mut MacroExpander) {
     // Basic single-slot pattern for bootstrap

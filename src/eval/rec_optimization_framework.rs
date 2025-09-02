@@ -1,4 +1,5 @@
-#![allow(missing_docs)]//! SRFI-31 Recursive Optimization Framework
+#![allow(missing_docs)]
+//! SRFI-31 Recursive Optimization Framework
 //!
 //! This module implements a comprehensive optimization system for SRFI-31 `rec` forms
 //! that provides significant performance improvements while maintaining perfect semantic
@@ -13,7 +14,7 @@
 //! - Linear tail recursion, tree recursion, accumulator patterns
 //! - Expected performance improvement: 1.3x-3.0x for recognized patterns
 //!
-//! ## 2. Tail Call Detection System (`TailCallDetector`) 
+//! ## 2. Tail Call Detection System (`TailCallDetector`)
 //! - O(n) complexity analysis of tail position occurrences
 //! - Converts tail recursion to iterative form
 //! - Memory usage reduction: 60-95% stack frame elimination
@@ -109,12 +110,12 @@ pub enum TailCallStrategy {
 /// Complexity classification for algorithmic analysis
 #[derive(Debug, Clone, PartialEq)]
 pub enum ComplexityClass {
-    Constant,    // O(1)
-    Logarithmic, // O(log n)
-    Linear,      // O(n)
+    Constant,     // O(1)
+    Logarithmic,  // O(log n)
+    Linear,       // O(n)
     Linearithmic, // O(n log n)
-    Quadratic,   // O(n²)
-    Exponential, // O(2^n) - candidate for memoization
+    Quadratic,    // O(n²)
+    Exponential,  // O(2^n) - candidate for memoization
     Unknown,
 }
 
@@ -176,7 +177,7 @@ impl RecPatternOptimizer {
     pub fn new() -> Self {
         Self {
             pattern_cache: lru::LruCache::new(
-                std::num::NonZeroUsize::new(PATTERN_CACHE_SIZE).unwrap()
+                std::num::NonZeroUsize::new(PATTERN_CACHE_SIZE).unwrap(),
             ),
             confidence_threshold: DEFAULT_CONFIDENCE_THRESHOLD,
             statistics: Arc::new(Mutex::new(PerformanceStats::default())),
@@ -185,16 +186,11 @@ impl RecPatternOptimizer {
     }
 
     /// Creates a new pattern optimizer with custom configuration
-    pub fn with_config(
-        confidence_threshold: f64,
-        cache_size: usize,
-        aggressive: bool,
-    ) -> Self {
+    pub fn with_config(confidence_threshold: f64, cache_size: usize, aggressive: bool) -> Self {
         Self {
             pattern_cache: lru::LruCache::new(
-                std::num::NonZeroUsize::new(cache_size).unwrap_or(
-                    std::num::NonZeroUsize::new(100).unwrap()
-                )
+                std::num::NonZeroUsize::new(cache_size)
+                    .unwrap_or(std::num::NonZeroUsize::new(100).unwrap()),
             ),
             confidence_threshold: confidence_threshold.clamp(0.0, 1.0),
             statistics: Arc::new(Mutex::new(PerformanceStats::default())),
@@ -220,10 +216,10 @@ impl RecPatternOptimizer {
         expr: &Spanned<Expr>,
     ) -> RecursivePattern {
         let start_time = Instant::now();
-        
+
         // Generate function signature for caching
         let signature = self.generate_function_signature(variable_name, expr);
-        
+
         // Check cache first (fast path)
         if let Some(cached_pattern) = self.pattern_cache.get(&signature).cloned() {
             self.update_stats(start_time, true, false);
@@ -232,10 +228,10 @@ impl RecPatternOptimizer {
 
         // Perform pattern analysis (slow path)
         let pattern = self.analyze_recursive_structure(variable_name, expr);
-        
+
         // Cache the result
         self.pattern_cache.put(signature, pattern.clone());
-        
+
         self.update_stats(start_time, false, true);
         pattern
     }
@@ -277,12 +273,12 @@ impl RecPatternOptimizer {
     fn compute_structural_hash(&self, expr: &Spanned<Expr>) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
-        
+
         // Hash the expression structure (simplified)
         self.hash_expr_structure(&expr.inner, &mut hasher);
-        
+
         hasher.finish()
     }
 
@@ -290,16 +286,17 @@ impl RecPatternOptimizer {
     fn hash_expr_structure(&self, expr: &Expr, hasher: &mut impl std::hash::Hasher) {
         use std::hash::Hash;
         use std::mem::discriminant;
-        
+
         // Hash the expression type
         discriminant(expr).hash(hasher);
-        
+
         // Hash key structural components
         match expr {
             Expr::Identifier(name) => name.hash(hasher),
             Expr::Lambda { formals, body, .. } => {
                 // Simplified hashing of lambda structure
-                self.estimate_arity(&Spanned::new(expr.clone(), Span::new(0, 0))).hash(hasher);
+                self.estimate_arity(&Spanned::new(expr.clone(), Span::new(0, 0)))
+                    .hash(hasher);
                 body.len().hash(hasher);
             }
             Expr::If { .. } => "if".hash(hasher),
@@ -350,7 +347,7 @@ impl RecPatternOptimizer {
         body_length: usize,
     ) -> RecursivePattern {
         let recursive_calls = self.find_recursive_calls(variable_name, body_expr);
-        
+
         if recursive_calls.is_empty() {
             return RecursivePattern::UnknownPattern;
         }
@@ -370,7 +367,8 @@ impl RecPatternOptimizer {
             }
         } else if recursive_calls.len() >= 2 {
             // Multiple recursive calls - tree recursion pattern
-            let confidence = self.calculate_tree_recursion_confidence(body_expr, recursive_calls.len());
+            let confidence =
+                self.calculate_tree_recursion_confidence(body_expr, recursive_calls.len());
             RecursivePattern::TreeRecursion {
                 confidence,
                 memoization_candidate: self.is_memoization_candidate(body_expr),
@@ -422,7 +420,11 @@ impl RecPatternOptimizer {
                     self.find_recursive_calls_impl(variable_name, operand, calls);
                 }
             }
-            Expr::If { test, consequent, alternative } => {
+            Expr::If {
+                test,
+                consequent,
+                alternative,
+            } => {
                 self.find_recursive_calls_impl(variable_name, test, calls);
                 self.find_recursive_calls_impl(variable_name, consequent, calls);
                 if let Some(alt) = alternative {
@@ -464,7 +466,11 @@ impl RecPatternOptimizer {
                 }
                 0
             }
-            Expr::If { consequent, alternative, .. } => {
+            Expr::If {
+                consequent,
+                alternative,
+                ..
+            } => {
                 let mut count = self.count_tail_calls(variable_name, consequent, is_tail);
                 if let Some(alt) = alternative {
                     count += self.count_tail_calls(variable_name, alt, is_tail);
@@ -485,15 +491,15 @@ impl RecPatternOptimizer {
     /// Calculates confidence score for tail recursion pattern
     fn calculate_tail_recursion_confidence(&self, expr: &Spanned<Expr>, tail_calls: usize) -> f64 {
         let mut confidence = 0.5; // Base confidence
-        
+
         // Higher confidence for more tail calls
         confidence += (tail_calls as f64 * 0.1).min(0.3);
-        
+
         // Boost confidence for simple control structures
         if self.has_simple_control_flow(expr) {
             confidence += 0.2;
         }
-        
+
         confidence.min(1.0)
     }
 
@@ -517,14 +523,14 @@ impl RecPatternOptimizer {
     /// Calculates confidence for tree recursion pattern
     fn calculate_tree_recursion_confidence(&self, expr: &Spanned<Expr>, call_count: usize) -> f64 {
         let mut confidence: f64 = 0.4; // Base confidence for tree patterns
-        
+
         // Higher confidence for typical tree recursion call counts (2-3)
         if call_count == 2 {
             confidence += 0.3; // Binary tree pattern
         } else if call_count <= 4 {
             confidence += 0.2; // N-ary tree pattern
         }
-        
+
         confidence.min(1.0)
     }
 
@@ -559,11 +565,11 @@ impl RecPatternOptimizer {
     /// Calculates confidence for accumulator patterns
     fn calculate_accumulator_confidence(&self, expr: &Spanned<Expr>) -> f64 {
         let mut confidence: f64 = 0.6; // Base confidence for accumulator patterns
-        
+
         if self.has_clear_accumulator_structure(expr) {
             confidence += 0.3;
         }
-        
+
         confidence.min(1.0)
     }
 
@@ -582,12 +588,21 @@ impl RecPatternOptimizer {
                     Expr::Identifier(name) => name == variable_name,
                     _ => false,
                 };
-                op_recursive || operands.iter().any(|op| self.contains_recursive_reference(variable_name, op))
+                op_recursive
+                    || operands
+                        .iter()
+                        .any(|op| self.contains_recursive_reference(variable_name, op))
             }
-            Expr::If { test, consequent, alternative } => {
+            Expr::If {
+                test,
+                consequent,
+                alternative,
+            } => {
                 self.contains_recursive_reference(variable_name, test)
                     || self.contains_recursive_reference(variable_name, consequent)
-                    || alternative.as_ref().map_or(false, |alt| self.contains_recursive_reference(variable_name, alt))
+                    || alternative.as_ref().map_or(false, |alt| {
+                        self.contains_recursive_reference(variable_name, alt)
+                    })
             }
             // Add more cases as needed
             _ => false,
@@ -605,9 +620,9 @@ impl RecPatternOptimizer {
     fn has_accumulator_pattern_structure(&self, expr: &Spanned<Expr>) -> bool {
         // Simplified detection - look for arithmetic operations in recursive calls
         match &expr.inner {
-            Expr::Application { operands, .. } => {
-                operands.iter().any(|op| self.looks_like_accumulator_operation(op))
-            }
+            Expr::Application { operands, .. } => operands
+                .iter()
+                .any(|op| self.looks_like_accumulator_operation(op)),
             _ => false,
         }
     }
@@ -632,7 +647,9 @@ impl RecPatternOptimizer {
                 if let Expr::Identifier(name) = &operator.inner {
                     if name == "+" && operands.len() == 2 {
                         // Check if both operands are recursive calls with decremented arguments
-                        return operands.iter().all(|op| self.looks_like_decremented_recursive_call(op));
+                        return operands
+                            .iter()
+                            .all(|op| self.looks_like_decremented_recursive_call(op));
                     }
                 }
             }
@@ -649,9 +666,9 @@ impl RecPatternOptimizer {
     fn has_accumulator_parameter_pattern(&self, expr: &Spanned<Expr>) -> bool {
         // Look for recursive calls where one parameter is accumulating
         match &expr.inner {
-            Expr::Lambda { body, .. } => {
-                body.iter().any(|expr| self.contains_accumulator_recursive_call(expr))
-            }
+            Expr::Lambda { body, .. } => body
+                .iter()
+                .any(|expr| self.contains_accumulator_recursive_call(expr)),
             _ => false,
         }
     }
@@ -665,7 +682,9 @@ impl RecPatternOptimizer {
         match &expr.inner {
             Expr::Application { operator, operands } => {
                 // Check if this is a function call with decremented argument
-                operands.iter().any(|op| self.looks_like_decrement_operation(op))
+                operands
+                    .iter()
+                    .any(|op| self.looks_like_decrement_operation(op))
             }
             _ => false,
         }
@@ -690,9 +709,15 @@ impl RecPatternOptimizer {
             Expr::Application { operands, .. } => {
                 operands.len() >= 2 // At least one accumulator parameter
             }
-            Expr::If { consequent, alternative, .. } => {
+            Expr::If {
+                consequent,
+                alternative,
+                ..
+            } => {
                 self.contains_accumulator_recursive_call(consequent)
-                    || alternative.as_ref().map_or(false, |alt| self.contains_accumulator_recursive_call(alt))
+                    || alternative
+                        .as_ref()
+                        .map_or(false, |alt| self.contains_accumulator_recursive_call(alt))
             }
             _ => false,
         }
@@ -702,21 +727,21 @@ impl RecPatternOptimizer {
     fn update_stats(&self, start_time: Instant, cache_hit: bool, pattern_analyzed: bool) {
         if let Ok(mut stats) = self.statistics.lock() {
             let duration = start_time.elapsed();
-            
+
             if pattern_analyzed {
                 stats.patterns_analyzed += 1;
-                
+
                 // Update average analysis time using exponential moving average
                 let alpha = 0.1; // Smoothing factor
                 stats.avg_analysis_time = Duration::from_nanos(
                     (stats.avg_analysis_time.as_nanos() as f64 * (1.0 - alpha)
-                        + duration.as_nanos() as f64 * alpha) as u64
+                        + duration.as_nanos() as f64 * alpha) as u64,
                 );
             }
-            
+
             if cache_hit {
                 let total_requests = stats.patterns_analyzed + 1;
-                stats.cache_hit_rate = (stats.cache_hit_rate * (total_requests - 1) as f64 + 1.0) 
+                stats.cache_hit_rate = (stats.cache_hit_rate * (total_requests - 1) as f64 + 1.0)
                     / total_requests as f64;
             }
         }
@@ -724,10 +749,15 @@ impl RecPatternOptimizer {
 
     /// Gets current performance statistics
     pub fn get_statistics(&self) -> PerformanceStats {
-        self.statistics.lock().unwrap_or_else(|_| {
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            self.statistics.lock().expect("Failed to acquire lock after retry")
-        }).clone()
+        self.statistics
+            .lock()
+            .unwrap_or_else(|_| {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+                self.statistics
+                    .lock()
+                    .expect("Failed to acquire lock after retry")
+            })
+            .clone()
     }
 
     /// Resets performance statistics
@@ -827,10 +857,10 @@ impl TailCallDetector {
         expr: &Spanned<Expr>,
     ) -> Option<TailCallOptimization> {
         let start_time = Instant::now();
-        
+
         // Analyze the expression for tail call patterns
         let analysis = self.analyze_tail_calls(variable_name, expr);
-        
+
         if analysis.confidence >= self.config.confidence_threshold {
             let optimization = self.apply_tail_call_optimization(variable_name, expr, &analysis);
             self.update_tail_call_stats(start_time, true);
@@ -845,7 +875,7 @@ impl TailCallDetector {
     fn analyze_tail_calls(&self, variable_name: &str, expr: &Spanned<Expr>) -> TailCallAnalysis {
         let mut analysis = TailCallAnalysis::default();
         self.analyze_tail_calls_impl(variable_name, expr, true, &mut analysis, 0);
-        
+
         // Calculate confidence based on analysis results
         analysis.confidence = self.calculate_tail_call_confidence(&analysis);
         analysis
@@ -874,20 +904,42 @@ impl TailCallDetector {
                         return;
                     }
                 }
-                
+
                 // Analyze operands (not in tail position)
                 for operand in operands {
-                    self.analyze_tail_calls_impl(variable_name, operand, false, analysis, depth + 1);
+                    self.analyze_tail_calls_impl(
+                        variable_name,
+                        operand,
+                        false,
+                        analysis,
+                        depth + 1,
+                    );
                 }
             }
-            Expr::If { test, consequent, alternative } => {
+            Expr::If {
+                test,
+                consequent,
+                alternative,
+            } => {
                 // Test is not in tail position
                 self.analyze_tail_calls_impl(variable_name, test, false, analysis, depth + 1);
-                
+
                 // Both branches maintain tail position
-                self.analyze_tail_calls_impl(variable_name, consequent, is_tail_position, analysis, depth + 1);
+                self.analyze_tail_calls_impl(
+                    variable_name,
+                    consequent,
+                    is_tail_position,
+                    analysis,
+                    depth + 1,
+                );
                 if let Some(alt) = alternative {
-                    self.analyze_tail_calls_impl(variable_name, alt, is_tail_position, analysis, depth + 1);
+                    self.analyze_tail_calls_impl(
+                        variable_name,
+                        alt,
+                        is_tail_position,
+                        analysis,
+                        depth + 1,
+                    );
                 }
             }
             Expr::Begin(exprs) => {
@@ -895,11 +947,11 @@ impl TailCallDetector {
                 for (i, expr) in exprs.iter().enumerate() {
                     let is_last = i == exprs.len() - 1;
                     self.analyze_tail_calls_impl(
-                        variable_name, 
-                        expr, 
-                        is_tail_position && is_last, 
-                        analysis, 
-                        depth + 1
+                        variable_name,
+                        expr,
+                        is_tail_position && is_last,
+                        analysis,
+                        depth + 1,
                     );
                 }
             }
@@ -912,7 +964,7 @@ impl TailCallDetector {
                         expr,
                         is_tail_position && is_last,
                         analysis,
-                        depth + 1
+                        depth + 1,
                     );
                 }
             }
@@ -927,9 +979,10 @@ impl TailCallDetector {
         if analysis.total_recursive_calls == 0 {
             return 0.0;
         }
-        
-        let tail_ratio = analysis.tail_recursive_calls as f64 / analysis.total_recursive_calls as f64;
-        
+
+        let tail_ratio =
+            analysis.tail_recursive_calls as f64 / analysis.total_recursive_calls as f64;
+
         // High confidence for high tail call ratios
         if tail_ratio >= 0.9 {
             0.95
@@ -951,10 +1004,10 @@ impl TailCallDetector {
     ) -> TailCallOptimization {
         // Determine optimal strategy
         let strategy = self.select_optimization_strategy(expr, analysis);
-        
+
         // Apply the optimization (placeholder implementation)
         let optimized_expr = self.transform_to_iterative(variable_name, expr, &strategy);
-        
+
         TailCallOptimization {
             optimized: optimized_expr.is_some(),
             strategy,
@@ -1006,7 +1059,7 @@ impl TailCallDetector {
         } else {
             0.0
         };
-        
+
         // Conservative estimates: 1.5x to 3.0x improvement for good tail recursion
         1.0 + (tail_ratio * 2.0)
     }
@@ -1017,7 +1070,7 @@ impl TailCallDetector {
         } else {
             0.0
         };
-        
+
         // Memory reduction proportional to tail call ratio
         tail_ratio * 0.8 // Up to 80% memory reduction
     }
@@ -1025,26 +1078,31 @@ impl TailCallDetector {
     fn update_tail_call_stats(&self, start_time: Instant, optimized: bool) {
         if let Ok(mut stats) = self.statistics.lock() {
             let duration = start_time.elapsed();
-            
+
             stats.expressions_analyzed += 1;
             if optimized {
                 stats.optimizations_applied += 1;
             }
-            
+
             // Update average time using exponential moving average
             let alpha = 0.1;
             stats.avg_optimization_time = Duration::from_nanos(
                 (stats.avg_optimization_time.as_nanos() as f64 * (1.0 - alpha)
-                    + duration.as_nanos() as f64 * alpha) as u64
+                    + duration.as_nanos() as f64 * alpha) as u64,
             );
         }
     }
 
     pub fn get_statistics(&self) -> TailCallStats {
-        self.statistics.lock().unwrap_or_else(|_| {
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            self.statistics.lock().expect("Failed to acquire lock after retry")
-        }).clone()
+        self.statistics
+            .lock()
+            .unwrap_or_else(|_| {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+                self.statistics
+                    .lock()
+                    .expect("Failed to acquire lock after retry")
+            })
+            .clone()
     }
 }
 
@@ -1157,9 +1215,7 @@ impl MemoryOptimizer {
                     MemoryStrategy::CacheOptimization
                 }
             }
-            RecursivePattern::AccumulatorPattern { .. } => {
-                MemoryStrategy::StackOptimization
-            }
+            RecursivePattern::AccumulatorPattern { .. } => MemoryStrategy::StackOptimization,
             _ => MemoryStrategy::ArenaAllocation,
         }
     }
@@ -1320,7 +1376,7 @@ impl Default for RecBenchmarkSuite {
 // ============= INTEGRATION LAYER =============
 
 /// Main integration point for SRFI-31 optimization
-/// 
+///
 /// This struct coordinates all optimization components and provides
 /// a unified interface for the parser integration.
 pub struct SrfiOptimizationEngine {
@@ -1387,13 +1443,18 @@ impl SrfiOptimizationEngine {
         }
 
         // 1. Pattern Recognition
-        let pattern = self.pattern_optimizer.analyze_pattern(variable_name, expression);
-        
+        let pattern = self
+            .pattern_optimizer
+            .analyze_pattern(variable_name, expression);
+
         // 2. Apply optimizations based on pattern
         match pattern {
             RecursivePattern::LinearTailRecursion { confidence, .. } if confidence >= 0.7 => {
                 // Apply tail call optimization
-                if let Some(tail_opt) = self.tail_call_detector.optimize_tail_recursion(variable_name, expression) {
+                if let Some(tail_opt) = self
+                    .tail_call_detector
+                    .optimize_tail_recursion(variable_name, expression)
+                {
                     if let Some(optimized_expr) = tail_opt.optimized_expr {
                         return Ok(optimized_expr);
                     }
@@ -1418,7 +1479,7 @@ impl SrfiOptimizationEngine {
         let pattern_stats = self.pattern_optimizer.get_statistics();
         let tail_call_stats = self.tail_call_detector.get_statistics();
         let memory_stats = self.memory_optimizer.get_statistics();
-        
+
         format!(
             "SRFI-31 Optimization Engine Report\n\
              ===================================\n\
@@ -1507,13 +1568,13 @@ mod tests {
     #[test]
     fn test_memory_optimizer_strategy_selection() {
         let mut optimizer = MemoryOptimizer::new();
-        
+
         let tail_pattern = RecursivePattern::LinearTailRecursion {
             confidence: 0.9,
             strategy: TailCallStrategy::SimpleIteration,
             estimated_speedup: 2.0,
         };
-        
+
         let strategy = optimizer.optimize_allocation_pattern(&tail_pattern);
         assert_eq!(strategy, MemoryStrategy::StackOptimization);
     }
@@ -1534,11 +1595,11 @@ mod tests {
     #[test]
     fn test_pattern_recognition_unknown() {
         let mut optimizer = RecPatternOptimizer::new();
-        
+
         // Test with a simple literal (should be unknown pattern)
         let expr = create_test_expr(Expr::Literal(Literal::Integer(42)));
         let pattern = optimizer.analyze_pattern("x", &expr);
-        
+
         assert_eq!(pattern, RecursivePattern::UnknownPattern);
     }
 
@@ -1546,7 +1607,7 @@ mod tests {
     fn test_statistics_initialization() {
         let optimizer = RecPatternOptimizer::new();
         let stats = optimizer.get_statistics();
-        
+
         assert_eq!(stats.patterns_analyzed, 0);
         assert_eq!(stats.patterns_optimized, 0);
         assert_eq!(stats.cache_hit_rate, 0.0);
@@ -1564,7 +1625,7 @@ mod tests {
     fn test_function_signature_generation() {
         let optimizer = RecPatternOptimizer::new();
         let expr = create_test_expr(Expr::Literal(Literal::Integer(42)));
-        
+
         let sig = optimizer.generate_function_signature("test_func", &expr);
         assert_eq!(sig.name, "test_func");
         assert_eq!(sig.arity, 0);
@@ -1573,13 +1634,13 @@ mod tests {
     #[test]
     fn test_recursive_call_detection() {
         let optimizer = RecPatternOptimizer::new();
-        
+
         // Create a simple recursive call: (factorial (- n 1))
         let recursive_call = create_test_expr(Expr::Application {
             operator: Box::new(create_test_expr(Expr::Identifier("factorial".to_string()))),
             operands: vec![create_test_expr(Expr::Identifier("n".to_string()))],
         });
-        
+
         let calls = optimizer.find_recursive_calls("factorial", &recursive_call);
         assert_eq!(calls.len(), 1);
     }
@@ -1587,11 +1648,11 @@ mod tests {
     #[test]
     fn test_confidence_calculation() {
         let optimizer = RecPatternOptimizer::new();
-        
+
         // Test tail recursion confidence with simple structure
         let simple_expr = create_test_expr(Expr::Literal(Literal::Boolean(true)));
         let confidence = optimizer.calculate_tail_recursion_confidence(&simple_expr, 2);
-        
+
         assert!(confidence >= 0.5);
         assert!(confidence <= 1.0);
     }
