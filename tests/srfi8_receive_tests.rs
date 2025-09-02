@@ -297,7 +297,7 @@ fn test_expand_receive() {
 
     // Test mixed formals
     let mixed_formals = Formals::Mixed {
-        fixed: &["first".to_string()],
+        fixed: vec!["first".to_string()],
         rest: "rest".to_string(),
     };
     let result3 = expand_receive(&mixed_formals, &producer, &body);
@@ -332,7 +332,7 @@ fn test_multiple_values_struct() {
     assert_eq!(single_mv.get(0), Some(&Value::integer(42)));
 
     // Test empty MultipleValues
-    let empty_mv = MultipleValues::new(&[]);
+    let empty_mv = MultipleValues::new(vec![]);
     assert_eq!(empty_mv.len(), 0);
     assert!(empty_mv.is_empty());
     assert_eq!(empty_mv.get(0), None);
@@ -388,21 +388,21 @@ fn test_srfi8_environment_integration() {
 #[test]
 fn test_edge_cases_and_errors() {
     // Test arity validation with edge cases
-    let empty_fixed = Formals::Fixed(&[]);
+    let empty_fixed = Formals::Fixed(vec![]);
     assert!(validate_receive_arity(&empty_fixed, 0).is_ok());
     assert!(validate_receive_arity(&empty_fixed, 1).is_err());
 
     let empty_mixed = Formals::Mixed {
-        fixed: &[],
+        fixed: vec![],
         rest: "all".to_string(),
     };
     assert!(validate_receive_arity(&empty_mixed, 0).is_ok());
     assert!(validate_receive_arity(&empty_mixed, 5).is_ok());
 
     // Test MultipleValues equality
-    let mv1 = MultipleValues::new(&[Value::integer(1), Value::integer(2)]);
-    let mv2 = MultipleValues::new(&[Value::integer(1), Value::integer(2)]);
-    let mv3 = MultipleValues::new(&[Value::integer(1), Value::integer(3)]);
+    let mv1 = MultipleValues::new(vec![Value::integer(1), Value::integer(2)]);
+    let mv2 = MultipleValues::new(vec![Value::integer(1), Value::integer(2)]);
+    let mv3 = MultipleValues::new(vec![Value::integer(1), Value::integer(3)]);
 
     assert_eq!(mv1, mv2);
     assert_ne!(mv1, mv3);
@@ -412,12 +412,12 @@ fn test_edge_cases_and_errors() {
     let formals = Formals::Fixed(vec!["a".to_string(), "b".to_string()]);
     let wrong_values = &[Value::integer(1)]; // Only one value for two parameters
 
-    assert!(bind_multiple_values(&env, &formals, &wrong_values).is_err());
+    assert!(bind_multiple_values(&env, &formals, wrong_values).is_err());
 
     // Test expand_receive error cases
-    let formals = Formals::Fixed(&["a".to_string()]);
+    let formals = Formals::Fixed(vec!["a".to_string()]);
     let producer = Value::integer(42); // Simple value, not a producer expression
-    let empty_body: Vec<Value> = &[];
+    let empty_body: Vec<Value> = vec![];
 
     assert!(expand_receive(&formals, &producer, &empty_body).is_err());
 }
@@ -478,7 +478,7 @@ fn test_r7rs_compliance() {
 
     // Improper list: (receive (a b . rest) (values 1 2 3 4) body...)
     let mixed_formals = Formals::Mixed {
-        fixed: &["a".to_string(), "b".to_string()],
+        fixed: vec!["a".to_string(), "b".to_string()],
         rest: "rest".to_string(),
     };
     assert!(validate_receive_arity(&mixed_formals, 2).is_ok()); // Minimum

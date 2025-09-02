@@ -227,6 +227,7 @@ windows-extensions = ["winapi"]
 benchmarks = ["criterion", "flame"]
 property-testing = ["proptest"]
 multithreaded-tests = ["async", "tokio/test-util"]
+thread_safe_tests = [] # Thread-safe testing features
 ffi = ["libffi", "cc"]                              # FFI support
 jit = ["inkwell", "llvm-sys", "cranelift", "cranelift-codegen", "cranelift-frontend", "cranelift-module", "cranelift-jit"] # JIT compilation support
 # SIMD optimization features (Phase 3.5 integration strategy)

@@ -44,7 +44,7 @@ fn create_gc_runtime() -> (LambdustRuntime, Arc<GcSystem>) {
     // Initialize GC system
     let mut gc_system_mut = Arc::try_unwrap(gc_system)
         .unwrap_or_else(|_arc| panic!("Failed to get mutable reference to GC system"));
-    gc_system_mut.initialize().unwrap();
+    gc_system_mut.initialize(None).unwrap();
     let gc_system = Arc::new(gc_system_mut);
 
     (runtime, gc_system)
@@ -239,7 +239,7 @@ fn test_string_mutability_with_gc() {
     gc_system.register_mutator_thread();
 
     // Test that string mutability semantics are preserved
-    let mutable_string = Rc::new(RefCell::new(&['h', 'e', 'l', 'l', 'o']));
+    let mutable_string = Rc::new(RefCell::new(vec!['h', 'e', 'l', 'l', 'o']));
     let string_value = Value::MutableString(mutable_string.clone());
 
     let allocated_obj = gc_system.allocate(string_value, 128).unwrap();

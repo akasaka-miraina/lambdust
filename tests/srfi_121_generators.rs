@@ -10,7 +10,7 @@ use lambdust::eval::value::Value;
 fn test_generator_basic_operations() {
     // Test generator creation from values
     let values = &[Value::integer(1), Value::integer(2), Value::integer(3)];
-    let generator = Value::generator_from_values(values);
+    let generator = Value::generator_from_values(values.to_vec());
 
     // Test type predicate
     assert!(generator.is_generator());
@@ -215,7 +215,7 @@ fn test_exhausted_generator() {
 /// Test generator display formatting
 #[test]
 fn test_generator_display() {
-    let generator = Value::generator_from_values(&[Value::integer(1)]);
+    let generator = Value::generator_from_values(vec![Value::integer(1)]);
     let display_str = format!("{generator}");
     assert!(display_str.contains("generator"));
 }
@@ -223,8 +223,8 @@ fn test_generator_display() {
 /// Test generator equality (pointer equality for thread-safe containers)
 #[test]
 fn test_generator_equality() {
-    let gen1 = Value::generator_from_values(&[Value::integer(1)]);
-    let gen2 = Value::generator_from_values(&[Value::integer(1)]);
+    let gen1 = Value::generator_from_values(vec![Value::integer(1)]);
+    let gen2 = Value::generator_from_values(vec![Value::integer(1)]);
     let gen1_clone = gen1.clone();
 
     // Different generators should not be equal (pointer comparison)
@@ -242,7 +242,7 @@ fn test_mixed_type_generator() {
         Value::string("hello"),
         Value::boolean(true),
         Value::Nil,
-        Value::list(&[Value::integer(1), Value::integer(2)]),
+        Value::list(vec![Value::integer(1), Value::integer(2)]),
     ];
 
     let generator = Value::generator_from_values(mixed_values.clone());
@@ -306,7 +306,7 @@ fn test_generator_edge_cases() {
     // This tests the boundary condition rather than causing a panic
 
     // Test empty values generator
-    let empty_gen = Value::generator_from_values(&[]);
+    let empty_gen = Value::generator_from_values(vec![]);
 
     if let Value::Generator(gen_ref) = &empty_gen {
         assert!(gen_ref.is_exhausted());
@@ -314,7 +314,7 @@ fn test_generator_edge_cases() {
     }
 
     // Test single value generator
-    let single_gen = Value::generator_from_values(&[Value::string("only")]);
+    let single_gen = Value::generator_from_values(vec![Value::string("only")]);
 
     if let Value::Generator(gen_ref) = &single_gen {
         assert_eq!(gen_ref.next().unwrap(), Value::string("only"));
@@ -326,7 +326,7 @@ fn test_generator_edge_cases() {
 /// Integration test with EOF object
 #[test]
 fn test_eof_object_handling() {
-    let generator = Value::generator_from_values(&[Value::integer(1)]);
+    let generator = Value::generator_from_values(vec![Value::integer(1)]);
 
     if let Value::Generator(gen_ref) = &generator {
         let eof_obj = gen_ref.eof_object().clone();

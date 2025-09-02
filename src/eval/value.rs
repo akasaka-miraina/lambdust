@@ -501,7 +501,7 @@ pub enum Value {
 /// - **Storage**: Uses `Vec<Value>` for efficient sequential access
 /// - **Thread Safety**: Wrapped in `Arc` for sharing across threads
 /// - **Memory**: Small values optimization when count ≤ 1
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MultipleValues {
     /// The actual values stored in order
     values: Vec<Value>,
@@ -533,6 +533,21 @@ impl MultipleValues {
         self.values.is_empty()
     }
 
+    /// Create a MultipleValues container with a single value.
+    pub fn single(value: Value) -> Self {
+        Self { values: vec![value] }
+    }
+
+    /// Get the first value if it exists.
+    pub fn first(&self) -> Option<&Value> {
+        self.values.first()
+    }
+
+    /// Get an iterator over the values.
+    pub fn iter(&self) -> std::slice::Iter<'_, Value> {
+        self.values.iter()
+    }
+
     /// Get values as a vector (consuming).
     pub fn into_vec(self) -> Vec<Value> {
         self.values
@@ -543,10 +558,6 @@ impl MultipleValues {
         self.values.get(index)
     }
 
-    /// Get the first value, if any.
-    pub fn first(&self) -> Option<&Value> {
-        self.values.first()
-    }
 }
 
 /// A user-defined procedure (closure) - Thread-safe.

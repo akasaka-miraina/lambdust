@@ -90,7 +90,7 @@ mod srfi26_core_compliance {
             CutArgument::expression(create_integer_expr(5)),
         ];
 
-        let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
+        let result = expand_cut_optimized(&procedure, arguments, dummy_span());
         assert!(result.is_ok());
 
         let lambda = result.unwrap();
@@ -158,7 +158,7 @@ mod srfi26_core_compliance {
             CutArgument::expression(create_integer_expr(5)),
         ];
 
-        let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
+        let result = expand_cut_optimized(&procedure, arguments, dummy_span());
         assert!(result.is_ok());
 
         let lambda = result.unwrap();
@@ -207,7 +207,7 @@ mod srfi26_core_compliance {
         let procedure = create_procedure_expr("list");
         let arguments = vec![CutArgument::slot(), CutArgument::rest_slot()];
 
-        let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
+        let result = expand_cut_optimized(&procedure, arguments, dummy_span());
         assert!(result.is_ok());
 
         let lambda = result.unwrap();
@@ -262,7 +262,7 @@ mod srfi26_core_compliance {
             CutArgument::expression(create_integer_expr(2)),
         ];
 
-        let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
+        let result = expand_cut_optimized(&procedure, arguments, dummy_span());
         assert!(result.is_ok());
 
         let lambda = result.unwrap();
@@ -305,7 +305,7 @@ mod cut_cute_semantics {
         ];
 
         // Expand with cute (eager evaluation)
-        let cute_result = expand_cute_optimized(&procedure, &arguments, dummy_span());
+        let cute_result = expand_cute_optimized(&procedure, arguments, dummy_span());
         assert!(cute_result.is_ok());
 
         // For cute, the non-slot expression should be bound to a temporary variable
@@ -328,7 +328,7 @@ mod cut_cute_semantics {
             CutArgument::expression(create_string_expr("test")),
         ];
 
-        let cut_result = expand_cut_optimized(&procedure, &arguments, dummy_span());
+        let cut_result = expand_cut_optimized(&procedure, arguments, dummy_span());
         assert!(cut_result.is_ok());
 
         let cut_lambda = cut_result.unwrap();
@@ -360,7 +360,7 @@ mod error_handling_compliance {
         let procedure = create_procedure_expr("list");
         let arguments = vec![CutArgument::rest_slot(), CutArgument::slot()];
 
-        let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
+        let result = expand_cut_optimized(&procedure, arguments, dummy_span());
         // This should fail - rest slot not at end is invalid
         // The exact error handling depends on validation in the expansion
         // For now, we test that it either succeeds (with proper handling) or fails appropriately
@@ -374,7 +374,7 @@ mod error_handling_compliance {
         let procedure = create_procedure_expr("list");
         let arguments = vec![CutArgument::rest_slot(), CutArgument::rest_slot()];
 
-        let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
+        let result = expand_cut_optimized(&procedure, arguments, dummy_span());
         // Should handle multiple rest slots appropriately
         // Implementation may detect this at parse time or expansion time
     }
@@ -397,8 +397,8 @@ mod optimization_semantic_preservation {
         ];
 
         // Expand same pattern multiple times to test caching
-        let result1 = expand_cut_optimized(&procedure, &arguments, dummy_span());
-        let result2 = expand_cut_optimized(&procedure, &arguments, dummy_span());
+        let result1 = expand_cut_optimized(&procedure, arguments, dummy_span());
+        let result2 = expand_cut_optimized(&procedure, arguments, dummy_span());
 
         assert!(result1.is_ok());
         assert!(result2.is_ok());
@@ -439,14 +439,14 @@ mod optimization_semantic_preservation {
 
         // First expansion (cache miss)
         let start1 = Instant::now();
-        let result1 = expand_cut_optimized(&procedure, &arguments, dummy_span());
+        let result1 = expand_cut_optimized(&procedure, arguments, dummy_span());
         let duration1 = start1.elapsed();
 
         assert!(result1.is_ok());
 
         // Second expansion (should be cache hit and faster)
         let start2 = Instant::now();
-        let result2 = expand_cut_optimized(&procedure, &arguments, dummy_span());
+        let result2 = expand_cut_optimized(&procedure, arguments, dummy_span());
         let duration2 = start2.elapsed();
 
         assert!(result2.is_ok());
@@ -470,7 +470,7 @@ mod optimization_semantic_preservation {
 
         // Perform several expansions
         for _ in 0..5 {
-            let _ = expand_cut_optimized(&procedure, &arguments, dummy_span());
+            let _ = expand_cut_optimized(&procedure, arguments, dummy_span());
         }
 
         let metrics = global_expansion_metrics();
@@ -510,7 +510,7 @@ mod production_readiness {
                         CutArgument::expression(create_integer_expr(i * 10 + j)),
                     ];
 
-                    let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
+                    let result = expand_cut_optimized(&procedure, arguments, dummy_span());
                     assert!(result.is_ok());
                 }
             });
@@ -541,7 +541,7 @@ mod production_readiness {
                 CutArgument::expression(create_integer_expr(i)), // Different each time
             ];
 
-            let _ = expand_cut_optimized(&procedure, &arguments, dummy_span());
+            let _ = expand_cut_optimized(&procedure, arguments, dummy_span());
         }
 
         let final_metrics = global_cache_stats();
@@ -664,7 +664,7 @@ mod comprehensive_integration {
                 CutArgument::expression(create_integer_expr(i % 10)), // Some repetition for caching
             ];
 
-            let result = expand_cut_optimized(&procedure, &arguments, dummy_span());
+            let result = expand_cut_optimized(&procedure, arguments, dummy_span());
             assert!(result.is_ok());
         }
 
@@ -738,8 +738,8 @@ mod comprehensive_integration {
 
         for (procedure, arguments) in test_patterns {
             // Test both cut and cute
-            let cut_result = expand_cut_optimized(&procedure, &arguments, dummy_span());
-            let cute_result = expand_cute_optimized(&procedure, &arguments, dummy_span());
+            let cut_result = expand_cut_optimized(&procedure, arguments, dummy_span());
+            let cute_result = expand_cute_optimized(&procedure, arguments, dummy_span());
 
             if cut_result.is_err() || cute_result.is_err() {
                 all_successful = false;

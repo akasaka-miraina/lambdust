@@ -6,6 +6,7 @@
 use lambdust::ast::{Formals, Literal};
 use lambdust::eval::value::{MultipleValues, Value};
 use lambdust::stdlib::srfi71_let_syntax::*;
+use lambdust::utils::SymbolId;
 use std::sync::Arc;
 
 // ============= DEFINE-VALUES INTEGRATION =============
@@ -14,12 +15,12 @@ mod define_values_integration {
     use super::*;
 
     #[test]
-    fn test_define_values_basic() {
+    pub fn test_define_values_basic() {
         // (define-values (a b c) (values 1 2 3))
         // Should bind a=1, b=2, c=3
 
         let values = &[Value::integer(1), Value::integer(2), Value::integer(3)];
-        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values)));
+        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values.to_vec())));
 
         // Simulate define-values behavior
         if let Value::MultipleValues(mv_ref) = mv {
@@ -37,7 +38,7 @@ mod define_values_integration {
     }
 
     #[test]
-    fn test_define_values_with_rest() {
+    pub fn test_define_values_with_rest() {
         // (define-values (first . rest) (values 1 2 3 4))
         // Should bind first=1, rest=(2 3 4)
 
@@ -47,7 +48,7 @@ mod define_values_integration {
             Value::integer(3),
             Value::integer(4),
         ];
-        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values)));
+        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values.to_vec())));
 
         if let Value::MultipleValues(mv_ref) = mv {
             let first = mv_ref.as_slice()[0].clone();
@@ -65,11 +66,11 @@ mod define_values_integration {
     }
 
     #[test]
-    fn test_define_values_arity_mismatch() {
+    pub fn test_define_values_arity_mismatch() {
         // Test that arity mismatches are properly handled
 
         let values = &[Value::integer(1), Value::integer(2)]; // 2 values
-        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values)));
+        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values.to_vec())));
 
         // If trying to bind to 3 variables, should error
         // (define-values (a b c) (values 1 2))  ; Error: too few values
@@ -87,7 +88,7 @@ mod let_values_integration {
     use super::*;
 
     #[test]
-    fn test_let_values_multiple_bindings() {
+    pub fn test_let_values_multiple_bindings() {
         // (let-values (((a b) (values 1 2))
         //              ((c d) (values 3 4)))
         //   (+ a b c d))
@@ -124,7 +125,7 @@ mod let_values_integration {
     }
 
     #[test]
-    fn test_let_star_values_sequential_binding() {
+    pub fn test_let_star_values_sequential_binding() {
         // (let*-values (((a b) (values 1 2))
         //               ((c) (values (+ a b))))
         //   (* a b c))
@@ -155,7 +156,7 @@ mod let_values_integration {
     }
 
     #[test]
-    fn test_let_values_with_single_values() {
+    pub fn test_let_values_with_single_values() {
         // (let-values (((a) 42)
         //              ((b c) (values 10 20)))
         //   (list a b c))
@@ -174,7 +175,7 @@ mod let_values_integration {
             let c = mv_ref.as_slice()[1].clone();
 
             // Create result list
-            let result = Value::list(&[a, b, c]);
+            let result = Value::list(vec![a, b, c]);
 
             if let Some(result_list) = result.as_list() {
                 assert_eq!(result_list.len(), 3);
@@ -192,7 +193,7 @@ mod case_lambda_integration {
     use super::*;
 
     #[test]
-    fn test_case_lambda_with_multiple_values() {
+    pub fn test_case_lambda_with_multiple_values() {
         // Test case-lambda procedures receiving multiple values
         //
         // (define proc
@@ -204,7 +205,7 @@ mod case_lambda_integration {
         // (call-with-values (lambda () (values 1 2)) proc)
 
         let values = &[Value::integer(1), Value::integer(2)];
-        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values)));
+        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values.to_vec())));
 
         if let Value::MultipleValues(mv_ref) = mv {
             let args = mv_ref.as_slice();
@@ -245,7 +246,7 @@ mod case_lambda_integration {
     }
 
     #[test]
-    fn test_case_lambda_variable_arity() {
+    pub fn test_case_lambda_variable_arity() {
         // Test case-lambda with rest arguments
         //
         // (case-lambda
@@ -259,7 +260,7 @@ mod case_lambda_integration {
             Value::integer(3),
             Value::integer(4),
         ];
-        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values)));
+        let mv = Value::MultipleValues(Arc::new(MultipleValues::new(values.to_vec())));
 
         if let Value::MultipleValues(mv_ref) = mv {
             let args = mv_ref.as_slice();
@@ -292,7 +293,7 @@ mod begin_integration {
     use super::*;
 
     #[test]
-    fn test_begin_with_multiple_values_in_tail() {
+    pub fn test_begin_with_multiple_values_in_tail() {
         // (begin
         //   (display "hello")
         //   (values 1 2 3))
@@ -319,7 +320,7 @@ mod begin_integration {
     }
 
     #[test]
-    fn test_begin_multiple_values_non_tail_error() {
+    pub fn test_begin_multiple_values_non_tail_error() {
         // (begin
         //   (values 1 2)  ; Non-tail position - should error
         //   42)
@@ -344,7 +345,7 @@ mod procedure_application_integration {
     use super::*;
 
     #[test]
-    fn test_apply_with_multiple_values() {
+    pub fn test_apply_with_multiple_values() {
         // (apply + (values->list (values 1 2 3 4)))
 
         let mv = Value::MultipleValues(Arc::new(MultipleValues::new(vec![
@@ -373,7 +374,7 @@ mod procedure_application_integration {
     }
 
     #[test]
-    fn test_call_with_values_chain() {
+    pub fn test_call_with_values_chain() {
         // (call-with-values
         //   (lambda () (call-with-values
         //               (lambda () (values 1 2))
@@ -397,7 +398,7 @@ mod procedure_application_integration {
                 let x = Value::integer(a_val * 10); // 1*10=10
                 let y = Value::integer(b_val * 20); // 2*20=40
 
-                let outer_mv = Value::MultipleValues(Arc::new(MultipleValues::new(&[x, y])));
+                let outer_mv = Value::MultipleValues(Arc::new(MultipleValues::new(vec![x, y])));
 
                 // Outer call-with-values: consumer (lambda (x y) (+ x y))
                 if let Value::MultipleValues(outer_ref) = outer_mv {
@@ -424,7 +425,7 @@ mod advanced_integration {
     use super::*;
 
     #[test]
-    fn test_quotient_remainder_integration() {
+    pub fn test_quotient_remainder_integration() {
         // (quotient-remainder 17 5) -> 3, 2
         // Simulate the multiple values result
 
@@ -451,7 +452,7 @@ mod advanced_integration {
     }
 
     #[test]
-    fn test_dynamic_wind_with_multiple_values() {
+    pub fn test_dynamic_wind_with_multiple_values() {
         // (dynamic-wind
         //   (lambda () (display "entering"))
         //   (lambda () (values 'result 'data))
@@ -461,8 +462,8 @@ mod advanced_integration {
 
         // Simulate dynamic-wind thunk that returns multiple values
         let thunk_result = Value::MultipleValues(Arc::new(MultipleValues::new(vec![
-            Value::symbol(0), // 'result (assuming symbol id 0)
-            Value::symbol(1), // 'data (assuming symbol id 1)
+            Value::symbol(SymbolId(0)), // 'result (assuming symbol id 0)
+            Value::symbol(SymbolId(1)), // 'data (assuming symbol id 1)
         ])));
 
         // Multiple values should be preserved through dynamic-wind
@@ -473,7 +474,7 @@ mod advanced_integration {
     }
 
     #[test]
-    fn test_continuation_with_multiple_values() {
+    pub fn test_continuation_with_multiple_values() {
         // Test that continuations can capture and restore multiple values
         //
         // (call/cc (lambda (k)
@@ -504,7 +505,7 @@ mod error_integration {
     use super::*;
 
     #[test]
-    fn test_multiple_values_error_propagation() {
+    pub fn test_multiple_values_error_propagation() {
         // Test that errors in multiple values contexts are properly propagated
 
         // Error in uncons
@@ -519,7 +520,7 @@ mod error_integration {
     }
 
     #[test]
-    fn test_arity_error_integration() {
+    pub fn test_arity_error_integration() {
         // Test arity errors in various contexts
 
         // Too many values for binding

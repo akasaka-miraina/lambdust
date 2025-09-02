@@ -325,7 +325,7 @@ impl RecordInstance {
             }
 
             // Handle remaining values
-            for j in i..len() {
+            for j in i..values.len() {
                 *fields_ptr.add(j) = *values_ptr.add(j);
             }
         }
