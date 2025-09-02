@@ -100,7 +100,7 @@ mod utility_procedures {
         assert_eq!(result, Value::Nil);
 
         // Single element list (should return single value, not MultipleValues)
-        let single_list = Value::list(&[Value::integer(42)]);
+        let single_list = Value::list(vec![Value::integer(42)]);
         let result = unlist(&[single_list]).unwrap();
         assert_eq!(result, Value::integer(42));
     }
@@ -187,7 +187,7 @@ mod utility_procedures {
         }
 
         // Single element list (should return single value)
-        let single_list = Value::list(&[Value::integer(42)]);
+        let single_list = Value::list(vec![Value::integer(42)]);
         let result = list_to_values(&[single_list]).unwrap();
         assert_eq!(result, Value::integer(42));
 
@@ -445,7 +445,7 @@ mod edge_cases {
     #[test]
     fn test_single_element_collections() {
         // Single element list
-        let single_list = Value::list(&[Value::integer(42)]);
+        let single_list = Value::list(vec![Value::integer(42)]);
         let result = unlist(&[single_list]).unwrap();
         assert_eq!(result, Value::integer(42)); // Should unwrap single value
 

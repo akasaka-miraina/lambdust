@@ -67,10 +67,10 @@ fn create_factorial_lambda() -> Spanned<Expr> {
                 operator: Box::new(create_expr(Expr::Identifier("=".to_string()))),
                 operands: vec![
                     create_expr(Expr::Identifier("n".to_string())),
-                    create_expr(Expr::Literal(Literal::Integer(0))),
+                    create_expr(Expr::Literal(Literal::ExactInteger(0))),
                 ],
             })),
-            consequent: Box::new(create_expr(Expr::Literal(Literal::Integer(1)))),
+            consequent: Box::new(create_expr(Expr::Literal(Literal::ExactInteger(1)))),
             alternative: Some(Box::new(create_expr(Expr::Application {
                 operator: Box::new(create_expr(Expr::Identifier("*".to_string()))),
                 operands: vec![
@@ -81,7 +81,7 @@ fn create_factorial_lambda() -> Spanned<Expr> {
                             operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
                             operands: vec![
                                 create_expr(Expr::Identifier("n".to_string())),
-                                create_expr(Expr::Literal(Literal::Integer(1))),
+                                create_expr(Expr::Literal(Literal::ExactInteger(1))),
                             ],
                         })],
                     }),
@@ -102,7 +102,7 @@ fn create_tail_recursive_factorial() -> Spanned<Expr> {
                 operator: Box::new(create_expr(Expr::Identifier("=".to_string()))),
                 operands: vec![
                     create_expr(Expr::Identifier("n".to_string())),
-                    create_expr(Expr::Literal(Literal::Integer(0))),
+                    create_expr(Expr::Literal(Literal::ExactInteger(0))),
                 ],
             })),
             consequent: Box::new(create_expr(Expr::Identifier("acc".to_string()))),
@@ -113,7 +113,7 @@ fn create_tail_recursive_factorial() -> Spanned<Expr> {
                         operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
                         operands: vec![
                             create_expr(Expr::Identifier("n".to_string())),
-                            create_expr(Expr::Literal(Literal::Integer(1))),
+                            create_expr(Expr::Literal(Literal::ExactInteger(1))),
                         ],
                     }),
                     create_expr(Expr::Application {
@@ -140,7 +140,7 @@ fn create_fibonacci_lambda() -> Spanned<Expr> {
                 operator: Box::new(create_expr(Expr::Identifier("<=".to_string()))),
                 operands: vec![
                     create_expr(Expr::Identifier("n".to_string())),
-                    create_expr(Expr::Literal(Literal::Integer(1))),
+                    create_expr(Expr::Literal(Literal::ExactInteger(1))),
                 ],
             })),
             consequent: Box::new(create_expr(Expr::Identifier("n".to_string()))),
@@ -153,7 +153,7 @@ fn create_fibonacci_lambda() -> Spanned<Expr> {
                             operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
                             operands: vec![
                                 create_expr(Expr::Identifier("n".to_string())),
-                                create_expr(Expr::Literal(Literal::Integer(1))),
+                                create_expr(Expr::Literal(Literal::ExactInteger(1))),
                             ],
                         })],
                     }),
@@ -163,7 +163,7 @@ fn create_fibonacci_lambda() -> Spanned<Expr> {
                             operator: Box::new(create_expr(Expr::Identifier("-".to_string()))),
                             operands: vec![
                                 create_expr(Expr::Identifier("n".to_string())),
-                                create_expr(Expr::Literal(Literal::Integer(2))),
+                                create_expr(Expr::Literal(Literal::ExactInteger(2))),
                             ],
                         })],
                     }),
@@ -190,7 +190,7 @@ fn test_pattern_optimizer_custom_config() {
     let optimizer = RecPatternOptimizer::with_config(0.9, 500, true);
 
     // Test configuration through behavior
-    let simple_expr = create_expr(Expr::Literal(Literal::Integer(42)));
+    let simple_expr = create_expr(Expr::Literal(Literal::ExactInteger(42)));
     let pattern = optimizer.clone().analyze_pattern("test", &simple_expr);
 
     // Should recognize pattern as unknown for non-lambda
@@ -755,7 +755,7 @@ fn test_optimization_with_non_lambda_expressions() {
     let mut optimizer = RecPatternOptimizer::new();
 
     // Test with literal expression
-    let literal_expr = create_expr(Expr::Literal(Literal::Integer(42)));
+    let literal_expr = create_expr(Expr::Literal(Literal::ExactInteger(42)));
     let pattern = optimizer.analyze_pattern("test", &literal_expr);
 
     assert_eq!(pattern, RecursivePattern::UnknownPattern);
@@ -789,7 +789,7 @@ fn test_optimization_cache_limits() {
             formals: Formals::Fixed(&[format!("param{}", i)]),
             return_type: None,
             metadata: HashMap::new(),
-            body: &[create_expr(Expr::Literal(Literal::Integer(i as i64)))],
+            body: &[create_expr(Expr::Literal(Literal::ExactInteger(i as i64)))],
         });
 
         optimizer.analyze_pattern(&format!("func{}", i), &expr);

@@ -98,7 +98,7 @@ fn test_contract_level_boundary_checking() {
         value: integer_value.clone(),
         predicate: Value::symbol_from_str("integer?"),
         environment: suite.test_environment.clone(),
-        call_stack: &[],
+        call_stack: vec![],
     };
 
     let validation_result = suite.system.validate_contract(&context).unwrap();
@@ -113,7 +113,7 @@ fn test_contract_level_boundary_checking() {
         value: string_value,
         predicate: Value::symbol_from_str("integer?"),
         environment: suite.test_environment.clone(),
-        call_stack: &[],
+        call_stack: vec![],
     };
 
     let failing_result = suite.system.validate_contract(&failing_context).unwrap();
@@ -149,7 +149,7 @@ fn test_static_level_compile_time_checking() {
         "x".to_string(),
         GradualType::Static {
             name: "Integer".to_string(),
-            parameters: &[],
+            parameters: vec![],
         },
     );
 

@@ -38,7 +38,7 @@ fn create_test_record_type(name: &str, fields: Vec<&str>) -> RecordTypeId {
 #[test]
 fn test_srfi9_basic_functionality() {
     // Create a simple point record type
-    let type_id = create_test_record_type("point", &["x", "y"]);
+    let type_id = create_test_record_type("point", vec!["x", "y"]);
 
     // Test record creation
     let values = vec![
@@ -76,7 +76,7 @@ fn test_srfi9_basic_functionality() {
 /// Test field mutation functionality
 #[test]
 fn test_field_mutation() {
-    let type_id = create_test_record_type("mutable-point", &["x", "y"]);
+    let type_id = create_test_record_type("mutable-point", vec!["x", "y"]);
 
     let initial_values = vec![
         NanBoxedValue::small_integer(5),
@@ -352,7 +352,7 @@ fn test_performance_monitoring() {
 /// Test optimization system
 #[test]
 fn test_optimization_system() {
-    let type_id = create_test_record_type("optimizable", &["x", "y", "z"]);
+    let type_id = create_test_record_type("optimizable", vec!["x", "y", "z"]);
 
     // Generate activity to trigger optimizations
     for _ in 0..500 {
@@ -517,7 +517,7 @@ fn test_error_handling() {
 /// Benchmark record creation performance
 #[test]
 fn benchmark_record_creation() {
-    let type_id = create_test_record_type("benchmark", &["x", "y", "z"]);
+    let type_id = create_test_record_type("benchmark", vec!["x", "y", "z"]);
 
     let values = vec![
         NanBoxedValue::small_integer(1),

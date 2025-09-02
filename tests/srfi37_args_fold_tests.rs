@@ -36,20 +36,19 @@ fn create_accumulator_proc(tag: &str) -> Value {
             let seed = args.last().unwrap_or(&Value::Nil);
 
             // Create a tagged entry for this processing event
-            let entry = Value::List(vec![
-                Value::symbol(tag.clone()),
+            let entry = Value::list(vec![
+                Value::symbol_from_str(tag.clone()),
                 args[0].clone(), // The processed argument/option
             ]);
 
             // Add to seed list or create new list
-            match seed {
-                Value::List(list) => {
-                    let mut new_list = list.clone();
-                    new_list.push(entry);
-                    Ok(Value::List(new_list))
-                }
-                Value::Nil => Ok(Value::List(vec![entry])),
-                _ => Ok(Value::List(vec![entry, seed.clone()])),
+            if let Some(mut list_vec) = seed.as_list() {
+                list_vec.push(entry);
+                Ok(Value::list(list_vec))
+            } else if seed.is_nil() {
+                Ok(Value::list(vec![entry]))
+            } else {
+                Ok(Value::list(vec![entry, seed.clone()]))
             }
         }),
         effects: &[Effect::Pure],

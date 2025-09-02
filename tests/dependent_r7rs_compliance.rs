@@ -89,7 +89,7 @@ fn test_r7rs_exact_integers() {
         let result = suite.create_value(expr);
         match result {
             Value::Literal(Literal::ExactInteger(n)) => {
-                assert_eq!(n, expected, "Exact integer test failed for {}", expr);
+                assert_eq!(*n, expected, "Exact integer test failed for {}", expr);
             }
             _ => panic!("Expected exact integer for {}, got {:?}", expr, result),
         }
@@ -160,7 +160,7 @@ fn test_r7rs_booleans() {
         let result = suite.create_value(expr);
         match result {
             Value::Literal(Literal::Boolean(b)) => {
-                assert_eq!(b, expected, "Boolean test failed for {}", expr);
+                assert_eq!(*b, expected, "Boolean test failed for {}", expr);
             }
             _ => panic!("Expected boolean for {}, got {:?}", expr, result),
         }
@@ -227,7 +227,7 @@ fn test_r7rs_symbols() {
     for expr in test_cases {
         let result = suite.create_value(expr);
         match result {
-            Value::symbol(_symbol_id) => {
+            Value::Symbol(_symbol_id) => {
                 // Symbol creation successful - we can't easily extract the string
                 // but we can verify it's a symbol
                 println!("Successfully created symbol for {}", expr);

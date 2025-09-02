@@ -193,7 +193,7 @@ fn test_bind_multiple_values() {
     // Test Variable formals
     let env2 = Arc::new(ThreadSafeEnvironment::default());
     let var_formals = Formals::Variable("all_args".to_string());
-    let values2 = &[Value::integer(10), Value::integer(20), Value::integer(30)];
+    let values2 = vec![Value::integer(10), Value::integer(20), Value::integer(30)];
 
     assert!(bind_multiple_values(&env2, &var_formals, &values2).is_ok());
 
@@ -214,7 +214,7 @@ fn test_bind_multiple_values() {
     // Test Mixed formals
     let env3 = Arc::new(ThreadSafeEnvironment::default());
     let mixed_formals = Formals::Mixed {
-        fixed: &["x".to_string(), "y".to_string()],
+        fixed: vec!["x".to_string(), "y".to_string()],
         rest: "remaining".to_string(),
     };
     let values3 = vec![
@@ -250,7 +250,7 @@ fn test_bind_multiple_values() {
 #[test]
 fn test_expand_receive() {
     // Test basic fixed formals expansion
-    let formals = Formals::Fixed(&["a".to_string(), "b".to_string()]);
+    let formals = Formals::Fixed(vec!["a".to_string(), "b".to_string()]);
     let producer = Value::list(vec![
         Value::symbol(intern_symbol("values")),
         Value::integer(1),
@@ -409,7 +409,7 @@ fn test_edge_cases_and_errors() {
 
     // Test binding with mismatched arity
     let env = Arc::new(ThreadSafeEnvironment::default());
-    let formals = Formals::Fixed(&["a".to_string(), "b".to_string()]);
+    let formals = Formals::Fixed(vec!["a".to_string(), "b".to_string()]);
     let wrong_values = &[Value::integer(1)]; // Only one value for two parameters
 
     assert!(bind_multiple_values(&env, &formals, &wrong_values).is_err());
@@ -465,7 +465,7 @@ fn test_r7rs_compliance() {
     // This verifies that our implementation follows R7RS lambda formal semantics
 
     // Fixed arity: (receive (a b) (values 1 2) body...)
-    let fixed_formals = Formals::Fixed(&["a".to_string(), "b".to_string()]);
+    let fixed_formals = Formals::Fixed(vec!["a".to_string(), "b".to_string()]);
     assert!(validate_receive_arity(&fixed_formals, 2).is_ok());
     assert!(validate_receive_arity(&fixed_formals, 1).is_err());
     assert!(validate_receive_arity(&fixed_formals, 3).is_err());

@@ -83,7 +83,7 @@ fn test_call_with_values_non_procedure_consumer() {
     assert!(!non_procedure.is_procedure());
 
     // These would all cause errors as consumers
-    let list_value = Value::list(&[Value::integer(1), Value::integer(2)]);
+    let list_value = Value::list(vec![Value::integer(1), Value::integer(2)]);
     assert!(!list_value.is_procedure());
 
     let symbol_value = Value::symbol(0); // Assuming symbol id 0
@@ -184,12 +184,12 @@ fn test_unlist_error_conditions() {
     assert!(result.is_err());
 
     // unlist with count requires integer as second argument
-    let list = Value::list(&[Value::integer(1), Value::integer(2)]);
+    let list = Value::list(vec![Value::integer(1), Value::integer(2)]);
     let result = unlist(&[list, Value::string("not-an-integer")]);
     assert!(result.is_err());
 
     // unlist with count exceeding list length
-    let list = Value::list(&[Value::integer(1), Value::integer(2)]);
+    let list = Value::list(vec![Value::integer(1), Value::integer(2)]);
     let result = unlist(&[
         list,
         Value::Literal(lambdust::ast::Literal::ExactInteger(5)),
@@ -238,7 +238,7 @@ fn test_list_to_values_error_conditions() {
     assert!(result.is_err());
 
     // Proper lists should work
-    let list = Value::list(&[Value::integer(1), Value::integer(2)]);
+    let list = Value::list(vec![Value::integer(1), Value::integer(2)]);
     let result = list_to_values(&[list]);
     assert!(result.is_ok());
 
@@ -374,7 +374,7 @@ fn test_error_message_quality() {
     assert!(error_msg.contains("list")); // Should mention that a list is required
 
     // unlist with count too large
-    let list = Value::list(&[Value::integer(1), Value::integer(2)]);
+    let list = Value::list(vec![Value::integer(1), Value::integer(2)]);
     let result = unlist(&[
         list,
         Value::Literal(lambdust::ast::Literal::ExactInteger(5)),

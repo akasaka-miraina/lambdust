@@ -3,9 +3,9 @@
 //! This module validates that Lambdust's SRFI-14 implementation fully complies
 //! with R7RS standards and integrates properly with the R7RS character system.
 
-use crate::eval::value::Value;
-use crate::runtime::runtime::Runtime;
-use crate::stdlib::charset::{CharSet, StandardCharSets};
+use lambdust::eval::value::Value;
+use lambdust::runtime::runtime::Runtime;
+use lambdust::stdlib::charset::{CharSet, StandardCharSets};
 use std::sync::Arc;
 
 /// Helper function to evaluate a Scheme expression and return the result

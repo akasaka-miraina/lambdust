@@ -38,11 +38,11 @@ fn test_r7rs_let_values_basic_syntax() {
     // (let-values ([(formals producer) ...]) body ...)
 
     let binding = Value::list(vec![
-        Value::list(&[sym("a"), sym("b")]),
+        Value::list(vec![sym("a"), sym("b")]),
         values_expr(&[Value::integer(1), Value::integer(2)]),
     ]);
 
-    let bindings_list = Value::list(&[binding]);
+    let bindings_list = Value::list(vec![binding]);
 
     let binding_parsed = LetValuesBinding {
         formals: Formals::Fixed(&["a".to_string(), "b".to_string()]),
@@ -489,7 +489,7 @@ fn test_nested_let_values_compatibility() {
     let inner_let_values = Value::list(vec![
         sym("let-values"),
         Value::list(vec![Value::list(vec![
-            Value::list(&[sym("x")]),
+            Value::list(vec![sym("x")]),
             Value::integer(1),
         ])]),
         sym("x"),

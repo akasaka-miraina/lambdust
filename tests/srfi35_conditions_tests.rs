@@ -125,7 +125,7 @@ mod condition_system_tests {
 
         // Create compound condition
         let compound =
-            ConditionObject::compound(&[message_condition.clone(), error_condition.clone()]);
+            ConditionObject::compound(vec![message_condition.clone(), error_condition.clone()]);
 
         match compound {
             ConditionObject::Compound(conditions) => {
@@ -191,7 +191,7 @@ mod condition_system_tests {
         // Create compound condition with message and error
         let message_condition = SimpleCondition::new(system.standard_types.message, HashMap::new());
         let error_condition = SimpleCondition::new(system.standard_types.error, HashMap::new());
-        let compound = ConditionObject::compound(&[message_condition, error_condition]);
+        let compound = ConditionObject::compound(vec![message_condition, error_condition]);
 
         // Extract error conditions
         let error_conditions =
