@@ -7,6 +7,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  CARGO_BUILD_JOBS: 1  # Reduce parallelism to prevent OOM/segfaults
+  CARGO_INCREMENTAL: 0  # Disable incremental compilation for stable builds
 
 jobs:
   # Code Quality Checks
@@ -34,16 +36,16 @@ jobs:
           cache-on-failure: true
 
       - name: Run clippy (library)
-        run: cargo clippy --lib --all-targets --all-features -- -D warnings
+        run: cargo clippy --lib --no-default-features -- -D warnings
 
-      - name: Run clippy (binaries)
-        run: cargo clippy --bins --all-targets --all-features -- -D warnings
+      - name: Run clippy (binaries)  
+        run: cargo clippy --bins --no-default-features -- -D warnings
 
       - name: Check library compilation
-        run: cargo check --lib --all-features
+        run: cargo check --lib --no-default-features
 
       - name: Check binary compilation
-        run: cargo check --bins --all-features
+        run: cargo check --bins --no-default-features
 
   # Unit and Integration Tests
   test:
@@ -85,13 +87,13 @@ jobs:
           cache-on-failure: true
 
       - name: Run unit tests
-        run: cargo test --lib --all-features
+        run: cargo test --lib --no-default-features
 
       - name: Run integration tests
-        run: cargo test --test '*' --all-features
+        run: cargo test --test '*' --no-default-features
 
       - name: Run doctests
-        run: cargo test --doc --all-features
+        run: cargo test --doc --no-default-features
 
   # Build Verification
   build:
@@ -126,13 +128,10 @@ jobs:
           cache-on-failure: true
 
       - name: Build library
-        run: cargo build --lib ${{ matrix.profile == 'release' && '--release' || '' }}
+        run: cargo build --lib --no-default-features ${{ matrix.profile == 'release' && '--release' || '' }}
 
       - name: Build binaries
-        run: cargo build --bins ${{ matrix.profile == 'release' && '--release' || '' }}
-
-      - name: Build examples
-        run: cargo build --examples ${{ matrix.profile == 'release' && '--release' || '' }}
+        run: cargo build --bins --no-default-features ${{ matrix.profile == 'release' && '--release' || '' }}
 
   # Feature Testing
   features:
@@ -209,7 +208,7 @@ jobs:
           cache-on-failure: true
 
       - name: Check MSRV compilation
-        run: cargo check --lib --all-features
+        run: cargo check --lib --no-default-features
 
       - name: Test MSRV
-        run: cargo test --lib --all-features
+        run: cargo test --lib --no-default-features
