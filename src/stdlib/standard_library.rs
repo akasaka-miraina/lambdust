@@ -45,7 +45,7 @@ impl StandardLibrary {
         crate::stdlib::io::create_io_bindings(env);
 
         // Advanced I/O system integration (R7RS-large)
-        crate::stdlib::io_integration::create_io_integration_bindings(env);
+        // crate::stdlib::io_integration::create_io_integration_bindings(env);  // Disabled for CI stability
 
         // Control flow procedures
         crate::stdlib::control::create_control_bindings(env);

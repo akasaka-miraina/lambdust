@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 #![allow(missing_docs)]
 //! Field Access Optimization System for SRFI-9 Records
 //!

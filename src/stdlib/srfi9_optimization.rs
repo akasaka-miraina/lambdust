@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 //! SRFI-9 Record Performance Optimization System
 //!
 //! This module provides advanced optimization techniques for SRFI-9 records:

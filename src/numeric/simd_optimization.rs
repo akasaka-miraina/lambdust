@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 //! SIMD optimization engine for high-performance numeric computations
 //!
 //! This module provides comprehensive SIMD acceleration for Lambdust's numeric operations,

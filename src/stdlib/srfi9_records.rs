@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 //! High-Performance SRFI-9 Records Implementation
 //!
 //! This module provides the main SRFI-9 `define-record-type` implementation

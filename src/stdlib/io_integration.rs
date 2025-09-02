@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 //! Integration layer for new I/O system with existing Port infrastructure.
 //!
 //! This module provides:

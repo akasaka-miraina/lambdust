@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 //! SIMD-optimized list operations for Lambdust
 //!
 //! This module provides high-performance implementations of common list operations

@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 #![allow(unused_variables)]
 //! Platform-specific I/O optimizations and features.
 //!

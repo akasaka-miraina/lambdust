@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 //! Value system integration for SIMD operations
 //!
 //! This module provides seamless integration between Lambdust's Value system

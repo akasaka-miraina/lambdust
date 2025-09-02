@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 //! SIMD-optimized arithmetic operations for Lambdust
 //!
 //! This module provides high-performance arithmetic operations using

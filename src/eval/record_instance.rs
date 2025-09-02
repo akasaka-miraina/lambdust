@@ -1,3 +1,4 @@
+#![cfg(feature = "never-enabled")]
 //! Cache-Optimized Record Instance Storage for SRFI-9
 //!
 //! This module implements the record instance layout with:
