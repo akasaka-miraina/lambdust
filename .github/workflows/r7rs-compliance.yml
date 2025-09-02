@@ -25,29 +25,25 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y llvm-15-dev libclang-15-dev
-
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: r7rs-small
+          shared-key: r7rs-small-minimal
           cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/0.2.0' }}
 
-      - name: Build Lambdust
-        run: cargo build --release --all-features
+      - name: Build Lambdust (minimal features for R7RS compliance)
+        run: cargo build --release --features "minimal-repl"
 
       - name: Run R7RS-small compliance tests
         run: |
           echo "Testing R7RS-small compliance..."
-          cargo test r7rs_small_compliance --release --all-features -- --nocapture
+          cargo test r7rs_small_compliance --release --features "minimal-repl" -- --nocapture
 
       - name: Test core primitives
         run: |
           echo "Testing 42 core primitives..."
-          cargo run --release -- --eval '
+          cargo run --release --features "minimal-repl" -- --eval '
           (define primitives-test
             (lambda ()
               ;; Test arithmetic operations
@@ -106,7 +102,7 @@ jobs:
         run: |
           echo "Testing SRFI implementations..."
           find tests/srfi -name "*.ldust" -exec echo "Testing {}" \; -exec \
-            cargo run --release -- {} \; > srfi-test-results.txt
+            cargo run --release --features "minimal-repl" -- {} \; > srfi-test-results.txt
 
       - name: Upload SRFI results
         uses: actions/upload-artifact@v4
@@ -142,7 +138,7 @@ jobs:
       - name: Test gradual typing
         run: |
           echo "Testing gradual typing system..."
-          cargo run --release -- --eval '
+          cargo run --release --features "minimal-repl" -- --eval '
           ;; Test gradual typing features
           (define (typed-factorial (n : Integer)) : Integer
             (if (<= n 1)
@@ -194,7 +190,7 @@ jobs:
       - name: Test actor system
         run: |
           echo "Testing actor system..."
-          cargo run --release -- --eval '
+          cargo run --release --features "minimal-repl" -- --eval '
           ;; Test actor-based concurrency
           (define counter-actor
             (spawn-actor
@@ -249,7 +245,7 @@ jobs:
       - name: Test effect handlers
         run: |
           echo "Testing effect handling system..."
-          cargo run --release -- --eval '
+          cargo run --release --features "minimal-repl" -- --eval '
           ;; Test effect handling
           (with-effects
             (IO State)
