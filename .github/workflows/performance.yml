@@ -37,7 +37,7 @@ jobs:
           cache-on-failure: true
 
       - name: Run all benchmarks
-        run: cargo bench --all-features | tee benchmark-results.txt
+        run: cargo bench --features "benchmarks,simd" | tee benchmark-results.txt
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
