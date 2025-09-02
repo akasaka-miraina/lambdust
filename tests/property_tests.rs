@@ -4,7 +4,9 @@
 //! property testing framework specifically designed for Scheme implementations.
 
 use lambdust::eval::Value;
-use lambdust::property_testing::*;
+use lambdust::property_testing::{PropertyConfig, PropertyTestRunner};
+use lambdust::property_testing::generators::{SchemeValueGenerator, ValueTypeWeights};
+use lambdust::property;
 use std::sync::Arc;
 
 /// Test basic algebraic properties of list operations
