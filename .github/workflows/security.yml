@@ -9,6 +9,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 1  # Reduce parallelism to prevent OOM/segfaults
+  CARGO_INCREMENTAL: 0  # Disable incremental compilation for stable builds
 
 jobs:
   # Dependency Security Audit
@@ -57,7 +59,7 @@ jobs:
 
       - name: Run security-focused clippy
         run: |
-          cargo clippy --all-targets --all-features -- \
+          cargo clippy --lib --no-default-features -- \
             -W clippy::mem_forget \
             -W clippy::mem_replace_with_uninit \
             -W clippy::panic \

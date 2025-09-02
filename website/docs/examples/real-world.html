@@ -1144,7 +1144,7 @@
       [_ ← (log-info "Starting trading system...")]
       
       ;; Start components
-      [market-processor ← (spawn-actor (market-data-processor "ws://market-feed.example.com"))]
+      [market-processor ← (spawn-actor (market-data-processor "wss://market-feed.example.com"))]
       [portfolio-mgr ← (spawn-actor (portfolio-manager))]
       [strategy ← (moving-average-strategy 20 50)]
       
