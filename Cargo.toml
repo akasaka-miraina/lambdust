@@ -70,6 +70,8 @@ tokio = { version = "1.0", features = [
 tokio-util = { version = "0.7", features = ["codec", "io"], optional = true }
 async-std = { version = "1.12", optional = true }
 rayon = "1.8"
+# MSRV 1.75.0 compatibility - constrain rayon-core to older version
+rayon-core = "=1.12.1"  # Last version supporting Rust 1.75.0
 crossbeam = "0.8" # For channels and concurrent data structures
 crossbeam-utils = "0.8" # For Backoff and other utilities
 parking_lot = "0.12" # High-performance synchronization primitives for SRFI-18
