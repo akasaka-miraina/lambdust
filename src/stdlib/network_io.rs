@@ -43,8 +43,8 @@ use rustls::{ClientConfig, ServerConfig};
 #[cfg(feature = "tls")]
 use tokio_rustls::{TlsAcceptor, TlsConnector};
 
-use hickory_resolver::TokioAsyncResolver;
-use url::Url;
+// use hickory_resolver::TokioAsyncResolver; // Disabled for MSRV compatibility
+// use url::Url; // Disabled for MSRV compatibility (brings in ICU/zerotrie v0.2.2 via idna)
 
 /// Network socket wrapper
 #[derive(Debug, Clone)]
@@ -965,25 +965,22 @@ pub fn primitive_resolve_hostname(args: &[Value]) -> Result<Value> {
         "A".to_string()
     };
 
-    let runtime = crate::stdlib::async_io::get_async_runtime();
-
-    runtime.block_on(async move {
-        let resolver = match TokioAsyncResolver::tokio_from_system_conf() {
-            Ok(resolver) => resolver,
-            Err(e) => {
-                return Err(Box::new(DiagnosticError::runtime_error(
-                    format!("Cannot create DNS resolver: {e}"),
-                    None,
-                )));
-            }
-        };
-
-        match record_type.as_str() {
-            "A" => match resolver.lookup_ip(&hostname).await {
-                Ok(lookup) => {
-                    let ips: Vec<Value> = lookup
-                        .iter()
-                        .map(|ip| Value::string(ip.to_string()))
+    // Use standard library DNS resolution as fallback since hickory-resolver
+    // was disabled for MSRV compatibility (requires ICU/zerotrie v0.2.2 which needs Rust 1.82+)
+    use std::net::ToSocketAddrs;
+    
+    let addr_string = if hostname.contains(':') {
+        hostname.clone()
+    } else {
+        format!("{}:80", hostname)  // Add default port for resolution
+    };
+    
+    match record_type.as_str() {
+        "A" => {
+            match addr_string.to_socket_addrs() {
+                Ok(addrs) => {
+                    let ips: Vec<Value> = addrs
+                        .map(|addr| Value::string(addr.ip().to_string()))
                         .collect();
                     Ok(list_to_value(ips))
                 }
@@ -991,13 +988,13 @@ pub fn primitive_resolve_hostname(args: &[Value]) -> Result<Value> {
                     format!("DNS lookup failed for '{hostname}': {e}"),
                     None,
                 ))),
-            },
-            _ => Err(Box::new(DiagnosticError::runtime_error(
-                format!("Unsupported DNS record type: {record_type}"),
-                None,
-            ))),
-        }
-    })
+            }
+        },
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Unsupported DNS record type: {record_type}"),
+            None,
+        ))),
+    }
 }
 
 #[cfg(not(feature = "async"))]
@@ -1082,56 +1079,12 @@ pub fn primitive_parse_url(args: &[Value]) -> Result<Value> {
 
     let url_str = extract_string(&args[0], "parse-url")?;
 
-    match Url::parse(&url_str) {
-        Ok(url) => {
-            #[allow(clippy::mutable_key_type)]
-            let mut result = HashMap::new();
-
-            result.insert(
-                Value::Symbol(crate::utils::intern_symbol("scheme")),
-                Value::string(url.scheme().to_string()),
-            );
-
-            if let Some(host) = url.host_str() {
-                result.insert(
-                    Value::Symbol(crate::utils::intern_symbol("host")),
-                    Value::string(host.to_string()),
-                );
-            }
-
-            if let Some(port) = url.port() {
-                result.insert(
-                    Value::Symbol(crate::utils::intern_symbol("port")),
-                    Value::integer(port as i64),
-                );
-            }
-
-            result.insert(
-                Value::Symbol(crate::utils::intern_symbol("path")),
-                Value::string(url.path().to_string()),
-            );
-
-            if let Some(query) = url.query() {
-                result.insert(
-                    Value::Symbol(crate::utils::intern_symbol("query")),
-                    Value::string(query.to_string()),
-                );
-            }
-
-            if let Some(fragment) = url.fragment() {
-                result.insert(
-                    Value::Symbol(crate::utils::intern_symbol("fragment")),
-                    Value::string(fragment.to_string()),
-                );
-            }
-
-            Ok(Value::Hashtable(Rc::new(RefCell::new(result))))
-        }
-        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
-            format!("Invalid URL '{url_str}': {e}"),
-            None,
-        ))),
-    }
+    // Simple fallback URL parsing disabled for MSRV compatibility
+    // The url crate brings in ICU/zerotrie v0.2.2 via idna which requires Rust 1.82+
+    Err(Box::new(DiagnosticError::runtime_error(
+        "parse-url temporarily disabled for MSRV compatibility (url crate brings in ICU dependencies requiring Rust 1.82+)".to_string(),
+        None,
+    )))
 }
 
 pub fn primitive_format_url(_args: &[Value]) -> Result<Value> {

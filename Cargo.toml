@@ -122,9 +122,9 @@ notify = "6.1" # File system monitoring
 walkdir = "2.4" # Recursive directory traversal
 ignore = "0.4" # .gitignore-style ignore patterns
 globset = "0.4" # Glob pattern matching
-url = "2.5" # URL parsing for network I/O
+# url = "2.5" # URL parsing for network I/O - Disabled for MSRV compatibility (brings in ICU/zerotrie v0.2.2 via idna)
 percent-encoding = "2.3" # URL encoding/decoding
-hickory-resolver = "0.24" # DNS resolver (formerly trust-dns)
+# hickory-resolver = "0.24" # DNS resolver (formerly trust-dns) - Disabled for MSRV compatibility (requires ICU/zerotrie v0.2.2 which needs Rust 1.82+)
 
 # Compression and encryption
 flate2 = { version = "1.0", optional = true } # Gzip/deflate compression
