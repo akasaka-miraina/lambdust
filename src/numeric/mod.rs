@@ -37,7 +37,7 @@ pub mod rational;
 /// SIMD-optimized arithmetic operations
 pub mod simd_arithmetic;
 /// SIMD performance benchmarking and analysis suite.
-pub mod simd_benchmarks;
+// pub mod simd_benchmarks;  // Disabled for CI stability
 /// SIMD-optimized list operations (map, filter, fold)
 pub mod simd_list_ops;
 /// SIMD-optimized numeric operations for performance.

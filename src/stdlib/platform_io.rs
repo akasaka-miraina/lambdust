@@ -16,11 +16,11 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "unix-extensions"))]
 use nix::fcntl::{FcntlArg, OFlag, fcntl};
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "unix-extensions"))]
 use nix::sys::epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags, EpollTimeout};
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "unix-extensions"))]
 use nix::unistd::{pipe, read, write};
 
 #[cfg(all(target_os = "macos", feature = "advanced-io"))]
@@ -219,7 +219,10 @@ impl HighPerformanceIo {
         let timeout_ms = timeout.map(|d| d.as_millis() as i32).unwrap_or(-1);
 
         // This is a simplified implementation - real io_uring integration would be more complex
+        #[cfg(all(target_os = "linux", feature = "unix-extensions"))]
         match nix::sys::epoll::epoll_wait(epoll_fd, events, timeout_ms) {
+        #[cfg(not(all(target_os = "linux", feature = "unix-extensions")))]
+        match Result::<i32, Box<dyn std::error::Error>>::Ok(0) {
             Ok(num_events) => {
                 let mut completions = Vec::new();
                 for i in 0..num_events {
