@@ -12,7 +12,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-#[cfg(feature = "minimal-repl")]
+#[cfg(all(
+    feature = "minimal-repl", 
+    not(any(feature = "repl", feature = "enhanced-repl"))
+))]
 use lambdust::repl::start_minimal_repl;
 
 #[cfg(feature = "repl")]
