@@ -53,7 +53,7 @@ fn demonstrate_code_size_reduction() {
     println!("\nCODE SIZE REDUCTION: 70-85% (estimated)");
 
     // Demonstrate actual usage
-    let mut registry = GenericPrimitiveRegistry::new();
+    let registry = GenericPrimitiveRegistry::new();
     // register_all_core_primitives(&mut registry).unwrap();  // Temporarily disabled
 
     println!("  ✓ All 42 primitives registered successfully");
@@ -65,7 +65,7 @@ fn demonstrate_code_size_reduction() {
 
 #[cfg(feature = "jit")]
 fn demonstrate_performance_improvements() {
-    let mut registry = GenericPrimitiveRegistry::new();
+    let registry = GenericPrimitiveRegistry::new();
     // register_all_core_primitives(&mut registry).unwrap();  // Temporarily disabled
 
     // Benchmark arithmetic operations
@@ -264,7 +264,7 @@ fn demonstrate_maintainability_improvements() {
 
 #[cfg(feature = "jit")]
 fn demonstrate_specialization_opportunities() {
-    let mut registry = GenericPrimitiveRegistry::new();
+    let registry = GenericPrimitiveRegistry::new();
     // register_all_core_primitives(&mut registry).unwrap();  // Temporarily disabled
 
     println!("SIMD and Specialization Analysis:");
@@ -308,6 +308,7 @@ fn demonstrate_specialization_opportunities() {
 
 /// Demonstrates the memory and compilation time benefits.
 #[cfg(feature = "jit")]
+#[allow(dead_code)]
 fn demonstrate_resource_efficiency() {
     println!("\nResource Efficiency:");
 
@@ -333,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_all_primitives_work() {
-        let mut registry = GenericPrimitiveRegistry::new();
+        let registry = GenericPrimitiveRegistry::new();
         // register_all_core_primitives(&mut registry).unwrap();  // Temporarily disabled
 
         // Test a sample of each category
@@ -375,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_performance_is_reasonable() {
-        let mut registry = GenericPrimitiveRegistry::new();
+        let registry = GenericPrimitiveRegistry::new();
         // register_all_core_primitives(&mut registry).unwrap();  // Temporarily disabled
 
         // Ensure type predicates are extremely fast (should inline to a few instructions)
@@ -399,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_memory_efficiency() {
-        let mut registry = GenericPrimitiveRegistry::new();
+        let registry = GenericPrimitiveRegistry::new();
         // register_all_core_primitives(&mut registry).unwrap();  // Temporarily disabled
 
         // All 42 primitives should be registered
