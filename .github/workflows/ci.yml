@@ -24,6 +24,11 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-15-dev libclang-15-dev
+
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -67,6 +72,17 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
 
+      - name: Install system dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-15-dev libclang-15-dev
+
+      - name: Install system dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install llvm@15
+
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -96,6 +112,17 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-15-dev libclang-15-dev
+
+      - name: Install system dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install llvm@15
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -133,6 +160,11 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-15-dev libclang-15-dev
+
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -157,6 +189,11 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.75.0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-15-dev libclang-15-dev
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
