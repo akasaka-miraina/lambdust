@@ -12,8 +12,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-// #[cfg(feature = "minimal-repl")]
-// use lambdust::repl::start_minimal_repl;
+#[cfg(feature = "minimal-repl")]
+use lambdust::repl::start_minimal_repl;
 
 #[cfg(feature = "repl")]
 use {
