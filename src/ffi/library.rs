@@ -513,7 +513,14 @@ impl LibraryManager {
         let handle = self.load_library(library_name)?;
         let symbol = handle.get_symbol::<T>(symbol_name)?;
         Ok(unsafe {
-            std::mem::transmute::<libloading::os::unix::Symbol<T>, *const T>(symbol.into_raw())
+            #[cfg(unix)]
+            {
+                std::mem::transmute::<libloading::os::unix::Symbol<T>, *const T>(symbol.into_raw())
+            }
+            #[cfg(windows)]
+            {
+                std::mem::transmute::<libloading::os::windows::Symbol<T>, *const T>(symbol.into_raw())
+            }
         })
     }
 
@@ -537,9 +544,18 @@ impl LibraryManager {
                 let mut stats = self.stats.write().unwrap();
                 stats.successful_lookups += 1;
                 Ok(unsafe {
-                    std::mem::transmute::<libloading::os::unix::Symbol<T>, *const T>(
-                        symbol.into_raw(),
-                    )
+                    #[cfg(unix)]
+                    {
+                        std::mem::transmute::<libloading::os::unix::Symbol<T>, *const T>(
+                            symbol.into_raw(),
+                        )
+                    }
+                    #[cfg(windows)]
+                    {
+                        std::mem::transmute::<libloading::os::windows::Symbol<T>, *const T>(
+                            symbol.into_raw(),
+                        )
+                    }
                 })
             }
             Err(e) => {

@@ -20,8 +20,8 @@ use std::time::{Duration, Instant};
 
 #[cfg(all(unix, feature = "advanced-io"))]
 use nix::unistd::{chdir, chroot};
-#[cfg(unix)]
 /// Security policy for I/O operations
+/// Available on all platforms with platform-specific features
 #[derive(Debug, Clone)]
 pub struct SecurityPolicy {
     pub allowed_paths: HashSet<PathBuf>,
