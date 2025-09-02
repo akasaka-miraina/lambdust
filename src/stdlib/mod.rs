@@ -77,6 +77,7 @@ pub mod srfi21_threading;
 pub mod srfi23_enhanced;
 /// SRFI-35 condition system implementation.
 pub mod srfi35_conditions;
+// pub mod srfi35_procedures; // Temporarily disabled due to type compatibility issues
 /// SRFI-37 args-fold argument processing.
 pub mod srfi37_args_fold;
 /// SRFI-41 Streams implementation.

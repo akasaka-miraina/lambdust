@@ -72,7 +72,7 @@ pub fn primitive_register_condition_type(args: &[Value]) -> Result<Value> {
 
     let type_id = system.registry.register_type(
         &type_name,
-        supertype_name.as_deref(),
+        supertype_name.as_deref().map(|x| x.as_str()),
         &constructor_name,
         &predicate_name,
         field_spec_strs,
