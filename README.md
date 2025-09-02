@@ -98,6 +98,54 @@ cargo build --release --features jit
   "Hello, World!")
 ```
 
+## 🛠️ Development
+
+### Setting Up Development Environment
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/akasaka-miraina/lambdust.git
+   cd lambdust
+   ```
+
+2. **Install development dependencies:**
+   ```bash
+   # Install Rust toolchain
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   
+   # Install LLVM (for JIT features)
+   # Ubuntu/Debian:
+   sudo apt-get install llvm-15-dev libclang-15-dev
+   # macOS:
+   brew install llvm@15
+   ```
+
+3. **Set up git hooks for code quality:**
+   ```bash
+   ./scripts/setup-git-hooks.sh
+   ```
+
+This installs pre-push hooks that automatically run:
+- `cargo fmt --check` (code formatting)
+- `cargo clippy --lib` (linting)
+- `cargo check` (basic compilation)
+
+### Development Workflow
+
+```bash
+# Format code before committing
+cargo fmt
+
+# Run tests
+cargo test --lib
+
+# Build with specific features
+cargo build --features "minimal-repl"
+
+# The pre-push hook will ensure code quality before pushing
+git push  # Automatically runs quality checks
+```
+
 ## 🏗️ Architecture
 
 ### System Structure

@@ -2,9 +2,7 @@ name: R7RS Compliance Testing
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, '0.2.0' ]
   schedule:
     # Run R7RS compliance tests daily at 1 AM UTC
     - cron: '0 1 * * *'

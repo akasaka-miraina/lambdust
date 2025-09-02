@@ -1,0 +1,37 @@
+#!/bin/bash
+#
+# Pre-push hook to run cargo fmt and basic checks before pushing
+#
+
+set -e
+
+echo "🔍 Running pre-push checks..."
+
+# Check formatting
+echo "📝 Checking code formatting..."
+if ! cargo fmt --all -- --check; then
+    echo "❌ Code formatting check failed."
+    echo "💡 Run 'cargo fmt' to fix formatting issues."
+    exit 1
+fi
+echo "✅ Code formatting is correct."
+
+# Run clippy on lib only (fast check)
+echo "📋 Running clippy (library only)..."
+if ! cargo clippy --lib -- -D warnings; then
+    echo "❌ Clippy warnings found."
+    echo "💡 Fix clippy warnings before pushing."
+    exit 1
+fi
+echo "✅ No clippy warnings found."
+
+# Basic compilation check
+echo "🔧 Checking basic compilation..."
+if ! cargo check; then
+    echo "❌ Compilation check failed."
+    echo "💡 Fix compilation errors before pushing."
+    exit 1
+fi
+echo "✅ Compilation check passed."
+
+echo "✨ All pre-push checks passed! Ready to push."

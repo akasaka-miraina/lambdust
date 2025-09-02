@@ -8,12 +8,6 @@ on:
       - 'src/**'
       - 'README.md'
       - 'Cargo.toml'
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'docs/**'
-      - 'src/**'
-      - 'README.md'
 
 env:
   CARGO_TERM_COLOR: always
