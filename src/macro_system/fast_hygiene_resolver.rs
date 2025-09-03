@@ -13,7 +13,8 @@ use crate::eval::Environment;
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap};
-use std::hash::{DefaultHasher, Hash, Hasher};
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 use std::rc::Rc;
 use std::sync::{Arc, Weak};
 

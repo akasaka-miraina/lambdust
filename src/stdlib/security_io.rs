@@ -14,7 +14,6 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::LazyLock;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -347,8 +346,9 @@ impl SecurityManager {
 }
 
 /// Global security manager instance
-static SECURITY_MANAGER: LazyLock<Mutex<SecurityManager>> =
-    LazyLock::new(|| Mutex::new(SecurityManager::new()));
+lazy_static::lazy_static! {
+    static ref SECURITY_MANAGER: Mutex<SecurityManager> = Mutex::new(SecurityManager::new());
+}
 
 pub fn get_security_manager() -> &'static Mutex<SecurityManager> {
     &SECURITY_MANAGER

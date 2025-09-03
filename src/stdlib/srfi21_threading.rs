@@ -537,9 +537,10 @@ impl Default for ThreadRegistry {
     }
 }
 
-/// Global thread registry instance
-pub static THREAD_REGISTRY: std::sync::LazyLock<ThreadRegistry> =
-    std::sync::LazyLock::new(ThreadRegistry::new);
+lazy_static::lazy_static! {
+    /// Global thread registry instance
+    pub static ref THREAD_REGISTRY: ThreadRegistry = ThreadRegistry::new();
+}
 
 /// Error types specific to SRFI-21 operations
 #[derive(Debug)]

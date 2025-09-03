@@ -40,8 +40,9 @@ thread_local! {
 /// Global arena allocator for long-lived values.
 ///
 /// Shared across threads for global definitions and cached computations.
-static GLOBAL_ARENA: std::sync::LazyLock<Mutex<ValueArena>> =
-    std::sync::LazyLock::new(|| Mutex::new(ValueArena::new()));
+lazy_static::lazy_static! {
+    static ref GLOBAL_ARENA: Mutex<ValueArena> = Mutex::new(ValueArena::new());
+}
 
 /// Arena-aware Value wrapper that seamlessly integrates arena and heap allocation.
 ///
