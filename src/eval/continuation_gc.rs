@@ -534,6 +534,10 @@ impl GcObject for ContinuationGcWrapper {
         let env_size = 512; // Estimated environment overhead
         base_size + frame_size + env_size
     }
+    
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 /// Statistics about continuation usage.

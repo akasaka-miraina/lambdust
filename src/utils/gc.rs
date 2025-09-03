@@ -39,6 +39,9 @@ pub trait GcObject: Send + Sync + std::any::Any + std::fmt::Debug {
 
     /// Returns the approximate size of this object in bytes.
     fn size_hint(&self) -> usize;
+    
+    /// Provide access to Any for safe downcasting
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 /// A garbage-collected pointer to an object.
@@ -666,6 +669,10 @@ mod tests {
 
         fn size_hint(&self) -> usize {
             self.size
+        }
+        
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
         }
     }
 

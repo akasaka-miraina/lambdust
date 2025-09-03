@@ -140,6 +140,9 @@ trait ValueObj: Send + Sync + std::any::Any {
 
     /// Display this object
     fn fmt_obj(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+    
+    /// Provide access to Any for safe downcasting
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 /// String value object
@@ -685,7 +688,7 @@ impl ValueObj for StringObj {
         Box::new(self.clone())
     }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
-        if let Some(other_str) = (other as &dyn std::any::Any).downcast_ref::<StringObj>() {
+        if let Some(other_str) = other.as_any().downcast_ref::<StringObj>() {
             self == other_str
         } else {
             false
@@ -701,6 +704,9 @@ impl ValueObj for StringObj {
     fn fmt_obj(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\"{}\"", self.content)
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl ValueObj for NumberObj {
@@ -711,7 +717,7 @@ impl ValueObj for NumberObj {
         Box::new(self.clone())
     }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
-        if let Some(other_num) = (other as &dyn std::any::Any).downcast_ref::<NumberObj>() {
+        if let Some(other_num) = other.as_any().downcast_ref::<NumberObj>() {
             self == other_num
         } else {
             false
@@ -728,6 +734,9 @@ impl ValueObj for NumberObj {
     fn fmt_obj(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{value}", value = self.value)
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl ValueObj for SymbolObj {
@@ -738,7 +747,7 @@ impl ValueObj for SymbolObj {
         Box::new(self.clone())
     }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
-        if let Some(other_sym) = (other as &dyn std::any::Any).downcast_ref::<SymbolObj>() {
+        if let Some(other_sym) = other.as_any().downcast_ref::<SymbolObj>() {
             self == other_sym
         } else {
             false
@@ -758,6 +767,9 @@ impl ValueObj for SymbolObj {
             write!(f, "#<symbol:{}>", self.id.id())
         }
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl ValueObj for PairObj {
@@ -768,7 +780,7 @@ impl ValueObj for PairObj {
         Box::new(self.clone())
     }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
-        if let Some(other_pair) = (other as &dyn std::any::Any).downcast_ref::<PairObj>() {
+        if let Some(other_pair) = other.as_any().downcast_ref::<PairObj>() {
             self.car == other_pair.car && self.cdr == other_pair.cdr
         } else {
             false
@@ -785,6 +797,9 @@ impl ValueObj for PairObj {
     fn fmt_obj(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({} . {})", self.car, self.cdr)
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl ValueObj for VectorObj {
@@ -795,7 +810,7 @@ impl ValueObj for VectorObj {
         Box::new(self.clone())
     }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
-        if let Some(other_vec) = (other as &dyn std::any::Any).downcast_ref::<VectorObj>() {
+        if let Some(other_vec) = other.as_any().downcast_ref::<VectorObj>() {
             if let (Ok(self_elements), Ok(other_elements)) =
                 (self.elements.try_read(), other_vec.elements.try_read())
             {
@@ -830,6 +845,9 @@ impl ValueObj for VectorObj {
         }
         write!(f, ")")
     }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl ValueObj for BytevectorObj {
@@ -840,7 +858,7 @@ impl ValueObj for BytevectorObj {
         Box::new(self.clone())
     }
     fn eq_obj(&self, other: &dyn ValueObj) -> bool {
-        if let Some(other_bv) = (other as &dyn std::any::Any).downcast_ref::<BytevectorObj>() {
+        if let Some(other_bv) = other.as_any().downcast_ref::<BytevectorObj>() {
             self == other_bv
         } else {
             false
@@ -862,6 +880,9 @@ impl ValueObj for BytevectorObj {
             write!(f, "{byte}")?;
         }
         write!(f, ")")
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

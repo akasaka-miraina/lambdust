@@ -217,6 +217,10 @@ impl GcObject for ValueGcWrapper {
     fn size_hint(&self) -> usize {
         self.estimate_size()
     }
+    
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl GcValue {
@@ -231,7 +235,7 @@ impl GcValue {
     /// This maintains the existing Value API transparently.
     pub fn value(&self) -> &Value {
         // Use Any trait for safe downcasting
-        let any_ref = &*self.inner as &dyn std::any::Any;
+        let any_ref = self.inner.as_any();
         if let Some(wrapper) = any_ref.downcast_ref::<ValueGcWrapper>() {
             wrapper.value()
         } else {

@@ -578,6 +578,10 @@ impl GcObject for DiagnosticGcWrapper {
         let base_size = std::mem::size_of::<PreservedError>();
         base_size + message_size + context_size + 128 // Extra overhead
     }
+    
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl DiagnosticGcWrapper {
