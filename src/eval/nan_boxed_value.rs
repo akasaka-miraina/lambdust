@@ -26,6 +26,9 @@ impl NanBoxedValue {
     const MANTISSA_MASK: u64 = 0x000F_FFFF_FFFF_FFFF;
     const SIGN_MASK: u64 = 0x8000_0000_0000_0000;
     const QNAN_MASK: u64 = 0x7FF8_0000_0000_0000;
+    
+    // Base NaN for tagged values (without type bits set)
+    const NAN_BASE: u64 = 0x7FF0_0000_0000_0000;
 
     // Type encoding in upper 4 bits of mantissa
     const TYPE_SHIFT: u32 = 48;
@@ -104,7 +107,7 @@ impl NanBoxedValue {
 
         if (MIN_SMALL_INT..=MAX_SMALL_INT).contains(&value) {
             let unsigned = value as u64;
-            let encoded = Self::QNAN_MASK
+            let encoded = Self::NAN_BASE
                 | (Self::TYPE_SMALL_INT << Self::TYPE_SHIFT)
                 | (unsigned & Self::PAYLOAD_MASK);
             Some(Self(encoded))
@@ -115,7 +118,7 @@ impl NanBoxedValue {
 
     /// Creates a NanBoxedValue from a Unicode character
     pub fn from_char(value: char) -> Self {
-        let encoded = Self::QNAN_MASK
+        let encoded = Self::NAN_BASE
             | (Self::TYPE_CHARACTER << Self::TYPE_SHIFT)
             | ((value as u64) & Self::PAYLOAD_MASK);
         Self(encoded)
@@ -141,7 +144,7 @@ impl NanBoxedValue {
 
     /// Creates a NanBoxedValue from an interned symbol ID
     pub fn from_symbol_id(id: u32) -> Self {
-        let encoded = Self::QNAN_MASK
+        let encoded = Self::NAN_BASE
             | (Self::TYPE_SYMBOL << Self::TYPE_SHIFT)
             | ((id as u64) & Self::PAYLOAD_MASK);
         Self(encoded)
@@ -152,7 +155,15 @@ impl NanBoxedValue {
     /// Checks if this value represents a floating-point number
     #[inline(always)]
     pub fn is_number(&self) -> bool {
-        (self.0 & Self::EXPONENT_MASK) != Self::EXPONENT_MASK
+        let exp = self.0 & Self::EXPONENT_MASK;
+        if exp != Self::EXPONENT_MASK {
+            // Normal finite numbers
+            true
+        } else {
+            // Exponent is all 1s - check if it's infinity (mantissa = 0)
+            let mantissa = self.0 & Self::MANTISSA_MASK;
+            mantissa == 0
+        }
     }
 
     /// Checks if this value represents a boolean
@@ -280,7 +291,7 @@ impl NanBoxedValue {
         // In a full implementation, this would allocate on heap
         // and store a pointer with appropriate type tag
         let encoded =
-            Self::QNAN_MASK | (0xFu64 << Self::TYPE_SHIFT) | (value.to_bits() & Self::PAYLOAD_MASK);
+            Self::NAN_BASE | (0xFu64 << Self::TYPE_SHIFT) | (value.to_bits() & Self::PAYLOAD_MASK);
         Self(encoded)
     }
 }
