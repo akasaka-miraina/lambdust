@@ -879,6 +879,29 @@ mod tests {
     }
 
     #[test]
+    fn test_basic_operations_integers() {
+        let mut set = OrderedSet::new();
+        assert!(set.is_empty());
+        assert_eq!(set.len(), 0);
+
+        // Insert integer elements
+        assert!(set.insert(Value::integer(3)));
+        assert!(set.insert(Value::integer(1)));
+        assert!(set.insert(Value::integer(2)));
+        assert!(!set.insert(Value::integer(2))); // Duplicate
+
+        assert_eq!(set.len(), 3);
+        assert!(set.contains(&Value::integer(2)));
+        assert!(!set.contains(&Value::integer(4)));
+
+        // Remove element
+        assert!(set.remove(&Value::integer(2)));
+        assert!(!set.remove(&Value::integer(4))); // Not present
+        assert_eq!(set.len(), 2);
+        assert!(!set.contains(&Value::integer(2)));
+    }
+
+    #[test]
     fn test_min_max() {
         let mut set = OrderedSet::new();
         assert_eq!(set.min(), None);

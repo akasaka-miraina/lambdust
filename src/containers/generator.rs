@@ -999,7 +999,44 @@ impl Generator {
     /// Checks if the generator is exhausted
     pub fn is_exhausted(&self) -> bool {
         if let Ok(state) = self.state.try_read() {
-            matches!(*state, GeneratorState::Exhausted)
+            match &*state {
+                GeneratorState::Exhausted => true,
+                GeneratorState::Iota { remaining, .. } => {
+                    // Iota is exhausted when remaining count is 0
+                    remaining.map_or(false, |rem| rem == 0)
+                }
+                GeneratorState::Range { current, end, step } => {
+                    // Range is exhausted when we've passed the end
+                    if let Some(end_val) = end {
+                        if *step > 0.0 {
+                            *current >= *end_val
+                        } else if *step < 0.0 {
+                            *current <= *end_val
+                        } else {
+                            true // Step is 0, infinite loop would occur
+                        }
+                    } else {
+                        false // Infinite range
+                    }
+                }
+                GeneratorState::Values { values, index } => {
+                    // Values generator is exhausted when index >= length
+                    *index >= values.len()
+                }
+                GeneratorState::List { current } => {
+                    // List generator is exhausted when current is nil
+                    matches!(current, Value::Nil)
+                }
+                GeneratorState::String { string, index } => {
+                    // String generator is exhausted when index >= string length
+                    *index >= string.chars().count()
+                }
+                GeneratorState::Tabulate { index, max_count, .. } => {
+                    // Tabulate is exhausted when we've reached max_count
+                    max_count.map_or(false, |max| *index >= max)
+                }
+                _ => false, // Other states are not easily determined without side effects
+            }
         } else {
             true // Conservative: if we can't read state, consider exhausted
         }
