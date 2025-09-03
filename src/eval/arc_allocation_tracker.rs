@@ -25,9 +25,8 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Global Arc allocation tracker instance
-lazy_static::lazy_static! {
-    static ref GLOBAL_TRACKER: ArcAllocationTracker = ArcAllocationTracker::new();
-}
+static GLOBAL_TRACKER: std::sync::LazyLock<ArcAllocationTracker> =
+    std::sync::LazyLock::new(ArcAllocationTracker::new);
 
 /// Thread-safe Arc allocation tracker
 pub struct ArcAllocationTracker {

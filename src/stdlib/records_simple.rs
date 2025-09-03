@@ -18,12 +18,13 @@ use std::sync::{Arc, Mutex, RwLock};
 static RECORD_TYPE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// Global registry of record types.
-lazy_static::lazy_static! {
-    /// Global registry of record types.
-    static ref RECORD_TYPE_REGISTRY: Mutex<HashMap<u64, RecordType>> = Mutex::new(HashMap::new());
-    /// Global registry mapping type names to type IDs.
-    static ref RECORD_TYPE_NAME_REGISTRY: Mutex<HashMap<String, u64>> = Mutex::new(HashMap::new());
-}
+/// Global registry of record types.
+static RECORD_TYPE_REGISTRY: std::sync::LazyLock<Mutex<HashMap<u64, RecordType>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Global registry mapping type names to type IDs.
+static RECORD_TYPE_NAME_REGISTRY: std::sync::LazyLock<Mutex<HashMap<String, u64>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Generates a unique record type ID.
 pub fn next_record_type_id() -> u64 {

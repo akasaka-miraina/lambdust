@@ -660,8 +660,7 @@ impl PerformanceMonitor {
     }
 
     fn compute_expr_hash(&self, expr: &Spanned<Expr>) -> u64 {
-        use std::hash::{Hash, Hasher};
-        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{DefaultHasher, Hash, Hasher};
         let mut hasher = DefaultHasher::new();
         // Would implement proper expression hashing
         0

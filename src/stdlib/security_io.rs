@@ -346,9 +346,8 @@ impl SecurityManager {
 }
 
 /// Global security manager instance
-lazy_static::lazy_static! {
-    static ref SECURITY_MANAGER: Mutex<SecurityManager> = Mutex::new(SecurityManager::new());
-}
+static SECURITY_MANAGER: std::sync::LazyLock<Mutex<SecurityManager>> =
+    std::sync::LazyLock::new(|| Mutex::new(SecurityManager::new()));
 
 pub fn get_security_manager() -> &'static Mutex<SecurityManager> {
     &SECURITY_MANAGER

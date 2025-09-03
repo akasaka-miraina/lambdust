@@ -6,8 +6,7 @@
 use crate::ast::FeatureRequirement;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
 /// Configuration for feature cache

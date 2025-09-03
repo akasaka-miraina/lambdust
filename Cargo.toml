@@ -2,6 +2,7 @@
 name = "lambdust"
 version = "0.2.0"
 edition = "2021"
+rust-version = "1.82.0"
 authors = ["Mitsuki Akasaka <m.akasaka@miraina-step.co.jp>"]
 description = "A Scheme dialect with gradual typing and effect systems"
 license = "MIT OR Apache-2.0"
@@ -71,7 +72,7 @@ tokio-util = { version = "0.7", features = ["codec", "io"], optional = true }
 async-std = { version = "1.12", optional = true }
 rayon = "1.8"
 # MSRV 1.75.0 compatibility - constrain rayon-core to older version
-rayon-core = "=1.12.1"  # Last version supporting Rust 1.75.0
+# rayon-core version constraint removed - using latest compatible version for Rust 1.82.0+
 crossbeam = "0.8" # For channels and concurrent data structures
 crossbeam-utils = "0.8" # For Backoff and other utilities
 parking_lot = "0.12" # High-performance synchronization primitives for SRFI-18
