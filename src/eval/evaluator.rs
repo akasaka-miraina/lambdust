@@ -2209,12 +2209,16 @@ impl Evaluator {
         // Restore the context stack to the state when continuation was captured
         self.context_stack = continuation.stack.clone();
 
-        // The key insight: we need to perform a controlled non-local jump that
-        // escapes from the current procedure context but preserves the outer
-        // computation context that was captured in the continuation
-        EvalStep::NonLocalJump {
-            value,
-            target_stack_depth: continuation.stack.len(),
+        // If the continuation stack is empty, we're at the top level
+        // and should return the value directly
+        if continuation.stack.is_empty() {
+            EvalStep::Return(value)
+        } else {
+            // For non-empty stacks, perform a non-local jump
+            EvalStep::NonLocalJump {
+                value,
+                target_stack_depth: continuation.stack.len(),
+            }
         }
     }
 
@@ -4134,8 +4138,8 @@ mod tests {
         // First invocation should succeed
         let result1 = evaluator.call_continuation(continuation.clone(), Value::integer(42));
         match result1 {
-            EvalStep::Return(Value::Literal(Literal::Number(n))) => {
-                assert_eq!(n, 42.0);
+            EvalStep::Return(Value::Literal(Literal::ExactInteger(n))) => {
+                assert_eq!(n, 42);
             }
             other => panic!("Expected return of 42, got {other:?}"),
         }
@@ -4143,8 +4147,8 @@ mod tests {
         // Second invocation should now also succeed under R7RS semantics
         let result2 = evaluator.call_continuation(continuation, Value::integer(84));
         match result2 {
-            EvalStep::Return(Value::Literal(Literal::Number(n))) => {
-                assert_eq!(n, 84.0);
+            EvalStep::Return(Value::Literal(Literal::ExactInteger(n))) => {
+                assert_eq!(n, 84);
             }
             other => panic!("Expected return of 84, got {other:?}"),
         }
