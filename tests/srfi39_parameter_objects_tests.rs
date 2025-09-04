@@ -250,15 +250,14 @@ fn test_parameter_performance_benchmark() {
 
     // Performance target: <100ns per read (including hot cache optimization)
     // This is a reasonable target for the optimized implementation
-    println!("Parameter read performance: {}ns per read", ns_per_read);
+    println!("Parameter read performance: {ns_per_read}ns per read");
 
     // Don't fail the test if performance doesn't meet target in debug builds
     // In release builds with optimizations, this should be much faster
     if cfg!(not(debug_assertions)) {
         assert!(
             ns_per_read < 1000,
-            "Parameter reads should be under 1000ns in release mode, got {}ns",
-            ns_per_read
+            "Parameter reads should be under 1000ns in release mode, got {ns_per_read}ns"
         );
     }
 }

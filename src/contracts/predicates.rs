@@ -290,8 +290,11 @@ pub fn number_predicate() -> PredicateFn {
     Arc::new(|value| {
         matches!(
             value,
-            Value::Literal(Literal::InexactReal(_))
+            Value::Literal(Literal::ExactInteger(_))
+                | Value::Literal(Literal::InexactReal(_))
                 | Value::Literal(Literal::Number(_))
+                | Value::Literal(Literal::Integer(_))
+                | Value::Literal(Literal::Rational(_))
                 | Value::Literal(Literal::Complex(_))
         )
     })
@@ -302,7 +305,11 @@ pub fn real_predicate() -> PredicateFn {
     Arc::new(|value| {
         matches!(
             value,
-            Value::Literal(Literal::InexactReal(_)) | Value::Literal(Literal::Number(_))
+            Value::Literal(Literal::ExactInteger(_))
+                | Value::Literal(Literal::InexactReal(_)) 
+                | Value::Literal(Literal::Number(_))
+                | Value::Literal(Literal::Integer(_))
+                | Value::Literal(Literal::Rational(_))
         )
     })
 }
@@ -312,8 +319,10 @@ pub fn rational_predicate() -> PredicateFn {
     Arc::new(|value| {
         matches!(
             value,
-            Value::Literal(Literal::InexactReal(_))
+            Value::Literal(Literal::ExactInteger(_))
+                | Value::Literal(Literal::InexactReal(_))
                 | Value::Literal(Literal::Number(_))
+                | Value::Literal(Literal::Integer(_))
                 | Value::Literal(Literal::Rational(_))
         )
     })

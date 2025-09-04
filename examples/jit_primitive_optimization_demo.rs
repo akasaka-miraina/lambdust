@@ -130,7 +130,7 @@ fn benchmark_arithmetic_performance(registry: &GenericPrimitiveRegistry) {
     let duration = start.elapsed();
     let ns_per_op = duration.as_nanos() / 1_000;
 
-    println!("  N-ary Addition (100 args): {} ns/op", ns_per_op);
+    println!("  N-ary Addition (100 args): {ns_per_op} ns/op");
 }
 
 #[cfg(feature = "jit")]
@@ -303,7 +303,7 @@ fn demonstrate_specialization_opportunities() {
 
     // Show compilation strategy
     let strategy = add.jit_strategy();
-    println!("\nJIT Strategy: {:?}", strategy);
+    println!("\nJIT Strategy: {strategy:?}");
 }
 
 /// Demonstrates the memory and compilation time benefits.

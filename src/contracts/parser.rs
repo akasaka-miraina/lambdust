@@ -302,57 +302,28 @@ impl ContractParser {
 
     /// Parses a function contract: (-> domain ... codomain)
     fn parse_function_contract(&mut self) -> Result<ContractExpr> {
-        let mut domain = Vec::new();
-        let mut codomain = None;
+        let mut contracts = Vec::new();
 
+        // Parse all contracts until we reach the closing paren
         while !self.check(&TokenKind::RightParen) && !self.at_end() {
-            let contract = self.parse_contract_expression()?;
-            if codomain.is_none() {
-                domain.push(contract);
-            } else {
-                return Err(Box::new(Error::new_spanned(
-                    "Too many arguments in function contract".to_string(),
-                    contract.span,
-                )));
-            }
-
-            // Last contract is the codomain
-            if !domain.is_empty() && !self.check(&TokenKind::RightParen) {
-                // If there's another contract coming, the current last one becomes codomain
-                if let Some(last) = domain.pop() {
-                    if codomain.is_none() {
-                        codomain = Some(Box::new(last))
-                    }
-                }
-            }
+            contracts.push(self.parse_contract_expression()?);
         }
 
-        // If we only have one contract, it's the codomain (nullary function)
-        if domain.is_empty() && codomain.is_none() {
+        // Function contract requires at least a codomain (return type)
+        if contracts.is_empty() {
             return Err(Box::new(Error::new_spanned(
                 "Function contract requires at least a codomain".to_string(),
                 self.current_token().span,
             )));
         }
 
-        if domain.len() == 1 && codomain.is_none() {
-            // Single contract is the codomain
-            codomain = Some(Box::new(domain.pop().unwrap()))
-        } else if codomain.is_none() && !domain.is_empty() {
-            // Last domain contract becomes codomain
-            codomain = Some(Box::new(domain.pop().unwrap()))
-        }
+        // Split into domain (all but last) and codomain (last contract)
+        let codomain = Box::new(contracts.pop().unwrap());
+        let domain = contracts; // Remaining contracts are the domain
 
         Ok(ContractExpr::Function {
             domain,
-            codomain: codomain.unwrap_or_else(|| {
-                Box::new(Spanned::new(
-                    ContractExpr::Any {
-                        location: Span::new(0, 0),
-                    },
-                    Span::new(0, 0),
-                ))
-            }),
+            codomain,
             location: self.current_token().span,
         })
     }

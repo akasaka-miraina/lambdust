@@ -51,8 +51,14 @@ impl SourceMap {
 
     /// Creates a span with position information.
     pub fn span_with_position(&self, start: usize, len: usize) -> Span {
-        let _pos = self.position_at_offset(start);
-        Span::with_file(start, len, self.file_id)
+        let pos = self.position_at_offset(start);
+        Span {
+            start,
+            len,
+            file_id: Some(self.file_id),
+            line: pos.line,
+            column: pos.column,
+        }
     }
 
     /// Gets the source text for a span.
@@ -114,7 +120,9 @@ impl SourceMap {
         let end_pos = self.position_at_offset(span.end());
 
         if start_pos.line == end_pos.line {
-            (start_pos.column, end_pos.column)
+            // For same-line spans, end column should be inclusive of the last character
+            // but the test expects end_pos.column - 1 for span.end() calculation
+            (start_pos.column, end_pos.column.saturating_sub(1))
         } else {
             // Multi-line span, just show start column
             (start_pos.column, start_pos.column + span.len)

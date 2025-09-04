@@ -260,7 +260,7 @@ fn test_parameterize_tail_recursion() {
 /// Test error handling for invalid parameter operations
 #[test]
 fn test_parameter_error_handling() {
-    let test_cases = vec![
+    let test_cases = [
         // Too many arguments to make-parameter
         r#"(make-parameter 1 2 3)"#,
         // Too few arguments to make-parameter

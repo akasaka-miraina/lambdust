@@ -487,7 +487,7 @@ mod performance_tests {
 
         // Generate many clauses
         for i in 0..100 {
-            source.push_str(&"  ((".to_string());
+            source.push_str("  ((");
             for j in 0..i {
                 source.push_str(&format!("x{j} "));
             }

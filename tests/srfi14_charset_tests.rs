@@ -218,7 +218,7 @@ mod srfi14_tests {
         let chars = cursor.chars();
         assert_eq!(chars.len(), 3);
         // Characters should be sorted
-        assert!(chars == &['a', 'b', 'c']);
+        assert!(chars == ['a', 'b', 'c']);
 
         // Test cursor advancement (immutable)
         let next_cursor = cursor.next_cursor();
@@ -337,12 +337,12 @@ mod srfi14_tests {
     fn test_charset_display() {
         // Empty set display
         let empty = CharSet::new();
-        let empty_display = format!("{}", empty);
+        let empty_display = format!("{empty}");
         assert!(empty_display.contains("empty"));
 
         // Small set display (shows characters)
         let abc = CharSet::from_string("abc");
-        let abc_display = format!("{}", abc);
+        let abc_display = format!("{abc}");
         assert!(abc_display.contains("size=3"));
         assert!(abc_display.contains("{a b c}"));
 
@@ -448,7 +448,7 @@ mod srfi14_performance_tests {
             charset.contains(c);
         }
         let contains_duration = start.elapsed();
-        println!("Contains operations (1000x): {:?}", contains_duration);
+        println!("Contains operations (1000x): {contains_duration:?}");
 
         // Test union performance
         let other_chars: Vec<char> = (500..1500)
@@ -459,13 +459,13 @@ mod srfi14_performance_tests {
         let start = Instant::now();
         let _union_result = charset.union(&other_charset);
         let union_duration = start.elapsed();
-        println!("Union operation: {:?}", union_duration);
+        println!("Union operation: {union_duration:?}");
 
         // Test intersection performance
         let start = Instant::now();
         let _intersection_result = charset.intersection(&other_charset);
         let intersection_duration = start.elapsed();
-        println!("Intersection operation: {:?}", intersection_duration);
+        println!("Intersection operation: {intersection_duration:?}");
 
         // Performance should be reasonable (under 1ms for these operations)
         assert!(contains_duration.as_millis() < 100);

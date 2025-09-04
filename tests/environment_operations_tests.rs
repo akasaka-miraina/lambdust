@@ -118,7 +118,7 @@ fn test_eval_basic_expression() {
     match result {
         Value::Literal(lit) => {
             if let Some(n) = lit.to_f64() {
-                assert!((n - 3.0).abs() < f64::EPSILON, "Expected 3, got {}", n);
+                assert!((n - 3.0).abs() < f64::EPSILON, "Expected 3, got {n}");
             } else {
                 panic!("Expected numeric result");
             }
@@ -140,7 +140,7 @@ fn test_eval_literal() {
     match result {
         Value::Literal(lit) => {
             if let Some(n) = lit.to_i64() {
-                assert_eq!(n, 42, "Expected 42, got {}", n);
+                assert_eq!(n, 42, "Expected 42, got {n}");
             } else {
                 panic!("Expected integer literal");
             }

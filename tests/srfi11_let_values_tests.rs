@@ -481,7 +481,7 @@ fn test_many_bindings() {
     let mut body_args = vec![sym("+")];
 
     for i in 0..10 {
-        let param_name = format!("var{}", i);
+        let param_name = format!("var{i}");
         let binding = LetValuesBinding {
             formals: Formals::Fixed(vec![param_name.clone()]),
             producer: Value::integer(i as i64),
@@ -503,7 +503,7 @@ fn test_deep_nesting() {
     let mut bindings = Vec::new();
 
     for i in 0..5 {
-        let param_name = format!("var{}", i);
+        let param_name = format!("var{i}");
         let producer = if i == 0 {
             Value::integer(1)
         } else {

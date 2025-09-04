@@ -426,7 +426,7 @@ fn test_edge_cases_and_errors() {
 #[test]
 fn test_multiple_values_performance() {
     // Create a large MultipleValues object
-    let large_values: Vec<Value> = (0..1000).map(|i| Value::integer(i)).collect();
+    let large_values: Vec<Value> = (0..1000).map(Value::integer).collect();
 
     let mv = MultipleValues::new(large_values.clone());
 

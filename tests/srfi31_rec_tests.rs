@@ -1,4 +1,5 @@
 //! Tests for SRFI-31: A special form `rec` for recursive evaluation
+#![allow(unused_variables)]
 //!
 //! This module tests the implementation of the `rec` special form which provides
 //! syntactic sugar for simple recursive definitions.
@@ -27,7 +28,7 @@ fn _eval_expression(source: &str) -> Result<Value> {
             assert_eq!(bindings.len(), 1);
             assert_eq!(body.len(), 1);
             if let Expr::Identifier(name) = &body[0].inner {
-                assert_eq!(&bindings[0].name, name);
+                assert_eq!(bindings[0].name, *name);
             }
             Ok(Value::Nil) // Placeholder for successful parsing
         }
