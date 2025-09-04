@@ -1,0 +1,21 @@
+# Address sanitizer requires nightly - disabled for now
+# [build]
+# rustflags = [
+#   "-Zsanitizer=address", 
+#   "-Cforce-frame-pointers=yes",
+#   "-Copt-level=1"
+# ]
+
+[build]
+# Basic debugging configuration for stable Rust
+rustflags = [
+  "-Cforce-frame-pointers=yes",
+  "-Copt-level=1"
+]
+
+# Memory debugging environment
+[env]
+RUST_BACKTRACE = "full"
+RUST_LOG = "debug"
+ASAN_OPTIONS = "detect_leaks=1:halt_on_error=1:check_initialization_order=1"
+MSAN_OPTIONS = "halt_on_error=1:print_stats=1"

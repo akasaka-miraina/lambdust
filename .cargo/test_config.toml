@@ -1,0 +1,17 @@
+# Test-specific configuration for memory safety
+[env]
+# Force single-threaded test execution
+RUST_TEST_THREADS = "1"
+# Enable full backtraces for debugging
+RUST_BACKTRACE = "full"
+# Memory debugging options
+RUST_LOG = "debug"
+
+# Address sanitizer options for detailed SIGSEGV detection
+ASAN_OPTIONS = "detect_leaks=1:halt_on_error=1:abort_on_error=1:check_initialization_order=1:strict_string_checks=1:detect_stack_use_after_return=1:strict_init_order=1"
+
+# Additional debugging options
+MSAN_OPTIONS = "halt_on_error=1:print_stats=1:poison_in_dtor=1"
+
+# Prevent thread races in test harness
+RUST_TEST_NOCAPTURE = "1"

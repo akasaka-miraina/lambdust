@@ -142,6 +142,8 @@ pub mod ffi;
 pub mod diagnostics;
 /// Utility functions and data structures.
 pub mod utils;
+/// Debug utilities for memory safety and cycle detection.
+// pub mod debug; // Temporarily disabled
 
 // Property-based testing framework
 /// Property-based testing framework for comprehensive quality assurance.

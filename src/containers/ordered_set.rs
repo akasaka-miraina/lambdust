@@ -125,31 +125,9 @@ impl RedBlackTree {
         }
     }
     
-    /// Helper function to print tree structure for debugging
-    fn print_tree_structure(&self, label: &str) {
-        println!("\n[TREE-STRUCTURE] {}", label);
-        if self.root.is_none() {
-            println!("[TREE-STRUCTURE] Empty tree");
-        } else {
-            self.print_node(&self.root, 0, "ROOT");
-        }
-        println!("[TREE-STRUCTURE] End of {}", label);
-    }
-    
-    fn print_node(&self, node: &Option<Arc<Node>>, depth: usize, position: &str) {
-        if let Some(n) = node {
-            let indent = "  ".repeat(depth);
-            let color = if n.is_red() { "RED" } else { "BLACK" };
-            println!("{}[{}] {:?} ({}) size={}", indent, position, n.value, color, n.size);
-            
-            if n.left.is_some() || n.right.is_some() {
-                self.print_node(&n.left, depth + 1, "L");
-                self.print_node(&n.right, depth + 1, "R");
-            }
-        } else {
-            let indent = "  ".repeat(depth);
-            println!("{}[{}] None", indent, position);
-        }
+    /// Helper function to print tree structure for debugging (disabled)
+    fn print_tree_structure(&self, _label: &str) {
+        // Debug printing disabled for performance
     }
 
     /// Gets the size of the tree
@@ -223,139 +201,82 @@ impl RedBlackTree {
 
     /// Removes a value from the tree
     fn remove(&mut self, value: &Value) -> bool {
-        println!("[RB-DELETE] Starting deletion of value: {:?}", value);
-        
         if !self.contains(value) {
-            println!("[RB-DELETE] Value {:?} not found in tree, returning false", value);
             return false;
-        }
-        
-        println!("[RB-DELETE] Tree size before deletion: {}", self.size());
-        self.print_tree_structure("BEFORE DELETION");
-
-        // Make root red if both children are black
-        if let Some(ref root) = self.root {
-            let left_red = is_red(&root.left);
-            let right_red = is_red(&root.right);
-            println!("[RB-DELETE] Root children colors - left_red: {}, right_red: {}", left_red, right_red);
-            
-            if !left_red && !right_red {
-                println!("[RB-DELETE] Making root red (both children are black)");
-                let cloned_root = (**root).clone();
-                self.root = Some(Arc::new(cloned_root.make_red()));
-            }
         }
 
         let root = self.root.take();
-        println!("[RB-DELETE] Calling delete_recursive with value: {:?}", value);
-        self.root = self.delete_recursive(root, value);
-        println!("[RB-DELETE] delete_recursive completed");
-
-        // Make root black
-        if let Some(root) = self.root.take() {
-            println!("[RB-DELETE] Making final root black");
-            self.root = Some(Arc::new((*root).clone().make_black()));
-        } else {
-            println!("[RB-DELETE] Final root is None (empty tree)");
-        }
-
-        println!("[RB-DELETE] Tree size after deletion: {}", self.size());
-        self.print_tree_structure("AFTER DELETION");
-        
-        true
+        let (new_root, removed) = self.remove_recursive(root, value);
+        self.root = new_root.map(|n| Arc::new(n.make_black()));
+        removed
     }
 
-    /// Recursive deletion helper
-    fn delete_recursive(&self, node: Option<Arc<Node>>, value: &Value) -> Option<Arc<Node>> {
+    /// Safe recursive removal algorithm that avoids infinite recursion
+    fn remove_recursive(&self, node: Option<Arc<Node>>, value: &Value) -> (Option<Node>, bool) {
         match node {
-            None => {
-                println!("[RB-DELETE-RECURSIVE] Hit None node, returning None");
-                None
-            }
+            None => (None, false),
             Some(n) => {
-                let comparison = self.comparator.compare(value, &n.value);
-                println!("[RB-DELETE-RECURSIVE] At node {:?}, comparing {:?} vs {:?} = {:?}", 
-                    n.value, value, n.value, comparison);
-                println!("[RB-DELETE-RECURSIVE] Node has left: {}, right: {}", 
-                    n.left.is_some(), n.right.is_some());
-                
-                match comparison {
+                match self.comparator.compare(value, &n.value) {
                     Ordering::Less => {
-                        println!("[RB-DELETE-RECURSIVE] CASE: Less - going left");
-                        let mut new_node = (*n).clone();
-
-                        let left_is_red = is_red(&n.left);
-                        let left_left_is_red = n.left.as_ref().map(|l| is_red(&l.left)).unwrap_or(false);
-                        println!("[RB-DELETE-RECURSIVE] Left colors - left_red: {}, left_left_red: {}", 
-                            left_is_red, left_left_is_red);
-
-                        if !left_is_red && !left_left_is_red {
-                            println!("[RB-DELETE-RECURSIVE] Moving red left");
-                            new_node = self.move_red_left(new_node);
+                        let (new_left, removed) = self.remove_recursive(n.left.clone(), value);
+                        if removed {
+                            let mut new_node = Node::new_with_children(
+                                n.value.clone(),
+                                n.color,
+                                new_left.map(Arc::new),
+                                n.right.clone(),
+                            );
+                            (Some(self.fix_up(new_node)), true)
+                        } else {
+                            (Some((*n).clone()), false)
                         }
-
-                        println!("[RB-DELETE-RECURSIVE] Recursing left with value {:?}", value);
-                        new_node.left = self.delete_recursive(new_node.left, value);
-                        new_node.update_size();
-                        let result = Some(Arc::new(self.fix_up(new_node)));
-                        println!("[RB-DELETE-RECURSIVE] Left case completed, returning node");
-                        result
                     }
-                    _ => {
-                        println!("[RB-DELETE-RECURSIVE] CASE: Greater or Equal");
-                        let mut new_node = if is_red(&n.left) {
-                            println!("[RB-DELETE-RECURSIVE] SUBCASE: Red left child - rotate right first");
-                            self.rotate_right((*n).clone())
+                    Ordering::Greater => {
+                        let (new_right, removed) = self.remove_recursive(n.right.clone(), value);
+                        if removed {
+                            let mut new_node = Node::new_with_children(
+                                n.value.clone(),
+                                n.color,
+                                n.left.clone(),
+                                new_right.map(Arc::new),
+                            );
+                            (Some(self.fix_up(new_node)), true)
                         } else {
-                            (*n).clone()
-                        };
-                        
-                        println!("[RB-DELETE-RECURSIVE] Continuing with deletion logic after handling red left");
-                        
-                        let is_equal = self.comparator.compare(value, &new_node.value) == Ordering::Equal;
-                        let has_right = new_node.right.is_some();
-                        println!("[RB-DELETE-RECURSIVE] is_equal: {}, has_right: {}", is_equal, has_right);
-                        
-                        if is_equal && !has_right {
-                            println!("[RB-DELETE-RECURSIVE] LEAF DELETION: Found target leaf node, returning None");
-                            return None;
+                            (Some((*n).clone()), false)
                         }
-
-                        let right_is_red = is_red(&new_node.right);
-                        let right_left_is_red = new_node.right.as_ref().map(|r| is_red(&r.left)).unwrap_or(false);
-                        println!("[RB-DELETE-RECURSIVE] Right colors - right_red: {}, right_left_red: {}", 
-                            right_is_red, right_left_is_red);
-
-                        if !right_is_red && !right_left_is_red {
-                            println!("[RB-DELETE-RECURSIVE] Moving red right");
-                            new_node = self.move_red_right(new_node);
-                        }
-
-                        let is_target_after_moves = self.comparator.compare(value, &new_node.value) == Ordering::Equal;
-                        println!("[RB-DELETE-RECURSIVE] After red moves, is_target: {}", is_target_after_moves);
-                        
-                        if is_target_after_moves {
-                            println!("[RB-DELETE-RECURSIVE] TWO-CHILD DELETION: Replacing with min from right subtree");
-                            if let Some(min_val) = Self::find_min(&new_node.right) {
-                                println!("[RB-DELETE-RECURSIVE] Found min value: {:?}, replacing current value", min_val);
-                                new_node.value = min_val.clone();
-                                println!("[RB-DELETE-RECURSIVE] Calling delete_min on right subtree");
-                                new_node.right = self.delete_min(new_node.right);
-                                println!("[RB-DELETE-RECURSIVE] delete_min completed");
-                            } else {
-                                println!("[RB-DELETE-RECURSIVE] No min found in right subtree, returning None");
-                                return None;
+                    }
+                    Ordering::Equal => {
+                        // Found the node to remove
+                        match (&n.left, &n.right) {
+                            (None, None) => {
+                                // Leaf node - just remove it
+                                (None, true)
                             }
-                        } else {
-                            println!("[RB-DELETE-RECURSIVE] CONTINUE RIGHT: Recursing right with value {:?}", value);
-                            new_node.right = self.delete_recursive(new_node.right, value);
-                            println!("[RB-DELETE-RECURSIVE] Right recursion completed");
+                            (Some(left), None) => {
+                                // Only left child
+                                (Some((**left).clone()), true)
+                            }
+                            (None, Some(right)) => {
+                                // Only right child
+                                (Some((**right).clone()), true)
+                            }
+                            (Some(_), Some(right)) => {
+                                // Both children - replace with minimum from right subtree
+                                if let Some(min_val) = Self::find_min(&Some(right.clone())) {
+                                    let (new_right, _) = self.remove_recursive(Some(right.clone()), &min_val);
+                                    let mut replacement = Node::new_with_children(
+                                        min_val,
+                                        n.color,
+                                        n.left.clone(),
+                                        new_right.map(Arc::new),
+                                    );
+                                    (Some(self.fix_up(replacement)), true)
+                                } else {
+                                    // Shouldn't happen, but fallback
+                                    (None, true)
+                                }
+                            }
                         }
-
-                        new_node.update_size();
-                        let result = Some(Arc::new(self.fix_up(new_node)));
-                        println!("[RB-DELETE-RECURSIVE] Non-red-left case completed");
-                        result
                     }
                 }
             }
@@ -365,54 +286,36 @@ impl RedBlackTree {
     /// Finds the minimum value in a subtree
     fn find_min(node: &Option<Arc<Node>>) -> Option<Value> {
         match node {
-            None => {
-                println!("[FIND-MIN] Hit None node, no min found");
-                None
-            }
+            None => None,
             Some(n) => {
-                println!("[FIND-MIN] At node {:?}, has_left: {}", n.value, n.left.is_some());
                 if n.left.is_none() {
-                    println!("[FIND-MIN] Found minimum: {:?}", n.value);
                     Some(n.value.clone())
                 } else {
-                    println!("[FIND-MIN] Going left to find smaller value");
                     Self::find_min(&n.left)
                 }
             }
         }
     }
 
-    /// Deletes the minimum node from a subtree
+    /// Deletes the minimum node from a subtree (simple implementation)
     fn delete_min(&self, node: Option<Arc<Node>>) -> Option<Arc<Node>> {
         match node {
-            None => {
-                println!("[RB-DELETE-MIN] Hit None node, returning None");
-                None
-            }
+            None => None,
             Some(n) => {
-                println!("[RB-DELETE-MIN] At node {:?}, has_left: {}", n.value, n.left.is_some());
-                
                 if n.left.is_none() {
-                    println!("[RB-DELETE-MIN] Found leftmost node {:?}, returning right child", n.value);
-                    return n.right.clone();
+                    // This is the minimum node - return its right child
+                    n.right.clone()
+                } else {
+                    // Recurse left
+                    let new_left = self.delete_min(n.left.clone());
+                    let mut new_node = Node::new_with_children(
+                        n.value.clone(),
+                        n.color,
+                        new_left,
+                        n.right.clone(),
+                    );
+                    Some(Arc::new(self.fix_up(new_node)))
                 }
-
-                let mut new_node = (*n).clone();
-                let left_is_red = is_red(&n.left);
-                let left_left_is_red = n.left.as_ref().map(|l| is_red(&l.left)).unwrap_or(false);
-                println!("[RB-DELETE-MIN] Colors - left_red: {}, left_left_red: {}", left_is_red, left_left_is_red);
-
-                if !left_is_red && !left_left_is_red {
-                    println!("[RB-DELETE-MIN] Moving red left");
-                    new_node = self.move_red_left(new_node);
-                }
-
-                println!("[RB-DELETE-MIN] Recursing left to delete min");
-                new_node.left = self.delete_min(new_node.left);
-                new_node.update_size();
-                let result = Some(Arc::new(self.fix_up(new_node)));
-                println!("[RB-DELETE-MIN] Completed, returning fixed node");
-                result
             }
         }
     }
@@ -649,19 +552,7 @@ impl OrderedSet {
 
     /// Removes a value from the set
     pub fn remove(&mut self, value: &Value) -> bool {
-        println!("\n[ORDERED-SET-REMOVE] Removing value {:?} from set", value);
-        let contained_before = self.tree.contains(value);
-        println!("[ORDERED-SET-REMOVE] Set contains value before removal: {}", contained_before);
-        
-        let result = self.tree.remove(value);
-        let contained_after = self.tree.contains(value);
-        println!("[ORDERED-SET-REMOVE] Removal result: {}, set contains value after removal: {}", result, contained_after);
-        
-        if result && contained_after {
-            println!("[ORDERED-SET-REMOVE] *** BUG DETECTED *** Removal claimed success but value still present!");
-        }
-        
-        result
+        self.tree.remove(value)
     }
 
     /// Checks if the set contains a value
@@ -1162,7 +1053,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Temporarily disabled due to SIGSEGV
     fn test_large_set() {
         let mut set = OrderedSet::new();
 
