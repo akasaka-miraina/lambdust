@@ -593,7 +593,7 @@ impl<T: Send + Sync + 'static + Clone> IO<T> {
 }
 
 /// Monadic operations for State
-impl<S, A> State<S, A> {
+impl<S: 'static, A> State<S, A> {
     /// Create a pure state value
     pub fn pure(value: A) -> Self {
         State {

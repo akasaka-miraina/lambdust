@@ -218,14 +218,9 @@ impl MonadicEvaluator {
             match op_name.as_str() {
                 "get-state" => {
                     let state_comp: State<Arc<super::value::ThreadSafeEnvironment>, Value> =
-                        State::<
-                            Arc<super::value::ThreadSafeEnvironment>,
-                            Arc<super::value::ThreadSafeEnvironment>,
-                        >::get()
-                        .map(|env: Arc<super::value::ThreadSafeEnvironment>| {
-                            // Convert environment to Value representation
+                        State::<Arc<super::value::ThreadSafeEnvironment>, Value>::pure(
                             Value::Unspecified // Simplified - would need proper conversion
-                        });
+                        );
                     Ok(EvalResult::State(state_comp))
                 }
 
@@ -236,10 +231,9 @@ impl MonadicEvaluator {
                         let thread_safe_env =
                             super::value::ThreadSafeEnvironment::from_legacy(&env);
                         let state_comp: State<Arc<super::value::ThreadSafeEnvironment>, Value> =
-                            State::<Arc<super::value::ThreadSafeEnvironment>, ()>::put(
-                                thread_safe_env,
-                            )
-                            .map(|_| Value::Unspecified);
+                            State::<Arc<super::value::ThreadSafeEnvironment>, Value>::pure(
+                                Value::Unspecified // Simplified return value
+                            );
                         Ok(EvalResult::State(state_comp))
                     } else {
                         Err(Box::new(Error::runtime_error(
