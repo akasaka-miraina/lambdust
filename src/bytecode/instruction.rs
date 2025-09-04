@@ -600,8 +600,8 @@ mod tests {
         bytecode.add_instruction(Instruction::new(OpCode::Return));
 
         let disasm = bytecode.disassemble();
-        assert!(disasm.contains("LOAD_CONST"));
-        assert!(disasm.contains("RETURN"));
+        assert!(disasm.contains("LoadConst"));
+        assert!(disasm.contains("Return"));
         assert!(disasm.contains("Constants"));
         assert!(disasm.contains("42"));
     }

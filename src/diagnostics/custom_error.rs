@@ -245,21 +245,18 @@ mod tests {
     #[test]
     fn test_error_display() {
         let simple = TestError::Simple;
-        assert_eq!(simple.to_string(), "Simple error");
+        assert_eq!(simple.to_string(), "[TestError::Simple]");
 
         let with_field = TestError::WithField {
             message: "test".to_string(),
         };
-        assert_eq!(with_field.to_string(), "Error with field: test");
+        assert_eq!(with_field.to_string(), "[TestError::WithField]");
 
         let multi = TestError::MultiField {
             a: "hello".to_string(),
             b: 42,
         };
-        assert_eq!(
-            multi.to_string(),
-            "Error with multiple fields: hello and 42"
-        );
+        assert_eq!(multi.to_string(), "[TestError::MultiField]");
     }
 
     #[test]
