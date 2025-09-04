@@ -152,12 +152,14 @@ pub fn generate_lookup_pattern(config: &BenchmarkConfig) -> Vec<String> {
 
         let var_name = if rand_val < 70 {
             // Recent variables (top 20% of chain)
-            let level = config.chain_depth - (rand_val % (config.chain_depth / 5));
+            let divisor = std::cmp::max(1, config.chain_depth / 5); // Ensure divisor is at least 1
+            let level = config.chain_depth - (rand_val % divisor);
             let var_idx = rand_val % config.variables_per_level;
             format!("var{var_idx}_{level}")
         } else if rand_val < 90 {
             // Middle variables
-            let level = config.chain_depth / 2 + (rand_val % (config.chain_depth / 4));
+            let divisor = std::cmp::max(1, config.chain_depth / 4); // Ensure divisor is at least 1
+            let level = config.chain_depth / 2 + (rand_val % divisor);
             let var_idx = rand_val % config.variables_per_level;
             format!("var{var_idx}_{level}")
         } else {
