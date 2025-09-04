@@ -650,7 +650,7 @@ impl<S, A> State<S, A> {
     pub fn bind<B, F>(self, f: F) -> State<S, B>
     where
         F: Fn(A) -> State<S, B> + Send + Sync + 'static,
-        A: 'static,
+        A: Into<Value> + TryFrom<Value> + 'static,
         S: 'static,
         B: 'static,
     {
@@ -660,10 +660,73 @@ impl<S, A> State<S, A> {
         match self.computation {
             StateComputation::Pure(value) => f(value),
             _ => {
-                // For now, we'll restrict this to a specific case to avoid unsafe transmute
-                // In a full implementation, we would handle the type conversion properly
-                panic!("Complex State bind operations not yet implemented without type conversion")
+                // For all non-Pure cases, convert to Bind form
+                let self_as_value_state = self.to_value_state();
+                
+                State {
+                    computation: StateComputation::Bind {
+                        inner: Box::new(self_as_value_state),
+                        next: StateFunc {
+                            id,
+                            func: Box::new(move |value_result: Value| {
+                                match A::try_from(value_result) {
+                                    Ok(a_value) => f(a_value),
+                                    Err(_) => {
+                                        // For debugging - should not happen in practice
+                                        eprintln!("Warning: Type conversion failed in State bind, using default");
+                                        f(A::try_from(Value::Unspecified).unwrap_or_else(|_| 
+                                            panic!("Cannot create default value for type in State bind")
+                                        ))
+                                    }
+                                }
+                            }),
+                        },
+                    },
+                }
             }
+        }
+    }
+
+    /// Helper method to convert State<S, A> to State<S, Value>
+    fn to_value_state(self) -> State<S, Value>
+    where
+        A: Into<Value> + 'static,
+    {
+        match self.computation {
+            StateComputation::Pure(value) => State::pure(value.into()),
+            StateComputation::Get { continuation } => State {
+                computation: StateComputation::Get {
+                    continuation: StateFunc {
+                        id: continuation.id,
+                        func: Box::new(move |state| {
+                            continuation.call(state).to_value_state()
+                        }),
+                    },
+                },
+            },
+            StateComputation::Put { new_state, continuation } => State {
+                computation: StateComputation::Put {
+                    new_state,
+                    continuation: Box::new(continuation.to_value_state()),
+                },
+            },
+            StateComputation::Modify { modifier, continuation } => State {
+                computation: StateComputation::Modify {
+                    modifier,
+                    continuation: Box::new(continuation.to_value_state()),
+                },
+            },
+            StateComputation::Bind { inner, next } => State {
+                computation: StateComputation::Bind {
+                    inner,
+                    next: StateFunc {
+                        id: next.id,
+                        func: Box::new(move |value| {
+                            next.call(value).to_value_state()
+                        }),
+                    },
+                },
+            },
         }
     }
 

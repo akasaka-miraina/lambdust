@@ -683,8 +683,17 @@ impl SchemeBenchmarkSuite {
         }
 
         let execution_time = start_time.elapsed();
-        let execution_time_ms = execution_time.as_millis() as f64;
-        let ops_per_second = iterations as f64 / execution_time.as_secs_f64();
+        let execution_time_ms = if execution_time.as_nanos() > 0 {
+            execution_time.as_millis() as f64
+        } else {
+            0.001  // Minimum measurable time in milliseconds
+        };
+        let ops_per_second = if execution_time.as_nanos() > 0 {
+            iterations as f64 / execution_time.as_secs_f64()
+        } else {
+            // If execution time is 0, assume it took at least 1 nanosecond
+            iterations as f64 / 1e-9
+        };
         let avg_memory_mb = total_memory / iterations as f64;
 
         // Verify correctness (simplified)

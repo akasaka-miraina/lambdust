@@ -61,10 +61,14 @@ impl BenchmarkResults {
         cache_hit_ratio: f64,
         total_lookups: usize,
     ) -> Self {
-        let speedup_ratio = if cached_time.as_nanos() > 0 {
+        let speedup_ratio = if cached_time.as_nanos() > 0 && traditional_time.as_nanos() > 0 {
             traditional_time.as_nanos() as f64 / cached_time.as_nanos() as f64
+        } else if traditional_time.as_nanos() == 0 && cached_time.as_nanos() == 0 {
+            1.0  // Both times are 0, consider them equal
+        } else if cached_time.as_nanos() == 0 {
+            f64::INFINITY  // Cached time is 0, infinite speedup
         } else {
-            f64::INFINITY
+            0.0  // Traditional time is 0 but cached isn't, no speedup
         };
 
         Self {
@@ -408,8 +412,10 @@ mod tests {
         let results = run_comprehensive_benchmark(config);
 
         // Basic sanity checks
-        assert!(results.speedup_ratio > 0.0);
-        assert!(results.cache_hit_ratio >= 0.0 && results.cache_hit_ratio <= 100.0);
+        assert!(results.speedup_ratio > 0.0 && results.speedup_ratio.is_finite(), 
+               "Speedup ratio should be positive and finite, got: {}", results.speedup_ratio);
+        assert!(results.cache_hit_ratio >= 0.0 && results.cache_hit_ratio <= 100.0,
+               "Cache hit ratio should be 0-100%, got: {}", results.cache_hit_ratio);
         assert_eq!(results.total_lookups, 20);
     }
 }
