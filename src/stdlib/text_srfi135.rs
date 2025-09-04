@@ -17,6 +17,10 @@ use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironmen
 pub struct Collator;
 
 impl Collator {
+    pub fn new(_options: &CollatorOptions) -> std::result::Result<Self, &'static str> {
+        Ok(Collator)
+    }
+    
     pub fn try_new(_locale: &str, _options: CollatorOptions) -> std::result::Result<Self, &'static str> {
         Ok(Collator)
     }
@@ -38,27 +42,6 @@ impl CollatorOptions {
 #[derive(Debug, Clone)]
 pub struct Locale;
 
-#[cfg(not(feature = "text-processing"))]
-#[derive(Debug, Clone)]
-struct CollatorOptions;
-
-#[cfg(not(feature = "text-processing"))]
-impl CollatorOptions {
-    fn new() -> Self {
-        Self
-    }
-}
-
-#[cfg(not(feature = "text-processing"))]
-impl Collator {
-    fn new(_options: &CollatorOptions) -> std::result::Result<Self, &'static str> {
-        Ok(Self)
-    }
-
-    fn compare(&self, a: &str, b: &str) -> Ordering {
-        a.cmp(b)
-    }
-}
 use crate::effects::Effect;
 use crate::stdlib::text::{Text, TextBuilder};
 use std::cmp::Ordering;
@@ -152,7 +135,7 @@ impl TextLocale {
         };
         
         #[cfg(not(feature = "never-enabled"))]
-        let collator = None;
+        let collator: Option<Collator> = None;
 
         #[cfg(not(feature = "text-processing"))]
         let collator = Collator::new(&collator_options).map(Some).unwrap_or(None);
