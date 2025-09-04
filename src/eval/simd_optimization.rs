@@ -81,7 +81,7 @@ where T: SimdValue + Copy + Clone
             let simd_input = T::load_simd(chunk);
             let simd_output = f(simd_input);
             
-            let mut output_chunk = vec![std::mem::zeroed(); self.simd_width];
+            let mut output_chunk = vec![R::default(); self.simd_width];
             R::store_simd(simd_output, &mut output_chunk);
             
             results.extend_from_slice(&output_chunk);
@@ -90,7 +90,7 @@ where T: SimdValue + Copy + Clone
         // Handle remainder with scalar operations
         for &value in self.values.chunks_exact(self.simd_width).remainder() {
             // Convert to scalar operation - this would need proper implementation
-            results.push(std::mem::zeroed()); // Placeholder
+            results.push(R::default()); // Safe default instead of uninitialized memory
         }
         
         results
