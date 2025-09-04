@@ -684,7 +684,8 @@ impl SchemeBenchmarkSuite {
 
         let execution_time = start_time.elapsed();
         let execution_time_ms = if execution_time.as_nanos() > 0 {
-            execution_time.as_millis() as f64
+            // Convert nanoseconds to milliseconds for better precision
+            execution_time.as_nanos() as f64 / 1_000_000.0
         } else {
             0.001  // Minimum measurable time in milliseconds
         };
