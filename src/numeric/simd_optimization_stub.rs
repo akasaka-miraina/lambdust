@@ -82,6 +82,27 @@ impl<T> AlignedBuffer<T> {
 unsafe impl<T: Send> Send for AlignedBuffer<T> {}
 unsafe impl<T: Sync> Sync for AlignedBuffer<T> {}
 
+/// Results from SIMD performance benchmarking (stub implementation)
+#[derive(Debug, Clone)]
+pub struct SimdBenchmarkResults {
+    /// Operation being benchmarked
+    pub operation: String,
+    /// Array size used in benchmark
+    pub array_size: usize,
+    /// Number of iterations performed
+    pub iterations: u64,
+    /// Total time for SIMD implementation
+    pub simd_time: std::time::Duration,
+    /// Total time for scalar implementation
+    pub scalar_time: std::time::Duration,
+    /// Speedup factor (scalar_time / simd_time)
+    pub speedup_factor: f64,
+    /// SIMD operations per second
+    pub simd_ops_per_sec: f64,
+    /// Scalar operations per second
+    pub scalar_ops_per_sec: f64,
+}
+
 /// Stub SIMD numeric operations - all operations fall back to scalar
 pub struct SimdNumericOps {
     cpu_features: CpuFeatures,
@@ -194,9 +215,9 @@ impl SimdNumericOps {
     pub fn benchmark_simd_performance(
         &mut self,
         size: usize,
-    ) -> crate::numeric::simd_benchmarks::SimdBenchmarkResults {
+    ) -> SimdBenchmarkResults {
         // Simple stub implementation
-        crate::numeric::simd_benchmarks::SimdBenchmarkResults {
+        SimdBenchmarkResults {
             operation: "benchmark".to_string(),
             array_size: size,
             iterations: 1000,

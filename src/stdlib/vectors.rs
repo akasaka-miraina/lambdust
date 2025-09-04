@@ -7,7 +7,7 @@
 use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::effects::Effect;
 use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
-use crate::numeric::{NumericValue, SimdNumericOps};
+use crate::numeric::{NumericValue, simd_optimization_stub::SimdNumericOps};
 use std::sync::Arc;
 
 /// Creates vector operation bindings for the standard library.
