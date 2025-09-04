@@ -710,7 +710,7 @@ impl<S, A> State<S, A> {
 }
 
 /// Monadic operations for Reader
-impl<R, A> Reader<R, A> {
+impl<R: Clone + Send + Sync + 'static, A: Send + Sync + 'static> Reader<R, A> {
     /// Create a pure reader value
     pub fn pure(value: A) -> Self {
         Reader {
@@ -751,24 +751,87 @@ impl<R, A> Reader<R, A> {
     }
 
     /// Monadic bind for Reader (type-safe version)
+    /// 
+    /// This implementation properly handles all ReaderComputation variants without
+    /// causing infinite recursion in the type system. The key insight is to
+    /// convert everything to the Bind form and let run_reader handle the execution.
     pub fn bind<B, F>(self, f: F) -> Reader<R, B>
     where
         F: Fn(A) -> Reader<R, B> + Send + Sync + 'static,
-        A: 'static,
-        R: 'static,
+        A: Into<Value> + TryFrom<Value> + 'static,
         B: 'static,
     {
-        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let id = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-
         match self.computation {
             ReaderComputation::Pure(value) => f(value),
             _ => {
-                // For now, we'll restrict this to a specific case to avoid unsafe transmute
-                // In a full implementation, we would handle the type conversion properly
-                panic!("Complex Reader bind operations not yet implemented without type conversion")
+                // For all non-Pure cases, we convert to the Bind form
+                // This avoids recursive bind calls in the type system
+                let self_as_value_reader = self.to_value_reader();
+                
+                Reader {
+                    computation: ReaderComputation::Bind {
+                        inner: Box::new(self_as_value_reader),
+                        next: ReaderFunc::new(
+                            Self::next_id(),
+                            move |value_result: Value| {
+                                match A::try_from(value_result) {
+                                    Ok(a_value) => f(a_value),
+                                    Err(_) => {
+                                        // Create an error computation
+                                        panic!("Type conversion failed in Reader bind")
+                                    }
+                                }
+                            }
+                        ),
+                    },
+                }
             }
         }
+    }
+    
+    /// Convert Reader<R, A> to Reader<R, Value> for use in Bind operations
+    fn to_value_reader(self) -> Reader<R, Value>
+    where
+        A: Into<Value> + 'static,
+    {
+        match self.computation {
+            ReaderComputation::Pure(value) => Reader::pure(value.into()),
+            ReaderComputation::Ask { continuation } => Reader {
+                computation: ReaderComputation::Ask {
+                    continuation: ReaderFunc::new(
+                        continuation.id,
+                        move |env: R| {
+                            let inner_reader = continuation.call(env);
+                            inner_reader.to_value_reader()
+                        }
+                    ),
+                },
+            },
+            ReaderComputation::Local { modifier, inner } => Reader {
+                computation: ReaderComputation::Local {
+                    modifier,
+                    inner: Box::new(inner.to_value_reader()),
+                },
+            },
+            ReaderComputation::Bind { inner, next } => Reader {
+                computation: ReaderComputation::Bind {
+                    inner,
+                    next: ReaderFunc::new(
+                        next.id,
+                        move |value_result: Value| {
+                            let intermediate_reader = next.call(value_result);
+                            intermediate_reader.to_value_reader()
+                        }
+                    ),
+                },
+            },
+        }
+    }
+
+    /// Get next unique ID for function identification
+    fn next_id() -> u64 {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Run a reader computation with an environment
@@ -802,6 +865,27 @@ impl From<Maybe<Value>> for Value {
         match maybe {
             Maybe::Just(value) => value,
             Maybe::Nothing => Value::Nil,
+        }
+    }
+}
+
+/// Convert String to Value (for Reader bind operations)
+impl From<String> for Value {
+    fn from(s: String) -> Self {
+        use crate::Literal;
+        Value::Literal(Literal::String(Box::new(s)))
+    }
+}
+
+/// Convert Value to String (for Reader bind operations)
+impl TryFrom<Value> for String {
+    type Error = &'static str;
+    
+    fn try_from(value: Value) -> std::result::Result<Self, Self::Error> {
+        use crate::Literal;
+        match value {
+            Value::Literal(Literal::String(s)) => Ok(*s),
+            _ => Err("Value is not a String"),
         }
     }
 }
@@ -1303,22 +1387,8 @@ impl From<Value> for Identity<Value> {
     }
 }
 
-/// Convert String Writer to Value for R7RS integration
-impl From<Writer<String, Value>> for Value {
-    fn from(writer: Writer<String, Value>) -> Self {
-        let (value, output) = writer.run_writer();
-        if output.is_empty() {
-            value
-        } else {
-            Value::Pair(
-                Box::new(value),
-                Box::new(Value::Literal(crate::ast::Literal::String(Box::new(
-                    output,
-                )))),
-            )
-        }
-    }
-}
+// Note: Removed conflicting Writer<String, Value> -> Value conversion
+// This conflicts with the generic Writer<W: Monoid> -> Value conversion above
 
 impl<W: Monoid + fmt::Display, A: fmt::Display> fmt::Display for Writer<W, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
