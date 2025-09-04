@@ -442,9 +442,16 @@ impl NanBoxedValue {
                         Self::from_number(i as f64)
                     }
                 }
-                // Literal::Float doesn't exist, use pattern matching on Number
+                Literal::ExactInteger(i) => {
+                    if let Some(small) = Self::from_small_int(i) {
+                        small
+                    } else {
+                        Self::from_number(i as f64)
+                    }
+                }
+                Literal::InexactReal(n) => Self::from_number(n),
                 Literal::Character(c) => Self::from_char(c),
-                Literal::Number(n) => Self::from_number(n),
+                Literal::Number(n) => Self::from_number(n), // Legacy support
                 _ => Self::unspecified_value(), // Fallback for complex literals
             },
             Value::Nil => Self::nil_value(),
@@ -457,19 +464,24 @@ impl NanBoxedValue {
     /// Converts this NanBoxedValue back to a legacy Value
     pub fn to_value(&self) -> crate::eval::value::Value {
         use crate::eval::value::Value;
+        use crate::ast::Literal;
 
         if self.is_boolean() {
             Value::boolean(self.as_bool().unwrap_or(false))
-        } else if self.is_number() {
-            Value::number(self.as_number().unwrap_or(0.0))
         } else if self.is_small_int() {
-            Value::integer(self.as_small_int().unwrap_or(0))
+            // Small integers should become ExactInteger literals
+            let int_val = self.as_small_int().unwrap_or(0);
+            Value::Literal(Literal::ExactInteger(int_val))
+        } else if self.is_number() {
+            // Numbers should become InexactReal literals  
+            let num_val = self.as_number().unwrap_or(0.0);
+            Value::Literal(Literal::InexactReal(num_val))
         } else if self.is_nil() {
             Value::Nil
         } else if self.is_unspecified() {
             Value::Unspecified
         } else if self.is_character() {
-            Value::Literal(crate::ast::Literal::Character(
+            Value::Literal(Literal::Character(
                 self.as_char().unwrap_or('\0'),
             ))
         } else {
