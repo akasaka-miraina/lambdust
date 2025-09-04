@@ -8,36 +8,54 @@
 //! - Container operations
 //! - R7RS compliance scenarios
 
-use lambdust::eval::{SafeEnvironment, SafeSymbolTable, OptimizedValue};
-use lambdust::utils::SymbolId;
+use lambdust::eval::Value;
+use lambdust::utils::string_interner::SymbolId;
+use lambdust::ast::Literal;
 use std::sync::{Arc, Barrier};
 use std::thread;
 
 /// Test immediate value operations don't cause SIGSEGV
 #[test]
 fn test_immediate_value_safety() {
-    // Test all immediate value types
-    let nil = OptimizedValue::new_nil();
-    let boolean_true = OptimizedValue::new_boolean(true);
-    let boolean_false = OptimizedValue::new_boolean(false);
-    let fixnum = OptimizedValue::new_fixnum(42);
-    let character = OptimizedValue::new_character('λ');
-    let unspecified = OptimizedValue::new_unspecified();
+    // Test all immediate value types using Value enum
+    let nil = Value::Nil;
+    let boolean_true = Value::Literal(Literal::Boolean(true));
+    let boolean_false = Value::Literal(Literal::Boolean(false));
+    let fixnum = Value::Literal(Literal::ExactInteger(42));
+    let character = Value::Literal(Literal::Character('λ'));
+    let unspecified = Value::Unspecified;
     
     // Operations that should be memory-safe
     assert!(nil.is_nil());
     assert!(boolean_true.is_boolean());
     assert_eq!(boolean_true.as_boolean().unwrap(), true);
     assert!(fixnum.is_number());
-    assert_eq!(fixnum.as_fixnum().unwrap(), 42);
-    assert!(character.is_character());
-    assert_eq!(character.as_character().unwrap(), 'λ');
-    assert!(unspecified.is_unspecified());
+    assert_eq!(fixnum.as_integer().unwrap(), 42);
+    // Character check: SafeOptimizedValue doesn't have is_character method
+    // We'll check type by pattern matching instead
+    match character {
+        OptimizedValue::Character(_) => assert!(true),
+        _ => panic!("Expected character value"),
+    }
+    // Character access: using pattern matching since as_character doesn't exist
+    match character {
+        OptimizedValue::Character(ch) => assert_eq!(ch, 'λ'),
+        _ => panic!("Expected character value"),
+    }
+    // Unspecified check: using pattern matching since is_unspecified doesn't exist
+    match unspecified {
+        OptimizedValue::Unspecified => assert!(true),
+        _ => panic!("Expected unspecified value"),
+    }
     
     // Type checking should be safe
     assert!(!nil.is_boolean());
     assert!(!boolean_true.is_number());
-    assert!(!fixnum.is_character());
+    // Character check: using pattern matching
+    match fixnum {
+        OptimizedValue::Character(_) => panic!("Fixnum should not be character"),
+        _ => assert!(true),
+    }
     
     println!("✅ Immediate value operations are memory-safe");
 }
@@ -112,8 +130,8 @@ fn test_environment_chain_safety() {
         // Define variables at this level
         for var_idx in 0..VARS_PER_LEVEL {
             let symbol_name = format!("var_{}_{}", depth, var_idx);
-            let symbol_id = SymbolId(depth as u32 * VARS_PER_LEVEL as u32 + var_idx as u32);
-            let value = OptimizedValue::new_fixnum(depth as i64 * 1000 + var_idx as i64);
+            let symbol_id = SymbolId::new(depth * VARS_PER_LEVEL + var_idx);
+            let value = OptimizedValue::fixnum(depth as i64 * 1000 + var_idx as i64);
             
             current_env.define(symbol_id, value).unwrap();
             all_symbols.push((symbol_id, depth * 1000 + var_idx));
@@ -129,7 +147,7 @@ fn test_environment_chain_safety() {
     for (symbol_id, expected_value) in all_symbols {
         let retrieved_value = current_env.lookup(symbol_id).unwrap();
         assert!(retrieved_value.is_number());
-        assert_eq!(retrieved_value.as_fixnum().unwrap(), expected_value as i64);
+        assert_eq!(retrieved_value.as_integer().unwrap(), expected_value as i64);
     }
     
     let stats = current_env.statistics();
@@ -193,25 +211,25 @@ fn test_ordered_set_memory_safety() {
     
     // Insert many values
     for i in 0..1000 {
-        let value = OptimizedValue::new_fixnum(i);
+        let value = Value::Literal(Literal::ExactInteger(i));
         set.insert(value);
     }
     
     // Test lookups
     for i in 0..1000 {
-        let value = OptimizedValue::new_fixnum(i);
+        let value = Value::Literal(Literal::ExactInteger(i));
         assert!(set.contains(&value));
     }
     
     // Test deletions (this was a source of SIGSEGV in red-black tree)
     for i in (0..1000).step_by(2) {
-        let value = OptimizedValue::new_fixnum(i);
+        let value = Value::Literal(Literal::ExactInteger(i));
         assert!(set.remove(&value));
     }
     
     // Verify remaining elements
     for i in (1..1000).step_by(2) {
-        let value = OptimizedValue::new_fixnum(i);
+        let value = Value::Literal(Literal::ExactInteger(i));
         assert!(set.contains(&value));
     }
     
@@ -223,7 +241,7 @@ fn test_vector_memory_safety() {
     
     // Create vector with many elements
     for i in 0..1000 {
-        vec.push(OptimizedValue::new_fixnum(i));
+        vec.push(OptimizedValue::fixnum(i));
     }
     
     // Test access patterns that might cause issues
@@ -233,7 +251,7 @@ fn test_vector_memory_safety() {
     
     // Test mutations
     for i in 0..vec.len() {
-        vec[i] = OptimizedValue::new_fixnum(i as i64 * 2);
+        vec[i] = OptimizedValue::fixnum(i as i64 * 2);
     }
     
     println!("  ✅ Vector operations safe");
@@ -247,7 +265,7 @@ fn test_hash_table_memory_safety() {
     // Insert many key-value pairs
     for i in 0..1000 {
         let key = SymbolId(i);
-        let value = OptimizedValue::new_fixnum(i as i64);
+        let value = OptimizedValue::fixnum(i as i64);
         table.insert(key, value);
     }
     
@@ -255,7 +273,7 @@ fn test_hash_table_memory_safety() {
     for i in 0..1000 {
         let key = SymbolId(i);
         if let Some(value) = table.get_mut(&key) {
-            *value = OptimizedValue::new_fixnum(i as i64 * 3);
+            *value = OptimizedValue::fixnum(i as i64 * 3);
         }
     }
     
@@ -283,18 +301,18 @@ fn test_lexical_scoping_safety() {
     let inner_var = SymbolId(2);
     
     // Define outer variable
-    global.define(outer_var, OptimizedValue::new_fixnum(100)).unwrap();
+    global.define(outer_var, OptimizedValue::fixnum(100)).unwrap();
     
     // Create nested scope
     let inner = SafeEnvironment::new_child(global.clone()).unwrap();
-    inner.define(inner_var, OptimizedValue::new_fixnum(200)).unwrap();
+    inner.define(inner_var, OptimizedValue::fixnum(200)).unwrap();
     
     // Test that inner scope can see both variables
     let outer_value = inner.lookup(outer_var).unwrap();
     let inner_value = inner.lookup(inner_var).unwrap();
     
-    assert_eq!(outer_value.as_fixnum().unwrap(), 100);
-    assert_eq!(inner_value.as_fixnum().unwrap(), 200);
+    assert_eq!(outer_value.as_integer().unwrap(), 100);
+    assert_eq!(inner_value.as_integer().unwrap(), 200);
     
     println!("  ✅ Lexical scoping safe");
 }
@@ -304,7 +322,7 @@ fn test_closure_capture_safety() {
     let outer_env = SafeEnvironment::new_global();
     let captured_var = SymbolId(42);
     
-    outer_env.define(captured_var, OptimizedValue::new_fixnum(42)).unwrap();
+    outer_env.define(captured_var, OptimizedValue::fixnum(42)).unwrap();
     
     // Create multiple "closures" that share the environment
     let closure_envs: Vec<_> = (0..10).map(|_| {
@@ -314,7 +332,7 @@ fn test_closure_capture_safety() {
     // All closures should see the captured variable
     for closure_env in closure_envs {
         let value = closure_env.lookup(captured_var).unwrap();
-        assert_eq!(value.as_fixnum().unwrap(), 42);
+        assert_eq!(value.as_integer().unwrap(), 42);
     }
     
     println!("  ✅ Closure capture safe");
@@ -375,12 +393,12 @@ fn test_memory_pressure_safety() {
 
 fn test_environment_operations(thread_id: usize, iteration: usize) {
     let env = SafeEnvironment::new_global();
-    let symbol = SymbolId((thread_id * 10000 + iteration) as u32);
-    let value = OptimizedValue::new_fixnum(iteration as i64);
+    let symbol = SymbolId::new(thread_id * 10000 + iteration);
+    let value = OptimizedValue::fixnum(iteration as i64);
     
     env.define(symbol, value).unwrap();
     let retrieved = env.lookup(symbol).unwrap();
-    assert_eq!(retrieved.as_fixnum().unwrap(), iteration as i64);
+    assert_eq!(retrieved.as_integer().unwrap(), iteration as i64);
 }
 
 fn test_symbol_operations(thread_id: usize, iteration: usize) {
@@ -394,10 +412,10 @@ fn test_symbol_operations(thread_id: usize, iteration: usize) {
 
 fn test_value_operations(thread_id: usize, iteration: usize) {
     let _values = vec![
-        OptimizedValue::new_nil(),
-        OptimizedValue::new_boolean(iteration % 2 == 0),
-        OptimizedValue::new_fixnum(thread_id as i64 + iteration as i64),
-        OptimizedValue::new_character(char::from(65 + (iteration % 26) as u8)),
+        OptimizedValue::nil(),
+        OptimizedValue::boolean(iteration % 2 == 0),
+        OptimizedValue::fixnum(thread_id as i64 + iteration as i64),
+        OptimizedValue::character(char::from(65 + (iteration % 26) as u8)),
     ];
 }
 
@@ -405,7 +423,7 @@ fn test_container_operations_small(_thread_id: usize, _iteration: usize) {
     // Small-scale container operations to avoid excessive memory usage
     let mut vec = Vec::new();
     for i in 0..10 {
-        vec.push(OptimizedValue::new_fixnum(i));
+        vec.push(OptimizedValue::fixnum(i));
     }
 }
 

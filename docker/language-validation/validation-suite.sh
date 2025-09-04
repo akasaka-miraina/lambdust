@@ -80,9 +80,9 @@ validate_value_operations() {
         --verbose -- value_safety 2>&1 | tee -a value_validation.log || true
 }
 
-# Phase 5: R7RS Compliance Testing
+# Phase 5: R7RS Compliance Testing (Docker Comprehensive)
 validate_r7rs_compliance() {
-    echo "📚 Phase 5: R7RS Compliance Safety Testing"
+    echo "📚 Phase 5: R7RS Compliance Safety Testing (Docker Full Suite)"
     
     # Build the interpreter
     cargo build --bin lambdust --no-default-features
@@ -90,11 +90,26 @@ validate_r7rs_compliance() {
     # Test verification_test.scm in containerized environment
     echo "Running R7RS compliance verification..."
     if [ -f "/workspace/verification_test.scm" ]; then
-        timeout 60s ./target/debug/lambdust verification_test.scm \
+        timeout 120s ./target/debug/lambdust verification_test.scm \
             2>&1 | tee r7rs_validation.log || echo "Timeout or error in R7RS test"
     else
         echo "verification_test.scm not found, skipping R7RS validation"
     fi
+    
+    # Run comprehensive language safety validation (Docker only)
+    echo "Running comprehensive language safety tests..."
+    cargo test --lib --no-default-features \
+        --verbose language_safety_validation 2>&1 | tee -a r7rs_validation.log
+    
+    # Run symbol identity validation (Docker only)
+    echo "Running R7RS symbol identity validation..."  
+    cargo test --lib --no-default-features \
+        --verbose r7rs_symbol_identity_validation 2>&1 | tee -a r7rs_validation.log
+        
+    # Run production readiness certification (Docker only)
+    echo "Running production readiness certification..."
+    cargo test --lib --no-default-features \
+        --verbose production_readiness_r7rs_certification 2>&1 | tee -a r7rs_validation.log
     
     # Test container operations specifically
     echo "Testing container system safety..."

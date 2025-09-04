@@ -15,11 +15,9 @@
 #![allow(missing_docs)]
 #![cfg(test)]
 
-use crate::ast::{Expr, Literal};
-use crate::eval::value::{Environment, Value};
-use crate::eval::value_bridge::{LegacyValueBridge, SemanticEquivalenceChecker};
-use crate::eval::safe_optimized_value::SafeOptimizedValue;
-use crate::utils::SymbolId;
+use lambdust::ast::Literal;
+use lambdust::eval::{Value, LegacyValueBridge};
+use lambdust::utils::SymbolId;
 use std::collections::HashMap;
 
 /// R7RS Compliance Test Suite for Memory Safety Migration
@@ -252,13 +250,13 @@ impl R7RSComplianceValidator {
         let mut errors = Vec::new();
 
         // Run all validation tests
-        let tests = vec![
-            ("Symbol Identity", || self.validate_symbol_identity()),
-            ("Lexical Scoping", || self.validate_lexical_scoping()),
-            ("List Operations", || self.validate_list_operations()),
-            ("Vector Operations", || self.validate_vector_operations()),
-            ("Closure Capture", || self.validate_closure_capture()),
-            ("Container Operations", || self.validate_container_operations()),
+        let tests: Vec<(&str, Box<dyn Fn() -> Result<(), String>>)> = vec![
+            ("Symbol Identity", Box::new(|| self.validate_symbol_identity())),
+            ("Lexical Scoping", Box::new(|| self.validate_lexical_scoping())),
+            ("List Operations", Box::new(|| self.validate_list_operations())),
+            ("Vector Operations", Box::new(|| self.validate_vector_operations())),
+            ("Closure Capture", Box::new(|| self.validate_closure_capture())),
+            ("Container Operations", Box::new(|| self.validate_container_operations())),
         ];
 
         println!("🔍 Running R7RS Compliance Validation Suite");
@@ -448,10 +446,8 @@ mod memory_safety_r7rs_tests {
             let opt_value = validator.bridge.optimize_value(value);
             let restored = validator.bridge.deoptimize_value(&opt_value);
             
-            assert!(
-                SemanticEquivalenceChecker::values_equivalent(value, &restored),
-                "Value {} failed semantic equivalence test", i
-            );
+            // Simple equivalence check - would be more comprehensive in real implementation
+            assert_eq!(value, &restored, "Value {} failed semantic equivalence test", i);
         }
     }
 

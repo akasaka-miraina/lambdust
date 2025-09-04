@@ -15,11 +15,9 @@
 #![allow(missing_docs)]
 #![cfg(test)]
 
-use crate::eval::value::Value;
-use crate::eval::value_bridge::{LegacyValueBridge, OptimizationMetrics};
-use crate::eval::safe_optimized_value::SafeOptimizedValue;
-use crate::utils::SymbolId;
-use crate::ast::Literal;
+use lambdust::eval::{Value, LegacyValueBridge, OptimizationMetrics, SafeOptimizedValue};
+use lambdust::utils::SymbolId;
+use lambdust::ast::Literal;
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
 

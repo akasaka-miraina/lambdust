@@ -1,7 +1,7 @@
 //! R7RS Symbol Identity and Lexical Scoping Validation
 //!
 //! This module provides comprehensive validation of R7RS symbol identity semantics
-//! and lexical scoping after SafeOptimizedValue migration. Critical for ensuring
+//! and lexical scoping after Value migration. Critical for ensuring
 //! that memory safety fixes don't break fundamental Scheme language semantics.
 //!
 //! R7RS Requirements Validated:
@@ -14,25 +14,21 @@
 #![allow(missing_docs)]
 #![cfg(test)]
 
-use crate::eval::value::Value;
-use crate::eval::value_bridge::LegacyValueBridge;
-use crate::eval::safe_optimized_value::SafeOptimizedValue;
-use crate::utils::SymbolId;
-use crate::ast::Literal;
+use lambdust::eval::Value;
+use lambdust::utils::string_interner::SymbolId;
+use lambdust::ast::Literal;
 use std::collections::HashMap;
 
 /// R7RS Symbol Identity Validator
 ///
-/// Ensures that SafeOptimizedValue preserves exact R7RS symbol identity semantics.
+/// Ensures that Value preserves exact R7RS symbol identity semantics.
 pub struct R7RSSymbolValidator {
-    bridge: LegacyValueBridge,
     symbol_counter: u64,
 }
 
 impl R7RSSymbolValidator {
     pub fn new() -> Self {
         Self {
-            bridge: LegacyValueBridge::new_default(),
             symbol_counter: 0,
         }
     }
@@ -40,7 +36,7 @@ impl R7RSSymbolValidator {
     /// Create a new unique symbol ID for testing
     fn next_symbol_id(&mut self) -> SymbolId {
         self.symbol_counter += 1;
-        SymbolId::new(self.symbol_counter)
+        SymbolId::new(self.symbol_counter as usize)
     }
 
     /// Test R7RS symbol identity: (eq? 'sym 'sym) → #t
@@ -56,13 +52,13 @@ impl R7RSSymbolValidator {
             return Err("Original symbol identity failed".to_string());
         }
 
-        // Test SafeOptimizedValue preservation
+        // Test Value preservation
         let opt_sym1 = self.bridge.optimize_value(&sym1);
         let opt_sym2 = self.bridge.optimize_value(&sym2);
 
         let optimized_eq = self.optimized_symbols_equal(&opt_sym1, &opt_sym2);
         if !optimized_eq {
-            return Err("SafeOptimizedValue failed to preserve symbol identity".to_string());
+            return Err("Value failed to preserve symbol identity".to_string());
         }
 
         // Test roundtrip preservation
@@ -92,7 +88,7 @@ impl R7RSSymbolValidator {
             return Err("Original symbol inequality failed".to_string());
         }
 
-        // Test SafeOptimizedValue preservation
+        // Test Value preservation
         let opt_sym1 = self.bridge.optimize_value(&sym1);
         let opt_sym2 = self.bridge.optimize_value(&sym2);
 
@@ -101,7 +97,7 @@ impl R7RSSymbolValidator {
             println!("✅ Symbol inequality preserved through optimization");
             Ok(())
         } else {
-            Err("SafeOptimizedValue failed to preserve symbol inequality".to_string())
+            Err("Value failed to preserve symbol inequality".to_string())
         }
     }
 
@@ -147,8 +143,8 @@ impl R7RSSymbolValidator {
         }
     }
 
-    /// Helper: check if two SafeOptimizedValue symbols are equal
-    fn optimized_symbols_equal(&self, sym1: &SafeOptimizedValue, sym2: &SafeOptimizedValue) -> bool {
+    /// Helper: check if two Value symbols are equal
+    fn optimized_symbols_equal(&self, sym1: &Value, sym2: &Value) -> bool {
         match (sym1.as_symbol(), sym2.as_symbol()) {
             (Some(id1), Some(id2)) => id1 == id2,
             _ => false,
@@ -160,13 +156,11 @@ impl R7RSSymbolValidator {
 ///
 /// Ensures that safe environment chains preserve R7RS lexical scoping semantics.
 pub struct R7RSLexicalScopingValidator {
-    bridge: LegacyValueBridge,
 }
 
 impl R7RSLexicalScopingValidator {
     pub fn new() -> Self {
         Self {
-            bridge: LegacyValueBridge::new_default(),
         }
     }
 
@@ -280,11 +274,11 @@ impl R7RSLexicalScopingValidator {
     pub fn run_full_lexical_validation(&self) -> Result<(), Vec<String>> {
         let mut errors = Vec::new();
 
-        let tests = vec![
-            ("Basic Shadowing", || self.validate_basic_shadowing()),
-            ("Deep Nesting", || self.validate_deep_nesting()),
-            ("Closure Capture", || self.validate_closure_capture()),
-            ("Multiple Bindings", || self.validate_multiple_bindings()),
+        let tests: Vec<(&str, Box<dyn Fn() -> Result<(), String>>)> = vec![
+            ("Basic Shadowing", Box::new(|| self.validate_basic_shadowing())),
+            ("Deep Nesting", Box::new(|| self.validate_deep_nesting())),
+            ("Closure Capture", Box::new(|| self.validate_closure_capture())),
+            ("Multiple Bindings", Box::new(|| self.validate_multiple_bindings())),
         ];
 
         println!("🔍 Running R7RS Lexical Scoping Validation");

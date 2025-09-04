@@ -135,6 +135,37 @@ jobs:
       - name: Build binaries
         run: cargo build --bins --no-default-features ${{ matrix.profile == 'release' && '--release' || '' }}
 
+  # R7RS Compliance Validation (Essential CI)
+  r7rs-essential:
+    name: R7RS Essential Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: r7rs-essential
+          cache-on-failure: true
+
+      - name: Run essential R7RS validation
+        run: |
+          echo "🔍 Running essential R7RS compliance validation..."
+          chmod +x ci/r7rs-essential-validation.sh
+          ./ci/r7rs-essential-validation.sh
+
+      - name: Upload R7RS validation results
+        uses: actions/upload-artifact@v4
+        with:
+          name: r7rs-essential-results-${{ github.sha }}
+          path: |
+            /tmp/r7rs-*.txt
+            verification_test.scm
+
   # Feature Testing
   features:
     name: Feature Testing

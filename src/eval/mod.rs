@@ -14,6 +14,8 @@ pub mod monadic_evaluator;
 pub mod optimized_environment;
 pub mod optimized_value;
 pub mod safe_optimized_value;
+pub mod safe_environment;
+pub mod safe_symbol_table;
 pub mod memory_safety_benchmark;
 pub mod parameter;
 pub mod stream;
@@ -79,6 +81,8 @@ pub use optimized_environment::{
 };
 // Primary optimized value exports (safe implementation)
 pub use safe_optimized_value::{SafeOptimizedEnvironment, SafeOptimizedFrame, SafeOptimizedValue};
+pub use safe_environment::SafeEnvironment;
+pub use safe_symbol_table::SafeSymbolTable;
 
 // Legacy unsafe optimized value exports (for benchmarks and migration)
 pub use optimized_value::{

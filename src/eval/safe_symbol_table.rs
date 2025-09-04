@@ -77,7 +77,7 @@ impl SafeSymbolTable {
         }
         
         // Create new symbol
-        let id = SymbolId(self.next_id.fetch_add(1, Ordering::SeqCst));
+        let id = SymbolId::new(self.next_id.fetch_add(1, Ordering::SeqCst) as usize);
         let arc_string: Arc<str> = string.into();
         
         string_to_id.insert(string.to_string(), id);

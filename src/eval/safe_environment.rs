@@ -3,7 +3,7 @@
 //! Provides stack-overflow resistant environment chains with cycle detection
 //! and memory-safe variable lookup without raw pointer operations.
 
-use crate::eval::optimized_value::OptimizedValue;
+use crate::eval::safe_optimized_value::SafeOptimizedValue as OptimizedValue;
 use crate::utils::SymbolId;
 use std::collections::HashMap;
 use std::sync::{Arc, Weak, RwLock};
@@ -144,22 +144,38 @@ impl SafeEnvironment {
     /// Lookup a variable with memory-safe traversal
     pub fn lookup(&self, symbol: SymbolId) -> Result<OptimizedValue, EnvironmentError> {
         // Check cache first
-        {
+        let cache_result = {
             let mut cache = self.cache.write()
                 .map_err(|_| EnvironmentError::LockPoisoned)?;
             
-            if let Some(cached) = cache.entries.get_mut(&symbol) {
-                // Verify cache validity
+            // Check if entry exists and is valid
+            let (found_valid, found_value) = if let Some(cached) = cache.entries.get(&symbol) {
                 if cached.generation == self.metadata.generation {
-                    cached.access_count += 1;
-                    cache.hits += 1;
-                    return Ok(cached.value.clone());
+                    (true, Some(cached.value.clone()))
                 } else {
-                    // Cache invalid, remove entry
-                    cache.entries.remove(&symbol);
+                    (false, None)
                 }
+            } else {
+                (false, None)
+            };
+            
+            if found_valid {
+                // Update access count separately
+                if let Some(cached) = cache.entries.get_mut(&symbol) {
+                    cached.access_count += 1;
+                }
+                cache.hits += 1;
+                found_value
+            } else {
+                // Remove invalid entry if it exists
+                cache.entries.remove(&symbol);
+                cache.misses += 1;
+                None
             }
-            cache.misses += 1;
+        };
+        
+        if let Some(result) = cache_result {
+            return Ok(result);
         }
         
         // Perform memory-safe lookup
@@ -336,13 +352,13 @@ fn generate_env_id() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::optimized_value::OptimizedValue;
+    use crate::eval::safe_optimized_value::SafeOptimizedValue as OptimizedValue;
     
     #[test]
     fn test_basic_environment_operations() {
         let env = SafeEnvironment::new_global();
         let symbol = SymbolId(42);
-        let value = OptimizedValue::new_nil(); // Assuming this method exists
+        let value = OptimizedValue::nil(); // Assuming this method exists
         
         // Define variable
         env.define(symbol, value.clone()).unwrap();
@@ -361,8 +377,8 @@ mod tests {
         
         let symbol1 = SymbolId(1);
         let symbol2 = SymbolId(2);
-        let value1 = OptimizedValue::new_nil();
-        let value2 = OptimizedValue::new_nil();
+        let value1 = OptimizedValue::nil();
+        let value2 = OptimizedValue::nil();
         
         // Define in different environments
         global.define(symbol1, value1).unwrap();
@@ -395,7 +411,7 @@ mod tests {
     fn test_cache_performance() {
         let env = SafeEnvironment::new_global();
         let symbol = SymbolId(123);
-        let value = OptimizedValue::new_nil();
+        let value = OptimizedValue::nil();
         
         env.define(symbol, value).unwrap();
         
