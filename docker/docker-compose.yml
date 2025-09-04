@@ -15,3 +15,41 @@ services:
     command: /bin/bash
     stdin_open: true
     tty: true
+
+  memory-safety:
+    build:
+      context: memory-safety
+      dockerfile: Dockerfile
+    image: lambdust-memory-safety:latest
+    volumes:
+      - ../:/workspace:cached
+    environment:
+      - CARGO_HOME=/workspace/.cargo
+      - RUST_BACKTRACE=full
+      - CARGO_TERM_COLOR=always
+      - RUST_MIN_STACK=4194304
+    working_dir: /workspace
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+
+  performance-validation:
+    build:
+      context: performance-validation
+      dockerfile: Dockerfile
+    image: lambdust-performance:latest
+    volumes:
+      - ../:/workspace:cached
+    environment:
+      - CARGO_HOME=/workspace/.cargo
+      - RUST_BACKTRACE=1
+      - CARGO_TERM_COLOR=always
+      - CARGO_INCREMENTAL=0
+    working_dir: /workspace
+    command: /bin/bash
+    stdin_open: true
+    tty: true
