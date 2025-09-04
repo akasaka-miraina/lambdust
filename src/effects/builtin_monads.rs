@@ -668,7 +668,7 @@ impl<S, A> State<S, A> {
                         inner: Box::new(self_as_value_state),
                         next: StateFunc {
                             id,
-                            func: Box::new(move |value_result: Value| {
+                            func: Arc::new(move |value_result: Value| {
                                 match A::try_from(value_result) {
                                     Ok(a_value) => f(a_value),
                                     Err(_) => {
@@ -698,7 +698,7 @@ impl<S, A> State<S, A> {
                 computation: StateComputation::Get {
                     continuation: StateFunc {
                         id: continuation.id,
-                        func: Box::new(move |state| {
+                        func: Arc::new(move |state| {
                             continuation.call(state).to_value_state()
                         }),
                     },
@@ -721,7 +721,7 @@ impl<S, A> State<S, A> {
                     inner,
                     next: StateFunc {
                         id: next.id,
-                        func: Box::new(move |value| {
+                        func: Arc::new(move |value| {
                             next.call(value).to_value_state()
                         }),
                     },
@@ -734,7 +734,7 @@ impl<S, A> State<S, A> {
     pub fn map<B, F>(self, f: F) -> State<S, B>
     where
         F: Fn(A) -> B + Send + Sync + 'static,
-        A: 'static,
+        A: Into<Value> + TryFrom<Value> + 'static,
         S: 'static,
         B: 'static,
     {
