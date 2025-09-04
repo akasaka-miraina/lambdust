@@ -183,14 +183,13 @@ pub fn execute_fast_path_optimized(
 
         // Type predicates (very common and simple)
         FastPathOp::IsNull => Ok(OptimizedValue::boolean(
-            args.len() == 1 && matches!(args[0].tag, crate::eval::optimized_value::ValueTag::Nil),
+            args.len() == 1 && args[0].is_nil(),
         )),
         FastPathOp::IsNumber => Ok(OptimizedValue::boolean(
             args.len() == 1 && args[0].is_number(),
         )),
         FastPathOp::IsBoolean => Ok(OptimizedValue::boolean(
-            args.len() == 1
-                && matches!(args[0].tag, crate::eval::optimized_value::ValueTag::Boolean),
+            args.len() == 1 && args[0].is_boolean(),
         )),
 
         // List operations
@@ -995,27 +994,37 @@ fn fast_vector_set(args: &[Value]) -> Result<Value> {
 
 /// Converts an OptimizedValue to a Value (for fallback compatibility).
 fn convert_optimized_to_value(optimized: &OptimizedValue) -> Result<Value> {
-    // This is a simplified conversion - in a real implementation,
-    // you'd need to handle all the different value types properly
-    match optimized.tag {
-        crate::eval::optimized_value::ValueTag::Nil => Ok(Value::Nil),
-        crate::eval::optimized_value::ValueTag::Boolean => {
-            let b = unsafe { optimized.data.immediate != 0 };
-            Ok(Value::boolean(b))
+    // Use the safe API for conversion
+    match optimized {
+        OptimizedValue::Nil => Ok(Value::Nil),
+        OptimizedValue::Boolean(b) => Ok(Value::boolean(*b)),
+        OptimizedValue::Fixnum(n) => Ok(Value::integer(*n as i64)),
+        OptimizedValue::Character(ch) => Ok(Value::Literal(Literal::Character(*ch))),
+        OptimizedValue::Unspecified => Ok(Value::Unspecified),
+        OptimizedValue::String(_) => {
+            if let Some(s) = optimized.as_string() {
+                Ok(Value::string(s))
+            } else {
+                Err(Box::new(Error::runtime_error(
+                    "Failed to extract string from optimized value".to_string(),
+                    None,
+                )))
+            }
         }
-        crate::eval::optimized_value::ValueTag::Fixnum => {
-            let n = unsafe { optimized.data.immediate as i32 };
-            Ok(Value::integer(n as i64))
+        OptimizedValue::Number(_) => {
+            if let Some(num) = optimized.as_number() {
+                Ok(Value::number(num))
+            } else {
+                Err(Box::new(Error::runtime_error(
+                    "Failed to extract number from optimized value".to_string(),
+                    None,
+                )))
+            }
         }
-        crate::eval::optimized_value::ValueTag::Character => {
-            let ch = unsafe { char::from_u32(optimized.data.immediate as u32).unwrap_or('?') };
-            Ok(Value::Literal(Literal::Character(ch)))
-        }
-        crate::eval::optimized_value::ValueTag::Unspecified => Ok(Value::Unspecified),
         _ => {
             // For complex types, this would need more sophisticated conversion
             Err(Box::new(Error::runtime_error(
-                "Cannot convert optimized value to regular value".to_string(),
+                "Cannot convert complex optimized value to regular value".to_string(),
                 None,
             )))
         }

@@ -12,7 +12,7 @@
 
 #![allow(missing_docs)]
 
-use crate::eval::optimized_value::OptimizedValue;
+use crate::eval::safe_optimized_value::SafeOptimizedValue;
 use crate::eval::value::Value;
 use crate::eval::value_bridge::{LegacyValueBridge, OptimizationMetrics};
 use crate::eval::value_optimization_core::{

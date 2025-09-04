@@ -13,7 +13,7 @@
 #![allow(missing_docs)]
 
 use crate::ast::Literal;
-use crate::eval::optimized_value::OptimizedValue;
+use crate::eval::safe_optimized_value::SafeOptimizedValue;
 use crate::eval::value::Value;
 use crate::eval::value_bridge::{BridgeConfig, LegacyValueBridge, SemanticEquivalenceChecker};
 use crate::eval::value_optimization_core::{OptimizationConfig, ValueOptimizer};

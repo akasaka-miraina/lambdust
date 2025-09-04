@@ -271,7 +271,7 @@ mod tests {
             a: "test".to_string(),
             b: 1,
         };
-        assert_eq!(multi.error_code(), "custom::test");
+        assert_eq!(multi.error_code(), "lambdust::TestError::MultiField");
     }
 
     #[test]

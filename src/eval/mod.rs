@@ -13,6 +13,8 @@ pub mod gc_coordinator;
 pub mod monadic_evaluator;
 pub mod optimized_environment;
 pub mod optimized_value;
+pub mod safe_optimized_value;
+pub mod memory_safety_benchmark;
 pub mod parameter;
 pub mod stream;
 pub mod unified_eval_errors;
@@ -75,7 +77,22 @@ pub use fast_path::{
 pub use optimized_environment::{
     EnvironmentStats, OptimizedEnvironment as OptEnv, OptimizedEnvironmentBuilder,
 };
-pub use optimized_value::{OptimizedEnvironment, OptimizedFrame, OptimizedValue};
+// Primary optimized value exports (safe implementation)
+pub use safe_optimized_value::{SafeOptimizedEnvironment, SafeOptimizedFrame, SafeOptimizedValue};
+
+// Legacy unsafe optimized value exports (for benchmarks and migration)
+pub use optimized_value::{
+    OptimizedEnvironment as UnsafeOptimizedEnvironment, 
+    OptimizedFrame as UnsafeOptimizedFrame, 
+    OptimizedValue as UnsafeOptimizedValue
+};
+
+// Default re-exports (point to safe implementation)
+pub use safe_optimized_value::{
+    SafeOptimizedEnvironment as OptimizedEnvironment,
+    SafeOptimizedFrame as OptimizedFrame, 
+    SafeOptimizedValue as OptimizedValue
+};
 pub use parameter::{ParameterBinding, ParameterFrame};
 pub use value::{
     Continuation, Environment, ForeignObject, Frame, FrameType, Generation, Parameter, Port,

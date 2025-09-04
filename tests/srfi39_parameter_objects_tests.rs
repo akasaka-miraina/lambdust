@@ -142,7 +142,7 @@ fn test_parameter_with_name() {
 
     assert_eq!(param.get().as_string(), Some("hello"));
     assert_eq!(param.name(), Some("test-param"));
-    assert_eq!(param.id() > 0, true); // Should have a valid ID
+    assert!(param.id() > 0); // Should have a valid ID
 }
 
 #[test]

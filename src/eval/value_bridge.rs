@@ -26,7 +26,8 @@
 use crate::ast::{CaseLambdaClause, Expr, Formals, Literal};
 use crate::diagnostics::{Span, Spanned};
 use crate::effects::Effect;
-use crate::eval::optimized_value::{OptimizedEnvironment, OptimizedValue, ValueTag};
+use crate::eval::safe_optimized_value::{SafeOptimizedEnvironment, SafeOptimizedValue};
+use crate::eval::optimized_value::{OptimizedEnvironment as UnsafeOptimizedEnvironment, OptimizedValue as UnsafeOptimizedValue, ValueTag};
 use crate::eval::value::{
     CaseLambdaProcedure, Continuation, Environment, ForeignObject, Frame, Generation, Parameter,
     Port, PrimitiveImpl, PrimitiveProcedure, Procedure, Promise, Record, SyntaxTransformer,
@@ -80,7 +81,7 @@ impl Default for BridgeConfig {
     }
 }
 
-/// The main bridge between legacy Value and OptimizedValue
+/// The main bridge between legacy Value and SafeOptimizedValue
 ///
 /// This is the anti-corruption layer that preserves complete semantic compatibility
 /// while enabling gradual migration to the optimized representation.
@@ -113,31 +114,32 @@ impl LegacyValueBridge {
         *self.metrics.write().unwrap() = OptimizationMetrics::default();
     }
 
-    /// Converts a legacy Value to OptimizedValue with maximum optimization
-    pub fn optimize_value(&self, value: &Value) -> OptimizedValue {
+    /// Converts a legacy Value to SafeOptimizedValue with maximum optimization
+    pub fn optimize_value(&self, value: &Value) -> SafeOptimizedValue {
         let result = self.convert_to_optimized(value);
 
         if self.config.enable_metrics {
             let mut metrics = self.metrics.write().unwrap();
             metrics.conversions += 1;
 
-            // Track optimization categories
-            match result.tag {
-                ValueTag::Nil
-                | ValueTag::Boolean
-                | ValueTag::Fixnum
-                | ValueTag::Character
-                | ValueTag::Unspecified => {
+            // Track optimization categories using safe pattern matching
+            match &result {
+                SafeOptimizedValue::Nil
+                | SafeOptimizedValue::Boolean(_)
+                | SafeOptimizedValue::Fixnum(_)
+                | SafeOptimizedValue::Character(_)
+                | SafeOptimizedValue::Unspecified
+                | SafeOptimizedValue::SmallSymbol(_) => {
                     metrics.immediate_values += 1;
                     metrics.arcs_saved += 1; // Each immediate value saves at least 1 Arc
                     metrics.memory_saved_bytes += 24; // Estimate: Arc overhead
                 }
-                ValueTag::Pair => {
+                SafeOptimizedValue::Pair(_) => {
                     metrics.compound_optimized += 1;
                     metrics.arcs_saved += 2; // Pairs: 2 Arcs → 0 Arcs
                     metrics.memory_saved_bytes += 48; // 2 * Arc overhead
                 }
-                ValueTag::String | ValueTag::Symbol => {
+                SafeOptimizedValue::String(_) | SafeOptimizedValue::LargeSymbol(_) => {
                     metrics.compound_optimized += 1;
                     metrics.arcs_saved += 1; // Strings: often 1 Arc saved
                     metrics.memory_saved_bytes += 24;
@@ -149,8 +151,8 @@ impl LegacyValueBridge {
         result
     }
 
-    /// Converts an OptimizedValue back to legacy Value for compatibility
-    pub fn deoptimize_value(&self, optimized: &OptimizedValue) -> Value {
+    /// Converts a SafeOptimizedValue back to legacy Value for compatibility
+    pub fn deoptimize_value(&self, optimized: &SafeOptimizedValue) -> Value {
         if self.config.enable_metrics {
             self.metrics.write().unwrap().conversions += 1;
         }
@@ -158,67 +160,67 @@ impl LegacyValueBridge {
         self.convert_from_optimized(optimized)
     }
 
-    /// Internal conversion from Value to OptimizedValue
-    fn convert_to_optimized(&self, value: &Value) -> OptimizedValue {
+    /// Internal conversion from Value to SafeOptimizedValue
+    fn convert_to_optimized(&self, value: &Value) -> SafeOptimizedValue {
         match value {
             // Phase 1: Immediate values (0 Arc usage)
-            Value::Nil => OptimizedValue::nil(),
-            Value::Unspecified => OptimizedValue::unspecified(),
-            Value::Literal(Literal::Boolean(b)) => OptimizedValue::boolean(*b),
-            Value::Literal(Literal::Character(ch)) => OptimizedValue::character(*ch),
+            Value::Nil => SafeOptimizedValue::nil(),
+            Value::Unspecified => SafeOptimizedValue::unspecified(),
+            Value::Literal(Literal::Boolean(b)) => SafeOptimizedValue::boolean(*b),
+            Value::Literal(Literal::Character(ch)) => SafeOptimizedValue::character(*ch),
 
             // Phase 1: Small integers (inline storage)
             Value::Literal(Literal::ExactInteger(n))
                 if self.config.enable_immediate_optimization =>
             {
                 if *n >= i32::MIN as i64 && *n <= i32::MAX as i64 {
-                    OptimizedValue::fixnum(*n)
+                    SafeOptimizedValue::fixnum(*n)
                 } else {
-                    OptimizedValue::number(*n as f64)
+                    SafeOptimizedValue::number(*n as f64)
                 }
             }
 
             // Phase 1: Numeric values
-            Value::Literal(Literal::InexactReal(f)) => OptimizedValue::number(*f),
+            Value::Literal(Literal::InexactReal(f)) => SafeOptimizedValue::number(*f),
             Value::Literal(Literal::Rational(rational)) => {
-                OptimizedValue::number(rational.numerator as f64 / rational.denominator as f64)
+                SafeOptimizedValue::number(rational.numerator as f64 / rational.denominator as f64)
             }
             Value::Literal(Literal::Complex(complex)) => {
                 // Simplified: just use real part for now
-                OptimizedValue::number(complex.real)
+                SafeOptimizedValue::number(complex.real)
             }
 
             // Phase 1: Symbols (inline storage for small IDs)
-            Value::Symbol(id) => OptimizedValue::symbol(*id),
+            Value::Symbol(id) => SafeOptimizedValue::symbol(*id),
 
             // Phase 1: Strings
-            Value::Literal(Literal::String(s)) => OptimizedValue::string((**s).clone()),
-            Value::Keyword(k) => OptimizedValue::string(format!("#{k}")),
+            Value::Literal(Literal::String(s)) => SafeOptimizedValue::string((**s).clone()),
+            Value::Keyword(k) => SafeOptimizedValue::keyword(k),
 
             // Phase 2: Compound values (Arc reduction)
             Value::Pair(car, cdr) if self.config.enable_compound_optimization => {
                 let opt_car = self.convert_to_optimized(car);
                 let opt_cdr = self.convert_to_optimized(cdr);
-                OptimizedValue::pair(opt_car, opt_cdr)
+                SafeOptimizedValue::pair(opt_car, opt_cdr)
             }
 
             // Phase 2: Vectors
             Value::Vector(vec_arc) if self.config.enable_compound_optimization => {
                 if let Ok(elements) = vec_arc.try_borrow() {
-                    let opt_elements: Vec<OptimizedValue> = elements
+                    let opt_elements: Vec<SafeOptimizedValue> = elements
                         .iter()
                         .map(|v| self.convert_to_optimized(v))
                         .collect();
-                    OptimizedValue::vector(opt_elements)
+                    SafeOptimizedValue::vector(opt_elements)
                 } else {
                     // Fallback for lock failures
-                    OptimizedValue::vector(Vec::new())
+                    SafeOptimizedValue::vector(Vec::new())
                 }
             }
 
             // Phase 2: Bytevectors
             Value::Literal(Literal::Bytevector(bytes)) => {
-                OptimizedValue::bytevector((**bytes).clone())
+                SafeOptimizedValue::bytevector((**bytes).clone())
             }
 
             // Conservative fallback: For complex values not yet optimized,
@@ -226,30 +228,21 @@ impl LegacyValueBridge {
             _ => {
                 // For now, convert complex values to their string representation
                 // This preserves correctness while allowing gradual optimization
-                OptimizedValue::string(format!("{value}"))
+                SafeOptimizedValue::string(format!("{value}"))
             }
         }
     }
 
-    /// Internal conversion from OptimizedValue to Value
+    /// Internal conversion from SafeOptimizedValue to Value
     #[allow(clippy::only_used_in_recursion)]
-    fn convert_from_optimized(&self, optimized: &OptimizedValue) -> Value {
-        match optimized.tag {
-            ValueTag::Nil => Value::Nil,
-            ValueTag::Unspecified => Value::Unspecified,
-            ValueTag::Boolean => {
-                let b = unsafe { optimized.data.immediate != 0 };
-                Value::Literal(Literal::Boolean(b))
-            }
-            ValueTag::Character => {
-                let ch = unsafe { char::from_u32(optimized.data.immediate as u32).unwrap_or('?') };
-                Value::Literal(Literal::Character(ch))
-            }
-            ValueTag::Fixnum => {
-                let n = unsafe { optimized.data.immediate as i32 };
-                Value::Literal(Literal::ExactInteger(n as i64))
-            }
-            ValueTag::Symbol => {
+    fn convert_from_optimized(&self, optimized: &SafeOptimizedValue) -> Value {
+        match optimized {
+            SafeOptimizedValue::Nil => Value::Nil,
+            SafeOptimizedValue::Unspecified => Value::Unspecified,
+            SafeOptimizedValue::Boolean(b) => Value::Literal(Literal::Boolean(*b)),
+            SafeOptimizedValue::Character(ch) => Value::Literal(Literal::Character(*ch)),
+            SafeOptimizedValue::Fixnum(n) => Value::Literal(Literal::ExactInteger(*n as i64)),
+            SafeOptimizedValue::SmallSymbol(_) | SafeOptimizedValue::LargeSymbol(_) => {
                 if let Some(id) = optimized.as_symbol() {
                     Value::Symbol(id)
                 } else {
@@ -257,38 +250,45 @@ impl LegacyValueBridge {
                     Value::Symbol(SymbolId::new(0))
                 }
             }
-            ValueTag::String => {
+            SafeOptimizedValue::String(_) => {
                 if let Some(s) = optimized.as_string() {
                     Value::Literal(Literal::String(Box::new(s.to_string())))
                 } else {
                     Value::Literal(Literal::String(Box::default()))
                 }
             }
-            ValueTag::Number => {
+            SafeOptimizedValue::Number(_) => {
                 if let Some(n) = optimized.as_number() {
                     Value::Literal(Literal::InexactReal(n))
                 } else {
                     Value::Literal(Literal::InexactReal(0.0))
                 }
             }
-            ValueTag::Pair => {
+            SafeOptimizedValue::Pair(_) => {
                 if let Some(list) = optimized.as_list() {
                     // Convert list back to nested pairs
                     list.into_iter().rev().fold(Value::Nil, |acc, val| {
                         let car = self.convert_from_optimized(&val);
                         Value::Pair(Box::new(car), Box::new(acc))
                     })
-                } else {
+                } else if let Some((car, cdr)) = optimized.as_pair() {
                     // Single pair
-                    Value::Nil // Fallback
+                    let car_val = self.convert_from_optimized(car);
+                    let cdr_val = self.convert_from_optimized(cdr);
+                    Value::Pair(Box::new(car_val), Box::new(cdr_val))
+                } else {
+                    // Fallback
+                    Value::Nil
                 }
             }
-            ValueTag::Vector => {
-                // Create empty vector as fallback
+            SafeOptimizedValue::Vector(_) => {
+                // Create empty vector as fallback - in a real implementation,
+                // you would extract the vector elements properly
                 Value::Vector(Rc::new(RefCell::new(Vec::new())))
             }
-            ValueTag::Bytevector => {
-                // Create empty bytevector as fallback
+            SafeOptimizedValue::Bytevector(_) => {
+                // Create empty bytevector as fallback - in a real implementation,
+                // you would extract the bytes properly
                 Value::Literal(Literal::Bytevector(Box::default()))
             }
             _ => {
@@ -381,7 +381,7 @@ impl SemanticEquivalenceChecker {
     /// Verifies that a Value and its optimized representation are semantically equivalent
     pub fn verify_equivalence(
         original: &Value,
-        optimized: &OptimizedValue,
+        optimized: &SafeOptimizedValue,
         bridge: &LegacyValueBridge,
     ) -> bool {
         // Convert optimized back to Value for comparison
@@ -489,7 +489,7 @@ mod tests {
         // Test boolean optimization
         let true_val = Value::Literal(Literal::Boolean(true));
         let opt_true = bridge.optimize_value(&true_val);
-        assert_eq!(opt_true.tag, ValueTag::Boolean);
+        assert!(opt_true.is_boolean());
         assert!(opt_true.is_truthy());
 
         // Test roundtrip preservation
@@ -501,7 +501,7 @@ mod tests {
         // Test nil optimization
         let nil_val = Value::Nil;
         let opt_nil = bridge.optimize_value(&nil_val);
-        assert_eq!(opt_nil.tag, ValueTag::Nil);
+        assert!(opt_nil.is_nil());
     }
 
     #[test]
@@ -511,13 +511,13 @@ mod tests {
         // Small integer should become fixnum
         let small_int = Value::Literal(Literal::ExactInteger(42));
         let opt_small = bridge.optimize_value(&small_int);
-        assert_eq!(opt_small.tag, ValueTag::Fixnum);
+        assert!(matches!(opt_small, SafeOptimizedValue::Fixnum(_)));
         assert_eq!(opt_small.as_integer(), Some(42));
 
         // Large integer should become number
         let large_int = Value::Literal(Literal::ExactInteger(i64::MAX));
         let opt_large = bridge.optimize_value(&large_int);
-        assert_eq!(opt_large.tag, ValueTag::Number);
+        assert!(matches!(opt_large, SafeOptimizedValue::Number(_)));
     }
 
     #[test]
@@ -526,7 +526,7 @@ mod tests {
 
         let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
         let opt_string = bridge.optimize_value(&string_val);
-        assert_eq!(opt_string.tag, ValueTag::String);
+        assert!(opt_string.is_string());
         assert_eq!(opt_string.as_string(), Some("hello"));
 
         // Test roundtrip
@@ -546,13 +546,14 @@ mod tests {
         let pair_val = Value::Pair(Box::new(car), Box::new(cdr));
 
         let opt_pair = bridge.optimize_value(&pair_val);
-        assert_eq!(opt_pair.tag, ValueTag::Pair);
+        assert!(opt_pair.is_pair());
 
-        // Test that we can extract list
-        let as_list = opt_pair.as_list();
-        assert!(as_list.is_some());
-        let list = as_list.unwrap();
-        assert_eq!(list.len(), 2);
+        // Test that we can extract pair components
+        let as_pair = opt_pair.as_pair();
+        assert!(as_pair.is_some());
+        let (car, cdr) = as_pair.unwrap();
+        assert!(car.is_number());
+        assert!(cdr.is_number());
     }
 
     #[test]
@@ -626,7 +627,7 @@ mod tests {
 
         let int_val = Value::Literal(Literal::ExactInteger(42));
         let opt_int = bridge.optimize_value(&int_val);
-        assert_eq!(opt_int.tag, ValueTag::Fixnum);
+        assert!(matches!(opt_int, SafeOptimizedValue::Fixnum(_)));
 
         // Pairs should fall back to string representation
         let pair_val = Value::Pair(
@@ -634,6 +635,6 @@ mod tests {
             Box::new(Value::Literal(Literal::ExactInteger(2))),
         );
         let opt_pair = bridge.optimize_value(&pair_val);
-        assert_eq!(opt_pair.tag, ValueTag::String); // Fallback
+        assert!(opt_pair.is_string()); // Fallback
     }
 }

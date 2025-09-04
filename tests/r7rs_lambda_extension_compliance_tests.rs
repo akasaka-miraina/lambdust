@@ -16,7 +16,6 @@ use lambdust::{
     lexer::Lexer,
     parser::Parser,
 };
-use std::collections::HashMap;
 
 /// テスト用のパーサーヘルパー関数
 fn parse_lambda(source: &str) -> Result<Spanned<Expr>, Box<dyn std::error::Error>> {
@@ -563,7 +562,7 @@ mod macro_system_interaction {
     #[test]
     fn test_syntax_rules_compatibility() {
         // syntax-rulesマクロでの新構文の使用
-        let macro_definition = r#"
+        let _macro_definition = r#"
             (define-syntax-rule (typed-identity (x : T))
               (lambda (x : T) x))
         "#;

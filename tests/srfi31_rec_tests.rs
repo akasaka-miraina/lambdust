@@ -13,7 +13,7 @@ use lambdust::lexer::Lexer;
 use lambdust::parser::Parser;
 
 /// Helper function to parse and evaluate a Scheme expression
-fn eval_expression(source: &str) -> Result<Value> {
+fn _eval_expression(source: &str) -> Result<Value> {
     let mut lexer = Lexer::new(source, Some("test"));
     let tokens = lexer.tokenize()?;
     let mut parser = Parser::new(tokens);

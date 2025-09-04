@@ -286,7 +286,7 @@ mod property_based_tests {
     }
 
     // Note: Converted from quickcheck - keeping similar logic
-    fn test_eval_literal_identity(n: i64) -> bool {
+    fn _test_eval_literal_identity(n: i64) -> bool {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         create_eval_bindings(&env);
         let env_value = Value::Environment(env);

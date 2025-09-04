@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  ubuntu-test:
+    build: 
+      context: .
+      dockerfile: ubuntu-test/Dockerfile
+    image: lambdust-ubuntu-test:latest
+    volumes:
+      - ../:/workspace:cached
+    environment:
+      - CARGO_HOME=/workspace/.cargo
+      - RUST_BACKTRACE=1
+      - CARGO_TERM_COLOR=always
+    working_dir: /workspace
+    command: /bin/bash
+    stdin_open: true
+    tty: true
