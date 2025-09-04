@@ -17,6 +17,7 @@ pub mod safe_optimized_value;
 pub mod safe_environment;
 pub mod safe_symbol_table;
 pub mod memory_safety_benchmark;
+pub mod memory_safety_validator;
 pub mod parameter;
 pub mod stream;
 pub mod unified_eval_errors;

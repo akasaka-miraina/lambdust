@@ -37,6 +37,7 @@ use crate::ast::{CaseLambdaClause, Expr, Formals};
 use crate::diagnostics::{Span, Spanned};
 use crate::effects::Effect;
 use crate::utils::SymbolId;
+use crate::eval::memory_safety_validator::{get_validator, SafetyViolation};
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -115,9 +116,13 @@ impl Hash for OptimizedValue {
             },
             _ => {
                 // For allocated values, hash based on their content via the hash_obj method
-                unsafe {
-                    let obj = &*self.data.ptr;
-                    state.write_u64(obj.hash_obj());
+                match self.safe_get_obj() {
+                    Ok(obj) => state.write_u64(obj.hash_obj()),
+                    Err(_) => {
+                        // Handle null pointer gracefully by using tag hash
+                        state.write_u64(self.tag as u64);
+                        eprintln!("Warning: Null pointer encountered in OptimizedValue::hash for tag {:?}", self.tag);
+                    }
                 }
             }
         }
@@ -437,8 +442,13 @@ impl OptimizedValue {
                 Some(n as f64)
             }
             ValueTag::Number => {
-                let obj = unsafe { &*(self.data.ptr as *const NumberObj) };
-                Some(obj.value)
+                match self.safe_cast_deref::<NumberObj>() {
+                    Ok(obj) => Some(obj.value),
+                    Err(_) => {
+                        eprintln!("Warning: Invalid NumberObj pointer in as_number()");
+                        None
+                    }
+                }
             }
             _ => None,
         }
@@ -452,11 +462,18 @@ impl OptimizedValue {
                 Some(n as i64)
             }
             ValueTag::Number => {
-                let obj = unsafe { &*(self.data.ptr as *const NumberObj) };
-                if obj.value.fract() == 0.0 {
-                    Some(obj.value as i64)
-                } else {
-                    None
+                match self.safe_cast_deref::<NumberObj>() {
+                    Ok(obj) => {
+                        if obj.value.fract() == 0.0 {
+                            Some(obj.value as i64)
+                        } else {
+                            None
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!("Warning: Invalid NumberObj pointer in as_integer()");
+                        None
+                    }
                 }
             }
             _ => None,
@@ -467,8 +484,13 @@ impl OptimizedValue {
     pub fn as_string(&self) -> Option<&str> {
         match self.tag {
             ValueTag::String => {
-                let obj = unsafe { &*(self.data.ptr as *const StringObj) };
-                Some(&obj.content)
+                match self.safe_cast_deref::<StringObj>() {
+                    Ok(obj) => Some(&obj.content),
+                    Err(_) => {
+                        eprintln!("Warning: Invalid StringObj pointer in as_string()");
+                        None
+                    }
+                }
             }
             _ => None,
         }
@@ -484,8 +506,13 @@ impl OptimizedValue {
                     Some(SymbolId::new(id_bits as usize))
                 } else {
                     // Fall back to heap-allocated symbol
-                    let obj = unsafe { &*(self.data.ptr as *const SymbolObj) };
-                    Some(obj.id)
+                    match self.safe_cast_deref::<SymbolObj>() {
+                        Ok(obj) => Some(obj.id),
+                        Err(_) => {
+                            eprintln!("Warning: Invalid SymbolObj pointer in as_symbol()");
+                            None
+                        }
+                    }
                 }
             }
             _ => None,
@@ -509,9 +536,16 @@ impl OptimizedValue {
             match current.tag {
                 ValueTag::Nil => return Some(result),
                 ValueTag::Pair => {
-                    let obj = unsafe { &*(current.data.ptr as *const PairObj) };
-                    result.push(obj.car.clone());
-                    current = &obj.cdr;
+                    match current.safe_cast_deref::<PairObj>() {
+                        Ok(obj) => {
+                            result.push(obj.car.clone());
+                            current = &obj.cdr;
+                        }
+                        Err(_) => {
+                            eprintln!("Warning: Invalid PairObj pointer in as_list()");
+                            return None;
+                        }
+                    }
                 }
                 _ => return None, // Not a proper list
             }
@@ -528,6 +562,42 @@ impl OptimizedValue {
     #[inline]
     pub fn f() -> Self {
         Self::boolean(false)
+    }
+
+    /// Safely dereference the internal pointer with null checking and validation
+    fn safe_get_obj(&self) -> Result<&dyn ValueObj, SafetyViolation> {
+        // Only applicable to pointer-based values
+        if matches!(self.tag, ValueTag::Nil | ValueTag::Boolean | ValueTag::Fixnum | 
+                              ValueTag::Character | ValueTag::Symbol | ValueTag::Unspecified) {
+            return Err(SafetyViolation::NullPointerDereference {
+                address: 0,
+                function: "OptimizedValue::safe_get_obj",
+                line: line!(),
+            });
+        }
+
+        // Validate the pointer before dereferencing
+        if let Some(validator) = get_validator() {
+            let ptr_as_u8 = unsafe { self.data.ptr as *const u8 };
+            validator.validate_ptr_deref(ptr_as_u8, file!(), line!())?;
+        }
+
+        // Safe dereference after validation
+        unsafe { Ok(&*self.data.ptr) }
+    }
+
+    /// Safely cast and dereference to a specific object type
+    fn safe_cast_deref<T: 'static>(&self) -> Result<&T, SafetyViolation> {
+        let obj = self.safe_get_obj()?;
+        
+        // Use safe downcasting instead of raw pointer casting
+        obj.as_any()
+            .downcast_ref::<T>()
+            .ok_or(SafetyViolation::NullPointerDereference {
+                address: unsafe { self.data.ptr as *const u8 as usize },
+                function: "OptimizedValue::safe_cast_deref",
+                line: line!(),
+            })
     }
 }
 
@@ -574,19 +644,27 @@ impl fmt::Display for OptimizedValue {
             }
             ValueTag::Unspecified => write!(f, "#<unspecified>"),
             ValueTag::String => {
-                let obj = unsafe { &*(self.data.ptr as *const StringObj) };
-                write!(f, "\"{}\"", obj.content)
+                match self.safe_cast_deref::<StringObj>() {
+                    Ok(obj) => write!(f, "\"{}\"", obj.content),
+                    Err(_) => write!(f, "#<invalid-string>")
+                }
             }
             ValueTag::Number => {
-                let obj = unsafe { &*(self.data.ptr as *const NumberObj) };
-                write!(f, "{value}", value = obj.value)
+                match self.safe_cast_deref::<NumberObj>() {
+                    Ok(obj) => write!(f, "{value}", value = obj.value),
+                    Err(_) => write!(f, "#<invalid-number>")
+                }
             }
             ValueTag::Symbol => {
-                let obj = unsafe { &*(self.data.ptr as *const SymbolObj) };
-                if let Some(name) = crate::utils::symbol_name(obj.id) {
-                    write!(f, "{name}")
-                } else {
-                    write!(f, "#<symbol:{}>", obj.id.id())
+                match self.safe_cast_deref::<SymbolObj>() {
+                    Ok(obj) => {
+                        if let Some(name) = crate::utils::symbol_name(obj.id) {
+                            write!(f, "{name}")
+                        } else {
+                            write!(f, "#<symbol:{}>", obj.id.id())
+                        }
+                    }
+                    Err(_) => write!(f, "#<invalid-symbol>")
                 }
             }
             ValueTag::Pair => {
@@ -595,17 +673,21 @@ impl fmt::Display for OptimizedValue {
                 write!(f, ")")
             }
             ValueTag::Vector => {
-                let obj = unsafe { &*(self.data.ptr as *const VectorObj) };
-                write!(f, "#(")?;
-                if let Ok(elements) = obj.elements.try_read() {
-                    for (i, element) in elements.iter().enumerate() {
-                        if i > 0 {
-                            write!(f, " ")?;
+                match self.safe_cast_deref::<VectorObj>() {
+                    Ok(obj) => {
+                        write!(f, "#(")?;
+                        if let Ok(elements) = obj.elements.try_read() {
+                            for (i, element) in elements.iter().enumerate() {
+                                if i > 0 {
+                                    write!(f, " ")?;
+                                }
+                                write!(f, "{element}")?;
+                            }
                         }
-                        write!(f, "{element}")?;
+                        write!(f, ")")
                     }
+                    Err(_) => write!(f, "#<invalid-vector>")
                 }
-                write!(f, ")")
             }
             _ => write!(f, "#<{:?}>", self.tag),
         }
@@ -618,15 +700,19 @@ impl OptimizedValue {
         match self.tag {
             ValueTag::Nil => Ok(()),
             ValueTag::Pair => {
-                let obj = unsafe { &*(self.data.ptr as *const PairObj) };
-                if !first {
-                    write!(f, " ")?;
-                }
-                write!(f, "{car}", car = obj.car)?;
-                match obj.cdr.tag {
-                    ValueTag::Nil => Ok(()),
-                    ValueTag::Pair => obj.cdr.write_list_contents(f, false),
-                    _ => write!(f, " . {}", obj.cdr),
+                match self.safe_cast_deref::<PairObj>() {
+                    Ok(obj) => {
+                        if !first {
+                            write!(f, " ")?;
+                        }
+                        write!(f, "{car}", car = obj.car)?;
+                        match obj.cdr.tag {
+                            ValueTag::Nil => Ok(()),
+                            ValueTag::Pair => obj.cdr.write_list_contents(f, false),
+                            _ => write!(f, " . {}", obj.cdr),
+                        }
+                    }
+                    Err(_) => write!(f, " #<invalid-pair>")
                 }
             }
             _ => write!(f, " . {self}"),
@@ -646,9 +732,11 @@ impl PartialEq for OptimizedValue {
                 self.data.immediate == other.data.immediate
             },
             _ => {
-                let self_obj = unsafe { &*self.data.ptr };
-                let other_obj = unsafe { &*other.data.ptr };
-                self_obj.eq_obj(other_obj)
+                match (self.safe_get_obj(), other.safe_get_obj()) {
+                    (Ok(self_obj), Ok(other_obj)) => self_obj.eq_obj(other_obj),
+                    (Err(_), Err(_)) => true, // Both invalid pointers are equal
+                    _ => false, // One valid, one invalid
+                }
             }
         }
     }
@@ -668,10 +756,17 @@ impl Drop for OptimizedValue {
                 // No allocation to clean up
             }
             _ => {
-                // Clean up the allocated object
+                // Clean up the allocated object with null check
                 unsafe {
-                    let _boxed = Box::from_raw(self.data.ptr as *mut dyn ValueObj);
-                    // Box will be dropped automatically
+                    let ptr = self.data.ptr as *mut dyn ValueObj;
+                    if !ptr.is_null() {
+                        // Record deallocation for tracking
+                        if let Some(validator) = get_validator() {
+                            let _ = validator.record_deallocation(ptr as *const u8, file!(), line!());
+                        }
+                        let _boxed = Box::from_raw(ptr);
+                        // Box will be dropped automatically
+                    }
                 }
             }
         }

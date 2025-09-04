@@ -1,0 +1,14 @@
+{
+  "crash_count": 0,
+  "pattern_count": 0,
+  "build_info": {
+    "commit": "9b4c6d61bbc15207004a8d4775dd985177e552df",
+    "branch": "0.2.0",
+    "timestamp": 1757000008
+  },
+  "environment": {
+    "ci_provider": "Unknown",
+    "os": "macos",
+    "arch": "aarch64"
+  }
+}

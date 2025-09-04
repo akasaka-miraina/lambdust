@@ -142,8 +142,8 @@ pub mod ffi;
 pub mod diagnostics;
 /// Utility functions and data structures.
 pub mod utils;
-/// Debug utilities for memory safety and cycle detection.
-// pub mod debug; // Temporarily disabled
+/// Comprehensive SIGSEGV debugging infrastructure for cross-platform analysis.
+pub mod debug;
 
 // Property-based testing framework
 /// Property-based testing framework for comprehensive quality assurance.

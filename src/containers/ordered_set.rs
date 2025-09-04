@@ -6,8 +6,12 @@
 use super::Container;
 use super::comparator::Comparator;
 use crate::eval::value::Value;
+use crate::eval::memory_safety_validator::{
+    get_validator, SafetyViolation, is_platform_aligned, validate_simd_alignment
+};
 use std::cmp::Ordering;
 use std::sync::{Arc, RwLock};
+use std::mem;
 
 /// Colors for red-black tree nodes
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -16,8 +20,9 @@ enum Color {
     Black,
 }
 
-/// Node in the red-black tree
+/// Node in the red-black tree with platform-specific alignment
 #[derive(Clone, Debug)]
+#[repr(align(16))] // Force 16-byte alignment for cross-platform compatibility
 struct Node {
     value: Value,
     color: Color,
@@ -28,25 +33,35 @@ struct Node {
 
 impl Node {
     /// Creates a new red node with the given value
-    fn new_red(value: Value) -> Self {
-        Self {
+    fn new_red(value: Value) -> Result<Self, SafetyViolation> {
+        let node = Self {
             value,
             color: Color::Red,
             left: None,
             right: None,
             size: 1,
-        }
+        };
+        
+        // Validate alignment
+        Self::validate_node_alignment(&node)?;
+        
+        Ok(node)
     }
 
     /// Creates a new black node with the given value
-    fn new_black(value: Value) -> Self {
-        Self {
+    fn new_black(value: Value) -> Result<Self, SafetyViolation> {
+        let node = Self {
             value,
             color: Color::Black,
             left: None,
             right: None,
             size: 1,
-        }
+        };
+        
+        // Validate alignment
+        Self::validate_node_alignment(&node)?;
+        
+        Ok(node)
     }
 
     /// Creates a new node with specified children and color
@@ -55,18 +70,23 @@ impl Node {
         color: Color,
         left: Option<Arc<Node>>,
         right: Option<Arc<Node>>,
-    ) -> Self {
+    ) -> Result<Self, SafetyViolation> {
         let size = 1
             + left.as_ref().map(|n| n.size).unwrap_or(0)
             + right.as_ref().map(|n| n.size).unwrap_or(0);
 
-        Self {
+        let node = Self {
             value,
             color,
             left,
             right,
             size,
-        }
+        };
+        
+        // Validate alignment
+        Self::validate_node_alignment(&node)?;
+        
+        Ok(node)
     }
 
     /// Updates the size of this node based on its children
@@ -96,6 +116,35 @@ impl Node {
     fn make_black(mut self) -> Self {
         self.color = Color::Black;
         self
+    }
+    
+    /// Validates node alignment for platform safety
+    fn validate_node_alignment(node: &Self) -> Result<(), SafetyViolation> {
+        let node_ptr = node as *const Self;
+        let address = node_ptr as usize;
+        
+        // Check basic alignment requirements
+        if !is_platform_aligned(address, mem::size_of::<Self>()) {
+            return Err(SafetyViolation::UnalignedAccess {
+                address,
+                required_alignment: mem::align_of::<Self>(),
+                actual_alignment: address & (address - 1),
+                function: "Node::validate_node_alignment",
+                line: line!(),
+            });
+        }
+        
+        // Check SIMD alignment for performance-critical operations
+        if !validate_simd_alignment(address) {
+            eprintln!("Warning: Node at 0x{:016x} may not be optimally aligned for SIMD operations", address);
+        }
+        
+        // Validate using the global validator if available
+        if let Some(validator) = get_validator() {
+            validator.validate_ptr_deref(node_ptr, file!(), line!())?;
+        }
+        
+        Ok(())
     }
 }
 
@@ -168,31 +217,53 @@ impl RedBlackTree {
     /// Recursive insertion helper
     fn insert_recursive(&self, node: Option<Arc<Node>>, value: Value) -> (Option<Node>, bool) {
         match node {
-            None => (Some(Node::new_red(value)), true),
+            None => {
+                match Node::new_red(value) {
+                    Ok(new_node) => (Some(new_node), true),
+                    Err(e) => {
+                        eprintln!("Failed to create red node: {:?}", e);
+                        (None, false)
+                    }
+                }
+            },
             Some(n) => {
                 match self.comparator.compare(&value, &n.value) {
                     Ordering::Equal => (Some((*n).clone()), false), // Already exists
                     Ordering::Less => {
                         let (new_left, inserted) = self.insert_recursive(n.left.clone(), value);
-                        let mut new_node = Node::new_with_children(
+                        match Node::new_with_children(
                             n.value.clone(),
                             n.color,
                             new_left.map(Arc::new),
                             n.right.clone(),
-                        );
-                        new_node = self.fix_up(new_node);
-                        (Some(new_node), inserted)
+                        ) {
+                            Ok(mut new_node) => {
+                                new_node = self.fix_up(new_node);
+                                (Some(new_node), inserted)
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to create node with children: {:?}", e);
+                                (Some((*n).clone()), false)
+                            }
+                        }
                     }
                     Ordering::Greater => {
                         let (new_right, inserted) = self.insert_recursive(n.right.clone(), value);
-                        let mut new_node = Node::new_with_children(
+                        match Node::new_with_children(
                             n.value.clone(),
                             n.color,
                             n.left.clone(),
                             new_right.map(Arc::new),
-                        );
-                        new_node = self.fix_up(new_node);
-                        (Some(new_node), inserted)
+                        ) {
+                            Ok(mut new_node) => {
+                                new_node = self.fix_up(new_node);
+                                (Some(new_node), inserted)
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to create node with children: {:?}", e);
+                                (Some((*n).clone()), false)
+                            }
+                        }
                     }
                 }
             }
@@ -226,7 +297,7 @@ impl RedBlackTree {
                                 new_left.map(Arc::new),
                                 n.right.clone(),
                             );
-                            (Some(self.fix_up(new_node)), true)
+                            (Some(self.fix_up(new_node.expect("Safe node creation failed"))), true)
                         } else {
                             (Some((*n).clone()), false)
                         }
@@ -240,7 +311,7 @@ impl RedBlackTree {
                                 n.left.clone(),
                                 new_right.map(Arc::new),
                             );
-                            (Some(self.fix_up(new_node)), true)
+                            (Some(self.fix_up(new_node.expect("Safe node creation failed"))), true)
                         } else {
                             (Some((*n).clone()), false)
                         }
@@ -270,7 +341,7 @@ impl RedBlackTree {
                                         n.left.clone(),
                                         new_right.map(Arc::new),
                                     );
-                                    (Some(self.fix_up(replacement)), true)
+                                    (Some(self.fix_up(replacement.expect("Safe replacement node failed"))), true)
                                 } else {
                                     // Shouldn't happen, but fallback
                                     (None, true)
@@ -308,13 +379,21 @@ impl RedBlackTree {
                 } else {
                     // Recurse left
                     let new_left = self.delete_min(n.left.clone());
-                    let mut new_node = Node::new_with_children(
+                    match Node::new_with_children(
                         n.value.clone(),
                         n.color,
                         new_left,
                         n.right.clone(),
-                    );
-                    Some(Arc::new(self.fix_up(new_node)))
+                    ) {
+                        Ok(mut new_node) => {
+                            new_node = self.fix_up(new_node);
+                            Some(Arc::new(new_node))
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to create node in delete_min: {:?}", e);
+                            None
+                        }
+                    }
                 }
             }
         }
@@ -325,12 +404,20 @@ impl RedBlackTree {
         if let Some(right) = node.right.take() {
             let new_right = right.left.clone();
             let mut new_root = (*right).clone();
-            new_root.left = Some(Arc::new(Node::new_with_children(
+            match Node::new_with_children(
                 node.value,
                 Color::Red,
                 node.left,
                 new_right,
-            )));
+            ) {
+                Ok(new_left_node) => {
+                    new_root.left = Some(Arc::new(new_left_node));
+                }
+                Err(e) => {
+                    eprintln!("Failed to create node in rotate_left: {:?}", e);
+                    new_root.left = None;
+                }
+            }
             new_root.color = node.color;
             new_root.update_size();
             new_root
@@ -344,12 +431,20 @@ impl RedBlackTree {
         if let Some(left) = node.left.take() {
             let new_left = left.right.clone();
             let mut new_root = (*left).clone();
-            new_root.right = Some(Arc::new(Node::new_with_children(
+            match Node::new_with_children(
                 node.value,
                 Color::Red,
                 new_left,
                 node.right,
-            )));
+            ) {
+                Ok(new_right_node) => {
+                    new_root.right = Some(Arc::new(new_right_node));
+                }
+                Err(e) => {
+                    eprintln!("Failed to create node in rotate_right: {:?}", e);
+                    new_root.right = None;
+                }
+            }
             new_root.color = node.color;
             new_root.update_size();
             new_root

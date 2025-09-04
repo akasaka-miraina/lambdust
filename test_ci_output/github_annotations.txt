@@ -1,0 +1,5 @@
+::error::Found 2 crashes in build
+::error file=unknown::Null pointer dereference (1 occurrences)
+::notice::Detected crash pattern: Unaligned memory access at lambdust::containers::ordered_set::insert+0x15 (1 occurrences)
+::notice::Detected crash pattern: Platform-specific issue on x86_64-linux: CI environment issue at lambdust::containers::ordered_set::insert+0x15 (1 occurrences)
+::notice::Detected crash pattern: Platform-specific issue on aarch64: ARM64 memory alignment issue at lambdust::eval::optimized_value::deref+0x10 (1 occurrences)

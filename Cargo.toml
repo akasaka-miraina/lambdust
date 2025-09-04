@@ -39,6 +39,10 @@ path = "src/main.rs"
 name = "performance-monitor"
 path = "src/bin/performance_monitor.rs"
 
+[[bin]]
+name = "sigsegv-debug-test"
+path = "src/bin/sigsegv_debug_test.rs"
+
 [dependencies]
 
 # Date and time for reporting
@@ -91,6 +95,7 @@ num_cpus = "1.16" # For detecting CPU count
 # Error handling and diagnostics
 ariadne = "0.4" # Beautiful error reporting
 log = "0.4"     # Logging for parser benchmarking
+backtrace = "0.3" # Detailed stack traces for crash analysis
 
 # FFI and interop
 libloading = "0.8"

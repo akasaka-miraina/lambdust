@@ -1,0 +1,18 @@
+=== SIGSEGV MONITORING ANALYSIS REPORT ===
+
+Platform: macos 15.5 (aarch64)
+CI Environment: false
+Rust Version: 1.82.0
+Target: aarch64-macos-unknown
+Debug Symbols: true
+Optimization: debug
+
+Total Events: 0
+Monitoring Active: true
+=== PLATFORM-SPECIFIC RECOMMENDATIONS ===
+ARM64 Architecture Recommendations:
+  - Ensure 16-byte alignment for SIMD operations
+  - Check for unaligned memory accesses in struct layouts
+  - Verify NEON instruction usage is properly aligned
+  - Use #[repr(align(16))] for ARM64-specific data structures
+
