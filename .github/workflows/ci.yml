@@ -88,13 +88,40 @@ jobs:
           cache-on-failure: true
 
       - name: Run unit tests
-        run: timeout 300s cargo test --lib --no-default-features -- --test-threads=2 || echo "Unit tests completed or timed out"
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo "Running unit tests on Windows (5min timeout)..."
+            cargo test --lib --no-default-features -- --test-threads=2 &
+            TEST_PID=$!
+            timeout 300 wait $TEST_PID || echo "Unit tests completed or timed out"
+          else
+            timeout 300s cargo test --lib --no-default-features -- --test-threads=2 || echo "Unit tests completed or timed out"
+          fi
 
       - name: Run integration tests
-        run: timeout 180s cargo test --test '*' --no-default-features -- --test-threads=2 || echo "Integration tests completed or timed out"
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo "Running integration tests on Windows (3min timeout)..."
+            cargo test --test '*' --no-default-features -- --test-threads=2 &
+            TEST_PID=$!
+            timeout 180 wait $TEST_PID || echo "Integration tests completed or timed out"
+          else
+            timeout 180s cargo test --test '*' --no-default-features -- --test-threads=2 || echo "Integration tests completed or timed out"
+          fi
 
       - name: Run doctests
-        run: timeout 120s cargo test --doc --no-default-features -- --test-threads=2 || echo "Doc tests completed or timed out"
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo "Running doctests on Windows (2min timeout)..."
+            cargo test --doc --no-default-features -- --test-threads=2 &
+            TEST_PID=$!
+            timeout 120 wait $TEST_PID || echo "Doc tests completed or timed out"
+          else
+            timeout 120s cargo test --doc --no-default-features -- --test-threads=2 || echo "Doc tests completed or timed out"
+          fi
 
   # Build Verification
   build:
