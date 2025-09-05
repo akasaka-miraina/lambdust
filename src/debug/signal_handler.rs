@@ -333,6 +333,7 @@ fn create_crash_info(signal: i32, fault_addr: Option<usize>) -> CrashInfo {
         libc::SIGABRT => "SIGABRT",
         libc::SIGILL => "SIGILL",
         libc::SIGFPE => "SIGFPE",
+        #[cfg(not(windows))]
         libc::SIGBUS => "SIGBUS",
         _ => "UNKNOWN",
     };
@@ -351,7 +352,7 @@ fn create_crash_info(signal: i32, fault_addr: Option<usize>) -> CrashInfo {
         signal_name,
         timestamp,
         process_id: std::process::id(),
-        thread_id: unsafe { libc::pthread_self() } as u64,
+        thread_id: get_thread_id(),
         fault_address: fault_addr,
         instruction_pointer: None, // Would need signal context
         stack_pointer: None,       // Would need signal context
@@ -417,6 +418,7 @@ pub fn install_signal_handlers() -> Result<(), Box<dyn std::error::Error>> {
         libc::signal(libc::SIGABRT, signal_handler as *const extern "C" fn(libc::c_int) as usize);
         libc::signal(libc::SIGILL, signal_handler as *const extern "C" fn(libc::c_int) as usize);
         libc::signal(libc::SIGFPE, signal_handler as *const extern "C" fn(libc::c_int) as usize);
+        #[cfg(not(windows))]
         libc::signal(libc::SIGBUS, signal_handler as *const extern "C" fn(libc::c_int) as usize);
     }
 
@@ -431,7 +433,7 @@ pub fn install_signal_handlers() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_default()
                 .as_secs(),
             process_id: std::process::id(),
-            thread_id: unsafe { libc::pthread_self() } as u64,
+            thread_id: get_thread_id(),
             fault_address: None,
             instruction_pointer: None,
             stack_pointer: None,
@@ -491,5 +493,25 @@ mod tests {
         assert!(output.contains("SIGSEGV"));
         assert!(output.contains("0xdeadbeef"));
         assert!(output.contains("test_function"));
+    }
+}
+
+/// Get current thread ID in a cross-platform way
+pub fn get_thread_id() -> u64 {
+    #[cfg(not(windows))]
+    {
+        unsafe { libc::pthread_self() as u64 }
+    }
+    #[cfg(windows)]
+    {
+        // Use std::thread::current().id() for Windows compatibility
+        use std::thread;
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let thread_id = thread::current().id();
+        let mut hasher = DefaultHasher::new();
+        thread_id.hash(&mut hasher);
+        hasher.finish()
     }
 }

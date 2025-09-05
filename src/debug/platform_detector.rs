@@ -215,7 +215,15 @@ fn detect_memory_linux() -> u64 {
 }
 
 fn detect_page_size() -> usize {
-    unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize }
+    #[cfg(not(windows))]
+    {
+        unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize }
+    }
+    #[cfg(windows)]
+    {
+        // Default Windows page size is 4KB
+        4096
+    }
 }
 
 fn detect_endianness() -> String {

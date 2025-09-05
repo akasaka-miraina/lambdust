@@ -117,7 +117,7 @@ impl MemoryTracker {
                 .unwrap_or_default()
                 .as_secs(),
             backtrace: backtrace_str,
-            thread_id: unsafe { libc::pthread_self() } as u64,
+            thread_id: crate::debug::signal_handler::get_thread_id(),
             tag,
         };
 

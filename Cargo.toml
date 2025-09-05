@@ -39,9 +39,6 @@ path = "src/main.rs"
 name = "performance-monitor"
 path = "src/bin/performance_monitor.rs"
 
-[[bin]]
-name = "sigsegv-debug-test"
-path = "src/bin/sigsegv_debug_test.rs"
 
 [dependencies]
 

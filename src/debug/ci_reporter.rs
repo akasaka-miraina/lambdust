@@ -326,6 +326,7 @@ impl CiReporter {
                 libc::SIGABRT => "SIGABRT (Abort)",
                 libc::SIGILL => "SIGILL (Illegal Instruction)",
                 libc::SIGFPE => "SIGFPE (Floating Point Exception)",
+                #[cfg(not(windows))]
                 libc::SIGBUS => "SIGBUS (Bus Error)",
                 -1 => "PANIC",
                 _ => "Unknown Signal",
