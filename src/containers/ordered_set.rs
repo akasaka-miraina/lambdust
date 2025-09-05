@@ -22,7 +22,32 @@ enum Color {
 
 /// Node in the red-black tree with platform-specific alignment
 #[derive(Clone, Debug)]
-#[repr(align(16))] // Force 16-byte alignment for cross-platform compatibility
+#[cfg(target_arch = "aarch64")]
+#[repr(align(16))] // ARM64 requires 16-byte alignment for optimal SIMD operations
+struct Node {
+    value: Value,
+    color: Color,
+    left: Option<Arc<Node>>,
+    right: Option<Arc<Node>>,
+    size: usize,
+}
+
+/// Node in the red-black tree with platform-specific alignment for x86_64
+#[derive(Clone, Debug)]
+#[cfg(target_arch = "x86_64")]
+#[repr(align(8))] // x86_64 uses 8-byte alignment, CI environment compatible
+struct Node {
+    value: Value,
+    color: Color,
+    left: Option<Arc<Node>>,
+    right: Option<Arc<Node>>,
+    size: usize,
+}
+
+/// Node in the red-black tree with default alignment for other architectures
+#[derive(Clone, Debug)]
+#[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
+#[repr(align(8))] // Default 8-byte alignment for compatibility
 struct Node {
     value: Value,
     color: Color,
@@ -123,12 +148,43 @@ impl Node {
         let node_ptr = node as *const Self;
         let address = node_ptr as usize;
         
+        // Platform-specific alignment validation
+        let required_alignment = mem::align_of::<Self>();
+        
+        #[cfg(target_arch = "aarch64")]
+        {
+            // ARM64 requires 16-byte alignment for optimal performance
+            if address % 16 != 0 {
+                return Err(SafetyViolation::UnalignedAccess {
+                    address,
+                    required_alignment: 16,
+                    actual_alignment: address & 15,
+                    function: "Node::validate_node_alignment (ARM64)",
+                    line: line!(),
+                });
+            }
+        }
+        
+        #[cfg(target_arch = "x86_64")]
+        {
+            // x86_64 CI environments require 8-byte alignment
+            if address % 8 != 0 {
+                return Err(SafetyViolation::UnalignedAccess {
+                    address,
+                    required_alignment: 8,
+                    actual_alignment: address & 7,
+                    function: "Node::validate_node_alignment (x86_64)",
+                    line: line!(),
+                });
+            }
+        }
+        
         // Check basic alignment requirements
         if !is_platform_aligned(address, mem::size_of::<Self>()) {
             return Err(SafetyViolation::UnalignedAccess {
                 address,
-                required_alignment: mem::align_of::<Self>(),
-                actual_alignment: address & (address - 1),
+                required_alignment,
+                actual_alignment: address & (required_alignment - 1),
                 function: "Node::validate_node_alignment",
                 line: line!(),
             });
@@ -136,7 +192,14 @@ impl Node {
         
         // Check SIMD alignment for performance-critical operations
         if !validate_simd_alignment(address) {
-            eprintln!("Warning: Node at 0x{:016x} may not be optimally aligned for SIMD operations", address);
+            let platform_info = if cfg!(target_arch = "aarch64") {
+                "ARM64"
+            } else if cfg!(target_arch = "x86_64") {
+                "x86_64" 
+            } else {
+                "generic"
+            };
+            eprintln!("Warning: Node at 0x{:016x} may not be optimally aligned for SIMD operations on {}", address, platform_info);
         }
         
         // Validate using the global validator if available
@@ -234,7 +297,27 @@ impl RedBlackTree {
                         match Node::new_with_children(
                             n.value.clone(),
                             n.color,
-                            new_left.map(Arc::new),
+                            new_left.map(|node| {
+                                // Additional safety check before Arc allocation
+                                if let Some(validator) = get_validator() {
+                                    let node_ptr = &node as *const Node;
+                                    match validator.validate_ptr_deref(node_ptr, file!(), line!()) {
+                                        Ok(_) => Arc::new(node),
+                                        Err(_) => {
+                                            eprintln!("Warning: Arc allocation skipped due to validation failure");
+                                            return Arc::new(Node {
+                                                value: n.value.clone(),
+                                                color: Color::Red,
+                                                left: None,
+                                                right: None,
+                                                size: 1,
+                                            });
+                                        }
+                                    }
+                                } else {
+                                    Arc::new(node)
+                                }
+                            }),
                             n.right.clone(),
                         ) {
                             Ok(mut new_node) => {
@@ -253,7 +336,27 @@ impl RedBlackTree {
                             n.value.clone(),
                             n.color,
                             n.left.clone(),
-                            new_right.map(Arc::new),
+                            new_right.map(|node| {
+                                // Additional safety check before Arc allocation
+                                if let Some(validator) = get_validator() {
+                                    let node_ptr = &node as *const Node;
+                                    match validator.validate_ptr_deref(node_ptr, file!(), line!()) {
+                                        Ok(_) => Arc::new(node),
+                                        Err(_) => {
+                                            eprintln!("Warning: Arc allocation skipped due to validation failure");
+                                            return Arc::new(Node {
+                                                value: n.value.clone(),
+                                                color: Color::Red,
+                                                left: None,
+                                                right: None,
+                                                size: 1,
+                                            });
+                                        }
+                                    }
+                                } else {
+                                    Arc::new(node)
+                                }
+                            }),
                         ) {
                             Ok(mut new_node) => {
                                 new_node = self.fix_up(new_node);
@@ -411,7 +514,21 @@ impl RedBlackTree {
                 new_right,
             ) {
                 Ok(new_left_node) => {
-                    new_root.left = Some(Arc::new(new_left_node));
+                    // Additional safety check before Arc allocation in rotation
+                    if let Some(validator) = get_validator() {
+                        let node_ptr = &new_left_node as *const Node;
+                        match validator.validate_ptr_deref(node_ptr, file!(), line!()) {
+                            Ok(_) => {
+                                new_root.left = Some(Arc::new(new_left_node));
+                            }
+                            Err(_) => {
+                                eprintln!("Warning: Arc allocation failed in rotate_left due to validation failure");
+                                new_root.left = None;
+                            }
+                        }
+                    } else {
+                        new_root.left = Some(Arc::new(new_left_node));
+                    }
                 }
                 Err(e) => {
                     eprintln!("Failed to create node in rotate_left: {:?}", e);
@@ -438,7 +555,21 @@ impl RedBlackTree {
                 node.right,
             ) {
                 Ok(new_right_node) => {
-                    new_root.right = Some(Arc::new(new_right_node));
+                    // Additional safety check before Arc allocation in rotation
+                    if let Some(validator) = get_validator() {
+                        let node_ptr = &new_right_node as *const Node;
+                        match validator.validate_ptr_deref(node_ptr, file!(), line!()) {
+                            Ok(_) => {
+                                new_root.right = Some(Arc::new(new_right_node));
+                            }
+                            Err(_) => {
+                                eprintln!("Warning: Arc allocation failed in rotate_right due to validation failure");
+                                new_root.right = None;
+                            }
+                        }
+                    } else {
+                        new_root.right = Some(Arc::new(new_right_node));
+                    }
                 }
                 Err(e) => {
                     eprintln!("Failed to create node in rotate_right: {:?}", e);

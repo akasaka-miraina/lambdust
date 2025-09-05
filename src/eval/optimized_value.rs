@@ -438,6 +438,7 @@ impl OptimizedValue {
     pub fn as_number(&self) -> Option<f64> {
         match self.tag {
             ValueTag::Fixnum => {
+                // Immediate values are memory safe - no heap allocation involved
                 let n = unsafe { self.data.immediate as i32 };
                 Some(n as f64)
             }
@@ -458,6 +459,7 @@ impl OptimizedValue {
     pub fn as_integer(&self) -> Option<i64> {
         match self.tag {
             ValueTag::Fixnum => {
+                // Immediate values are memory safe - no heap allocation involved
                 let n = unsafe { self.data.immediate as i32 };
                 Some(n as i64)
             }
@@ -619,8 +621,10 @@ impl fmt::Debug for OptimizedValue {
             }
             ValueTag::Unspecified => write!(f, "#<unspecified>"),
             _ => {
-                let obj = unsafe { &*self.data.ptr };
-                obj.fmt_obj(f)
+                match self.safe_get_obj() {
+                    Ok(obj) => obj.fmt_obj(f),
+                    Err(_) => write!(f, "#<invalid-object>")
+                }
             }
         }
     }
