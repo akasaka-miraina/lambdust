@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Tests for SRFI-9 direct implementation (non-macro approach)
 
 use lambdust::Lambdust;

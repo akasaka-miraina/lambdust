@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Basic tests for SRFI-41 Streams implementation.
 //!
 //! This test suite validates the core functionality of the SRFI-41 streams

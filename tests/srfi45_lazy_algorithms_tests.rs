@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Comprehensive tests for SRFI-45 (Primitives for Expressing Iterative Lazy Algorithms)
 //!
 //! This test suite verifies the correct implementation of SRFI-45 lazy evaluation

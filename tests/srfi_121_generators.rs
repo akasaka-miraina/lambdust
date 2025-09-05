@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Tests for SRFI-121: Generators implementation
 //!
 //! This module provides comprehensive tests for the SRFI-121 generators

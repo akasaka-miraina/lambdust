@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Comprehensive test suite for SRFI-8 receive implementation
 //!
 //! This test suite verifies the correct implementation of SRFI-8 `receive` syntax

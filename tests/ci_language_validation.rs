@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! CI-Optimized Language Processing Validation
 //!
 //! Fast, lightweight tests that validate core language semantics 
@@ -5,6 +6,7 @@
 //! Designed for CI environments with limited time/memory constraints.
 
 #![cfg(test)]
+#![allow(clippy::uninlined_format_args)]
 
 use lambdust::eval::{SafeOptimizedValue, SafeEnvironment, SafeSymbolTable, LegacyValueBridge, Value};
 use lambdust::utils::SymbolId;

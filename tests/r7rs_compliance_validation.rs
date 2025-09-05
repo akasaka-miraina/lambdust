@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! R7RS Compliance Validation for SIGSEGV Resolution
 //!
 //! This module provides comprehensive validation that memory safety fixes preserve
@@ -13,12 +14,15 @@
 //! 6. List Structure Preservation (proper lists, dotted pairs)
 
 #![allow(missing_docs)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::type_complexity)]
+#![allow(deprecated)]
+#![allow(clippy::legacy_numeric_constants)]
 #![cfg(test)]
 
 use lambdust::ast::Literal;
 use lambdust::eval::{Value, LegacyValueBridge};
 use lambdust::utils::SymbolId;
-use std::collections::HashMap;
 
 /// R7RS Compliance Test Suite for Memory Safety Migration
 ///
@@ -62,12 +66,11 @@ impl R7RSComplianceValidator {
 
         match (opt_id1, opt_id2) {
             (Some(id1), Some(id2)) if id1 == id2 => {
-                println!("✅ Symbol identity preserved: {:?} == {:?}", id1, id2);
+                println!("✅ Symbol identity preserved: {id1:?} == {id2:?}");
                 Ok(())
             }
             _ => Err(format!(
-                "SafeOptimizedValue failed to preserve symbol identity: {:?} vs {:?}",
-                opt_id1, opt_id2
+                "SafeOptimizedValue failed to preserve symbol identity: {opt_id1:?} vs {opt_id2:?}"
             )),
         }
     }
@@ -92,13 +95,11 @@ impl R7RSComplianceValidator {
         let result_num = opt_result.as_integer().ok_or("Failed to extract result value")?;
 
         if outer_num == 100 && inner_num == 200 && result_num == 201 {
-            println!("✅ Lexical scoping values preserved: outer={}, inner={}, result={}", 
-                     outer_num, inner_num, result_num);
+            println!("✅ Lexical scoping values preserved: outer={outer_num}, inner={inner_num}, result={result_num}");
             Ok(())
         } else {
             Err(format!(
-                "Lexical scoping validation failed: expected (100, 200, 201), got ({}, {}, {})",
-                outer_num, inner_num, result_num
+                "Lexical scoping validation failed: expected (100, 200, 201), got ({outer_num}, {inner_num}, {result_num})"
             ))
         }
     }

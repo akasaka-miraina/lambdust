@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Tests for SRFI-0 cond-expand implementation.
 //!
 //! This module tests the parsing and basic functionality of

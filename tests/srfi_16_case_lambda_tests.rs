@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! SRFI-16 (case-lambda) Comprehensive Test Suite
 //!
 //! This module provides comprehensive tests for SRFI-16 compliance,

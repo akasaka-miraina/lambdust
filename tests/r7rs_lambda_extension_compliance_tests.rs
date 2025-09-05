@@ -1,3 +1,6 @@
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::collapsible_match)]
+#![allow(clippy::useless_vec)]
 //! R7RS Lambda構文拡張適合性テストスイート
 //!
 //! このモジュールはLambdust Phase 2のLambda構文拡張 `(lambda (x : τ) expr)` の

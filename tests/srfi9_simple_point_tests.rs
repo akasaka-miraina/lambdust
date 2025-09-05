@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Tests for SRFI-9 simple point implementation
 
 use lambdust::Lambdust;

@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Tests for SRFI-31: A special form `rec` for recursive evaluation
 #![allow(unused_variables)]
 //!

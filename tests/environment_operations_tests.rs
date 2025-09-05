@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Comprehensive tests for environment operations and R7RS (scheme eval) compliance.
 
 use lambdust::eval::{ThreadSafeEnvironment, Value};

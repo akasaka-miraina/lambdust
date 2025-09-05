@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Demonstration of Strong Normalization and Church-Rosser property verification.
 //!
 //! This example shows how to use Lambdust's termination analysis system to verify

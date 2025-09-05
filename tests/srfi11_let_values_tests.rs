@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Comprehensive test suite for SRFI-11: let-values
 //!
 //! This module provides comprehensive testing for the SRFI-11 implementation,

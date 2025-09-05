@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Comprehensive tests for SRFI-14 Character Sets implementation.
 //!
 //! This test suite validates the complete SRFI-14 implementation in Lambdust,

@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! R7RS-small compliance test suite.
 //!
 //! This module tests the essential R7RS-small primitives to ensure they work correctly

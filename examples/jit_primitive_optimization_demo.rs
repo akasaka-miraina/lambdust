@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Demonstration of JIT primitive generalization benefits.
 //!
 //! This example shows the dramatic improvements in code size, maintainability,

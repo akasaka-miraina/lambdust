@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Comprehensive SIGSEGV debugging test suite
 //!
 //! This test module runs the complete platform-specific test suite and
@@ -23,7 +24,7 @@ mod sigsegv_tests {
                 println!("✓ Runtime monitoring initialized successfully");
             }
             Err(e) => {
-                panic!("Runtime monitoring initialization failed: {}", e);
+                panic!("Runtime monitoring initialization failed: {e}");
             }
         }
     }
@@ -43,10 +44,10 @@ mod sigsegv_tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        let report_filename = format!("platform_test_results_{}.txt", timestamp);
+        let report_filename = format!("platform_test_results_{timestamp}.txt");
         
         if let Err(e) = write_platform_test_report(&results, &report_filename) {
-            eprintln!("Warning: Failed to write platform test report: {}", e);
+            eprintln!("Warning: Failed to write platform test report: {e}");
         }
         
         // Print summary to stdout
@@ -84,7 +85,7 @@ mod sigsegv_tests {
         if !all_issues.is_empty() {
             println!("Detected Issues:");
             for issue in &all_issues {
-                println!("  - {}", issue);
+                println!("  - {issue}");
             }
         }
         
@@ -102,7 +103,7 @@ mod sigsegv_tests {
                 }
             }
             TestStatus::CriticalFailures => {
-                panic!("❌ Critical failures detected in platform tests. See {} for details.", report_filename);
+                panic!("❌ Critical failures detected in platform tests. See {report_filename} for details.");
             }
         }
     }
@@ -132,7 +133,7 @@ mod sigsegv_tests {
         
         match test_immediate_values() {
             Ok(()) => {}
-            Err(e) => panic!("Immediate OptimizedValue test failed: {}", e),
+            Err(e) => panic!("Immediate OptimizedValue test failed: {e}"),
         }
         
         // Test heap-allocated values (the source of SIGSEGV issues)
@@ -141,7 +142,7 @@ mod sigsegv_tests {
             let _string_content = string_val.as_string()
                 .ok_or("Failed to extract string content")?;
             
-            let number_val = OptimizedValue::number(3.14159);
+            let number_val = OptimizedValue::number(std::f64::consts::PI);
             let _number_content = number_val.as_number()
                 .ok_or("Failed to extract number content")?;
             
@@ -158,7 +159,7 @@ mod sigsegv_tests {
                 println!("✅ OptimizedValue safety test passed!");
             }
             Err(e) => {
-                panic!("❌ OptimizedValue heap operations failed: {}", e);
+                panic!("❌ OptimizedValue heap operations failed: {e}");
             }
         }
     }
@@ -203,8 +204,8 @@ mod sigsegv_tests {
                 return Err("String inequality failed".into());
             }
             
-            let num1 = OptimizedValue::number(3.14);
-            let num2 = OptimizedValue::number(3.14);
+            let num1 = OptimizedValue::number(std::f64::consts::PI);
+            let num2 = OptimizedValue::number(std::f64::consts::PI);
             let num3 = OptimizedValue::number(2.71);
             
             if num1 != num2 {
@@ -223,7 +224,7 @@ mod sigsegv_tests {
                 println!("✅ OptimizedValue equality safety test passed!");
             }
             Err(e) => {
-                panic!("❌ OptimizedValue equality operations failed: {}", e);
+                panic!("❌ OptimizedValue equality operations failed: {e}");
             }
         }
     }
@@ -235,11 +236,11 @@ mod sigsegv_tests {
         println!("Testing memory alignment requirements...");
         
         // Test basic alignment requirements
-        let test_data = vec![0u8; 64];
+        let test_data = [0u8; 64];
         let ptr = test_data.as_ptr();
         let address = ptr as usize;
         
-        println!("Test data address: 0x{:016x}", address);
+        println!("Test data address: 0x{address:016x}");
         
         // Check platform alignment for different sizes
         let alignment_tests = vec![
@@ -252,17 +253,17 @@ mod sigsegv_tests {
         
         for (alignment, name) in alignment_tests {
             let aligned = is_platform_aligned(address, alignment);
-            println!("  {} alignment ({}): {}", name, alignment, aligned);
+            println!("  {name} alignment ({alignment}): {aligned}");
             
             // For basic types, we expect alignment to work
             if alignment <= 8 && !aligned {
-                panic!("Basic alignment failed for {}", name);
+                panic!("Basic alignment failed for {name}");
             }
         }
         
         // Test SIMD alignment specifically
         let simd_aligned = validate_simd_alignment(address);
-        println!("  SIMD alignment validation: {}", simd_aligned);
+        println!("  SIMD alignment validation: {simd_aligned}");
         
         // Test with a properly aligned allocation
         #[repr(align(16))]
@@ -272,10 +273,10 @@ mod sigsegv_tests {
         let aligned_ptr = aligned_data.0.as_ptr();
         let aligned_address = aligned_ptr as usize;
         
-        println!("Aligned data address: 0x{:016x}", aligned_address);
+        println!("Aligned data address: 0x{aligned_address:016x}");
         
         if aligned_address % 16 != 0 {
-            panic!("16-byte aligned allocation not properly aligned: 0x{:016x}", aligned_address);
+            panic!("16-byte aligned allocation not properly aligned: 0x{aligned_address:016x}");
         }
         
         let simd_ok = validate_simd_alignment(aligned_address);
@@ -301,7 +302,7 @@ mod sigsegv_tests {
                 println!("✅ Monitoring report generated successfully");
             }
             Err(e) => {
-                eprintln!("Warning: Failed to generate monitoring report: {}", e);
+                eprintln!("Warning: Failed to generate monitoring report: {e}");
                 // Don't fail the test for report generation issues
             }
         }
@@ -355,7 +356,7 @@ mod integration_tests {
                 println!("✅ All critical operations completed without SIGSEGV!");
             }
             Err(e) => {
-                panic!("❌ Critical operations failed: {}", e);
+                panic!("❌ Critical operations failed: {e}");
             }
         }
         

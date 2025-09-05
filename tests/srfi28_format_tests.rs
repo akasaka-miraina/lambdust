@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Tests for SRFI-28: Basic format strings implementation
 
 use lambdust::Lambdust;

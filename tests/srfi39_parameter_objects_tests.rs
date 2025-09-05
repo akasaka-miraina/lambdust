@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Comprehensive tests for SRFI-39 Parameter Objects implementation.
 //!
 //! This test suite verifies both correctness and performance of the parameter system,

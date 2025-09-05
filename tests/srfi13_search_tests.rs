@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! Tests for SRFI-13 String Libraries - Search operations
 
 use lambdust::Lambdust;
