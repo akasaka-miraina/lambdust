@@ -15,6 +15,12 @@ services:
     command: /bin/bash
     stdin_open: true
     tty: true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /var/tmp:noexec,nosuid,size=50m
+    security_opt:
+      - no-new-privileges:true
 
   memory-safety:
     build:
@@ -32,10 +38,16 @@ services:
     command: /bin/bash
     stdin_open: true
     tty: true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /var/tmp:noexec,nosuid,size=50m
+      - /workspace/.cargo/registry:noexec,nosuid,size=200m
     cap_add:
       - SYS_PTRACE
     security_opt:
-      - seccomp:unconfined
+      - no-new-privileges:true
+      # Keep seccomp:unconfined for memory safety debugging tools
 
   performance-validation:
     build:
@@ -53,3 +65,9 @@ services:
     command: /bin/bash
     stdin_open: true
     tty: true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /var/tmp:noexec,nosuid,size=50m
+    security_opt:
+      - no-new-privileges:true
