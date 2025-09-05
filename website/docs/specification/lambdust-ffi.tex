@@ -1,0 +1,738 @@
+%% Foreign Function Interface
+\chapter{Foreign Function Interface}
+\label{ch:ffi}
+
+Lambdust provides a memory-safe, capability-based Foreign Function Interface (FFI) for interoperating with C libraries while maintaining type safety and security through static analysis and runtime checks.
+
+\section{FFI Overview}
+\label{sec:ffi-overview}
+
+The FFI system provides:
+
+\begin{itemize}
+\item \textbf{Type Safety}: Foreign function signatures are statically checked
+\item \textbf{Memory Safety}: Automatic marshaling prevents buffer overflows and dangling pointers  
+\item \textbf{Capability Security}: Access to foreign functions requires explicit capabilities
+\item \textbf{Error Handling}: Foreign function errors are converted to Scheme exceptions
+\item \textbf{Garbage Collection Integration}: Foreign pointers are tracked by the GC
+\end{itemize}
+
+\section{Foreign Declarations}
+\label{sec:foreign-declarations}
+
+\indexentry{foreign declaration}
+\indexentry{foreign-declare}
+
+Foreign functions must be declared before use:
+
+\begin{grammar}
+\production{\var{foreign-declaration}}{\produces}{(foreign-declare \var{library} \arbno{\var{binding}})}{}
+\\
+\production{\var{binding}}{\produces}{(\var{name} :: \var{foreign-type})}{}
+\\
+\production{\var{foreign-type}}{\produces}{(-> \arbno{\var{c-type}} \var{c-type})}{}
+\end{grammar}
+
+\begin{example}[Foreign Declarations]
+\begin{lambdustcode}
+;; Math library functions
+(foreign-declare "libm.so"
+  (sin :: (-> Float64 Float64))
+  (cos :: (-> Float64 Float64))
+  (sqrt :: (-> Float64 Float64))
+  (pow :: (-> Float64 Float64 Float64)))
+
+;; String functions
+(foreign-declare "libc.so" 
+  (strlen :: (-> CString Size))
+  (strcmp :: (-> CString CString Int32))
+  (strdup :: (-> CString CString))
+  (free :: (-> Pointer Void)))
+
+;; File I/O
+(foreign-declare "libc.so"
+  (fopen :: (-> CString CString FilePointer))
+  (fclose :: (-> FilePointer Int32))  
+  (fread :: (-> Pointer Size Size FilePointer Size))
+  (fwrite :: (-> Pointer Size Size FilePointer Size)))
+
+;; System calls
+(foreign-declare "libc.so"
+  (getpid :: (-> Void Int32))
+  (getenv :: (-> CString CString))
+  (setenv :: (-> CString CString Int32 Int32)))
+
+;; Custom library
+(foreign-declare "./mylib.so"
+  (my-function :: (-> Int32 Int32 Int32))
+  (init-library :: (-> Void Int32))
+  (cleanup-library :: (-> Void Void)))
+\end{lambdustcode}
+\end{example}
+
+\section{C Type System}
+\label{sec:c-types}
+
+\indexentry{C types}
+\indexentry{type marshaling}
+
+The FFI supports comprehensive C type mapping:
+
+\section{Primitive Types}
+\label{sec:primitive-c-types}
+
+\onecolumn
+\begin{table}[H]
+\centering
+\caption{C Type Mapping}
+\label{tab:c-types}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{C Type} & \textbf{Lambdust Type} & \textbf{Description} \\
+\hline
+\code{void} & \code{Void} & No value \\
+\code{char} & \code{Int8} & 8-bit signed integer \\
+\code{unsigned char} & \code{UInt8} & 8-bit unsigned integer \\
+\code{short} & \code{Int16} & 16-bit signed integer \\
+\code{unsigned short} & \code{UInt16} & 16-bit unsigned integer \\
+\code{int} & \code{Int32} & 32-bit signed integer \\
+\code{unsigned int} & \code{UInt32} & 32-bit unsigned integer \\
+\code{long long} & \code{Int64} & 64-bit signed integer \\
+\code{unsigned long long} & \code{UInt64} & 64-bit unsigned integer \\
+\code{float} & \code{Float32} & 32-bit floating-point \\
+\code{double} & \code{Float64} & 64-bit floating-point \\
+\code{size\_t} & \code{Size} & Architecture-dependent size \\
+\code{char*} & \code{CString} & Null-terminated string \\
+\code{void*} & \code{Pointer} & Generic pointer \\
+\hline
+\end{tabular}
+\end{table}
+\twocolumn
+
+\section{Compound Types}
+\label{sec:compound-c-types}
+
+\begin{example}[Compound C Types]
+\begin{lambdustcode}
+;; Array types
+(define-c-type (Array n T) (* T))   ; T[n] in C
+
+;; Structure types
+(define-c-struct Point  
+  (x :: Float64)
+  (y :: Float64))
+
+(define-c-struct Person
+  (name :: CString)
+  (age :: Int32)
+  (height :: Float64))
+
+;; Union types  
+(define-c-union Value
+  (i :: Int32)
+  (f :: Float64)
+  (s :: CString))
+
+;; Function pointer types
+(define-c-type Callback (-> Int32 Int32))
+(define-c-type CompareFunction (-> Pointer Pointer Int32))
+
+;; Opaque pointer types (for library handles)
+(define-c-opaque-type FileHandle)
+(define-c-opaque-type DatabaseConnection)
+
+;; Declarations using compound types
+(foreign-declare "graphics.so"
+  (draw-point :: (-> Point Void))
+  (distance :: (-> Point Point Float64))
+  (make-person :: (-> CString Int32 Float64 Person))
+  (print-person :: (-> Person Void)))
+
+(foreign-declare "libc.so"
+  (qsort :: (-> Pointer Size Size CompareFunction Void)))
+\end{lambdustcode}
+\end{example}
+
+\section{Function Calls}
+\label{sec:ffi-calls}
+
+\indexentry{foreign-call}
+\indexentry{with-capability}
+
+Foreign functions are called through the capability system:
+
+\begin{grammar}
+\production{\var{foreign-call}}{\produces}{(foreign-call \var{function-name} \arbno{\var{argument}})}{}
+\production{}{\alternative}{(with-capability \var{capability-name} \var{body})}{}
+\end{grammar}
+
+\begin{example}[Foreign Function Calls]
+\begin{lambdustcode}
+;; Basic function calls with capabilities
+(with-capability 'math-library
+  (lambda ()
+    (let ((x 2.0))
+      (display "sin(2) = ") 
+      (display (foreign-call sin x)) 
+      (newline))))
+
+;; String operations  
+(with-capability 'libc
+  (lambda ()
+    (let ((str1 "Hello")
+          (str2 "World"))
+      (let ((len1 (foreign-call strlen str1))
+            (cmp (foreign-call strcmp str1 str2)))
+        (display "Length: ") (display len1) (newline)
+        (display "Compare: ") (display cmp) (newline)))))
+
+;; File operations with error handling
+(define (read-file-contents filename)
+  (with-capability 'file-io
+    (lambda ()
+      (let ((file (foreign-call fopen filename "r")))
+        (if (null-pointer? file)
+            (error "Cannot open file" filename)
+            (begin
+              ;; Read file contents
+              (let ((buffer (allocate-buffer 1024)))
+                (let ((bytes-read (foreign-call fread buffer 1 1024 file)))
+                  (foreign-call fclose file)
+                  (buffer->string buffer bytes-read)))))))))
+
+;; Callback functions
+(define (my-compare-function :: CompareFunction)
+  (lambda (a-ptr b-ptr)
+    (let ((a (pointer->int32 a-ptr))
+          (b (pointer->int32 b-ptr)))
+      (cond ((< a b) -1)
+            ((> a b) 1)
+            (else 0)))))
+
+;; Use callback with foreign function
+(with-capability 'libc
+  (lambda ()  
+    (let ((array (list->c-array '(3 1 4 1 5 9 2 6))))
+      (foreign-call qsort array 8 4 my-compare-function)
+      (c-array->list array 8))))
+\end{lambdustcode}
+\end{example}
+
+\section{Memory Management}
+\label{sec:ffi-memory}
+
+\indexentry{memory management}
+\indexentry{garbage collection}
+
+The FFI provides safe memory management:
+
+\section{Automatic Memory Management}
+\label{sec:auto-memory}
+
+\begin{example}[Automatic Memory Management]
+\begin{lambdustcode}
+;; Automatic string marshaling
+(define (safe-string-length str)
+  (with-capability 'libc
+    (lambda ()
+      ;; String automatically converted to C string
+      ;; Memory automatically managed
+      (foreign-call strlen str))))
+
+;; Automatic cleanup with finalizers
+(define (allocate-managed-buffer size)
+  (let ((ptr (foreign-call malloc size)))
+    (if (null-pointer? ptr)
+        (error "Allocation failed")
+        (begin
+          ;; Register finalizer to free memory
+          (register-finalizer! ptr (lambda (p) (foreign-call free p)))
+          ptr))))
+
+;; RAII-style resource management
+(define-syntax with-file
+  (syntax-rules ()
+    ((with-file (var filename mode) body ...)
+     (let ((var (foreign-call fopen filename mode)))
+       (if (null-pointer? var)
+           (error "Cannot open file" filename)
+           (dynamic-wind
+             (lambda () #f)           ; Setup (already done)
+             (lambda () body ...)     ; Body
+             (lambda ()               ; Cleanup
+               (when (not (null-pointer? var))
+                 (foreign-call fclose var)))))))))
+
+;; Usage
+(with-file (file "data.txt" "r")
+  (let ((buffer (allocate-buffer 1024)))
+    (foreign-call fread buffer 1 1024 file)
+    (buffer->string buffer)))
+\end{lambdustcode}
+\end{example}
+
+\section{Manual Memory Management}
+\label{sec:manual-memory}
+
+\begin{example}[Manual Memory Management]
+\begin{lambdustcode}
+;; Explicit allocation and deallocation
+(define (manual-buffer-operations)
+  (with-capability 'libc
+    (lambda ()
+      (let ((buffer (foreign-call malloc 1024)))
+        (if (null-pointer? buffer)
+            (error "Allocation failed")
+            (begin
+              ;; Use buffer
+              (foreign-call memset buffer 0 1024)
+              (let ((result (process-buffer buffer)))
+                ;; Explicit cleanup
+                (foreign-call free buffer)
+                result)))))))
+
+;; Reference counting for shared resources
+(define-struct shared-resource (ptr refcount))
+
+(define (acquire-shared-resource ptr)
+  (let ((resource (make-shared-resource ptr 1)))
+    (register-finalizer! resource release-shared-resource)
+    resource))
+
+(define (retain-shared-resource resource)
+  (set-shared-resource-refcount! resource 
+    (+ (shared-resource-refcount resource) 1)))
+
+(define (release-shared-resource resource)
+  (let ((new-count (- (shared-resource-refcount resource) 1)))
+    (set-shared-resource-refcount! resource new-count)
+    (when (= new-count 0)
+      (foreign-call free (shared-resource-ptr resource)))))
+
+;; Stack-allocated structures
+(define-syntax with-stack-struct
+  (syntax-rules ()
+    ((with-stack-struct (var struct-type) body ...)
+     (let ((var (allocate-stack struct-type)))
+       body ...))))  ; Automatically freed when scope exits
+
+;; Usage
+(with-stack-struct (point Point)
+  (set-point-x! point 3.0)
+  (set-point-y! point 4.0)
+  (foreign-call draw-point point))
+\end{lambdustcode}
+\end{example}
+
+\section{Capability System}
+\label{sec:capabilities}
+
+\indexentry{capability}
+\indexentry{security}
+
+The capability system provides fine-grained access control:
+
+\section{Capability Declaration}
+\label{sec:capability-declaration}
+
+\begin{example}[Capability Declaration]
+\begin{lambdustcode}
+;; Define capabilities with permissions
+(define-capability math-library
+  (libraries "libm.so")
+  (functions sin cos tan sqrt pow log exp)
+  (memory-limit 0)      ; No heap allocation
+  (file-access none))   ; No file system access
+
+(define-capability file-io  
+  (libraries "libc.so")
+  (functions fopen fclose fread fwrite fseek ftell)
+  (memory-limit 1048576)    ; 1MB heap limit
+  (file-access read-write)  ; Full file access
+  (paths "/tmp/*" "/var/data/*"))  ; Restrict to specific paths
+
+(define-capability network-client
+  (libraries "libc.so" "libssl.so")
+  (functions socket connect send recv ssl_connect)
+  (memory-limit 10485760)   ; 10MB heap limit
+  (network-access client)   ; Client connections only
+  (domains "*.example.com" "api.service.org"))
+
+(define-capability database
+  (libraries "libpq.so")
+  (functions PQconnectdb PQexec PQfinish PQgetvalue)
+  (memory-limit 52428800)   ; 50MB heap limit
+  (network-access client)
+  (domains "db.internal.com"))
+
+;; Capability inheritance
+(define-capability full-application
+  (inherits file-io network-client database)
+  (additional-functions my-custom-function))
+\end{lambdustcode}
+\end{example}
+
+\section{Capability Usage}
+\label{sec:capability-usage}
+
+\begin{example}[Capability Usage]
+\begin{lambdustcode}
+;; Function requiring specific capabilities
+(define (process-data-file :: (-> String ~> {FFI[file-io]} String))
+  (lambda (filename)
+    (with-capability 'file-io
+      (lambda ()
+        (with-file (file filename "r")
+          (let ((buffer (allocate-buffer 4096)))
+            (let ((bytes-read (foreign-call fread buffer 1 4096 file)))
+              (let ((content (buffer->string buffer bytes-read)))
+                (string-upcase content)))))))))
+
+;; Capability-polymorphic function
+(define (generic-computation :: (Pi (C : Capability) (-> Unit ~> {FFI[C]} Natural)))
+  (lambda (C)
+    (lambda ()
+      (with-capability C
+        (lambda ()
+          ;; Can only use functions allowed by capability C
+          (computation-using-capability C))))))
+
+;; Capability delegation
+(define (delegate-capability child-capability parent-capability operation)
+  (with-capability parent-capability
+    (lambda ()
+      (with-restricted-capability child-capability  ; Subset of parent
+        (lambda ()
+          (operation))))))
+
+;; Dynamic capability checking
+(define (safe-operation capability-name)
+  (if (capability-available? capability-name)
+      (with-capability capability-name
+        (lambda () (perform-operation)))
+      (error "Required capability not available" capability-name)))
+
+;; Temporary capability elevation
+(define (elevated-operation)
+  (with-temporary-capability 'admin-access 300  ; 5 minute timeout
+    (lambda ()
+      (perform-admin-task))))
+\end{lambdustcode}
+\end{example}
+
+\section{Error Handling}
+\label{sec:ffi-errors}
+
+\indexentry{error handling}
+\indexentry{exception mapping}
+
+The FFI converts C errors to Scheme exceptions:
+
+\begin{example}[Error Handling]
+\begin{lambdustcode}
+;; Automatic error checking
+(define (safe-file-operation filename)
+  (with-capability 'file-io
+    (lambda ()
+      (with-ffi-error-handling
+        (lambda ()
+          (let ((file (foreign-call fopen filename "r")))
+            ;; Null pointer automatically converted to exception
+            (let ((size (foreign-call file-size file)))
+              (foreign-call fclose file)
+              size)))))))
+
+;; Custom error mapping
+(define-ffi-error-map
+  ((null-pointer? fopen) → (file-not-found-error filename))
+  ((< 0 malloc) → (out-of-memory-error size))
+  ((= -1 socket) → (network-error "Cannot create socket")))
+
+;; Error recovery
+(define (robust-network-call)
+  (call/cc 
+    (lambda (escape)
+      (with-exception-handler
+        (lambda (e)
+          (cond 
+            ((network-timeout-error? e)
+             (escape 'timeout))
+            ((network-connection-error? e)
+             (escape 'connection-failed))
+            (else (raise e))))
+        (lambda ()
+          (with-capability 'network-client
+            (lambda () 
+              (foreign-call network-operation))))))))
+
+;; Resource cleanup on error
+(define (safe-resource-operation)
+  (let ((resource #f))
+    (dynamic-wind
+      ;; Acquire resource
+      (lambda ()
+        (set! resource (foreign-call acquire-resource)))
+      ;; Use resource  
+      (lambda ()
+        (if (null-pointer? resource)
+            (error "Resource acquisition failed")
+            (foreign-call use-resource resource)))
+      ;; Always cleanup
+      (lambda ()
+        (when (and resource (not (null-pointer? resource)))
+          (foreign-call release-resource resource))))))
+
+;; Errno handling
+(define (system-call-with-errno operation)
+  (with-capability 'system
+    (lambda ()
+      (foreign-call set-errno 0)  ; Clear errno
+      (let ((result (operation)))
+        (let ((error-code (foreign-call get-errno)))
+          (if (= error-code 0)
+              result
+              (error "System call failed" 
+                     (foreign-call strerror error-code))))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Threading and Concurrency}
+\label{sec:ffi-threading}
+
+\indexentry{FFI threading}
+\indexentry{thread safety}
+
+The FFI handles threading considerations:
+
+\begin{example}[FFI Threading]
+\begin{lambdustcode}
+;; Thread-safe foreign function calls
+(define (thread-safe-operation)
+  (with-capability 'thread-safe-library
+    (lambda ()
+      ;; GIL automatically released for blocking calls
+      (foreign-call-blocking long-running-c-function))))
+
+;; Thread-local foreign state
+(define (thread-local-context)
+  (with-thread-local-capability 'database
+    (lambda ()
+      (let ((conn (foreign-call db-connect)))
+        ;; Connection is thread-local
+        (foreign-call db-query conn "SELECT * FROM table")))))
+
+;; Async foreign function calls  
+(define (async-foreign-call function . args)
+  (future-with-capability 'async-library
+    (lambda ()
+      (apply foreign-call function args))))
+
+;; Usage
+(let ((result-future (async-foreign-call expensive-computation 42)))
+  ;; Do other work
+  (let ((result (await result-future)))
+    (display "Result: ") (display result) (newline)))
+
+;; Callback thread safety
+(define (thread-safe-callback :: CCallback)
+  (lambda (data)
+    (with-scheme-thread-context  ; Ensure proper Scheme context
+      (lambda ()
+        ;; Safe to call Scheme functions from C callback
+        (process-callback-data data)))))
+
+;; Register thread-safe callback
+(with-capability 'event-library
+  (lambda ()
+    (foreign-call register-callback thread-safe-callback)))
+
+;; Foreign function call batching
+(define (batch-foreign-calls operations)
+  (with-capability 'batch-library  
+    (lambda ()
+      ;; Minimize FFI overhead by batching
+      (foreign-call-batch (list->c-array operations)))))
+\end{lambdustcode}
+\end{example}
+
+\section{Platform Integration}
+\label{sec:platform-integration}
+
+\indexentry{platform integration}
+\indexentry{native libraries}
+
+The FFI integrates with platform-specific libraries:
+
+\begin{example}[Platform Integration]
+\begin{lambdustcode}
+;; Platform-specific declarations
+(cond-expand
+  (linux 
+    (foreign-declare "libc.so.6"
+      (epoll-create :: (-> Int32 Int32))
+      (epoll-ctl :: (-> Int32 Int32 Int32 Pointer Int32))))
+  (darwin
+    (foreign-declare "libSystem.dylib"
+      (kqueue :: (-> Void Int32))
+      (kevent :: (-> Int32 Pointer Int32 Pointer Int32 Pointer Int32))))
+  (windows
+    (foreign-declare "kernel32.dll"
+      (CreateEvent :: (-> Pointer Int32 Int32 CString Pointer))
+      (WaitForSingleObject :: (-> Pointer Int32 Int32)))))
+
+;; Cross-platform wrapper
+(define (create-event-loop)
+  (cond-expand
+    (linux (with-capability 'system
+             (lambda () (foreign-call epoll-create 10))))
+    (darwin (with-capability 'system  
+              (lambda () (foreign-call kqueue))))
+    (windows (with-capability 'system
+               (lambda () (foreign-call CreateEvent null-pointer 0 0 null-pointer))))))
+
+;; Dynamic library loading
+(define (load-dynamic-library path)
+  (with-capability 'dynamic-loading
+    (lambda ()
+      (let ((handle (foreign-call dlopen path RTLD-LAZY)))
+        (if (null-pointer? handle)
+            (error "Cannot load library" path (foreign-call dlerror))
+            handle)))))
+
+(define (get-dynamic-symbol handle symbol-name)
+  (with-capability 'dynamic-loading
+    (lambda ()
+      (let ((symbol (foreign-call dlsym handle symbol-name)))
+        (if (null-pointer? symbol)
+            (error "Symbol not found" symbol-name)
+            symbol)))))
+
+;; Plugin system
+(define (load-plugin plugin-path)
+  (let ((handle (load-dynamic-library plugin-path)))
+    (let ((init-fn (get-dynamic-symbol handle "plugin_init"))
+          (process-fn (get-dynamic-symbol handle "plugin_process"))
+          (cleanup-fn (get-dynamic-symbol handle "plugin_cleanup")))
+      (make-plugin handle init-fn process-fn cleanup-fn))))
+
+;; System integration
+(define (integrate-with-system-service service-name)
+  (cond-expand
+    (linux (systemd-integration service-name))
+    (darwin (launchd-integration service-name))  
+    (windows (windows-service-integration service-name))))
+\end{lambdustcode}
+\end{example}
+
+\section{Performance Considerations}
+\label{sec:ffi-performance}
+
+\indexentry{FFI performance}
+\indexentry{optimization}
+
+The FFI is optimized for performance:
+
+\begin{example}[FFI Performance]
+\begin{lambdustcode}
+;; Fast path for simple calls
+(define (optimized-math-call x)
+  ;; Minimal overhead for simple numeric functions
+  (foreign-call-fast sin x))  ; Direct call, no marshaling
+
+;; Bulk operations
+(define (process-large-array data)
+  (with-capability 'compute-library
+    (lambda ()
+      ;; Process entire array in C, avoiding per-element overhead
+      (let ((c-array (scheme-array->c-array data)))
+        (foreign-call process-array-bulk c-array (array-length data))
+        (c-array->scheme-array c-array)))))
+
+;; Memory mapping for large data
+(define (process-large-file filename)
+  (with-capability 'file-io
+    (lambda ()
+      (let ((mapping (foreign-call mmap-file filename)))
+        (foreign-call process-mapped-data mapping)
+        (foreign-call munmap mapping)))))
+
+;; Zero-copy string operations  
+(define (zero-copy-string-operation str)
+  (with-pinned-string str
+    (lambda (c-str)
+      ;; String memory pinned, passed directly to C
+      (foreign-call string-process-in-place c-str))))
+
+;; Inline assembly for critical operations
+(define-inline-asm fast-checksum (data :: Pointer) (size :: Size) :: UInt32
+  "
+  mov %rdi, %rax    ; data pointer
+  mov %rsi, %rcx    ; size  
+  xor %edx, %edx    ; checksum = 0
+  checksum_loop:
+    add (%rax), %edx  ; Add word to checksum
+    add $4, %rax      ; Next word
+    sub $4, %rcx      ; Decrease remaining
+    jnz checksum_loop ; Continue if not zero
+  mov %edx, %eax    ; Return checksum
+  ")
+
+;; SIMD operations via FFI
+(define (simd-vector-add v1 v2)
+  (with-capability 'simd-library
+    (lambda ()
+      ;; Use vectorized instructions for array operations
+      (foreign-call vector-add-simd v1 v2 (vector-length v1)))))
+\end{lambdustcode}
+\end{example}
+
+\section{Security Considerations}
+\label{sec:ffi-security}
+
+\indexentry{FFI security}
+\indexentry{sandboxing}
+
+The FFI includes security measures:
+
+\begin{example}[FFI Security]
+\begin{lambdustcode}
+;; Sandboxed foreign function execution
+(define (sandboxed-computation data)
+  (with-sandbox 'computation-sandbox
+    (lambda ()
+      ;; Limited capabilities, resource limits enforced
+      (with-capability 'restricted-compute
+        (lambda ()
+          (foreign-call untrusted-computation data))))))
+
+;; Input validation
+(define (validated-foreign-call function input)
+  (validate-ffi-input input function)  ; Static + runtime validation
+  (with-capability 'validated-access
+    (lambda ()
+      (foreign-call function input))))
+
+;; Buffer overflow protection  
+(define (safe-buffer-operation buffer size)
+  (with-bounds-checked-buffer buffer size
+    (lambda (safe-buffer)
+      ;; All buffer accesses are bounds-checked
+      (foreign-call process-buffer safe-buffer size))))
+
+;; Capability revocation
+(define temp-capability 
+  (create-temporary-capability 'network-access 300))  ; 5 minutes
+
+;; Revoke capability early if needed
+(when (security-breach-detected?)
+  (revoke-capability! temp-capability))
+
+;; Audit logging
+(with-audit-logging 'foreign-function-calls
+  (lambda ()
+    (foreign-call sensitive-operation)))
+;; All foreign calls logged for security analysis
+\end{lambdustcode}
+\end{example}
+
+The FFI provides powerful integration with native code while maintaining the safety and security properties that make Lambdust suitable for high-assurance applications.

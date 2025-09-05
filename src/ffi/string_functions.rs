@@ -22,7 +22,7 @@ impl FfiFunction for StringLengthFunction {
             documentation: Some("Returns the length of a string.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let s = String::from_lambdust(&args[0])?;
         Ok((s.chars().count() as i64).to_lambdust())
@@ -43,7 +43,7 @@ impl FfiFunction for StringConcatFunction {
             documentation: Some("Concatenates multiple strings together.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let mut result = String::new();
         for arg in args {
@@ -69,7 +69,7 @@ impl FfiFunction for StringUpperFunction {
             documentation: Some("Converts a string to uppercase.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let s = String::from_lambdust(&args[0])?;
         Ok(s.to_uppercase().to_lambdust())
@@ -90,7 +90,7 @@ impl FfiFunction for StringLowerFunction {
             documentation: Some("Converts a string to lowercase.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let s = String::from_lambdust(&args[0])?;
         Ok(s.to_lowercase().to_lambdust())

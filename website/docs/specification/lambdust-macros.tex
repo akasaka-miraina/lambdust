@@ -1,0 +1,671 @@
+%% Macro System Extensions
+\chapter{Macro System Extensions}
+\label{ch:macros}
+
+Lambdust extends the R7RS macro system with additional features for advanced metaprogramming while maintaining full backward compatibility with existing \code{syntax-rules} and \code{syntax-case} macros.
+
+\section{Macro System Overview}
+\label{sec:macro-overview}
+
+Lambdust's macro system provides:
+
+\begin{itemize}
+\item \textbf{R7RS Compatibility}: Full support for \code{syntax-rules} and \code{syntax-case}
+\item \textbf{Procedural Macros}: Macros as first-class procedures
+\item \textbf{Type-Aware Macros}: Integration with the gradual type system
+\item \textbf{Compile-Time Computation}: Evaluation during macro expansion
+\item \textbf{Macro Debugging}: Tools for debugging macro expansion
+\item \textbf{Hygienic Capture}: Safe variable capture mechanisms
+\end{itemize}
+
+\section{R7RS Macro Support}
+\label{sec:r7rs-macros}
+
+\indexentry{syntax-rules}
+\indexentry{syntax-case}
+
+All R7RS macro forms are fully supported:
+
+\subsection{Syntax Rules}
+\label{subsec:syntax-rules}
+
+\begin{example}[Syntax Rules Macros]
+\begin{lambdustcode}
+;; Basic syntax-rules macro
+(define-syntax when
+  (syntax-rules ()
+    ((when test body ...)
+     (if test (begin body ...)))))
+
+;; Pattern matching with literals
+(define-syntax my-cond
+  (syntax-rules (else)
+    ((my-cond (else result))
+     result)
+    ((my-cond (test result))
+     (if test result))
+    ((my-cond (test result) clause ...)
+     (if test result (my-cond clause ...)))))
+
+;; Recursive pattern expansion
+(define-syntax let*
+  (syntax-rules ()
+    ((let* () body ...)
+     (begin body ...))
+    ((let* ((var val) binding ...) body ...)
+     (let ((var val))
+       (let* (binding ...) body ...)))))
+
+;; Complex pattern matching
+(define-syntax match-lambda
+  (syntax-rules ()
+    ((match-lambda (pattern body ...) ...)
+     (lambda (expr)
+       (match expr
+         (pattern body ...) ...)))))
+
+;; Identifier macros
+(define-syntax current-time
+  (syntax-rules ()
+    (current-time (get-current-time))))
+\end{lambdustcode}
+\end{example}
+
+\subsection{Syntax Case}
+\label{subsec:syntax-case}
+
+\begin{example}[Syntax Case Macros]
+\begin{lambdustcode}
+;; Advanced syntax-case macro
+(define-syntax define-class
+  (lambda (stx)
+    (syntax-case stx ()
+      ((define-class name (field ...) method ...)
+       (with-syntax ((constructor (format-id #'name "make-~a" #'name))
+                    ((getter ...) (map (lambda (f) 
+                                        (format-id f "~a-~a" #'name f))
+                                      #'(field ...)))
+                    ((setter ...) (map (lambda (f)
+                                        (format-id f "set-~a-~a!" #'name f))  
+                                      #'(field ...))))
+         #'(begin
+             (define-record-type name
+               (constructor field ...)
+               name?
+               (field getter setter) ...)
+             method ...))))))
+
+;; Macro with compile-time computation  
+(define-syntax compile-time-factorial
+  (lambda (stx)
+    (syntax-case stx ()
+      ((compile-time-factorial n)
+       (number? (syntax->datum #'n))
+       (with-syntax ((result (datum->syntax #'n 
+                               (factorial (syntax->datum #'n)))))
+         #'result)))))
+
+;; Macro generating other macros
+(define-syntax define-binary-op
+  (lambda (stx)
+    (syntax-case stx ()
+      ((define-binary-op name op)
+       #'(define-syntax name
+           (syntax-rules ()
+             ((name x y) (op x y))
+             ((name x y z ...) (name (op x y) z ...))))))))
+
+;; Usage
+(define-binary-op add +)
+(add 1 2 3 4 5)  ; Expands to (+ (+ (+ (+ 1 2) 3) 4) 5)
+\end{lambdustcode}
+\end{example}
+
+\section{Procedural Macros}
+\label{sec:procedural-macros}
+
+\indexentry{procedural macro}
+\indexentry{macro procedure}
+
+Lambdust allows macros to be defined as regular procedures:
+
+\begin{example}[Procedural Macros]
+\begin{lambdustcode}
+;; Macro as procedure
+(define-macro (simple-when test . body)
+  `(if ,test (begin ,@body)))
+
+;; Macro with parameter validation
+(define-macro (validated-let bindings . body)
+  (unless (and (list? bindings)
+               (every (lambda (b) (and (list? b) (= (length b) 2)))
+                      bindings))
+    (error "Invalid let bindings" bindings))
+  `(let ,bindings ,@body))
+
+;; Macro generating code based on runtime information
+(define-macro (optimized-loop var start end . body)
+  (let ((step (if (> end start) 1 -1))
+        (test (if (> end start) '< '>)))
+    `(let loop ((,var ,start))
+       (if (,test ,var ,end)
+           (begin ,@body (loop (+ ,var ,step)))))))
+
+;; Higher-order macro  
+(define-macro (define-accessor-macro name field-extractor)
+  `(define-macro (,name obj field)
+     `(,(,field-extractor 'field) ,obj)))
+
+;; Usage
+(define-accessor-macro getter (lambda (f) (format-symbol "~a-~a" 'get f)))
+(getter person name)  ; Expands to (get-name person)
+
+;; Macro with effects
+(define-macro (logged-define name value)
+  (display "Defining ") (display name) (newline)
+  `(define ,name ,value))
+\end{lambdustcode}
+\end{example}
+
+\section{Type-Aware Macros}
+\label{sec:type-aware-macros}
+
+\indexentry{type-aware macro}
+\indexentry{compile-time type checking}
+
+Macros can interact with the type system:
+
+\begin{example}[Type-Aware Macros]
+\begin{lambdustcode}
+;; Macro that generates different code based on types
+(define-syntax typed-accessor
+  (lambda (stx)
+    (syntax-case stx ()
+      ((typed-accessor obj field-name)
+       (let ((obj-type (infer-type #'obj)))
+         (case obj-type
+           ((Person) #'(person-field-name obj))
+           ((Point) #'(point-field-name obj))  
+           (else (error "Unknown type for accessor" obj-type))))))))
+
+;; Macro with type constraints
+(define-syntax safe-arithmetic
+  (lambda (stx)
+    (syntax-case stx ()
+      ((safe-arithmetic op x y)
+       (let ((x-type (infer-type #'x))
+             (y-type (infer-type #'y)))
+         (unless (and (numeric-type? x-type) (numeric-type? y-type))
+           (syntax-error "Non-numeric arguments to arithmetic operation"
+                        #'x #'y))
+         #'(op x y))))))
+
+;; Type-directed code generation
+(define-syntax generic-equal
+  (lambda (stx)
+    (syntax-case stx ()
+      ((generic-equal x y)
+       (let ((type (infer-type #'x)))
+         (cond
+           ((string-type? type) #'(string=? x y))
+           ((number-type? type) #'(= x y))
+           ((list-type? type) #'(equal? x y))
+           (else #'(eqv? x y))))))))
+
+;; Macro generating type annotations
+(define-syntax define-typed
+  (syntax-rules ()
+    ((define-typed (name param ...) :: type body ...)
+     (define name 
+       #:type (-> (typeof param) ... type)
+       (lambda (param ...) body ...)))))
+
+;; Compile-time type computation
+(define-syntax compute-result-type
+  (lambda (stx)
+    (syntax-case stx ()
+      ((compute-result-type f x)
+       (let* ((f-type (infer-type #'f))
+              (x-type (infer-type #'x))
+              (result-type (apply-function-type f-type x-type)))
+         (with-syntax ((result-type-expr (type->syntax result-type)))
+           #'(the result-type-expr (f x))))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Compile-Time Computation}
+\label{sec:compile-time-computation}
+
+\indexentry{compile-time computation}
+\indexentry{macro-time evaluation}
+
+Lambdust supports computation during macro expansion:
+
+\begin{example}[Compile-Time Computation]
+\begin{lambdustcode}
+;; Compile-time constants
+(define-syntax pi-digits
+  (syntax-rules ()
+    (pi-digits 
+      ,(compute-pi-to-precision 50))))  ; Computed at compile time
+
+;; Compile-time file reading
+(define-syntax include-file-as-string
+  (lambda (stx)
+    (syntax-case stx ()
+      ((include-file-as-string filename)
+       (string? (syntax->datum #'filename))
+       (let ((content (file->string (syntax->datum #'filename))))
+         (datum->syntax #'filename content))))))
+
+;; Compile-time code generation from data  
+(define-syntax generate-accessors
+  (lambda (stx)
+    (syntax-case stx ()
+      ((generate-accessors struct-name field-file)
+       (let ((fields (read-fields-from-file (syntax->datum #'field-file))))
+         (with-syntax (((accessor ...) 
+                        (map (lambda (field)
+                               (format-id #'struct-name "~a-~a" 
+                                         #'struct-name field))
+                             fields)))
+           #'(begin
+               (define accessor ...) ...)))))))
+
+;; Compile-time optimization
+(define-syntax optimized-power
+  (lambda (stx)
+    (syntax-case stx ()
+      ((optimized-power base exp)
+       (and (number? (syntax->datum #'exp))
+            (exact-integer? (syntax->datum #'exp))
+            (>= (syntax->datum #'exp) 0))
+       (let ((n (syntax->datum #'exp)))
+         (cond
+           ((= n 0) #'1)
+           ((= n 1) #'base)
+           ((= n 2) #'(* base base))
+           ((even? n) 
+            (let ((half (quotient n 2)))
+              #`(let ((temp (optimized-power base ,half)))
+                  (* temp temp))))
+           (else
+            #`(* base (optimized-power base ,(- n 1))))))))))
+
+;; Compile-time memoization
+(define-syntax memoized-factorial
+  (let ((memo-table (make-hash-table)))
+    (lambda (stx)
+      (syntax-case stx ()
+        ((memoized-factorial n)
+         (number? (syntax->datum #'n))
+         (let ((value (syntax->datum #'n)))
+           (unless (hash-table-exists? memo-table value)
+             (hash-table-set! memo-table value (factorial value)))
+           (datum->syntax #'n (hash-table-ref memo-table value))))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Advanced Pattern Matching}
+\label{sec:advanced-patterns}
+
+\indexentry{pattern matching}
+\indexentry{syntax patterns}
+
+Lambdust provides enhanced pattern matching in macros:
+
+\begin{example}[Advanced Pattern Matching]
+\begin{lambdustcode}
+;; Nested pattern matching
+(define-syntax deep-match
+  (syntax-rules ()
+    ((deep-match ((a (b c) d) ...) body ...)
+     (match-nested-structure a b c d body ...))))
+
+;; Pattern with constraints
+(define-syntax constrained-match
+  (lambda (stx)
+    (syntax-case stx ()
+      ((constrained-match ((name type constraint) ...) body ...)
+       (every identifier? #'(name ...))
+       (validate-constraints #'((name type constraint) ...))
+       #'(let ((name (cast-to-type name type)) ...)
+           (when (and constraint ...)
+             body ...))))))
+
+;; Regex-like syntax patterns
+(define-syntax define-pattern-macro
+  (syntax-rules (...)
+    ((define-pattern-macro name (pattern ...))
+     (define-syntax name
+       (syntax-rules ()
+         ((name pattern ...) (matched-code pattern ...)))))))
+
+;; Usage
+(define-pattern-macro binary-tree
+  ((leaf value) → value)
+  ((node left right) → (cons left right)))
+
+;; Recursive pattern with accumulator
+(define-syntax fold-syntax
+  (syntax-rules ()
+    ((fold-syntax op init (elem ...))
+     (fold-syntax-helper op init elem ...))
+    ((fold-syntax-helper op acc)
+     acc)
+    ((fold-syntax-helper op acc elem rest ...)
+     (fold-syntax-helper op (op acc elem) rest ...))))
+
+;; Pattern matching with guards
+(define-syntax guarded-case
+  (lambda (stx)
+    (syntax-case stx (when)
+      ((guarded-case expr 
+         ((pattern when guard) result) ...)
+       #'(let ((temp expr))
+           (cond
+             ((and (pattern-match? temp 'pattern) guard) 
+              (with-pattern-bindings temp 'pattern result)) ...))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Macro Debugging}
+\label{sec:macro-debugging}
+
+\indexentry{macro debugging}
+\indexentry{macro expansion}
+
+Tools for debugging macro expansion:
+
+\begin{example}[Macro Debugging]
+\begin{lambdustcode}
+;; Trace macro expansion
+(define-syntax traced-when
+  (trace-macro
+    (syntax-rules ()
+      ((traced-when test body ...)
+       (if test (begin body ...))))))
+
+;; Usage shows expansion steps
+(traced-when (> x 0) (display "positive"))
+;; Trace: (traced-when (> x 0) (display "positive"))
+;;     -> (if (> x 0) (begin (display "positive")))
+
+;; Step-by-step macro expansion
+(expand-macro-steps '(let* ((x 1) (y (+ x 1))) (+ x y)))
+;; Step 1: (let ((x 1)) (let* ((y (+ x 1))) (+ x y)))
+;; Step 2: (let ((x 1)) (let ((y (+ x 1))) (+ x y)))
+;; Final:  (let ((x 1)) (let ((y (+ x 1))) (+ x y)))
+
+;; Macro expansion with environment info
+(expand-with-environment '(my-macro x y) 
+  '((x . Number) (y . String)))
+
+;; Debugging macro with assertions
+(define-syntax debug-assert
+  (lambda (stx)
+    (syntax-case stx ()
+      ((debug-assert expr message)
+       (if (getenv "LAMBDUST_DEBUG")
+           #'(unless expr (error message))
+           #'(begin))))))
+
+;; Macro hygiene debugging  
+(define-syntax hygiene-test
+  (lambda (stx)
+    (syntax-case stx ()
+      ((hygiene-test)
+       (let ((temp-var (generate-temporary 'temp)))
+         (with-syntax ((temp temp-var))
+           #'(let ((temp 42))
+               (display-hygiene-info 'temp))))))))
+
+;; Interactive macro development
+(define-interactive-macro test-macro
+  ;; Provides REPL for testing macro during development
+  (syntax-rules ()
+    ((test-macro x) (processed x))))
+
+;; Macro expansion warnings
+(define-syntax deprecated-macro
+  (lambda (stx)
+    (syntax-warning "deprecated-macro is deprecated, use new-macro instead" stx)
+    (syntax-case stx ()
+      ((deprecated-macro args ...)
+       #'(new-macro args ...)))))
+\end{lambdustcode}
+\end{example}
+
+\section{Hygienic Capture}
+\label{sec:hygienic-capture}
+
+\indexentry{hygienic capture}
+\indexentry{intentional capture}
+
+Safe mechanisms for intentional variable capture:
+
+\begin{example}[Hygienic Capture]
+\begin{lambdustcode}
+;; Controlled capture with datum->syntax
+(define-syntax with-result
+  (lambda (stx)
+    (syntax-case stx ()
+      ((with-result body ...)
+       (with-syntax ((result (datum->syntax stx 'result)))
+         #'(let ((result 'uninitialized))
+             body ...
+             result))))))
+
+;; Capture from calling context
+(define-syntax capture-from-caller
+  (lambda (stx)
+    (syntax-case stx ()
+      ((capture-from-caller var body ...)
+       (with-syntax ((captured-var (datum->syntax (syntax-context stx) (syntax->datum #'var))))
+         #'(begin body ... captured-var))))))
+
+;; Selective hygiene breaking
+(define-syntax break-hygiene
+  (syntax-rules ()
+    ((break-hygiene (var ...) body ...)
+     (let-syntax ((capture (syntax-rules ()
+                            ((capture v) (datum->syntax (quote body) 'v)))))
+       (let ((var (capture var)) ...)
+         body ...)))))
+
+;; Macro with controlled scope
+(define-syntax with-fresh-variables
+  (lambda (stx)
+    (syntax-case stx ()
+      ((with-fresh-variables (var ...) body ...)
+       (with-syntax (((fresh-var ...) (map generate-temporary #'(var ...))))
+         #'(let ((fresh-var 'fresh) ...)
+             (let-syntax ((var (identifier-syntax fresh-var)) ...)
+               body ...)))))))
+
+;; Context-sensitive capture
+(define-syntax context-aware-macro
+  (lambda (stx)
+    (syntax-case stx ()
+      ((context-aware-macro expr)
+       (let ((context (syntax-context stx)))
+         (if (inside-function-context? context)
+             #'(function-specific-handling expr)
+             #'(global-handling expr)))))))
+
+;; Macro with lexical scope analysis
+(define-syntax scope-analyzing-macro
+  (lambda (stx)
+    (syntax-case stx ()
+      ((scope-analyzing-macro var body ...)
+       (let ((bindings (analyze-lexical-scope #'(body ...))))
+         (if (member (syntax->datum #'var) bindings)
+             #'(local-variable-version var body ...)
+             #'(global-variable-version var body ...)))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Macro Libraries}
+\label{sec:macro-libraries}
+
+\indexentry{macro library}
+\indexentry{syntax library}
+
+Libraries of useful macro utilities:
+
+\begin{example}[Macro Libraries]
+\begin{lambdustcode}
+;; String interpolation macro
+(define-syntax string-interpolate
+  (syntax-rules ()
+    ((string-interpolate template (var value) ...)
+     (string-template-expand template 
+       (list (cons 'var value) ...)))))
+
+;; Usage
+(let ((name "Alice") (age 30))
+  (string-interpolate "Hello, {name}! You are {age} years old."
+    (name name) (age age)))
+
+;; Async/await syntax
+(define-syntax async-block
+  (syntax-rules (await)
+    ((async-block body ...)
+     (make-async-computation (lambda () body ...)))))
+
+(define-syntax await
+  (syntax-rules ()
+    ((await future-expr)
+     (future-wait future-expr))))
+
+;; Pattern matching library
+(define-syntax match
+  (syntax-rules (else)
+    ((match expr (pattern body ...) ... (else default-body ...))
+     (pattern-match expr 
+       (list (cons 'pattern (lambda (bindings) body ...)) ...)
+       (lambda () default-body ...)))
+    ((match expr (pattern body ...) ...)
+     (match expr (pattern body ...) ... (else (error "No match"))))))
+
+;; Loop macros
+(define-syntax for
+  (syntax-rules (in from to by)
+    ((for var in lst body ...)
+     (for-each (lambda (var) body ...) lst))
+    ((for var from start to end body ...)
+     (do ((var start (+ var 1)))
+         ((> var end))
+       body ...))
+    ((for var from start to end by step body ...)
+     (do ((var start (+ var step)))
+         ((> var end))
+       body ...))))
+
+;; Comprehension macros
+(define-syntax list-comprehension
+  (syntax-rules (for in if)
+    ((list-comprehension expr for var in lst)
+     (map (lambda (var) expr) lst))
+    ((list-comprehension expr for var in lst if pred)
+     (filter-map (lambda (var) (and pred expr)) lst))))
+
+;; Usage
+(list-comprehension (* x x) for x in '(1 2 3 4 5))
+;; → (1 4 9 16 25)
+
+;; Anaphoric macros
+(define-syntax aif
+  (syntax-rules ()
+    ((aif test then else)
+     (let ((it test))
+       (if it then else)))))
+
+(define-syntax awhen  
+  (syntax-rules ()
+    ((awhen test body ...)
+     (let ((it test))
+       (when it body ...)))))
+
+;; Class definition macro
+(define-syntax define-class
+  (syntax-rules (extends implements method field)
+    ((define-class name (extends super) (field name type init) ... (method signature body ...) ...)
+     (begin
+       (define-record-type name 
+         (make-name field-name ...)
+         name?
+         (field-name field-accessor field-setter!) ...)
+       (define-method (signature) body ...) ...))))
+\end{lambdustcode}
+\end{example}
+
+\section{Macro Performance}
+\label{sec:macro-performance}
+
+\indexentry{macro performance}
+\indexentry{compile-time optimization}
+
+Optimizing macro expansion performance:
+
+\begin{example}[Macro Performance]
+\begin{lambdustcode}
+;; Memoized macro expansion
+(define-syntax fast-recursive-macro
+  (let ((memo-table (make-hash-table equal?)))
+    (lambda (stx)
+      (let ((key (syntax->datum stx)))
+        (hash-table-ref memo-table key
+          (lambda ()
+            (let ((result (expensive-macro-computation stx)))
+              (hash-table-set! memo-table key result)
+              result)))))))
+
+;; Compile-time constant folding
+(define-syntax optimizing-arithmetic
+  (lambda (stx)
+    (syntax-case stx ()
+      ((optimizing-arithmetic op x y)
+       (and (number? (syntax->datum #'x))
+            (number? (syntax->datum #'y)))
+       ;; Compute at compile time
+       (datum->syntax stx 
+         ((eval (syntax->datum #'op)) 
+          (syntax->datum #'x) 
+          (syntax->datum #'y))))
+      ((optimizing-arithmetic op x y)
+       ;; Runtime computation
+       #'(op x y)))))
+
+;; Batch code generation
+(define-syntax generate-many
+  (lambda (stx)
+    (syntax-case stx ()
+      ((generate-many template (data ...))
+       (with-syntax (((generated ...)
+                      (map (lambda (d) 
+                             (instantiate-template #'template d))
+                           #'(data ...))))
+         #'(begin generated ...))))))
+
+;; Lazy macro expansion
+(define-syntax lazy-macro
+  (lambda (stx)
+    (syntax-case stx ()
+      ((lazy-macro complex-computation)
+       #'(delay (force-macro-expansion complex-computation))))))
+
+;; Parallel macro processing (when safe)
+(define-syntax parallel-map-macro
+  (lambda (stx)
+    (syntax-case stx ()
+      ((parallel-map-macro template (item ...))
+       (let ((results (parallel-map
+                        (lambda (i) (instantiate-template #'template i))
+                        #'(item ...))))
+         (with-syntax (((result ...) results))
+           #'(begin result ...)))))))
+\end{lambdustcode}
+\end{example}
+
+The macro system provides powerful metaprogramming capabilities while maintaining the hygiene and safety properties that make Scheme macros reliable and composable.

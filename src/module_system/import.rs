@@ -3,13 +3,13 @@
 //! Handles various import patterns:
 //! - (import (lambdust string)) - Import all exports
 //! - (import (lambdust string) (only string-length string-ref)) - Import specific symbols
-//! - (import (lambdust string) (except string-fill!)) - Import all except specific symbols  
+//! - (import (lambdust string) (except string-fill!)) - Import all except specific symbols
 //! - (import (lambdust string) (rename (string-length str-len))) - Import with renaming
 //! - (import (lambdust string) (prefix string:)) - Import with prefix
 
-use super::{ImportSpec, ImportConfig, ModuleError};
-use crate::diagnostics::{Error, Result, Spanned};
+use super::{ImportConfig, ImportSpec, ModuleError};
 use crate::ast::Expr;
+use crate::diagnostics::{Error, Result, Spanned};
 use crate::eval::Value;
 use std::collections::HashMap;
 
@@ -33,17 +33,17 @@ fn apply_only_import(
     symbols: &[String],
 ) -> Result<HashMap<String, Value>> {
     let mut result = HashMap::new();
-    
+
     for symbol in symbols {
         if let Some(value) = exports.get(symbol) {
             result.insert(symbol.clone(), value.clone());
         } else {
-            return Err(Box::new(Error::from(ModuleError::ImportConflict(
-                format!("Symbol '{symbol}' not found in module exports")
-            ))));
+            return Err(Box::new(Error::from(ModuleError::ImportConflict(format!(
+                "Symbol '{symbol}' not found in module exports"
+            )))));
         }
     }
-    
+
     Ok(result)
 }
 
@@ -53,13 +53,13 @@ fn apply_except_import(
     except_symbols: &[String],
 ) -> Result<HashMap<String, Value>> {
     let mut result = HashMap::new();
-    
+
     for (symbol, value) in exports {
         if !except_symbols.contains(symbol) {
             result.insert(symbol.clone(), value.clone());
         }
     }
-    
+
     Ok(result)
 }
 
@@ -69,17 +69,17 @@ fn apply_rename_import(
     rename_map: &HashMap<String, String>,
 ) -> Result<HashMap<String, Value>> {
     let mut result = HashMap::new();
-    
+
     for (original_name, new_name) in rename_map {
         if let Some(value) = exports.get(original_name) {
             result.insert(new_name.clone(), value.clone());
         } else {
-            return Err(Box::new(Error::from(ModuleError::ImportConflict(
-                format!("Symbol '{original_name}' not found in module exports")
-            ))));
+            return Err(Box::new(Error::from(ModuleError::ImportConflict(format!(
+                "Symbol '{original_name}' not found in module exports"
+            )))));
         }
     }
-    
+
     Ok(result)
 }
 
@@ -89,12 +89,12 @@ fn apply_prefix_import(
     prefix: &str,
 ) -> Result<HashMap<String, Value>> {
     let mut result = HashMap::new();
-    
+
     for (symbol, value) in exports {
         let prefixed_name = format!("{prefix}{symbol}");
         result.insert(prefixed_name, value.clone());
     }
-    
+
     Ok(result)
 }
 
@@ -110,7 +110,7 @@ pub fn parse_import_spec(import_form: &[Spanned<Expr>]) -> Result<ImportSpec> {
     // First element should be the module identifier
     let module_name = extract_module_name(&import_form[0])?;
     let module_id = super::name::parse_module_name(&module_name)?;
-    
+
     // Parse import configuration from remaining elements
     let config = if import_form.len() == 1 {
         ImportConfig::All
@@ -118,16 +118,13 @@ pub fn parse_import_spec(import_form: &[Spanned<Expr>]) -> Result<ImportSpec> {
         parse_import_config(&import_form[1..])?
     };
 
-    Ok(ImportSpec {
-        module_id,
-        config,
-    })
+    Ok(ImportSpec { module_id, config })
 }
 
 /// Extracts module name from an expression.
 fn extract_module_name(expr: &Spanned<Expr>) -> Result<String> {
     use crate::ast::Expr;
-    
+
     match &expr.inner {
         Expr::List(elements) => {
             // Convert list of symbols to module name string
@@ -135,10 +132,12 @@ fn extract_module_name(expr: &Spanned<Expr>) -> Result<String> {
             for element in elements {
                 match &element.inner {
                     Expr::Symbol(symbol) => parts.push(symbol.clone()),
-                    _ => return Err(Box::new(Error::syntax_error(
-                        "Module name must contain only symbols".to_string(),
-                        Some(element.span),
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::syntax_error(
+                            "Module name must contain only symbols".to_string(),
+                            Some(element.span),
+                        )));
+                    }
                 }
             }
             Ok(format!("({})", parts.join(" ")))
@@ -157,7 +156,7 @@ fn extract_module_name(expr: &Spanned<Expr>) -> Result<String> {
 /// Parses import configuration (only, except, rename, prefix).
 fn parse_import_config(config_forms: &[Spanned<Expr>]) -> Result<ImportConfig> {
     use crate::ast::Expr;
-    
+
     if config_forms.len() != 1 {
         return Err(Box::new(Error::syntax_error(
             "Import configuration must be a single form".to_string(),
@@ -166,26 +165,22 @@ fn parse_import_config(config_forms: &[Spanned<Expr>]) -> Result<ImportConfig> {
     }
 
     match &config_forms[0].inner {
-        Expr::List(elements) if !elements.is_empty() => {
-            match &elements[0].inner {
-                Expr::Symbol(keyword) => {
-                    match keyword.as_str() {
-                        "only" => parse_only_config(&elements[1..]),
-                        "except" => parse_except_config(&elements[1..]),
-                        "rename" => parse_rename_config(&elements[1..]),
-                        "prefix" => parse_prefix_config(&elements[1..]),
-                        _ => Err(Box::new(Error::syntax_error(
-                            format!("Unknown import keyword: {keyword}"),
-                            Some(elements[0].span),
-                        ))),
-                    }
-                }
+        Expr::List(elements) if !elements.is_empty() => match &elements[0].inner {
+            Expr::Symbol(keyword) => match keyword.as_str() {
+                "only" => parse_only_config(&elements[1..]),
+                "except" => parse_except_config(&elements[1..]),
+                "rename" => parse_rename_config(&elements[1..]),
+                "prefix" => parse_prefix_config(&elements[1..]),
                 _ => Err(Box::new(Error::syntax_error(
-                    "Import configuration must start with a keyword".to_string(),
+                    format!("Unknown import keyword: {keyword}"),
                     Some(elements[0].span),
                 ))),
-            }
-        }
+            },
+            _ => Err(Box::new(Error::syntax_error(
+                "Import configuration must start with a keyword".to_string(),
+                Some(elements[0].span),
+            ))),
+        },
         _ => Err(Box::new(Error::syntax_error(
             "Import configuration must be a list".to_string(),
             Some(config_forms[0].span),
@@ -196,88 +191,102 @@ fn parse_import_config(config_forms: &[Spanned<Expr>]) -> Result<ImportConfig> {
 /// Parses 'only' import configuration.
 fn parse_only_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
     let mut symbols = Vec::new();
-    
+
     for element in elements {
         match &element.inner {
             Expr::Identifier(symbol) => symbols.push(symbol.clone()),
-            _ => return Err(Box::new(Error::syntax_error(
-                "Only configuration must contain only symbols".to_string(),
-                Some(element.span),
-            ))),
+            _ => {
+                return Err(Box::new(Error::syntax_error(
+                    "Only configuration must contain only symbols".to_string(),
+                    Some(element.span),
+                )));
+            }
         }
     }
-    
+
     Ok(ImportConfig::Only(symbols))
 }
 
 /// Parses 'except' import configuration.
 fn parse_except_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
     let mut symbols = Vec::new();
-    
+
     for element in elements {
         match &element.inner {
             Expr::Identifier(symbol) => symbols.push(symbol.clone()),
-            _ => return Err(Box::new(Error::syntax_error(
-                "Except configuration must contain only symbols".to_string(),
-                Some(element.span),
-            ))),
+            _ => {
+                return Err(Box::new(Error::syntax_error(
+                    "Except configuration must contain only symbols".to_string(),
+                    Some(element.span),
+                )));
+            }
         }
     }
-    
+
     Ok(ImportConfig::Except(symbols))
 }
 
 /// Parses 'rename' import configuration.
 fn parse_rename_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
     let mut rename_map = HashMap::new();
-    
+
     for element in elements {
         match &element.inner {
             Expr::Application { operator, operands } if operands.len() == 1 => {
                 let original = match &operator.inner {
                     Expr::Identifier(symbol) => symbol.clone(),
-                    _ => return Err(Box::new(Error::syntax_error(
-                        "Rename pair must contain symbols".to_string(),
-                        Some(operator.span),
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::syntax_error(
+                            "Rename pair must contain symbols".to_string(),
+                            Some(operator.span),
+                        )));
+                    }
                 };
-                
+
                 let new_name = match &operands[0].inner {
                     Expr::Identifier(symbol) => symbol.clone(),
-                    _ => return Err(Box::new(Error::syntax_error(
-                        "Rename pair must contain symbols".to_string(),
-                        Some(operands[0].span),
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::syntax_error(
+                            "Rename pair must contain symbols".to_string(),
+                            Some(operands[0].span),
+                        )));
+                    }
                 };
-                
+
                 rename_map.insert(original, new_name);
             }
             Expr::Pair { car, cdr } => {
                 let original = match &car.inner {
                     Expr::Identifier(symbol) => symbol.clone(),
-                    _ => return Err(Box::new(Error::syntax_error(
-                        "Rename pair must contain symbols".to_string(),
-                        Some(car.span),
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::syntax_error(
+                            "Rename pair must contain symbols".to_string(),
+                            Some(car.span),
+                        )));
+                    }
                 };
-                
+
                 let new_name = match &cdr.inner {
                     Expr::Identifier(symbol) => symbol.clone(),
-                    _ => return Err(Box::new(Error::syntax_error(
-                        "Rename pair must contain symbols".to_string(),
-                        Some(cdr.span),
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::syntax_error(
+                            "Rename pair must contain symbols".to_string(),
+                            Some(cdr.span),
+                        )));
+                    }
                 };
-                
+
                 rename_map.insert(original, new_name);
             }
-            _ => return Err(Box::new(Error::syntax_error(
-                "Rename configuration must contain pairs of symbols".to_string(),
-                Some(element.span),
-            ))),
+            _ => {
+                return Err(Box::new(Error::syntax_error(
+                    "Rename configuration must contain pairs of symbols".to_string(),
+                    Some(element.span),
+                )));
+            }
         }
     }
-    
+
     Ok(ImportConfig::Rename(rename_map))
 }
 
@@ -289,7 +298,7 @@ fn parse_prefix_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
             None,
         )));
     }
-    
+
     match &elements[0].inner {
         Expr::Identifier(prefix) => Ok(ImportConfig::Prefix(prefix.clone())),
         _ => Err(Box::new(Error::syntax_error(
@@ -302,7 +311,7 @@ fn parse_prefix_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
 /// Validates an import specification.
 pub fn validate_import_spec(spec: &ImportSpec) -> Result<()> {
     super::name::validate_module_id(&spec.module_id)?;
-    
+
     match &spec.config {
         ImportConfig::Only(symbols) | ImportConfig::Except(symbols) => {
             if symbols.is_empty() {
@@ -319,7 +328,7 @@ pub fn validate_import_spec(spec: &ImportSpec) -> Result<()> {
                     None,
                 )));
             }
-            
+
             // Check for duplicate target names
             let mut target_names = std::collections::HashSet::new();
             for target in rename_map.values() {
@@ -343,7 +352,7 @@ pub fn validate_import_spec(spec: &ImportSpec) -> Result<()> {
             // No validation needed for 'all' imports
         }
     }
-    
+
     Ok(())
 }
 
@@ -352,22 +361,22 @@ pub fn merge_import_bindings(
     bindings_list: &[HashMap<String, Value>],
 ) -> Result<HashMap<String, Value>> {
     let mut result = HashMap::new();
-    
+
     for bindings in bindings_list {
         for (symbol, value) in bindings {
             if let Some(existing_value) = result.get(symbol) {
                 // Check if it's the same value (allowing re-import of same binding)
                 if !values_equivalent(existing_value, value) {
-                    return Err(Box::new(Error::from(ModuleError::ImportConflict(
-                        format!("Symbol '{symbol}' imported from multiple modules with different values")
-                    ))));
+                    return Err(Box::new(Error::from(ModuleError::ImportConflict(format!(
+                        "Symbol '{symbol}' imported from multiple modules with different values"
+                    )))));
                 }
             } else {
                 result.insert(symbol.clone(), value.clone());
             }
         }
     }
-    
+
     Ok(result)
 }
 

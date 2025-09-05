@@ -4,8 +4,8 @@
 //! during benchmark execution, tracking resource utilization efficiency,
 //! and managing execution state throughout the benchmarking process.
 
-use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
+use std::time::SystemTime;
 
 /// System resource usage during benchmarking
 #[derive(Debug, Clone, Serialize, Deserialize)]

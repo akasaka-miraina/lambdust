@@ -1,0 +1,284 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - 'README.md'
+      - 'Cargo.toml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Generate Rust Documentation
+  rustdoc:
+    name: Generate API Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-15-dev libclang-15-dev
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rustdoc
+          cache-on-failure: true
+
+      - name: Generate documentation
+        run: |
+          cargo doc --all-features --no-deps --document-private-items
+          
+          # Add index.html redirect
+          echo '<meta http-equiv="refresh" content="0; url=lambdust">' > target/doc/index.html
+
+      - name: Upload documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-docs-${{ github.sha }}
+          path: target/doc/
+
+  # Check Documentation Links
+  link-check:
+    name: Check Documentation Links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check markdown links
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          use-quiet-mode: 'yes'
+          use-verbose-mode: 'yes'
+          config-file: '.github/mlc_config.json'
+
+  # Build Documentation Site
+  build-docs:
+    name: Build Documentation Site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          npm install -g @marp-team/marp-cli
+          pip install mkdocs mkdocs-material
+
+      - name: Build documentation site
+        run: |
+          # Create a simple docs site structure
+          mkdir -p site/api
+          mkdir -p site/architecture
+          mkdir -p site/development
+          
+          # Copy documentation files
+          cp -r docs/* site/
+          cp README.md site/index.md
+          cp FEATURES.md site/
+          cp NEXT_STEPS_ROADMAP.md site/roadmap.md
+
+      - name: Generate formal semantics PDF
+        run: |
+          if [ -f "docs/architecture/LambdustFormalSemantics.tex" ]; then
+            # Install LaTeX if available
+            sudo apt-get update
+            sudo apt-get install -y texlive-latex-base texlive-latex-extra texlive-fonts-recommended
+            
+            cd docs/architecture
+            pdflatex LambdustFormalSemantics.tex || echo "LaTeX compilation failed, skipping PDF generation"
+            cp LambdustFormalSemantics.pdf ../../site/architecture/ || echo "PDF not generated"
+            cd ../..
+          fi
+
+      - name: Upload documentation site
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site-${{ github.sha }}
+          path: site/
+
+  # Deploy to GitHub Pages
+  deploy-docs:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: [rustdoc, build-docs]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download API documentation
+        uses: actions/download-artifact@v4
+        with:
+          name: api-docs-${{ github.sha }}
+          path: public/api/
+
+      - name: Download documentation site
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-site-${{ github.sha }}
+          path: public/
+
+      - name: Create index page
+        run: |
+          cat > public/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Lambdust Documentation</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 40px; }
+                  .container { max-width: 800px; margin: 0 auto; }
+                  .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+                  h1 { color: #333; }
+                  h2 { color: #666; }
+                  a { color: #0066cc; text-decoration: none; }
+                  a:hover { text-decoration: underline; }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <h1>Lambdust Documentation</h1>
+                  <p>Welcome to the Lambdust R7RS-large Scheme interpreter documentation.</p>
+                  
+                  <div class="section">
+                      <h2>📚 User Documentation</h2>
+                      <ul>
+                          <li><a href="index.md">Getting Started</a></li>
+                          <li><a href="FEATURES.md">Features Overview</a></li>
+                          <li><a href="roadmap.md">Development Roadmap</a></li>
+                          <li><a href="user_guide.md">User Guide</a></li>
+                      </ul>
+                  </div>
+                  
+                  <div class="section">
+                      <h2>🔧 Developer Documentation</h2>
+                      <ul>
+                          <li><a href="api/lambdust/index.html">API Reference (Rust)</a></li>
+                          <li><a href="development/README.md">Development Guide</a></li>
+                          <li><a href="development/CLAUDE.md">Claude Development Guidelines</a></li>
+                          <li><a href="development/performance_guide.md">Performance Guide</a></li>
+                      </ul>
+                  </div>
+                  
+                  <div class="section">
+                      <h2>🏗️ Architecture Documentation</h2>
+                      <ul>
+                          <li><a href="architecture/README.md">Architecture Overview</a></li>
+                          <li><a href="architecture/LambdustFormalSemantics.md">Formal Semantics</a></li>
+                          <li><a href="architecture/dependent_type_theory.md">Type System</a></li>
+                          <li><a href="architecture/jit_architecture_design.md">JIT Architecture</a></li>
+                      </ul>
+                  </div>
+                  
+                  <div class="section">
+                      <h2>🌐 Language Support</h2>
+                      <ul>
+                          <li><a href="ja/DOCUMENTATION.md">日本語ドキュメント</a></li>
+                      </ul>
+                  </div>
+              </div>
+          </body>
+          </html>
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: Upload to Pages
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: public/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
+  # Documentation Quality Check
+  docs-quality:
+    name: Documentation Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check documentation coverage
+        run: |
+          echo "Checking documentation coverage..."
+          cargo doc --all-features --no-deps --document-private-items 2>&1 | \
+            grep -E "(warning|error)" > doc-warnings.txt || true
+          
+          echo "Documentation warnings/errors:"
+          cat doc-warnings.txt
+          
+          # Count undocumented items
+          warning_count=$(wc -l < doc-warnings.txt)
+          echo "Total documentation warnings: $warning_count"
+          
+          if [ "$warning_count" -gt 50 ]; then
+            echo "❌ Too many documentation warnings ($warning_count). Please improve documentation coverage."
+            exit 1
+          else
+            echo "✅ Documentation quality acceptable ($warning_count warnings)"
+          fi
+
+      - name: Check README completeness
+        run: |
+          echo "Checking README completeness..."
+          required_sections="Features Quick Start Documentation Building Testing Contributing License"
+          
+          for section in $required_sections; do
+            if grep -q "## $section" README.md; then
+              echo "✅ $section section found"
+            else
+              echo "❌ $section section missing"
+              exit 1
+            fi
+          done
+
+      - name: Validate documentation structure
+        run: |
+          echo "Validating documentation structure..."
+          
+          # Check required directories exist
+          for dir in docs/architecture docs/development docs/ja; do
+            if [ -d "$dir" ]; then
+              echo "✅ $dir exists"
+            else
+              echo "❌ $dir missing"
+              exit 1
+            fi
+          done
+          
+          # Check README files exist
+          for readme in docs/README.md docs/architecture/README.md docs/development/README.md; do
+            if [ -f "$readme" ]; then
+              echo "✅ $readme exists"
+            else
+              echo "❌ $readme missing"
+              exit 1
+            fi
+          done

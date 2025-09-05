@@ -3,15 +3,15 @@
 //! This module provides high-performance parallel versions of common
 //! functional programming patterns like map, filter, and reduce.
 
-use crate::eval::Value;
-use crate::diagnostics::{Error, Result};
 use super::{ConcurrencyError, futures::Future};
-use std::sync::{Arc, Mutex};
-use rayon::prelude::*;
+use crate::diagnostics::{Error, Result};
+use crate::eval::Value;
 use crossbeam::deque::{Injector, Stealer, Worker};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::thread;
 use num_cpus;
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 /// Parallel computation configuration.
 #[derive(Debug, Clone)]
@@ -93,7 +93,7 @@ impl WorkStealingScheduler {
                 let stealers = stealers.clone();
                 let injector = injector.clone();
                 let active_tasks = active_tasks.clone();
-                
+
                 s.spawn(move || {
                     loop {
                         // Try to get a task from local queue first
@@ -204,12 +204,10 @@ impl ParallelOps {
             let filtered: std::result::Result<Vec<_>, Box<Error>> = values
                 .into_par_iter()
                 .with_min_len(chunk_size)
-                .filter_map(|value| {
-                    match predicate(&value) {
-                        Ok(true) => Some(Ok(value)),
-                        Ok(false) => None,
-                        Err(e) => Some(Err(e)),
-                    }
+                .filter_map(|value| match predicate(&value) {
+                    Ok(true) => Some(Ok(value)),
+                    Ok(false) => None,
+                    Err(e) => Some(Err(e)),
                 })
                 .collect();
 
@@ -328,10 +326,12 @@ impl ParallelOps {
                 .into_iter()
                 .partition(|(_, matches)| *matches);
 
-            let true_list = trues.into_iter()
+            let true_list = trues
+                .into_iter()
                 .map(|(value, _)| value)
                 .collect::<Vec<_>>();
-            let false_list = falses.into_iter()
+            let false_list = falses
+                .into_iter()
                 .map(|(value, _)| value)
                 .collect::<Vec<_>>();
 
@@ -354,9 +354,7 @@ impl ParallelOps {
             let result = values
                 .into_par_iter()
                 .with_min_len(chunk_size)
-                .find_first(|value| {
-                    predicate(value).unwrap_or(false)
-                });
+                .find_first(|value| predicate(value).unwrap_or(false));
 
             Ok(result.unwrap_or(Value::Nil))
         })
@@ -374,9 +372,7 @@ impl ParallelOps {
             let result = values
                 .into_par_iter()
                 .with_min_len(chunk_size)
-                .any(|value| {
-                    predicate(&value).unwrap_or(false)
-                });
+                .any(|value| predicate(&value).unwrap_or(false));
 
             Ok(Value::boolean(result))
         })
@@ -394,9 +390,7 @@ impl ParallelOps {
             let result = values
                 .into_par_iter()
                 .with_min_len(chunk_size)
-                .all(|value| {
-                    predicate(&value).unwrap_or(false)
-                });
+                .all(|value| predicate(&value).unwrap_or(false));
 
             Ok(Value::boolean(result))
         })
@@ -410,9 +404,7 @@ impl ParallelOps {
         let compare = Arc::new(compare);
 
         Future::new(async move {
-            values.par_sort_by(|a, b| {
-                compare(a, b).unwrap_or(std::cmp::Ordering::Equal)
-            });
+            values.par_sort_by(|a, b| compare(a, b).unwrap_or(std::cmp::Ordering::Equal));
 
             Ok(Value::from_vec(values))
         })
@@ -428,11 +420,13 @@ impl ThreadPool {
     /// Creates a new thread pool with the given configuration.
     pub fn new(config: ParallelConfig) -> Result<Self> {
         let num_threads = config.num_threads.unwrap_or_else(num_cpus::get);
-        
+
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .build()
-            .map_err(|e| Error::runtime_error(format!("Failed to create thread pool: {e}"), None))?;
+            .map_err(|e| {
+                Error::runtime_error(format!("Failed to create thread pool: {e}"), None)
+            })?;
 
         Ok(Self { pool })
     }
@@ -444,14 +438,15 @@ impl ThreadPool {
         R: Into<Value> + Send + 'static,
     {
         let (sender, receiver) = tokio::sync::oneshot::channel();
-        
+
         self.pool.spawn(move || {
             let result = task().map(|r| r.into());
             let _ = sender.send(result);
         });
 
         Future::new(async move {
-            receiver.await
+            receiver
+                .await
                 .map_err(|_| ConcurrencyError::Cancelled.boxed())?
         })
     }
@@ -475,7 +470,7 @@ impl ThreadPool {
 
             self.pool.spawn(move || {
                 let result = task().map(|r| r.into());
-                
+
                 {
                     let mut results = results.lock().unwrap();
                     if results.len() <= i {
@@ -495,7 +490,8 @@ impl ThreadPool {
         }
 
         Future::new(async move {
-            receiver.await
+            receiver
+                .await
                 .map_err(|_| ConcurrencyError::Cancelled.boxed())?
         })
     }
@@ -509,19 +505,18 @@ impl CpuAffinity {
     #[cfg(target_os = "linux")]
     pub fn set_affinity(cpu_ids: &[usize]) -> Result<()> {
         use std::mem;
-        
+
         let mut cpu_set: libc::cpu_set_t = unsafe { mem::zeroed() };
-        
+
         for &cpu_id in cpu_ids {
             unsafe {
                 libc::CPU_SET(cpu_id, &mut cpu_set);
             }
         }
-        
-        let result = unsafe {
-            libc::sched_setaffinity(0, mem::size_of::<libc::cpu_set_t>(), &cpu_set)
-        };
-        
+
+        let result =
+            unsafe { libc::sched_setaffinity(0, mem::size_of::<libc::cpu_set_t>(), &cpu_set) };
+
         if result != 0 {
             Err(Error::runtime_error("Failed to set CPU affinity".to_string(), None).into())
         } else {
@@ -546,4 +541,3 @@ impl CpuAffinity {
         num_cpus::get()
     }
 }
-

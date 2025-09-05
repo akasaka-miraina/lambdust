@@ -1,0 +1,720 @@
+%% Gradual Type System
+\chapter{Gradual Type System}
+\label{ch:gradual-types}
+
+Lambdust provides a gradual type system that solves the traditional tension between the flexibility of dynamic typing and the safety guarantees of static typing. Rather than forcing developers to choose one approach for an entire program, Lambdust allows different parts of the same codebase to use different levels of type checking based on their specific needs.
+
+This approach is particularly valuable for large codebases where different components have different correctness requirements. User interface code might benefit from dynamic typing's flexibility for rapid iteration, while financial calculations might require the precision guarantees of dependent types. The gradual type system allows both approaches to coexist safely within the same program.
+
+The system operates at four sophistication levels, from completely dynamic (R7RS-compatible) to fully static with dependent types. Each level provides progressively stronger guarantees while requiring more explicit type information from the programmer.
+
+\section{Type System Overview}
+\label{sec:type-overview}
+
+The gradual type system provides smooth transitions between typing disciplines, enabling developers to adopt stronger typing guarantees where they provide the most benefit:
+
+\begin{enumerate}
+\item \textbf{Dynamic Mode}: Pure R7RS-small compatibility with no type checking. This mode is ideal for exploratory programming, scripting, and interfacing with external systems where types are not known in advance. All values carry runtime type information, and type errors are detected when operations are attempted on inappropriate values.
+
+\item \textbf{Gradual Mode}: Optional type annotations with runtime contracts. When type annotations are provided, the system automatically inserts contract checks at function boundaries and variable assignments. This catches type errors closer to their source, making debugging easier, while allowing untyped code to interoperate freely. The type system can also optimize known-type code paths.
+
+\item \textbf{Static Mode}: Hindley-Milner type inference with extensions for modern programming patterns. The type checker attempts to infer types for all expressions and reports conflicts before program execution. This provides strong correctness guarantees with minimal annotation burden. Extensions include row polymorphism for flexible record types, higher-kinded types for generic programming, and effect types for tracking computational effects.
+
+\item \textbf{Dependent Mode}: Full dependent types with compile-time proof obligations. Types can depend on program values, enabling precise specifications like "a list of exactly n elements" or "a function that preserves sorting order". The type checker becomes a theorem prover, ensuring that programs satisfy their specifications mathematically.
+\end{enumerate}
+
+Programs can mix code from different levels seamlessly, with automatic insertion of runtime checks at boundaries between typed and untyped regions. This provides a smooth migration path where teams can adopt stronger typing incrementally as they gain confidence and experience with the type system.
+
+\section{Type Syntax}
+\label{sec:type-syntax}
+
+\indexentry{type syntax}
+
+\begin{grammar}
+\production{\var{type}}{\produces}{\var{base-type}}{}
+\production{}{\alternative}{\var{compound-type}}{}
+\production{}{\alternative}{\var{type-variable}}{}
+\production{}{\alternative}{\var{quantified-type}}{}
+\\
+\production{\var{base-type}}{\produces}{Dynamic \alternative{} Number \alternative{} String}{}
+\production{}{\alternative}{Boolean \alternative{} Symbol \alternative{} Character}{}
+\production{}{\alternative}{Null \alternative{} Void \alternative{} Any}{}
+\\
+\production{\var{compound-type}}{\produces}{(\code{->} \arbno{\var{type}} \var{type})}{}
+\production{}{\alternative}{(List \var{type})}{}
+\production{}{\alternative}{(Vector \var{type})}{}
+\production{}{\alternative}{(Pair \var{type} \var{type})}{}
+\production{}{\alternative}{(\var{type} \alternative{} \var{type})}{}
+\production{}{\alternative}{(\var{type} \& \var{type})}{}
+\\
+\production{\var{type-variable}}{\produces}{\var{identifier}}{}
+\\
+\production{\var{quantified-type}}{\produces}{(All (\arbno{\var{type-variable}}) \var{type})}{}
+\production{}{\alternative}{(Exists (\arbno{\var{type-variable}}) \var{type})}{}
+\end{grammar}
+
+\section{Base Types}
+\label{sec:base-types}
+
+\indexentry{base type}
+
+\subsection{Dynamic Type}
+\label{subsec:dynamic}
+
+The \lambdusttype{Dynamic} type represents untyped values from R7RS code:
+
+\begin{typespec}{Dynamic}
+The universal type that accepts any value and provides no static guarantees. All R7RS expressions have type \lambdusttype{Dynamic} in Dynamic mode.
+\end{typespec}
+
+\subsection{Primitive Types}
+\label{subsec:primitives}
+
+\begin{typespec}{Number}
+Represents all numeric values in the R7RS numeric tower: integers, rationals, reals, and complex numbers.
+\end{typespec}
+
+\begin{typespec}{String}
+Represents immutable Unicode strings.
+\end{typespec}
+
+\begin{typespec}{Boolean}
+Represents boolean values \code{\#t} and \code{\#f}.
+\end{typespec}
+
+\begin{typespec}{Symbol}
+Represents interned symbolic identifiers.
+\end{typespec}
+
+\begin{typespec}{Character}  
+Represents Unicode scalar values.
+\end{typespec}
+
+\begin{typespec}{Null}
+Represents the empty list \code{()}.
+\end{typespec}
+
+\begin{typespec}{Void}
+Represents the unspecified value returned by some procedures.
+\end{typespec}
+
+\section{Refined Numeric Types}
+\label{sec:numeric-refinements}
+
+The type system provides refined numeric types:
+
+\begin{typespec}{Integer}
+Exact integers (subset of \lambdusttype{Number}).
+\end{typespec}
+
+\begin{typespec}{Natural}  
+Non-negative integers $\{0, 1, 2, \ldots\}$.
+\end{typespec}
+
+\begin{typespec}{Positive}
+Positive integers $\{1, 2, 3, \ldots\}$.
+\end{typespec}
+
+\begin{typespec}{Real}
+Real numbers (excludes complex numbers with non-zero imaginary parts).
+\end{typespec}
+
+\begin{typespec}{Float}
+Inexact real numbers.
+\end{typespec}
+
+\begin{typespec}{Rational}
+Exact rational numbers.
+\end{typespec}
+
+\begin{typespec}{Complex}
+Complex numbers including reals.
+\end{typespec}
+
+\section{Compound Types}
+\label{sec:compound-types}
+
+\indexentry{compound type}
+
+\subsection{Function Types}
+\label{subsec:function-types}
+
+Function types specify parameter and return types:
+
+\begin{typespec}{(-> T1 T2 ... Tn R)}
+Function accepting parameters of types $T_1, T_2, \ldots, T_n$ and returning type $R$.
+\end{typespec}
+
+\begin{typespec}{(->* (T1 T2 ...) (U1 U2 ...) R)}
+Function with required parameters $T_1, T_2, \ldots$ and optional parameters $U_1, U_2, \ldots$ returning $R$.
+\end{typespec}
+
+\begin{example}[Function Types]
+\begin{lambdustcode}
+;; Simple function type
+(define add :: (-> Number Number Number))
+
+;; Higher-order function  
+(define map :: (All (A B) (-> (-> A B) (List A) (List B))))
+
+;; Variadic function
+(define list :: (All (A) (->* () (A) (List A))))
+\end{lambdustcode}
+\end{example}
+
+\subsection{List Types}
+\label{subsec:list-types}
+
+\begin{typespec}{(List T)}
+Homogeneous list of elements of type $T$.
+\end{typespec}
+
+\begin{typespec}{(Listof T)}
+Synonym for \lambdusttype{(List T)}.
+\end{typespec}
+
+\begin{typespec}{(List T1 T2 ... Tn)}
+Heterogeneous list with exactly $n$ elements of specified types.
+\end{typespec}
+
+\begin{example}[List Types]
+\begin{lambdustcode}
+;; Homogeneous list
+(define numbers :: (List Number) '(1 2 3 4 5))
+
+;; Heterogeneous list  
+(define person :: (List String Natural Boolean)
+  '("Alice" 30 #t))
+
+;; List of functions
+(define ops :: (List (-> Number Number Number))
+  (list + - * /))
+\end{lambdustcode}
+\end{example}
+
+\subsection{Vector Types}
+\label{subsec:vector-types}
+
+\begin{typespec}{(Vector T)}
+Vector of elements of type $T$.
+\end{typespec}
+
+\begin{typespec}{(Vector T1 T2 ... Tn)}
+Vector with exactly $n$ elements of specified types.
+\end{typespec}
+
+\subsection{Pair Types}
+\label{subsec:pair-types}
+
+\begin{typespec}{(Pair T U)}
+Pair with car of type $T$ and cdr of type $U$.
+\end{typespec}
+
+\begin{example}[Pair Types]
+\begin{lambdustcode}
+;; Association list entry
+(define entry :: (Pair String Number) '("count" . 42))
+
+;; Nested pairs forming a list  
+(define point :: (Pair Number (Pair Number Null))
+  '(3.14 . (2.71 . ())))
+\end{lambdustcode}
+\end{example}
+
+\section{Union and Intersection Types}
+\label{sec:union-intersection}
+
+\indexentry{union type}
+\indexentry{intersection type}
+
+\subsection{Union Types}
+\label{subsec:union-types}
+
+Union types represent values that can be one of several types:
+
+\begin{typespec}{(U T1 T2 ... Tn)}
+Value is one of types $T_1, T_2, \ldots, T_n$.
+\end{typespec}
+
+\begin{typespec}{(T1 | T2 | ... | Tn)}
+Alternative syntax for union types.
+\end{typespec}
+
+\begin{example}[Union Types]
+\begin{lambdustcode}
+;; Optional value  
+(define maybe-string :: (U String Null) 
+  (if (> (random) 0.5) "hello" '()))
+
+;; Result type
+(define (safe-divide :: (-> Number Number (U Number String)))
+  (lambda (x y)
+    (if (= y 0) 
+        "Division by zero"
+        (/ x y))))
+\end{lambdustcode}
+\end{example}
+
+\subsection{Intersection Types}
+\label{subsec:intersection-types}
+
+Intersection types represent values that satisfy multiple type constraints:
+
+\begin{typespec}{(\& T1 \& T2 ... \& Tn)}
+Value satisfies all types $T_1, T_2, \ldots, T_n$.
+\end{typespec}
+
+\begin{example}[Intersection Types]
+\begin{lambdustcode}
+;; Function that's both numeric and callable
+(define numeric-proc :: (& Number (-> Void Number))
+  (let ((value 42))
+    (case-lambda 
+      (() value)
+      ((new-val) (set! value new-val)))))
+\end{lambdustcode}
+\end{example}
+
+\section{Polymorphic Types}  
+\label{sec:polymorphic}
+
+\indexentry{polymorphism}
+\indexentry{type variable}
+
+\subsection{Universal Quantification}
+\label{subsec:universal}
+
+\begin{typespec}{(All (X1 X2 ... Xn) T)}
+Type $T$ parameterized by type variables $X_1, X_2, \ldots, X_n$.
+\end{typespec}
+
+\begin{example}[Polymorphic Types]
+\begin{lambdustcode}
+;; Generic identity function
+(define identity :: (All (A) (-> A A))
+  (lambda (x) x))
+
+;; Generic list operations
+(define length :: (All (A) (-> (List A) Natural))
+  (lambda (lst)
+    (if (null? lst) 0 (+ 1 (length (cdr lst))))))
+
+;; Polymorphic data structure
+(define-struct (Box A) (value :: A))
+
+(define make-box :: (All (A) (-> A (Box A))))
+(define box-value :: (All (A) (-> (Box A) A)))
+\end{lambdustcode}
+\end{example}
+
+\subsection{Existential Quantification}
+\label{subsec:existential}
+
+\begin{typespec}{(Exists (X1 X2 ... Xn) T)}
+Existential type hiding implementation details.
+\end{typespec}
+
+\begin{example}[Existential Types]
+\begin{lambdustcode}
+;; Abstract data type
+(define counter :: (Exists (State) 
+                    (& (-> Void State)           ; initialize
+                       (-> State Void)           ; increment  
+                       (-> State Natural)))      ; get
+  (let ((count 0))
+    (values
+      (lambda () count)                          ; initialize (returns current)
+      (lambda (state) (set! count (+ count 1))) ; increment
+      (lambda (state) count))))                  ; get
+\end{lambdustcode}
+\end{example}
+
+\section{Type Annotations}
+\label{sec:annotations}
+
+\indexentry{type annotation}
+
+\subsection{Variable Annotations}
+\label{subsec:variable-annotations}
+
+\begin{syntaxspec}{(define name :: type expression)}
+Define variable with explicit type.
+\end{syntaxspec}
+
+\begin{syntaxspec}{(:: expression type)}
+Type ascription for any expression.
+\end{syntaxspec}
+
+\begin{example}[Variable Annotations]
+\begin{lambdustcode}
+;; Variable with type
+(define pi :: Real 3.14159)
+
+;; Type ascription
+(define x (:: (+ 1 2) Natural))
+
+;; Function parameter types
+(define (factorial (n :: Natural)) :: Natural
+  (if (<= n 1) 1 (* n (factorial (- n 1)))))
+\end{lambdustcode}
+\end{example}
+
+\subsection{Function Annotations}
+\label{subsec:function-annotations}
+
+\begin{syntaxspec}{\#:type type-expression}
+Metadata-style type annotation.
+\end{syntaxspec}
+
+\begin{example}[Function Annotations]
+\begin{lambdustcode}
+(define (add x y)
+  #:type (-> Number Number Number)
+  (+ x y))
+
+(define factorial
+  #:type (-> Natural Natural)  
+  (lambda (n)
+    (if (<= n 1) 1 (* n (factorial (- n 1))))))
+
+;; With documentation
+(define (safe-car lst)
+  #:type (-> (List Any) (U Any Null))
+  #:doc "Returns car or null for empty list"
+  (if (null? lst) '() (car lst)))
+\end{lambdustcode}
+\end{example}
+
+\section{Type Inference}
+\label{sec:inference}
+
+\indexentry{type inference}
+
+The type checker uses Algorithm W (Hindley-Milner) with extensions for gradual typing:
+
+\subsection{Local Type Inference}
+\label{subsec:local-inference}
+
+Types can often be inferred from context:
+
+\begin{example}[Type Inference]
+\begin{lambdustcode}
+;; Inferred types shown in comments
+(define (map f lst)                    ; f: (A -> B), lst: (List A)
+  (if (null? lst)                      ; -> (List B)
+      '()
+      (cons (f (car lst)) 
+            (map f (cdr lst)))))
+
+;; Usage determines specific types  
+(map (:: + (-> Number Number Number))  ; map: (-> Number Number Number)
+     '(1 2 3))                         ;      (List Number) -> (List Number)
+\end{lambdustcode}
+\end{example}
+
+\subsection{Constraint Generation}
+\label{subsec:constraints}
+
+The type checker generates and solves constraints:
+
+\begin{example}[Constraint Generation]
+\begin{lambdustcode}
+;; Function with constraints
+(define (compose f g)
+  ;; Generated constraints:
+  ;; f: X -> Y  
+  ;; g: Z -> X
+  ;; compose: (X -> Y) -> (Z -> X) -> (Z -> Y)
+  (lambda (x) (f (g x))))
+
+;; Constraint solving determines:
+;; compose :: (All (A B C) (-> (-> A B) (-> C A) (-> C B)))
+\end{lambdustcode}
+\end{example}
+
+\section{Gradual Typing}
+\label{sec:gradual}
+
+\indexentry{gradual typing}
+\indexentry{consistency}
+
+\subsection{Type Consistency}
+\label{subsec:consistency}
+
+The consistency relation $\sim$ allows \lambdusttype{Dynamic} to be consistent with any type:
+
+\begin{align}
+\tau &\sim \text{Dynamic} \\
+\text{Dynamic} &\sim \tau \\
+\tau &\sim \tau \\
+\tau_1 \to \tau_2 &\sim \sigma_1 \to \sigma_2 \quad \text{if } \tau_1 \sim \sigma_1 \text{ and } \tau_2 \sim \sigma_2
+\end{align}
+
+\subsection{Contract Generation}
+\label{subsec:contracts}
+
+At boundaries between typed and untyped code, contracts are automatically inserted:
+
+\begin{example}[Contract Generation]
+\begin{lambdustcode}
+;; Typed function
+(define (typed-add :: (-> Number Number Number))
+  (lambda (x y) (+ x y)))
+
+;; Untyped usage - contract inserted automatically
+(define untyped-result 
+  (typed-add "hello" "world"))  ; Runtime error: contract violation
+
+;; Contract wrapping (conceptual)
+(define wrapped-typed-add
+  (contract (-> Number Number Number)
+            typed-add
+            'positive-blame
+            'negative-blame))
+\end{lambdustcode}
+\end{example}
+
+\subsection{Blame Tracking}
+\label{subsec:blame}
+
+Contract violations identify which component is at fault:
+
+\begin{example}[Blame Tracking]
+\begin{lambdustcode}
+;; Typed library function
+(define (library-sort :: (-> (List Number) (List Number)))
+  (lambda (lst) (sort lst <)))
+
+;; User calls with wrong type
+(library-sort '("b" "a"))  
+;; Contract error: 
+;; library-sort: contract violation
+;; expected: Number
+;; given: "b"  
+;; in: first argument of (-> (List Number) (List Number))
+;; blame: caller
+\end{lambdustcode}
+\end{example}
+
+\section{Subtyping}
+\label{sec:subtyping}
+
+\indexentry{subtyping}
+
+The type system includes structural subtyping:
+
+\subsection{Numeric Subtyping}
+\label{subsec:numeric-subtyping}
+
+\begin{align}
+\text{Natural} &<: \text{Integer} <: \text{Rational} <: \text{Real} <: \text{Complex} <: \text{Number} \\
+\text{Positive} &<: \text{Natural}
+\end{align}
+
+\subsection{Function Subtyping}
+\label{subsec:function-subtyping}
+
+Function types are contravariant in parameters and covariant in results:
+
+\begin{align}
+(\tau_1 \to \tau_2) <: (\sigma_1 \to \sigma_2) \quad \text{if } \sigma_1 <: \tau_1 \text{ and } \tau_2 <: \sigma_2
+\end{align}
+
+\subsection{List Subtyping}
+\label{subsec:list-subtyping}
+
+\begin{align}
+(\text{List } \tau) <: (\text{List } \sigma) \quad \text{if } \tau <: \sigma
+\end{align}
+
+\section{Type Classes}
+\label{sec:type-classes}
+
+\indexentry{type class}
+
+Type classes provide constrained polymorphism:
+
+\begin{example}[Type Classes]
+\begin{lambdustcode}
+;; Define a type class
+(define-class (Eq A)
+  (equal? :: (-> A A Boolean)))
+
+;; Instance for numbers
+(define-instance (Eq Number)
+  (equal? =))
+
+;; Instance for strings  
+(define-instance (Eq String)
+  (equal? string=?))
+
+;; Constrained polymorphic function
+(define (member :: (All (A) (=> (Eq A) (-> A (List A) Boolean))))
+  (lambda (x lst)
+    (cond ((null? lst) #f)
+          ((equal? x (car lst)) #t)
+          (else (member x (cdr lst))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Type-Level Computation}
+\label{sec:type-level}
+
+\indexentry{type-level computation}
+
+The type system supports limited computation at the type level:
+
+\begin{example}[Type-Level Computation]
+\begin{lambdustcode}
+;; Type-level natural numbers
+(define-type-family (Add m n)
+  (Add Zero n) = n
+  (Add (Succ m) n) = (Succ (Add m n)))
+
+;; Vector with statically known length
+(define-struct (Vec n A) (length :: n) (data :: (Vector A)))
+
+;; Concatenation preserves length information
+(define vec-append :: (All (m n A) 
+                       (-> (Vec m A) (Vec n A) (Vec (Add m n) A))))
+\end{lambdustcode}
+\end{example}
+
+\section{Error Messages}
+\label{sec:error-messages}
+
+The type checker provides detailed error messages:
+
+\begin{example}[Type Error Messages]
+\begin{lambdustcode}
+;; Type mismatch
+(define (bad-add x y) (+ x "hello"))
+;; Error: Type mismatch
+;; Expected: Number  
+;; Actual: String
+;; In expression: "hello"
+;; Function: bad-add at line 1
+
+;; Arity mismatch
+(+ 1 2 3 "oops")
+;; Error: Argument type mismatch
+;; Function: +
+;; Expected: Number
+;; Actual: String  
+;; Argument position: 4
+\end{lambdustcode}
+\end{example}
+
+\section{Optimization}
+\label{sec:optimization}
+
+Type information enables optimizations:
+
+\subsection{Specialization}
+\label{subsec:specialization}
+
+Polymorphic functions can be specialized based on usage:
+
+\begin{example}[Specialization]
+\begin{lambdustcode}
+;; Generic function
+(define map :: (All (A B) (-> (-> A B) (List A) (List B))))
+
+;; Specialized versions generated automatically
+;; map-number-number :: (-> (-> Number Number) (List Number) (List Number))
+;; map-string-string :: (-> (-> String String) (List String) (List String))
+\end{lambdustcode}
+\end{example}
+
+\subsection{Unboxing}
+\label{subsec:unboxing}
+
+Numeric types can be unboxed for efficiency:
+
+\begin{example}[Unboxing]
+\begin{lambdustcode}
+(define (sum-list :: (-> (List Real) Real))
+  (lambda (lst)
+    ;; Real values can be unboxed to native floating-point
+    (fold-left + 0.0 lst)))
+\end{lambdustcode}
+\end{example}
+
+\section{Migration Strategies}
+\label{sec:migration}
+
+\subsection{Incremental Typing}
+\label{subsec:incremental}
+
+Add types gradually to existing R7RS code:
+
+\begin{example}[Incremental Typing]
+\begin{lambdustcode}
+;; Step 1: Original R7RS code
+(define (factorial n)
+  (if (<= n 1) 1 (* n (factorial (- n 1)))))
+
+;; Step 2: Add simple type annotation  
+(define (factorial n)
+  #:type (-> Number Number)
+  (if (<= n 1) 1 (* n (factorial (- n 1)))))
+
+;; Step 3: Refine with more specific types
+(define (factorial n)
+  #:type (-> Natural Natural)  
+  (if (<= n 1) 1 (* n (factorial (- n 1)))))
+
+;; Step 4: Add parameter type  
+(define (factorial :: (-> Natural Natural))
+  (lambda ((n :: Natural))
+    (if (<= n 1) 1 (* n (factorial (- n 1))))))
+\end{lambdustcode}
+\end{example}
+
+\subsection{Type-Driven Development}
+\label{subsec:type-driven}
+
+Use types to guide implementation:
+
+\begin{example}[Type-Driven Development]
+\begin{lambdustcode}
+;; Start with type signature
+(define process-data :: (-> (List String) (List Natural) (U String Natural)))
+
+;; Implementation guided by types
+(define (process-data strings numbers)
+  (if (= (length strings) (length numbers))
+      ;; Success case: return sum  
+      (fold-left + 0 numbers)
+      ;; Error case: return message
+      "Length mismatch"))
+\end{lambdustcode}
+\end{example}
+
+\section{Implementation Notes}
+\label{sec:gradual-implementation}
+
+\subsection{Type Checker Architecture}
+\label{subsec:checker-architecture}
+
+The type checker operates in phases:
+\begin{enumerate}
+\item Parse type annotations and infer missing types
+\item Generate and solve type constraints  
+\item Check consistency between typed and untyped regions
+\item Insert contracts at boundaries
+\item Report errors with blame information
+\end{enumerate}
+
+\subsection{Runtime System Integration}
+\label{subsec:runtime-integration}
+
+Types interact with the runtime system:
+\begin{itemize}
+\item Contract wrappers are inserted transparently
+\item Type tags can be checked for optimization
+\item Blame tracking maintains stack traces
+\item Gradual typing preserves R7RS semantics
+\end{itemize}
+
+The gradual type system provides a smooth path from dynamic R7RS Scheme to statically typed functional programming while maintaining the flexibility and expressiveness that makes Scheme powerful.

@@ -16,7 +16,11 @@ pub struct Position {
 impl Position {
     /// Creates a new position.
     pub fn new(line: usize, column: usize, offset: usize) -> Self {
-        Self { line, column, offset }
+        Self {
+            line,
+            column,
+            offset,
+        }
     }
 
     /// Creates a position at the start of a file.
@@ -27,7 +31,7 @@ impl Position {
     /// Creates a position from a span (basic implementation).
     pub fn from_span(span: &Span) -> Self {
         Self {
-            line: 1, // TODO: Calculate from source
+            line: 1,   // TODO: Calculate from source
             column: 1, // TODO: Calculate from source
             offset: span.start,
         }

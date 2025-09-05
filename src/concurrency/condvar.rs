@@ -3,8 +3,8 @@
 //! This module provides async condition variable functionality for coordinating
 //! tasks that need to wait for certain conditions to become true.
 
-use crate::diagnostics::Result;
 use super::ConcurrencyError;
+use crate::diagnostics::Result;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Notify;

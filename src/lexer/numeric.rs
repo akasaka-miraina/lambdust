@@ -15,11 +15,11 @@ use crate::diagnostics::{Error, Result, Span};
 /// Validates an integer literal according to R7RS syntax.
 pub fn validate_integer(text: &str, span: Span) -> Result<()> {
     if text.is_empty() {
-        return Err(Box::new(Error::lex_error("Empty integer literal", span)))
+        return Err(Box::new(Error::lex_error("Empty integer literal", span)));
     }
 
     let text = text.trim();
-    
+
     // Handle sign
     let (_sign_len, unsigned) = match text.chars().next() {
         Some('+') | Some('-') => (1, &text[1..]),
@@ -27,7 +27,10 @@ pub fn validate_integer(text: &str, span: Span) -> Result<()> {
     };
 
     if unsigned.is_empty() {
-        return Err(Box::new(Error::lex_error("Integer literal cannot be just a sign", span)))
+        return Err(Box::new(Error::lex_error(
+            "Integer literal cannot be just a sign",
+            span,
+        )));
     }
 
     // Check for different number bases
@@ -35,42 +38,51 @@ pub fn validate_integer(text: &str, span: Span) -> Result<()> {
         // Hexadecimal
         let hex_digits = &unsigned[2..];
         if hex_digits.is_empty() {
-            return Err(Box::new(Error::lex_error("Hexadecimal literal must have digits after 0x", span)))
+            return Err(Box::new(Error::lex_error(
+                "Hexadecimal literal must have digits after 0x",
+                span,
+            )));
         }
         for ch in hex_digits.chars() {
             if !ch.is_ascii_hexdigit() {
                 return Err(Box::new(Error::lex_error(
-                    format!("Invalid hexadecimal digit: '{ch}'"), 
-                    span
-                )))
+                    format!("Invalid hexadecimal digit: '{ch}'"),
+                    span,
+                )));
             }
         }
     } else if unsigned.starts_with("0b") || unsigned.starts_with("0B") {
         // Binary
         let bin_digits = &unsigned[2..];
         if bin_digits.is_empty() {
-            return Err(Box::new(Error::lex_error("Binary literal must have digits after 0b", span)))
+            return Err(Box::new(Error::lex_error(
+                "Binary literal must have digits after 0b",
+                span,
+            )));
         }
         for ch in bin_digits.chars() {
             if !matches!(ch, '0' | '1') {
                 return Err(Box::new(Error::lex_error(
-                    format!("Invalid binary digit: '{ch}'"), 
-                    span
-                )))
+                    format!("Invalid binary digit: '{ch}'"),
+                    span,
+                )));
             }
         }
     } else if unsigned.starts_with("0o") || unsigned.starts_with("0O") {
         // Octal
         let oct_digits = &unsigned[2..];
         if oct_digits.is_empty() {
-            return Err(Box::new(Error::lex_error("Octal literal must have digits after 0o", span)))
+            return Err(Box::new(Error::lex_error(
+                "Octal literal must have digits after 0o",
+                span,
+            )));
         }
         for ch in oct_digits.chars() {
             if !('0'..='7').contains(&ch) {
                 return Err(Box::new(Error::lex_error(
-                    format!("Invalid octal digit: '{ch}'"), 
-                    span
-                )))
+                    format!("Invalid octal digit: '{ch}'"),
+                    span,
+                )));
             }
         }
     } else {
@@ -78,9 +90,9 @@ pub fn validate_integer(text: &str, span: Span) -> Result<()> {
         for ch in unsigned.chars() {
             if !ch.is_ascii_digit() {
                 return Err(Box::new(Error::lex_error(
-                    format!("Invalid decimal digit: '{ch}'"), 
-                    span
-                )))
+                    format!("Invalid decimal digit: '{ch}'"),
+                    span,
+                )));
             }
         }
     }
@@ -91,11 +103,14 @@ pub fn validate_integer(text: &str, span: Span) -> Result<()> {
 /// Validates a real (floating-point) number literal according to R7RS syntax.
 pub fn validate_real(text: &str, span: Span) -> Result<()> {
     if text.is_empty() {
-        return Err(Box::new(Error::lex_error("Empty real number literal", span)))
+        return Err(Box::new(Error::lex_error(
+            "Empty real number literal",
+            span,
+        )));
     }
 
     let text = text.trim();
-    
+
     // Handle sign
     let unsigned = match text.chars().next() {
         Some('+') | Some('-') => &text[1..],
@@ -103,37 +118,43 @@ pub fn validate_real(text: &str, span: Span) -> Result<()> {
     };
 
     if unsigned.is_empty() {
-        return Err(Box::new(Error::lex_error("Real number literal cannot be just a sign", span)))
+        return Err(Box::new(Error::lex_error(
+            "Real number literal cannot be just a sign",
+            span,
+        )));
     }
 
     // Check for scientific notation
     let (mantissa, exponent) = if let Some(e_pos) = unsigned.find(['e', 'E']) {
         let mantissa = &unsigned[..e_pos];
         let exponent = &unsigned[e_pos + 1..];
-        
+
         if exponent.is_empty() {
-            return Err(Box::new(Error::lex_error("Exponent cannot be empty", span)))
+            return Err(Box::new(Error::lex_error("Exponent cannot be empty", span)));
         }
-        
+
         // Validate exponent (must be integer)
         let exp_unsigned = match exponent.chars().next() {
             Some('+') | Some('-') => &exponent[1..],
             _ => exponent,
         };
-        
+
         if exp_unsigned.is_empty() {
-            return Err(Box::new(Error::lex_error("Exponent cannot be just a sign", span)))
+            return Err(Box::new(Error::lex_error(
+                "Exponent cannot be just a sign",
+                span,
+            )));
         }
-        
+
         for ch in exp_unsigned.chars() {
             if !ch.is_ascii_digit() {
                 return Err(Box::new(Error::lex_error(
-                    format!("Invalid digit in exponent: '{ch}'"), 
-                    span
-                )))
+                    format!("Invalid digit in exponent: '{ch}'"),
+                    span,
+                )));
             }
         }
-        
+
         (mantissa, Some(exponent))
     } else {
         (unsigned, None)
@@ -141,31 +162,40 @@ pub fn validate_real(text: &str, span: Span) -> Result<()> {
 
     // Validate mantissa
     if mantissa.is_empty() {
-        return Err(Box::new(Error::lex_error("Mantissa cannot be empty", span)))
+        return Err(Box::new(Error::lex_error("Mantissa cannot be empty", span)));
     }
 
     let dot_count = mantissa.matches('.').count();
     if dot_count > 1 {
-        return Err(Box::new(Error::lex_error("Real number cannot have multiple decimal points", span)))
+        return Err(Box::new(Error::lex_error(
+            "Real number cannot have multiple decimal points",
+            span,
+        )));
     }
 
     if dot_count == 0 && exponent.is_none() {
-        return Err(Box::new(Error::lex_error("Real number must have decimal point or exponent", span)))
+        return Err(Box::new(Error::lex_error(
+            "Real number must have decimal point or exponent",
+            span,
+        )));
     }
 
     // Check that all characters are digits or decimal point
     for ch in mantissa.chars() {
         if !ch.is_ascii_digit() && ch != '.' {
             return Err(Box::new(Error::lex_error(
-                format!("Invalid character in real number: '{ch}'"), 
-                span
-            )))
+                format!("Invalid character in real number: '{ch}'"),
+                span,
+            )));
         }
     }
 
     // Ensure there's at least one digit
     if !mantissa.chars().any(|c| c.is_ascii_digit()) {
-        return Err(Box::new(Error::lex_error("Real number must contain at least one digit", span)))
+        return Err(Box::new(Error::lex_error(
+            "Real number must contain at least one digit",
+            span,
+        )));
     }
 
     Ok(())
@@ -174,11 +204,14 @@ pub fn validate_real(text: &str, span: Span) -> Result<()> {
 /// Validates a rational number literal according to R7RS syntax.
 pub fn validate_rational(text: &str, span: Span) -> Result<()> {
     if text.is_empty() {
-        return Err(Box::new(Error::lex_error("Empty rational number literal", span)))
+        return Err(Box::new(Error::lex_error(
+            "Empty rational number literal",
+            span,
+        )));
     }
 
     let text = text.trim();
-    
+
     // Handle sign
     let unsigned = match text.chars().next() {
         Some('+') | Some('-') => &text[1..],
@@ -186,13 +219,19 @@ pub fn validate_rational(text: &str, span: Span) -> Result<()> {
     };
 
     if unsigned.is_empty() {
-        return Err(Box::new(Error::lex_error("Rational number literal cannot be just a sign", span)))
+        return Err(Box::new(Error::lex_error(
+            "Rational number literal cannot be just a sign",
+            span,
+        )));
     }
 
     // Split on '/'
     let parts: Vec<&str> = unsigned.split('/').collect();
     if parts.len() != 2 {
-        return Err(Box::new(Error::lex_error("Rational number must have exactly one '/' character", span)))
+        return Err(Box::new(Error::lex_error(
+            "Rational number must have exactly one '/' character",
+            span,
+        )));
     }
 
     let numerator = parts[0];
@@ -200,33 +239,42 @@ pub fn validate_rational(text: &str, span: Span) -> Result<()> {
 
     // Validate numerator
     if numerator.is_empty() {
-        return Err(Box::new(Error::lex_error("Rational number numerator cannot be empty", span)))
+        return Err(Box::new(Error::lex_error(
+            "Rational number numerator cannot be empty",
+            span,
+        )));
     }
-    
+
     for ch in numerator.chars() {
         if !ch.is_ascii_digit() {
             return Err(Box::new(Error::lex_error(
-                format!("Invalid digit in numerator: '{ch}'"), 
-                span
-            )))
+                format!("Invalid digit in numerator: '{ch}'"),
+                span,
+            )));
         }
     }
 
     // Validate denominator
     if denominator.is_empty() {
-        return Err(Box::new(Error::lex_error("Rational number denominator cannot be empty", span)))
+        return Err(Box::new(Error::lex_error(
+            "Rational number denominator cannot be empty",
+            span,
+        )));
     }
-    
+
     if denominator == "0" {
-        return Err(Box::new(Error::lex_error("Rational number denominator cannot be zero", span)))
+        return Err(Box::new(Error::lex_error(
+            "Rational number denominator cannot be zero",
+            span,
+        )));
     }
-    
+
     for ch in denominator.chars() {
         if !ch.is_ascii_digit() {
             return Err(Box::new(Error::lex_error(
-                format!("Invalid digit in denominator: '{ch}'"), 
-                span
-            )))
+                format!("Invalid digit in denominator: '{ch}'"),
+                span,
+            )));
         }
     }
 
@@ -236,7 +284,10 @@ pub fn validate_rational(text: &str, span: Span) -> Result<()> {
 /// Validates a complex number literal according to R7RS syntax.
 pub fn validate_complex(text: &str, span: Span) -> Result<()> {
     if text.is_empty() {
-        return Err(Box::new(Error::lex_error("Empty complex number literal", span)))
+        return Err(Box::new(Error::lex_error(
+            "Empty complex number literal",
+            span,
+        )));
     }
 
     let text = text.trim();
@@ -247,16 +298,19 @@ pub fn validate_complex(text: &str, span: Span) -> Result<()> {
     }
 
     if !text.ends_with('i') {
-        return Err(Box::new(Error::lex_error("Complex number must end with 'i'", span)))
+        return Err(Box::new(Error::lex_error(
+            "Complex number must end with 'i'",
+            span,
+        )));
     }
 
     let without_i = &text[..text.len() - 1];
-    
+
     // Find the position of + or - that separates real and imaginary parts
     // We need to be careful not to match the sign at the beginning
     let mut split_pos = None;
     let mut depth = 0;
-    
+
     for (i, ch) in without_i.char_indices() {
         match ch {
             '(' => depth += 1,
@@ -278,7 +332,7 @@ pub fn validate_complex(text: &str, span: Span) -> Result<()> {
         // Has both real and imaginary parts
         let real_part = &without_i[..pos];
         let imag_part = &without_i[pos..];
-        
+
         // Validate real part
         if !real_part.is_empty() {
             if real_part.contains('.') || real_part.contains(['e', 'E']) {
@@ -289,38 +343,65 @@ pub fn validate_complex(text: &str, span: Span) -> Result<()> {
                 validate_integer(real_part, span)?;
             }
         }
-        
+
         // Validate imaginary part (without the sign)
         let imag_unsigned = if imag_part.starts_with(['+', '-']) {
             &imag_part[1..]
         } else {
             imag_part
         };
-        
+
         if !imag_unsigned.is_empty() {
             if imag_unsigned.contains('.') || imag_unsigned.contains(['e', 'E']) {
-                validate_real(&format!("{}{}",
-                    if imag_part.starts_with(['+', '-']) { &imag_part[..1] } else { "" },
-                    imag_unsigned
-                ), span)?;
+                validate_real(
+                    &format!(
+                        "{}{}",
+                        if imag_part.starts_with(['+', '-']) {
+                            &imag_part[..1]
+                        } else {
+                            ""
+                        },
+                        imag_unsigned
+                    ),
+                    span,
+                )?;
             } else if imag_unsigned.contains('/') {
-                validate_rational(&format!("{}{}",
-                    if imag_part.starts_with(['+', '-']) { &imag_part[..1] } else { "" },
-                    imag_unsigned
-                ), span)?;
+                validate_rational(
+                    &format!(
+                        "{}{}",
+                        if imag_part.starts_with(['+', '-']) {
+                            &imag_part[..1]
+                        } else {
+                            ""
+                        },
+                        imag_unsigned
+                    ),
+                    span,
+                )?;
             } else {
-                validate_integer(&format!("{}{}",
-                    if imag_part.starts_with(['+', '-']) { &imag_part[..1] } else { "" },
-                    imag_unsigned
-                ), span)?;
+                validate_integer(
+                    &format!(
+                        "{}{}",
+                        if imag_part.starts_with(['+', '-']) {
+                            &imag_part[..1]
+                        } else {
+                            ""
+                        },
+                        imag_unsigned
+                    ),
+                    span,
+                )?;
             }
         }
     } else {
         // Only imaginary part
         if without_i.is_empty() {
-            return Err(Box::new(Error::lex_error("Complex number 'i' must have a coefficient", span)))
+            return Err(Box::new(Error::lex_error(
+                "Complex number 'i' must have a coefficient",
+                span,
+            )));
         }
-        
+
         // Validate the coefficient
         if without_i.contains('.') || without_i.contains(['e', 'E']) {
             validate_real(without_i, span)?;
@@ -337,7 +418,7 @@ pub fn validate_complex(text: &str, span: Span) -> Result<()> {
 /// Parses an integer literal into its numeric value.
 pub fn parse_integer(text: &str) -> Option<i64> {
     let text = text.trim();
-    
+
     // Handle different bases
     if text.starts_with("0x") || text.starts_with("0X") {
         i64::from_str_radix(&text[2..], 16).ok()
@@ -368,14 +449,14 @@ impl Rational {
         if denominator == 0 {
             return None;
         }
-        
+
         let gcd = gcd(numerator.unsigned_abs(), denominator);
         Some(Self {
             numerator: numerator / gcd as i64,
             denominator: denominator / gcd,
         })
     }
-    
+
     /// Converts to floating point approximation.
     pub fn to_f64(&self) -> f64 {
         self.numerator as f64 / self.denominator as f64
@@ -385,21 +466,21 @@ impl Rational {
 /// Parses a rational number literal.
 pub fn parse_rational(text: &str) -> Option<Rational> {
     let text = text.trim();
-    
+
     let (sign, unsigned) = match text.chars().next() {
         Some('-') => (-1, &text[1..]),
         Some('+') => (1, &text[1..]),
         _ => (1, text),
     };
-    
+
     let parts: Vec<&str> = unsigned.split('/').collect();
     if parts.len() != 2 {
         return None;
     }
-    
+
     let numerator: u64 = parts[0].parse().ok()?;
     let denominator: u64 = parts[1].parse().ok()?;
-    
+
     Rational::new(sign * numerator as i64, denominator)
 }
 
@@ -415,12 +496,12 @@ impl Complex {
     pub fn new(real: f64, imag: f64) -> Self {
         Self { real, imag }
     }
-    
+
     /// Creates a purely imaginary number.
     pub fn imaginary(imag: f64) -> Self {
         Self::new(0.0, imag)
     }
-    
+
     /// Creates a purely real number.
     pub fn real(real: f64) -> Self {
         Self::new(real, 0.0)
@@ -430,7 +511,7 @@ impl Complex {
 /// Parses a complex number literal.
 pub fn parse_complex(text: &str) -> Option<Complex> {
     let text = text.trim();
-    
+
     // Handle special cases
     match text {
         "i" => return Some(Complex::imaginary(1.0)),
@@ -438,13 +519,13 @@ pub fn parse_complex(text: &str) -> Option<Complex> {
         "-i" => return Some(Complex::imaginary(-1.0)),
         _ => {}
     }
-    
+
     if !text.ends_with('i') {
         return None;
     }
-    
+
     let without_i = &text[..text.len() - 1];
-    
+
     // Find split position for real and imaginary parts
     let mut split_pos = None;
     for (i, ch) in without_i.char_indices() {
@@ -457,18 +538,18 @@ pub fn parse_complex(text: &str) -> Option<Complex> {
             }
         }
     }
-    
+
     if let Some(pos) = split_pos {
         // Both real and imaginary parts
         let real_part = &without_i[..pos];
         let imag_part = &without_i[pos..];
-        
+
         let real = if real_part.is_empty() {
             0.0
         } else {
             real_part.parse().ok()?
         };
-        
+
         let imag = if imag_part == "+" {
             1.0
         } else if imag_part == "-" {
@@ -476,7 +557,7 @@ pub fn parse_complex(text: &str) -> Option<Complex> {
         } else {
             imag_part.parse().ok()?
         };
-        
+
         Some(Complex::new(real, imag))
     } else {
         // Only imaginary part
@@ -485,18 +566,14 @@ pub fn parse_complex(text: &str) -> Option<Complex> {
         } else {
             without_i.parse().ok()?
         };
-        
+
         Some(Complex::imaginary(imag))
     }
 }
 
 /// Computes the greatest common divisor using Euclid's algorithm.
 fn gcd(a: u64, b: u64) -> u64 {
-    if b == 0 {
-        a
-    } else {
-        gcd(b, a % b)
-    }
+    if b == 0 { a } else { gcd(b, a % b) }
 }
 
 #[cfg(test)]
@@ -506,14 +583,14 @@ mod tests {
     #[test]
     fn test_integer_validation() {
         let span = Span::new(0, 3);
-        
+
         assert!(validate_integer("123", span).is_ok());
         assert!(validate_integer("+123", span).is_ok());
         assert!(validate_integer("-123", span).is_ok());
         assert!(validate_integer("0x1F", span).is_ok());
         assert!(validate_integer("0b1010", span).is_ok());
         assert!(validate_integer("0o777", span).is_ok());
-        
+
         assert!(validate_integer("", span).is_err());
         assert!(validate_integer("+", span).is_err());
         assert!(validate_integer("12.3", span).is_err());
@@ -523,7 +600,7 @@ mod tests {
     #[test]
     fn test_real_validation() {
         let span = Span::new(0, 5);
-        
+
         assert!(validate_real("123.45", span).is_ok());
         assert!(validate_real(".123", span).is_ok());
         assert!(validate_real("123.", span).is_ok());
@@ -531,7 +608,7 @@ mod tests {
         assert!(validate_real("1.23e-4", span).is_ok());
         assert!(validate_real("+1.23", span).is_ok());
         assert!(validate_real("-1.23", span).is_ok());
-        
+
         assert!(validate_real("", span).is_err());
         assert!(validate_real("123", span).is_err()); // No decimal point or exponent
         assert!(validate_real("1.2.3", span).is_err());
@@ -541,12 +618,12 @@ mod tests {
     #[test]
     fn test_rational_validation() {
         let span = Span::new(0, 5);
-        
+
         assert!(validate_rational("1/2", span).is_ok());
         assert!(validate_rational("22/7", span).is_ok());
         assert!(validate_rational("+3/4", span).is_ok());
         assert!(validate_rational("-5/6", span).is_ok());
-        
+
         assert!(validate_rational("", span).is_err());
         assert!(validate_rational("1/0", span).is_err());
         assert!(validate_rational("1/", span).is_err());
@@ -557,7 +634,7 @@ mod tests {
     #[test]
     fn test_complex_validation() {
         let span = Span::new(0, 5);
-        
+
         assert!(validate_complex("3+4i", span).is_ok());
         assert!(validate_complex("3-4i", span).is_ok());
         assert!(validate_complex("3i", span).is_ok());
@@ -567,7 +644,7 @@ mod tests {
         assert!(validate_complex("+i", span).is_ok());
         assert!(validate_complex("-i", span).is_ok());
         assert!(validate_complex("1.5+2.5i", span).is_ok());
-        
+
         assert!(validate_complex("", span).is_err());
         assert!(validate_complex("3+4", span).is_err()); // No 'i'
     }
@@ -579,7 +656,7 @@ mod tests {
         assert_eq!(parse_integer("0x1F"), Some(31));
         assert_eq!(parse_integer("0b1010"), Some(10));
         assert_eq!(parse_integer("0o10"), Some(8));
-        
+
         assert_eq!(parse_integer("invalid"), None);
     }
 
@@ -588,7 +665,7 @@ mod tests {
         assert_eq!(parse_rational("1/2"), Some(Rational::new(1, 2).unwrap()));
         assert_eq!(parse_rational("6/9"), Some(Rational::new(2, 3).unwrap())); // Reduced
         assert_eq!(parse_rational("-3/4"), Some(Rational::new(-3, 4).unwrap()));
-        
+
         assert_eq!(parse_rational("invalid"), None);
         assert_eq!(parse_rational("1/0"), None);
     }
@@ -600,7 +677,7 @@ mod tests {
         assert_eq!(parse_complex("3i"), Some(Complex::new(0.0, 3.0)));
         assert_eq!(parse_complex("i"), Some(Complex::new(0.0, 1.0)));
         assert_eq!(parse_complex("-i"), Some(Complex::new(0.0, -1.0)));
-        
+
         assert_eq!(parse_complex("invalid"), None);
     }
 

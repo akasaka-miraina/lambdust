@@ -1,0 +1,282 @@
+%% Lambdust Language Specification
+%% Version 0.2.0
+%% Based on R7RS-small with advanced extensions
+
+\documentclass[twoside,twocolumn]{algol60}
+
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{stmaryrd}
+\usepackage{hyperref}
+\usepackage{makeidx}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{multicol}
+\usepackage{booktabs}
+\usepackage{enumerate}
+\usepackage{float}
+\usepackage{textcomp}
+\usepackage{etoolbox}
+\usepackage{xcolor}
+\usepackage{listings}
+
+% Unicode and font support (requires xelatex or lualatex)
+\usepackage{fontspec}
+\usepackage{newunicodechar}
+\usepackage{fancyvrb}
+
+% R7RS-style page dimensions
+\pagestyle{headings}
+\showboxdepth=0
+\makeindex
+
+% Define header title
+\def\headertitle{Lambdust Language Specification}
+
+% Sizes and dimensions (R7RS style)
+\topmargin -.375in
+\headsep 15pt
+\textheight 663pt
+\textwidth 523pt
+\columnsep 15pt
+\columnseprule 0pt
+\parskip 5pt plus 2pt minus 2pt
+\parindent 0pt
+\topsep 0pt plus 2pt
+\oddsidemargin  -.5in
+\evensidemargin -.5in
+
+% Custom commands and formatting
+\input{lambdust-commands}
+
+% Document metadata
+\title{The \boldmath$\lambda$ust(Lambdust) Language Specification\\
+       \large Version 0.2.0}
+\author{Lambdust Development Team}
+\date{\today}
+
+% PDF metadata
+\hypersetup{
+    pdftitle={Lambdust Language Specification v0.2.0},
+    pdfauthor={Lambdust Development Team},
+    pdfsubject={Programming Language Specification},
+    pdfkeywords={Lambdust, Scheme, R7RS, Functional Programming, Dependent Types, Gradual Typing},
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=red
+}
+
+\begin{document}
+
+\parindent 0pt
+
+% Title page content
+\begin{center}
+{\Huge\bfseries The Lambdust Language Specification}\\
+\vspace{1cm}
+{\Large Version 0.2.0}\\
+\vspace{1cm}
+{\large Lambdust Development Team}\\
+\vspace{0.5cm}
+{\large \today}
+\end{center}
+
+\vspace{2cm}
+
+\begin{abstract}
+\noindent This document specifies the Lambdust programming language, a conservative extension of R7RS-small Scheme that adds gradual dependent typing, algebraic effects with handlers, actor-based concurrency, memory-safe foreign function interface, and proof-carrying code capabilities. The language maintains complete R7RS compatibility while providing advanced features for high-assurance software development.
+\end{abstract}
+
+\vfill
+
+{\small
+Copyright \textcopyright{} 2024 Lambdust Development Team.\\
+This document is released under the Creative Commons Attribution 4.0 International License.
+}
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+% Introduction and Overview
+\input{lambdust-intro}
+
+% Lexical Structure  
+\input{lambdust-lexical}
+
+% Basic Syntax and Semantics
+\input{lambdust-syntax}
+
+% Gradual Type System
+\input{lambdust-gradual-types}
+
+% Dependent Type System
+\input{lambdust-dependent-types}
+
+% Effect System
+\input{lambdust-effects}
+
+% Concurrency System
+\input{lambdust-concurrency}
+
+% Foreign Function Interface
+\input{lambdust-ffi}
+
+% Macro System Extensions
+\input{lambdust-macros}
+
+% Standard Library
+\input{lambdust-stdlib}
+
+% Formal Semantics (from existing document)
+\input{LambdustFormalSemantics}
+
+% Comprehensive Examples - moved to end as single column
+\newpage
+\onecolumn
+\input{lambdust-examples}
+
+\twocolumn
+\appendix
+
+\chapter{R7RS Compatibility Reference}
+\label{app:r7rs-compat}
+
+This appendix provides a detailed mapping between R7RS-small features and their Lambdust implementations, ensuring complete backward compatibility.
+
+\subsection{Syntactic Compatibility}
+\label{app:syntax-compat}
+
+All R7RS-small syntactic forms are supported without modification:
+\begin{itemize}
+\item All special forms: \texttt{lambda}, \texttt{if}, \texttt{set!}, \texttt{quote}, etc.
+\item All derived expressions: \texttt{cond}, \texttt{case}, \texttt{and}, \texttt{or}, etc.
+\item All literal syntaxes: numbers, strings, characters, booleans, symbols
+\item All reader macros: quote, quasiquote, unquote, unquote-splicing
+\end{itemize}
+
+\subsection{Semantic Compatibility}
+\label{app:semantic-compat}
+
+The denotational semantics preserves R7RS behavior:
+\begin{itemize}
+\item Evaluation order and proper tail recursion
+\item Lexical scoping and closure semantics
+\item Continuation semantics via \texttt{call/cc}
+\item Numeric tower and exactness
+\end{itemize}
+
+\chapter{SRFI Support Matrix}
+\label{app:srfi-matrix}
+
+This appendix lists SRFI (Scheme Request for Implementation) support in Lambdust.
+
+\onecolumn
+\begin{tabular}{|l|l|p{10cm}|}
+\hline
+\textbf{SRFI} & \textbf{Status} & \textbf{Description} \\
+\hline
+SRFI-1 & Complete & List Library \\
+SRFI-6 & Complete & Basic String Ports \\
+SRFI-8 & Complete & receive: Binding to multiple values \\
+SRFI-9 & Complete & Defining Record Types \\
+SRFI-11 & Complete & Syntax for receiving multiple values \\
+SRFI-13 & Complete & String Libraries \\
+SRFI-14 & Complete & Character-set Library \\
+SRFI-16 & Complete & Syntax for procedures of variable arity \\
+SRFI-17 & Complete & Generalized set! \\
+SRFI-23 & Complete & Error reporting mechanism \\
+SRFI-30 & Complete & Nested Multi-line Comments \\
+SRFI-39 & Complete & Parameter objects \\
+SRFI-41 & Complete & Streams \\
+SRFI-46 & Complete & Basic syntax-rules Extensions \\
+SRFI-62 & Complete & S-expression comments \\
+SRFI-87 & Complete & => in case clauses \\
+SRFI-111 & Complete & Boxes \\
+SRFI-112 & Complete & Environment Inquiry \\
+SRFI-113 & Complete & Sets and bags \\
+SRFI-121 & Complete & Generators \\
+SRFI-128 & Complete & Comparators (reduced) \\
+SRFI-132 & Complete & Sort Libraries \\
+SRFI-151 & Complete & Bitwise Operations \\
+SRFI-158 & Complete & Generators and Accumulators \\
+\hline
+\end{tabular}
+\twocolumn
+
+\chapter{Migration Guide from R7RS}
+\label{app:migration}
+
+This appendix provides guidance for migrating existing R7RS Scheme code to Lambdust.
+
+\subsection{Zero-Change Migration}
+Most R7RS programs run unchanged in Lambdust:
+
+\begin{lambdustcode}
+;; This R7RS program works unchanged in Lambdust
+(define (factorial n)
+  (if (<= n 1)
+      1
+      (* n (factorial (- n 1)))))
+\end{lambdustcode}
+
+\subsection{Gradual Enhancement}
+Add type annotations incrementally:
+
+\begin{lambdustcode}
+;; Add type annotation for better error checking
+(define (factorial n)
+  #:type (-> Natural Natural)
+  (if (<= n 1)
+      1
+      (* n (factorial (- n 1)))))
+\end{lambdustcode}
+
+\chapter{Implementation Notes}
+\label{app:implementation}
+
+This appendix provides guidance for implementers of the Lambdust language.
+
+\subsection{Parser Implementation}
+The parser should support:
+\begin{itemize}
+\item All R7RS lexical elements
+\item Extended token types: \texttt{::}, \texttt{->}, \texttt{=>}, \texttt{|}, \texttt{\~}, \texttt{\~>}
+\item Keyword syntax: \texttt{\#:identifier}
+\item Type annotation syntax
+\end{itemize}
+
+\subsection{Type Checker Integration}
+The type checker operates in four modes:
+\begin{enumerate}
+\item \textbf{Dynamic Mode}: No type checking (R7RS compatible)
+\item \textbf{Gradual Mode}: Optional type checking with contracts
+\item \textbf{Static Mode}: Full Hindley-Milner inference
+\item \textbf{Dependent Mode}: Dependent type checking with proof obligations
+\end{enumerate}
+
+\vfill\eject
+
+% Bibliography
+\renewcommand{\bibname}{References}
+\bibliography{lambdust-bibliography}
+\bibliographystyle{plain}
+
+\vfill\eject
+
+% Index
+\begin{theindex}
+
+The principal entry for each term, procedure, or keyword is listed
+first, separated from the other entries by a semicolon.
+
+\bigskip
+
+\printindex
+\end{theindex}
+
+\end{document}

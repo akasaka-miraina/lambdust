@@ -22,15 +22,15 @@ use std::sync::Arc;
 pub trait MonadicOps<A> {
     /// The concrete monadic type
     type Output<B>;
-    
+
     /// Monadic return operation.
     fn pure(value: A) -> Self;
-    
+
     /// Monadic bind operation.
     fn bind<B, F>(self, f: F) -> Self::Output<B>
     where
         F: Fn(A) -> Self::Output<B>;
-    
+
     /// Map a function over the monadic value.
     fn map<B, F>(self, f: F) -> Self::Output<B>
     where
@@ -65,9 +65,7 @@ pub struct IO<A> {
 
 impl<A> std::fmt::Debug for IO<A> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("IO")
-            .field("action", &"<function>")
-            .finish()
+        f.debug_struct("IO").field("action", &"<function>").finish()
     }
 }
 
@@ -116,7 +114,7 @@ impl<W, A> std::fmt::Debug for Writer<W, A> {
 /// Monad transformer trait (simplified).
 pub trait MonadTrans<M> {
     type T<A>;
-    
+
     /// Lift a computation from the base monad.
     fn lift<A>(ma: M) -> Self::T<A>;
 }
@@ -207,22 +205,22 @@ impl<A> Maybe<A> {
     pub fn just(value: A) -> Self {
         Maybe::Just(value)
     }
-    
+
     /// Creates a Nothing value.
     pub fn nothing() -> Self {
         Maybe::Nothing
     }
-    
+
     /// Checks if this is Nothing.
     pub fn is_nothing(&self) -> bool {
         matches!(self, Maybe::Nothing)
     }
-    
+
     /// Checks if this is Just.
     pub fn is_just(&self) -> bool {
         matches!(self, Maybe::Just(_))
     }
-    
+
     /// Converts to Option.
     pub fn to_option(self) -> Option<A> {
         match self {
@@ -230,7 +228,7 @@ impl<A> Maybe<A> {
             Maybe::Nothing => None,
         }
     }
-    
+
     /// Converts from Option.
     pub fn from_option(opt: Option<A>) -> Self {
         match opt {
@@ -245,22 +243,22 @@ impl<L, R> Either<L, R> {
     pub fn left(value: L) -> Self {
         Either::Left(value)
     }
-    
+
     /// Creates a Right value.
     pub fn right(value: R) -> Self {
         Either::Right(value)
     }
-    
+
     /// Checks if this is Left.
     pub fn is_left(&self) -> bool {
         matches!(self, Either::Left(_))
     }
-    
+
     /// Checks if this is Right.
     pub fn is_right(&self) -> bool {
         matches!(self, Either::Right(_))
     }
-    
+
     /// Maps over the Right value.
     pub fn map_right<R2, F>(self, f: F) -> Either<L, R2>
     where
@@ -271,7 +269,7 @@ impl<L, R> Either<L, R> {
             Either::Right(r) => Either::Right(f(r)),
         }
     }
-    
+
     /// Maps over the Left value.
     pub fn map_left<L2, F>(self, f: F) -> Either<L2, R>
     where
@@ -289,27 +287,27 @@ impl<A> List<A> {
     pub fn empty() -> Self {
         List { items: Vec::new() }
     }
-    
+
     /// Creates a singleton list.
     pub fn singleton(item: A) -> Self {
         List { items: vec![item] }
     }
-    
+
     /// Creates a list from a vector.
     pub fn from_vec(items: Vec<A>) -> Self {
         List { items }
     }
-    
+
     /// Converts to a vector.
     pub fn to_vec(self) -> Vec<A> {
         self.items
     }
-    
+
     /// Checks if the list is empty.
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
-    
+
     /// Gets the length of the list.
     pub fn len(&self) -> usize {
         self.items.len()
@@ -326,7 +324,7 @@ impl<A> IO<A> {
             action: Arc::new(action),
         }
     }
-    
+
     /// Runs the IO action.
     pub fn run(self) -> Result<A> {
         (self.action)()
@@ -343,12 +341,12 @@ impl<S, A> State<S, A> {
             run_state: Arc::new(f),
         }
     }
-    
+
     /// Runs the state computation.
     pub fn run(self, initial_state: S) -> Result<(A, S)> {
         (self.run_state)(initial_state)
     }
-    
+
     /// Gets the current state.
     pub fn get<St>() -> State<St, St>
     where
@@ -356,7 +354,7 @@ impl<S, A> State<S, A> {
     {
         State::new(|s: St| Ok((s.clone(), s)))
     }
-    
+
     /// Sets the state.
     pub fn put(new_state: S) -> State<S, ()>
     where
@@ -364,7 +362,7 @@ impl<S, A> State<S, A> {
     {
         State::new(move |_| Ok(((), new_state.clone())))
     }
-    
+
     /// Modifies the state.
     pub fn modify<F>(f: F) -> State<S, ()>
     where
@@ -384,12 +382,12 @@ impl<R, A> Reader<R, A> {
             run_reader: Arc::new(f),
         }
     }
-    
+
     /// Runs the reader computation.
     pub fn run(self, environment: R) -> Result<A> {
         (self.run_reader)(environment)
     }
-    
+
     /// Asks for the environment.
     pub fn ask<Rd>() -> Reader<Rd, Rd>
     where
@@ -397,7 +395,7 @@ impl<R, A> Reader<R, A> {
     {
         Reader::new(|r: Rd| Ok(r.clone()))
     }
-    
+
     /// Asks for a part of the environment.
     pub fn asks<F, B>(f: F) -> Reader<R, B>
     where
@@ -417,12 +415,12 @@ impl<W, A> Writer<W, A> {
             run_writer: Arc::new(f),
         }
     }
-    
+
     /// Runs the writer computation.
     pub fn run(self) -> Result<(A, W)> {
         (self.run_writer)()
     }
-    
+
     /// Writes a value to the log.
     pub fn tell(w: W) -> Writer<W, ()>
     where
@@ -436,11 +434,11 @@ impl<W, A> Writer<W, A> {
 
 impl<A> MonadicOps<A> for Maybe<A> {
     type Output<B> = Maybe<B>;
-    
+
     fn pure(value: A) -> Self {
         Maybe::Just(value)
     }
-    
+
     fn bind<B, F>(self, f: F) -> Self::Output<B>
     where
         F: Fn(A) -> Self::Output<B>,
@@ -450,7 +448,7 @@ impl<A> MonadicOps<A> for Maybe<A> {
             Maybe::Nothing => Maybe::Nothing,
         }
     }
-    
+
     fn map<B, F>(self, f: F) -> Self::Output<B>
     where
         F: Fn(A) -> B,
@@ -464,11 +462,11 @@ impl<A> MonadicOps<A> for Maybe<A> {
 
 impl<L, R> MonadicOps<R> for Either<L, R> {
     type Output<B> = Either<L, B>;
-    
+
     fn pure(value: R) -> Self {
         Either::Right(value)
     }
-    
+
     fn bind<B, F>(self, f: F) -> Self::Output<B>
     where
         F: Fn(R) -> Self::Output<B>,
@@ -478,7 +476,7 @@ impl<L, R> MonadicOps<R> for Either<L, R> {
             Either::Left(l) => Either::Left(l),
         }
     }
-    
+
     fn map<B, F>(self, f: F) -> Self::Output<B>
     where
         F: Fn(R) -> B,
@@ -492,11 +490,11 @@ impl<L, R> MonadicOps<R> for Either<L, R> {
 
 impl<A> MonadicOps<A> for List<A> {
     type Output<B> = List<B>;
-    
+
     fn pure(value: A) -> Self {
         List::singleton(value)
     }
-    
+
     fn bind<B, F>(self, f: F) -> Self::Output<B>
     where
         F: Fn(A) -> Self::Output<B>,
@@ -508,7 +506,7 @@ impl<A> MonadicOps<A> for List<A> {
         }
         List::from_vec(result)
     }
-    
+
     fn map<B, F>(self, f: F) -> Self::Output<B>
     where
         F: Fn(A) -> B,
@@ -524,18 +522,14 @@ impl<A> MonadicOps<A> for List<A> {
 impl MonadOps {
     /// Monadic when - conditional execution for Maybe.
     pub fn when_maybe(condition: bool, action: Maybe<()>) -> Maybe<()> {
-        if condition {
-            action
-        } else {
-            Maybe::Just(())
-        }
+        if condition { action } else { Maybe::Just(()) }
     }
-    
+
     /// Monadic unless - conditional execution (negated) for Maybe.
     pub fn unless_maybe(condition: bool, action: Maybe<()>) -> Maybe<()> {
         Self::when_maybe(!condition, action)
     }
-    
+
     /// Sequence two Maybe computations.
     pub fn sequence_maybe<A, B>(ma: Maybe<A>, mb: Maybe<B>) -> Maybe<(A, B)>
     where
@@ -544,7 +538,7 @@ impl MonadOps {
     {
         ma.bind(|a| mb.clone().map(|b| (a.clone(), b)))
     }
-    
+
     /// Map a function over Maybe values.
     pub fn map_maybe<A, B, F>(f: F, items: Vec<A>) -> Maybe<Vec<B>>
     where
@@ -569,19 +563,19 @@ impl DoNotation {
             result: String::new(),
         }
     }
-    
+
     /// Adds a binding to the do-block.
     pub fn bind(mut self, var: Option<String>, expr: String) -> Self {
         self.bindings.push(DoBinding { var, expr });
         self
     }
-    
+
     /// Sets the result expression.
     pub fn result(mut self, expr: String) -> Self {
         self.result = expr;
         self
     }
-    
+
     /// Compiles the do-notation to monadic bind operations.
     pub fn compile(&self) -> String {
         // Simplified compilation
@@ -674,84 +668,84 @@ mod tests {
     fn test_maybe_monad_ops() {
         let just_5 = Maybe::just(5);
         let nothing = Maybe::<i32>::nothing();
-        
+
         assert!(just_5.is_just());
         assert!(nothing.is_nothing());
-        
+
         // Test bind
         let result = just_5.bind(|x| Maybe::just(x * 2));
         assert_eq!(result, Maybe::just(10));
-        
+
         let result = nothing.bind(|x| Maybe::just(x * 2));
         assert_eq!(result, Maybe::nothing());
-        
+
         // Test map
         let result = Maybe::just(5).map(|x| x * 2);
         assert_eq!(result, Maybe::just(10));
     }
-    
+
     #[test]
     fn test_either_monad_ops() {
         let right_5 = Either::<String, i32>::right(5);
         let left_err = Either::<String, i32>::left("error".to_string());
-        
+
         assert!(right_5.is_right());
         assert!(left_err.is_left());
-        
+
         // Test bind
         let result = right_5.bind(|x| Either::right(x * 2));
         assert_eq!(result, Either::right(10));
-        
+
         let result = left_err.bind(|x| Either::right(x * 2));
         assert!(result.is_left());
-        
+
         // Test map
         let result = Either::<String, i32>::right(5).map(|x| x * 2);
         assert_eq!(result, Either::right(10));
     }
-    
+
     #[test]
     fn test_list_monad() {
         let list = List::from_vec(vec![1, 2, 3]);
         assert_eq!(list.len(), 3);
         assert!(!list.is_empty());
-        
+
         let empty = List::<i32>::empty();
         assert!(empty.is_empty());
-        
+
         let singleton = List::singleton(42);
         assert_eq!(singleton.len(), 1);
     }
-    
+
     #[test]
     fn test_state_monad() {
         let computation = State::new(|s: i32| Ok((s + 1, s * 2)));
         let result = computation.run(5).unwrap();
         assert_eq!(result, (6, 10));
-        
+
         let get_state = State::<i32, i32>::get();
         let result = get_state.run(42).unwrap();
         assert_eq!(result, (42, 42));
     }
-    
+
     #[test]
     fn test_reader_monad() {
         let reader = Reader::new(|env: String| Ok(env.len()));
         let result = reader.run("hello".to_string()).unwrap();
         assert_eq!(result, 5);
-        
+
         let ask = Reader::<String, String>::ask();
         let result = ask.run("world".to_string()).unwrap();
         assert_eq!(result, "world");
     }
-    
+
     #[test]
     fn test_writer_monad() {
         let writer = Writer::new(|| Ok((42, "logged".to_string())));
         let result = writer.run().unwrap();
         assert_eq!(result, (42, "logged".to_string()));
     }
-    
+
     #[test]
     fn test_do_notation() {
         let do_block = DoNotation::new()
@@ -759,7 +753,7 @@ mod tests {
             .bind(Some("y".to_string()), "getAnother()".to_string())
             .bind(None, "sideEffect()".to_string())
             .result("return (x + y)".to_string());
-        
+
         assert_eq!(do_block.bindings.len(), 3);
         assert_eq!(do_block.result, "return (x + y)");
     }

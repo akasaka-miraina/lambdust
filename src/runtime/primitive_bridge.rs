@@ -2,7 +2,7 @@
 //! Minimal Primitive Bridge System
 //!
 //! This module defines the absolute minimum set of Rust primitives required to support
-//! R7RS and SRFI functionality implemented in Scheme. The goal is to minimize the 
+//! R7RS and SRFI functionality implemented in Scheme. The goal is to minimize the
 //! Rust surface area while providing a solid foundation for pure Scheme implementations.
 //!
 //! ## Design Principles
@@ -11,12 +11,12 @@
 //! 3. **Efficiency**: Provide optimized implementations for performance-critical operations
 //! 4. **Orthogonality**: Each primitive should be independent and composable
 
-use crate::diagnostics::{Result, Error};
-use crate::eval::{Value, ThreadSafeEnvironment, PrimitiveProcedure, PrimitiveImpl};
-use crate::effects::Effect;
 use crate::ast::Literal;
-use std::sync::Arc;
+use crate::diagnostics::{Error, Result};
+use crate::effects::Effect;
+use crate::eval::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Categories of minimal primitives required for bootstrap
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -589,7 +589,9 @@ impl MinimalPrimitiveRegistry {
             implementation: primitive_bit_count,
             arity_min: 1,
             arity_max: Some(1),
-            documentation: "Count number of 1 bits in exact integer's two's complement representation".to_string(),
+            documentation:
+                "Count number of 1 bits in exact integer's two's complement representation"
+                    .to_string(),
             r7rs_required: false,
         });
 
@@ -599,7 +601,9 @@ impl MinimalPrimitiveRegistry {
             implementation: primitive_integer_length,
             arity_min: 1,
             arity_max: Some(1),
-            documentation: "Find minimum bits needed to represent exact integer in two's complement".to_string(),
+            documentation:
+                "Find minimum bits needed to represent exact integer in two's complement"
+                    .to_string(),
             r7rs_required: false,
         });
 
@@ -609,7 +613,8 @@ impl MinimalPrimitiveRegistry {
             implementation: primitive_first_set_bit,
             arity_min: 1,
             arity_max: Some(1),
-            documentation: "Find position of first set bit (rightmost 1) in exact integer".to_string(),
+            documentation: "Find position of first set bit (rightmost 1) in exact integer"
+                .to_string(),
             r7rs_required: false,
         });
 
@@ -639,11 +644,9 @@ impl MinimalPrimitiveRegistry {
     pub fn register(&mut self, primitive: MinimalPrimitive) {
         let name = primitive.name.clone();
         let category = primitive.category.clone();
-        
+
         self.primitives.insert(name.clone(), primitive);
-        self.categories.entry(category)
-            .or_default()
-            .push(name);
+        self.categories.entry(category).or_default().push(name);
     }
 
     /// Installs all minimal primitives in the given environment
@@ -656,15 +659,19 @@ impl MinimalPrimitiveRegistry {
                 implementation: PrimitiveImpl::RustFn(primitive.implementation),
                 effects: vec![Effect::Pure], // Most primitives are pure
             }));
-            
+
             env.define(name.clone(), value);
         }
     }
 
     /// Gets primitives by category
-    pub fn primitives_in_category(&self, category: &MinimalPrimitiveCategory) -> Vec<&MinimalPrimitive> {
+    pub fn primitives_in_category(
+        &self,
+        category: &MinimalPrimitiveCategory,
+    ) -> Vec<&MinimalPrimitive> {
         if let Some(names) = self.categories.get(category) {
-            names.iter()
+            names
+                .iter()
                 .filter_map(|name| self.primitives.get(name))
                 .collect()
         } else {
@@ -674,7 +681,8 @@ impl MinimalPrimitiveRegistry {
 
     /// Gets all R7RS required primitives
     pub fn r7rs_required_primitives(&self) -> Vec<&MinimalPrimitive> {
-        self.primitives.values()
+        self.primitives
+            .values()
             .filter(|p| p.r7rs_required)
             .collect()
     }
@@ -685,7 +693,10 @@ impl MinimalPrimitiveRegistry {
     }
 
     /// Gets primitives by category (alias for primitives_in_category)
-    pub fn get_primitives_by_category(&self, category: &MinimalPrimitiveCategory) -> Vec<&MinimalPrimitive> {
+    pub fn get_primitives_by_category(
+        &self,
+        category: &MinimalPrimitiveCategory,
+    ) -> Vec<&MinimalPrimitive> {
         self.primitives_in_category(category)
     }
 
@@ -704,86 +715,128 @@ impl MinimalPrimitiveRegistry {
 // Evaluation primitives
 fn primitive_apply(_args: &[Value]) -> Result<Value> {
     // This requires evaluator integration - simplified for now
-    Err(Box::new(Error::runtime_error("apply requires evaluator integration".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "apply requires evaluator integration".to_string(),
+        None,
+    )))
 }
 
 fn primitive_eval(_args: &[Value]) -> Result<Value> {
     // This requires evaluator integration - simplified for now
-    Err(Box::new(Error::runtime_error("eval requires evaluator integration".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "eval requires evaluator integration".to_string(),
+        None,
+    )))
 }
 
 fn primitive_call_cc(_args: &[Value]) -> Result<Value> {
     // This requires evaluator integration - simplified for now
-    Err(Box::new(Error::runtime_error("call/cc requires evaluator integration".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "call/cc requires evaluator integration".to_string(),
+        None,
+    )))
 }
 
 // Memory primitives
 fn primitive_cons(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::runtime_error("cons requires exactly 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "cons requires exactly 2 arguments".to_string(),
+            None,
+        )));
     }
     Ok(Value::pair(args[0].clone(), args[1].clone()))
 }
 
 fn primitive_car(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("car requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "car requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
-    
+
     match &args[0] {
         Value::Pair(car, _cdr) => Ok((**car).clone()),
-        _ => Err(Box::new(Error::runtime_error("car expects a pair".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error(
+            "car expects a pair".to_string(),
+            None,
+        ))),
     }
 }
 
 fn primitive_cdr(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("cdr requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "cdr requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
-    
+
     match &args[0] {
         Value::Pair(_car, cdr) => Ok((**cdr).clone()),
-        _ => Err(Box::new(Error::runtime_error("cdr expects a pair".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error(
+            "cdr expects a pair".to_string(),
+            None,
+        ))),
     }
 }
 
 fn primitive_set_car(_args: &[Value]) -> Result<Value> {
     // This requires mutable pairs - simplified for now
-    Err(Box::new(Error::runtime_error("set-car! requires mutable pair support".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "set-car! requires mutable pair support".to_string(),
+        None,
+    )))
 }
 
 fn primitive_set_cdr(_args: &[Value]) -> Result<Value> {
     // This requires mutable pairs - simplified for now
-    Err(Box::new(Error::runtime_error("set-cdr! requires mutable pair support".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "set-cdr! requires mutable pair support".to_string(),
+        None,
+    )))
 }
 
 // Type predicates
 fn primitive_null_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("null? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "null? requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
     Ok(Value::boolean(matches!(args[0], Value::Nil)))
 }
 
 fn primitive_pair_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("pair? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "pair? requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
     Ok(Value::boolean(matches!(args[0], Value::Pair(_, _))))
 }
 
 fn primitive_symbol_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("symbol? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "symbol? requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
     Ok(Value::boolean(matches!(args[0], Value::Symbol(_))))
 }
 
 fn primitive_number_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("number? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "number? requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
-    let is_number = matches!(&args[0], 
+    let is_number = matches!(&args[0],
         Value::Literal(literal) if literal.is_number()
     );
     Ok(Value::boolean(is_number))
@@ -791,143 +844,227 @@ fn primitive_number_p(args: &[Value]) -> Result<Value> {
 
 fn primitive_string_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("string? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "string? requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
-    Ok(Value::boolean(matches!(args[0], Value::Literal(Literal::String(_)))))
+    Ok(Value::boolean(matches!(
+        args[0],
+        Value::Literal(Literal::String(_))
+    )))
 }
 
 fn primitive_char_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("char? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "char? requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
-    Ok(Value::boolean(matches!(args[0], Value::Literal(Literal::Character(_)))))
+    Ok(Value::boolean(matches!(
+        args[0],
+        Value::Literal(Literal::Character(_))
+    )))
 }
 
 fn primitive_vector_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("vector? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "vector? requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
     Ok(Value::boolean(matches!(args[0], Value::Vector(_))))
 }
 
 fn primitive_procedure_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("procedure? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "procedure? requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
-    let is_procedure = matches!(args[0], 
-        Value::Procedure(_) | 
-        Value::Primitive(_) |
-        Value::CaseLambda(_)
+    let is_procedure = matches!(
+        args[0],
+        Value::Procedure(_) | Value::Primitive(_) | Value::CaseLambda(_)
     );
     Ok(Value::boolean(is_procedure))
 }
 
 fn primitive_port_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("port? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "port? requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
     Ok(Value::boolean(matches!(args[0], Value::Port(_))))
 }
 
 // I/O primitives (simplified implementations)
 fn primitive_read_char(_args: &[Value]) -> Result<Value> {
-    Err(Box::new(Error::runtime_error("read-char requires I/O system integration".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "read-char requires I/O system integration".to_string(),
+        None,
+    )))
 }
 
 fn primitive_write_char(_args: &[Value]) -> Result<Value> {
-    Err(Box::new(Error::runtime_error("write-char requires I/O system integration".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "write-char requires I/O system integration".to_string(),
+        None,
+    )))
 }
 
 fn primitive_peek_char(_args: &[Value]) -> Result<Value> {
-    Err(Box::new(Error::runtime_error("peek-char requires I/O system integration".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "peek-char requires I/O system integration".to_string(),
+        None,
+    )))
 }
 
 fn primitive_eof_object_p(_args: &[Value]) -> Result<Value> {
-    Err(Box::new(Error::runtime_error("eof-object? requires I/O system integration".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "eof-object? requires I/O system integration".to_string(),
+        None,
+    )))
 }
 
 fn primitive_open_input_file(_args: &[Value]) -> Result<Value> {
-    Err(Box::new(Error::runtime_error("open-input-file requires I/O system integration".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "open-input-file requires I/O system integration".to_string(),
+        None,
+    )))
 }
 
 fn primitive_open_output_file(_args: &[Value]) -> Result<Value> {
-    Err(Box::new(Error::runtime_error("open-output-file requires I/O system integration".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "open-output-file requires I/O system integration".to_string(),
+        None,
+    )))
 }
 
 fn primitive_close_port(_args: &[Value]) -> Result<Value> {
-    Err(Box::new(Error::runtime_error("close-port requires I/O system integration".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "close-port requires I/O system integration".to_string(),
+        None,
+    )))
 }
 
 // String primitives (simplified implementations)
 fn primitive_string_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("string-length requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "string-length requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
-    
+
     match &args[0] {
         Value::Literal(Literal::String(s)) => Ok(Value::integer(s.len() as i64)),
-        _ => Err(Box::new(Error::runtime_error("string-length expects a string".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error(
+            "string-length expects a string".to_string(),
+            None,
+        ))),
     }
 }
 
 fn primitive_string_ref(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::runtime_error("string-ref requires exactly 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "string-ref requires exactly 2 arguments".to_string(),
+            None,
+        )));
     }
-    
+
     match (&args[0], &args[1]) {
         (Value::Literal(Literal::String(s)), Value::Literal(literal)) if literal.is_number() => {
             if let Some(i_f64) = literal.to_f64() {
                 if i_f64 < 0.0 || i_f64.fract() != 0.0 || i_f64 as usize >= s.len() {
-                    return Err(Box::new(Error::runtime_error("string-ref index out of bounds".to_string(), None)));
+                    return Err(Box::new(Error::runtime_error(
+                        "string-ref index out of bounds".to_string(),
+                        None,
+                    )));
                 }
                 let i = i_f64 as usize;
                 if let Some(ch) = s.chars().nth(i) {
                     Ok(Value::Literal(Literal::Character(ch)))
                 } else {
-                    Err(Box::new(Error::runtime_error("string-ref index invalid".to_string(), None)))
+                    Err(Box::new(Error::runtime_error(
+                        "string-ref index invalid".to_string(),
+                        None,
+                    )))
                 }
             } else {
-                Err(Box::new(Error::runtime_error("string-ref expects integer index".to_string(), None)))
+                Err(Box::new(Error::runtime_error(
+                    "string-ref expects integer index".to_string(),
+                    None,
+                )))
             }
         }
-        _ => Err(Box::new(Error::runtime_error("string-ref expects string and integer".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error(
+            "string-ref expects string and integer".to_string(),
+            None,
+        ))),
     }
 }
 
 fn primitive_string_set(_args: &[Value]) -> Result<Value> {
-    Err(Box::new(Error::runtime_error("string-set! requires mutable string support".to_string(), None)))
+    Err(Box::new(Error::runtime_error(
+        "string-set! requires mutable string support".to_string(),
+        None,
+    )))
 }
 
 fn primitive_make_string(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(Box::new(Error::runtime_error("make-string requires 1 or 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "make-string requires 1 or 2 arguments".to_string(),
+            None,
+        )));
     }
-    
+
     let length = match &args[0] {
         Value::Literal(literal) if literal.is_number() => {
             if let Some(n) = literal.to_f64() {
                 if n.fract() == 0.0 && n >= 0.0 {
                     n as usize
                 } else {
-                    return Err(Box::new(Error::runtime_error("make-string expects non-negative integer length".to_string(), None)));
+                    return Err(Box::new(Error::runtime_error(
+                        "make-string expects non-negative integer length".to_string(),
+                        None,
+                    )));
                 }
             } else {
-                return Err(Box::new(Error::runtime_error("make-string expects non-negative integer length".to_string(), None)));
+                return Err(Box::new(Error::runtime_error(
+                    "make-string expects non-negative integer length".to_string(),
+                    None,
+                )));
             }
         }
-        _ => return Err(Box::new(Error::runtime_error("make-string expects non-negative integer length".to_string(), None))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "make-string expects non-negative integer length".to_string(),
+                None,
+            )));
+        }
     };
-    
+
     let fill_char = if args.len() == 2 {
         match &args[1] {
             Value::Literal(Literal::Character(c)) => *c,
-            _ => return Err(Box::new(Error::runtime_error("make-string fill must be a character".to_string(), None))),
+            _ => {
+                return Err(Box::new(Error::runtime_error(
+                    "make-string fill must be a character".to_string(),
+                    None,
+                )));
+            }
         }
     } else {
         '\0'
     };
-    
+
     let s = fill_char.to_string().repeat(length);
     Ok(Value::string(s))
 }
@@ -935,78 +1072,119 @@ fn primitive_make_string(args: &[Value]) -> Result<Value> {
 // Vector primitives (simplified implementations)
 fn primitive_vector_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("vector-length requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "vector-length requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
-    
+
     match &args[0] {
         Value::Vector(vec) => {
-            let vec_guard = vec.read().map_err(|_| Error::runtime_error("Failed to read vector".to_string(), None))?;
+            let vec_guard = vec
+                .try_borrow()
+                .map_err(|_| Error::runtime_error("Failed to read vector".to_string(), None))?;
             Ok(Value::integer(vec_guard.len() as i64))
         }
-        _ => Err(Box::new(Error::runtime_error("vector-length expects a vector".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error(
+            "vector-length expects a vector".to_string(),
+            None,
+        ))),
     }
 }
 
 fn primitive_vector_ref(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::runtime_error("vector-ref requires exactly 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "vector-ref requires exactly 2 arguments".to_string(),
+            None,
+        )));
     }
-    
+
     match (&args[0], &args[1]) {
         (Value::Vector(vec), value) if extract_numeric_i64(value).is_some() => {
             let i = extract_numeric_i64(value).unwrap();
-            let vec_guard = vec.read().map_err(|_| Error::runtime_error("Failed to read vector".to_string(), None))?;
+            let vec_guard = vec
+                .try_borrow()
+                .map_err(|_| Error::runtime_error("Failed to read vector".to_string(), None))?;
             if i < 0 || i as usize >= vec_guard.len() {
-                return Err(Box::new(Error::runtime_error("vector-ref index out of bounds".to_string(), None)));
+                return Err(Box::new(Error::runtime_error(
+                    "vector-ref index out of bounds".to_string(),
+                    None,
+                )));
             }
             Ok(vec_guard[i as usize].clone())
         }
-        _ => Err(Box::new(Error::runtime_error("vector-ref expects vector and integer".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error(
+            "vector-ref expects vector and integer".to_string(),
+            None,
+        ))),
     }
 }
 
 fn primitive_vector_set(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(Box::new(Error::runtime_error("vector-set! requires exactly 3 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "vector-set! requires exactly 3 arguments".to_string(),
+            None,
+        )));
     }
-    
+
     match (&args[0], &args[1]) {
         (Value::Vector(vec), value) if extract_numeric_i64(value).is_some() => {
             let i = extract_numeric_i64(value).unwrap();
-            let mut vec_guard = vec.write().map_err(|_| Error::runtime_error("Failed to write vector".to_string(), None))?;
+            let mut vec_guard = vec
+                .try_borrow_mut()
+                .map_err(|_| Error::runtime_error("Failed to write vector".to_string(), None))?;
             if i < 0 || i as usize >= vec_guard.len() {
-                return Err(Box::new(Error::runtime_error("vector-set! index out of bounds".to_string(), None)));
+                return Err(Box::new(Error::runtime_error(
+                    "vector-set! index out of bounds".to_string(),
+                    None,
+                )));
             }
             vec_guard[i as usize] = args[2].clone();
             Ok(Value::Unspecified)
         }
-        _ => Err(Box::new(Error::runtime_error("vector-set! expects vector and integer".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error(
+            "vector-set! expects vector and integer".to_string(),
+            None,
+        ))),
     }
 }
 
 fn primitive_make_vector(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(Box::new(Error::runtime_error("make-vector requires 1 or 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "make-vector requires 1 or 2 arguments".to_string(),
+            None,
+        )));
     }
-    
+
     let length = match &args[0] {
         value if extract_numeric_i64(value).is_some() => {
             let n = extract_numeric_i64(value).unwrap();
             if n >= 0 {
                 n as usize
             } else {
-                return Err(Box::new(Error::runtime_error("make-vector expects non-negative integer length".to_string(), None)));
+                return Err(Box::new(Error::runtime_error(
+                    "make-vector expects non-negative integer length".to_string(),
+                    None,
+                )));
             }
         }
-        _ => return Err(Box::new(Error::runtime_error("make-vector expects non-negative integer length".to_string(), None))),
+        _ => {
+            return Err(Box::new(Error::runtime_error(
+                "make-vector expects non-negative integer length".to_string(),
+                None,
+            )));
+        }
     };
-    
+
     let fill_value = if args.len() == 2 {
         args[1].clone()
     } else {
         Value::Unspecified
     };
-    
+
     let vec = vec![fill_value; length];
     Ok(Value::vector(vec))
 }
@@ -1014,34 +1192,49 @@ fn primitive_make_vector(args: &[Value]) -> Result<Value> {
 // Symbol primitives
 fn primitive_string_to_symbol(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("string->symbol requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "string->symbol requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
-    
+
     match &args[0] {
         Value::Literal(Literal::String(s)) => {
             use crate::utils::intern_symbol;
-            let symbol_id = intern_symbol(s.clone());
+            let symbol_id = intern_symbol((**s).clone());
             Ok(Value::symbol(symbol_id))
         }
-        _ => Err(Box::new(Error::runtime_error("string->symbol expects a string".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error(
+            "string->symbol expects a string".to_string(),
+            None,
+        ))),
     }
 }
 
 fn primitive_symbol_to_string(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("symbol->string requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "symbol->string requires exactly 1 argument".to_string(),
+            None,
+        )));
     }
-    
+
     match &args[0] {
         Value::Symbol(symbol_id) => {
             use crate::utils::symbol::symbol_name;
             if let Some(name) = symbol_name(*symbol_id) {
                 Ok(Value::string(name))
             } else {
-                Err(Box::new(Error::runtime_error("Invalid symbol ID".to_string(), None)))
+                Err(Box::new(Error::runtime_error(
+                    "Invalid symbol ID".to_string(),
+                    None,
+                )))
             }
         }
-        _ => Err(Box::new(Error::runtime_error("symbol->string expects a symbol".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error(
+            "symbol->string expects a symbol".to_string(),
+            None,
+        ))),
     }
 }
 
@@ -1050,13 +1243,16 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
         return Ok(Value::integer(0));
     }
-    
+
     let mut result = 0i64;
     for arg in args {
         if let Some(n) = extract_numeric_i64(arg) {
             result += n;
         } else {
-            return Err(Box::new(Error::runtime_error("+ expects numeric arguments".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "+ expects numeric arguments".to_string(),
+                None,
+            )));
         }
     }
     Ok(Value::integer(result))
@@ -1064,27 +1260,39 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
 
 fn primitive_subtract(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(Box::new(Error::runtime_error("- requires at least one argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "- requires at least one argument".to_string(),
+            None,
+        )));
     }
-    
+
     if args.len() == 1 {
         if let Some(n) = extract_numeric_i64(&args[0]) {
             Ok(Value::integer(-n))
         } else {
-            Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None)))
+            Err(Box::new(Error::runtime_error(
+                "- expects numeric arguments".to_string(),
+                None,
+            )))
         }
     } else {
         let mut result = if let Some(n) = extract_numeric_i64(&args[0]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "- expects numeric arguments".to_string(),
+                None,
+            )));
         };
-        
+
         for arg in &args[1..] {
             if let Some(n) = extract_numeric_i64(arg) {
                 result -= n;
             } else {
-                return Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None)));
+                return Err(Box::new(Error::runtime_error(
+                    "- expects numeric arguments".to_string(),
+                    None,
+                )));
             }
         }
         Ok(Value::integer(result))
@@ -1095,13 +1303,16 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
         return Ok(Value::integer(1));
     }
-    
+
     let mut result = 1i64;
     for arg in args {
         if let Some(n) = extract_numeric_i64(arg) {
             result *= n;
         } else {
-            return Err(Box::new(Error::runtime_error("* expects numeric arguments".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "* expects numeric arguments".to_string(),
+                None,
+            )));
         }
     }
     Ok(Value::integer(result))
@@ -1109,33 +1320,51 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
 
 fn primitive_divide(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(Box::new(Error::runtime_error("/ requires at least one argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "/ requires at least one argument".to_string(),
+            None,
+        )));
     }
-    
+
     if args.len() == 1 {
         if let Some(n) = extract_numeric_f64(&args[0]) {
             if n == 0.0 {
-                return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)));
+                return Err(Box::new(Error::runtime_error(
+                    "Division by zero".to_string(),
+                    None,
+                )));
             }
             Ok(Value::number(1.0 / n))
         } else {
-            Err(Box::new(Error::runtime_error("/ expects numeric arguments".to_string(), None)))
+            Err(Box::new(Error::runtime_error(
+                "/ expects numeric arguments".to_string(),
+                None,
+            )))
         }
     } else {
         let mut result = if let Some(n) = extract_numeric_f64(&args[0]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("/ expects numeric arguments".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "/ expects numeric arguments".to_string(),
+                None,
+            )));
         };
-        
+
         for arg in &args[1..] {
             if let Some(n) = extract_numeric_f64(arg) {
                 if n == 0.0 {
-                    return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)));
+                    return Err(Box::new(Error::runtime_error(
+                        "Division by zero".to_string(),
+                        None,
+                    )));
                 }
                 result /= n;
             } else {
-                return Err(Box::new(Error::runtime_error("/ expects numeric arguments".to_string(), None)));
+                return Err(Box::new(Error::runtime_error(
+                    "/ expects numeric arguments".to_string(),
+                    None,
+                )));
             }
         }
         Ok(Value::number(result))
@@ -1144,22 +1373,31 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
 
 fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::runtime_error("= requires at least 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "= requires at least 2 arguments".to_string(),
+            None,
+        )));
     }
-    
+
     let first_val = if let Some(n) = extract_numeric_f64(&args[0]) {
         n
     } else {
-        return Err(Box::new(Error::runtime_error("= expects numeric arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "= expects numeric arguments".to_string(),
+            None,
+        )));
     };
-    
+
     for arg in &args[1..] {
         let val = if let Some(n) = extract_numeric_f64(arg) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("= expects numeric arguments".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "= expects numeric arguments".to_string(),
+                None,
+            )));
         };
-        
+
         if (first_val - val).abs() > f64::EPSILON {
             return Ok(Value::boolean(false));
         }
@@ -1169,22 +1407,31 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
 
 fn primitive_less_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::runtime_error("< requires at least 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "< requires at least 2 arguments".to_string(),
+            None,
+        )));
     }
-    
+
     for i in 0..args.len() - 1 {
         let current = if let Some(n) = extract_numeric_f64(&args[i]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("< expects numeric arguments".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "< expects numeric arguments".to_string(),
+                None,
+            )));
         };
-        
+
         let next = if let Some(n) = extract_numeric_f64(&args[i + 1]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("< expects numeric arguments".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "< expects numeric arguments".to_string(),
+                None,
+            )));
         };
-        
+
         if current >= next {
             return Ok(Value::boolean(false));
         }
@@ -1194,22 +1441,31 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
 
 fn primitive_greater_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::runtime_error("> requires at least 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "> requires at least 2 arguments".to_string(),
+            None,
+        )));
     }
-    
+
     for i in 0..args.len() - 1 {
         let current = if let Some(n) = extract_numeric_f64(&args[i]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("> expects numeric arguments".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "> expects numeric arguments".to_string(),
+                None,
+            )));
         };
-        
+
         let next = if let Some(n) = extract_numeric_f64(&args[i + 1]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("> expects numeric arguments".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "> expects numeric arguments".to_string(),
+                None,
+            )));
         };
-        
+
         if current <= next {
             return Ok(Value::boolean(false));
         }
@@ -1220,14 +1476,17 @@ fn primitive_greater_than(args: &[Value]) -> Result<Value> {
 // System primitives
 fn primitive_error(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(Box::new(Error::runtime_error("error requires at least 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error(
+            "error requires at least 1 argument".to_string(),
+            None,
+        )));
     }
-    
+
     let message = match &args[0] {
-        Value::Literal(Literal::String(s)) => s.clone(),
+        Value::Literal(Literal::String(s)) => (**s).clone(),
         _ => format!("{}", args[0]),
     };
-    
+
     Err(Error::runtime_error(message, None).boxed())
 }
 
@@ -1243,15 +1502,15 @@ fn primitive_bitwise_and(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
         return Ok(Value::integer(-1));
     }
-    
+
     let mut result = -1i64; // Identity element for AND (all bits set)
     for arg in args {
         if let Some(n) = extract_exact_integer(arg) {
             result &= n;
         } else {
             return Err(Box::new(Error::runtime_error(
-                "bitwise-and expects exact integer arguments".to_string(), 
-                None
+                "bitwise-and expects exact integer arguments".to_string(),
+                None,
             )));
         }
     }
@@ -1263,15 +1522,15 @@ fn primitive_bitwise_ior(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
         return Ok(Value::integer(0));
     }
-    
+
     let mut result = 0i64; // Identity element for OR (no bits set)
     for arg in args {
         if let Some(n) = extract_exact_integer(arg) {
             result |= n;
         } else {
             return Err(Box::new(Error::runtime_error(
-                "bitwise-ior expects exact integer arguments".to_string(), 
-                None
+                "bitwise-ior expects exact integer arguments".to_string(),
+                None,
             )));
         }
     }
@@ -1283,15 +1542,15 @@ fn primitive_bitwise_xor(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
         return Ok(Value::integer(0));
     }
-    
+
     let mut result = 0i64; // Identity element for XOR (no bits set)
     for arg in args {
         if let Some(n) = extract_exact_integer(arg) {
             result ^= n;
         } else {
             return Err(Box::new(Error::runtime_error(
-                "bitwise-xor expects exact integer arguments".to_string(), 
-                None
+                "bitwise-xor expects exact integer arguments".to_string(),
+                None,
             )));
         }
     }
@@ -1301,17 +1560,17 @@ fn primitive_bitwise_xor(args: &[Value]) -> Result<Value> {
 fn primitive_bitwise_not(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(Error::runtime_error(
-            "bitwise-not requires exactly 1 argument".to_string(), 
-            None
+            "bitwise-not requires exactly 1 argument".to_string(),
+            None,
         )));
     }
-    
+
     if let Some(n) = extract_exact_integer(&args[0]) {
         Ok(Value::integer(!n))
     } else {
         Err(Box::new(Error::runtime_error(
-            "bitwise-not expects an exact integer argument".to_string(), 
-            None
+            "bitwise-not expects an exact integer argument".to_string(),
+            None,
         )))
     }
 }
@@ -1319,29 +1578,29 @@ fn primitive_bitwise_not(args: &[Value]) -> Result<Value> {
 fn primitive_arithmetic_shift(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
         return Err(Box::new(Error::runtime_error(
-            "arithmetic-shift requires exactly 2 arguments".to_string(), 
-            None
+            "arithmetic-shift requires exactly 2 arguments".to_string(),
+            None,
         )));
     }
-    
+
     let n = if let Some(val) = extract_exact_integer(&args[0]) {
         val
     } else {
         return Err(Box::new(Error::runtime_error(
-            "arithmetic-shift expects an exact integer as first argument".to_string(), 
-            None
+            "arithmetic-shift expects an exact integer as first argument".to_string(),
+            None,
         )));
     };
-    
+
     let count = if let Some(val) = extract_exact_integer(&args[1]) {
         val
     } else {
         return Err(Box::new(Error::runtime_error(
-            "arithmetic-shift expects an exact integer as second argument".to_string(), 
-            None
+            "arithmetic-shift expects an exact integer as second argument".to_string(),
+            None,
         )));
     };
-    
+
     // Limit shift count to prevent overflow
     if count.abs() >= 64 {
         if count > 0 {
@@ -1384,28 +1643,28 @@ fn primitive_arithmetic_shift(args: &[Value]) -> Result<Value> {
 fn primitive_bit_count(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(Error::runtime_error(
-            "bit-count requires exactly 1 argument".to_string(), 
-            None
+            "bit-count requires exactly 1 argument".to_string(),
+            None,
         )));
     }
-    
+
     if let Some(n) = extract_exact_integer(&args[0]) {
         let count = if n >= 0 {
             // For non-negative integers, count the 1 bits directly
             n.count_ones() as i64
         } else {
-            // For negative integers in two's complement, 
+            // For negative integers in two's complement,
             // bit-count returns the count of 0 bits in the absolute value
             // This is equivalent to: (bitwidth - popcount(abs(n)))
-            // For SRFI-151, this is defined as the number of 1 bits that would 
+            // For SRFI-151, this is defined as the number of 1 bits that would
             // be needed in the two's complement representation
             64 - ((!n).count_ones() as i64)
         };
         Ok(Value::integer(count))
     } else {
         Err(Box::new(Error::runtime_error(
-            "bit-count expects an exact integer argument".to_string(), 
-            None
+            "bit-count expects an exact integer argument".to_string(),
+            None,
         )))
     }
 }
@@ -1413,11 +1672,11 @@ fn primitive_bit_count(args: &[Value]) -> Result<Value> {
 fn primitive_integer_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(Error::runtime_error(
-            "integer-length requires exactly 1 argument".to_string(), 
-            None
+            "integer-length requires exactly 1 argument".to_string(),
+            None,
         )));
     }
-    
+
     if let Some(n) = extract_exact_integer(&args[0]) {
         let length = if n == 0 {
             // Special case: integer-length of 0 is 0
@@ -1429,7 +1688,7 @@ fn primitive_integer_length(args: &[Value]) -> Result<Value> {
         } else {
             // For negative integers, integer-length is the number of bits needed
             // to represent the number in two's complement form.
-            // This is equivalent to the integer-length of -(n+1) 
+            // This is equivalent to the integer-length of -(n+1)
             // (the positive number with the same bit pattern)
             let abs_minus_one = (-n - 1) as u64;
             if abs_minus_one == 0 {
@@ -1441,8 +1700,8 @@ fn primitive_integer_length(args: &[Value]) -> Result<Value> {
         Ok(Value::integer(length))
     } else {
         Err(Box::new(Error::runtime_error(
-            "integer-length expects an exact integer argument".to_string(), 
-            None
+            "integer-length expects an exact integer argument".to_string(),
+            None,
         )))
     }
 }
@@ -1450,11 +1709,11 @@ fn primitive_integer_length(args: &[Value]) -> Result<Value> {
 fn primitive_first_set_bit(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(Error::runtime_error(
-            "first-set-bit requires exactly 1 argument".to_string(), 
-            None
+            "first-set-bit requires exactly 1 argument".to_string(),
+            None,
         )));
     }
-    
+
     if let Some(n) = extract_exact_integer(&args[0]) {
         let position = if n == 0 {
             // Special case: first-set-bit of 0 is -1 (no bits set)
@@ -1467,8 +1726,8 @@ fn primitive_first_set_bit(args: &[Value]) -> Result<Value> {
         Ok(Value::integer(position))
     } else {
         Err(Box::new(Error::runtime_error(
-            "first-set-bit expects an exact integer argument".to_string(), 
-            None
+            "first-set-bit expects an exact integer argument".to_string(),
+            None,
         )))
     }
 }
@@ -1487,7 +1746,7 @@ mod tests {
     fn test_registry_creation() {
         let registry = MinimalPrimitiveRegistry::new();
         assert!(!registry.primitives.is_empty());
-        
+
         // Verify all categories are represented
         let categories = registry.count_by_category();
         assert!(categories.contains_key(&MinimalPrimitiveCategory::Evaluation));
@@ -1500,7 +1759,7 @@ mod tests {
         let args = vec![Value::integer(1), Value::integer(2), Value::integer(3)];
         let result = primitive_add(&args).unwrap();
         assert_eq!(result, Value::integer(6));
-        
+
         let args = vec![Value::integer(10), Value::integer(3)];
         let result = primitive_subtract(&args).unwrap();
         assert_eq!(result, Value::integer(7));
@@ -1511,7 +1770,7 @@ mod tests {
         let args = vec![Value::integer(1), Value::integer(2)];
         let result = primitive_cons(&args).unwrap();
         assert!(matches!(result, Value::Pair(_, _)));
-        
+
         let pair = Value::pair(Value::integer(1), Value::integer(2));
         let result = primitive_car(&[pair]).unwrap();
         assert_eq!(result, Value::integer(1));
@@ -1521,10 +1780,11 @@ mod tests {
     fn test_primitive_types() {
         let result = primitive_null_p(&[Value::Nil]).unwrap();
         assert_eq!(result, Value::boolean(true));
-        
-        let result = primitive_pair_p(&[Value::pair(Value::integer(1), Value::integer(2))]).unwrap();
+
+        let result =
+            primitive_pair_p(&[Value::pair(Value::integer(1), Value::integer(2))]).unwrap();
         assert_eq!(result, Value::boolean(true));
-        
+
         let result = primitive_string_p(&[Value::string("hello")]).unwrap();
         assert_eq!(result, Value::boolean(true));
     }
@@ -1533,7 +1793,7 @@ mod tests {
     fn test_r7rs_required_primitives() {
         let registry = MinimalPrimitiveRegistry::new();
         let r7rs_prims = registry.r7rs_required_primitives();
-        
+
         // Ensure we have all essential R7RS primitives
         assert!(!r7rs_prims.is_empty());
         assert!(r7rs_prims.iter().any(|p| p.name == "%cons"));
@@ -1627,7 +1887,7 @@ mod tests {
     fn test_bitwise_category() {
         let registry = MinimalPrimitiveRegistry::new();
         let bitwise_prims = registry.primitives_in_category(&MinimalPrimitiveCategory::Bitwise);
-        
+
         // Ensure we have all 8 bitwise primitives
         assert_eq!(bitwise_prims.len(), 8);
         assert!(bitwise_prims.iter().any(|p| p.name == "%bitwise-and"));

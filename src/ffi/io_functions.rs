@@ -22,7 +22,7 @@ impl FfiFunction for PrintFunction {
             documentation: Some("Prints values to standard output.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         for (i, arg) in args.iter().enumerate() {
             if i > 0 {
@@ -45,10 +45,12 @@ impl FfiFunction for PrintlnFunction {
             arity: AritySpec::AtLeast(0),
             parameter_types: vec!["any".to_string()],
             return_type: "unspecified".to_string(),
-            documentation: Some("Prints values to standard output followed by a newline.".to_string()),
+            documentation: Some(
+                "Prints values to standard output followed by a newline.".to_string(),
+            ),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         for (i, arg) in args.iter().enumerate() {
             if i > 0 {

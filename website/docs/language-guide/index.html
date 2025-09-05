@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language Guide - Lambdust Documentation</title>
+    <meta name="description" content="Comprehensive guide to Lambdust programming language features, syntax, and best practices.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                Language Guide
+            </div>
+
+            <h1>Lambdust Language Guide</h1>
+            
+            <p>This comprehensive guide covers all aspects of the Lambdust programming language, from basic syntax to advanced features like dependent types and effect systems.</p>
+
+            <h2>Language Overview</h2>
+
+            <p>Lambdust is a pure functional programming language that combines the mathematical elegance of languages like Haskell with the practical flexibility of gradual typing. It's designed for both academic research and real-world applications.</p>
+
+            <h3>Key Characteristics</h3>
+
+            <ul>
+                <li><strong>Pure Functional</strong>: All functions are pure by default, with effects explicitly tracked</li>
+                <li><strong>Gradual Typing</strong>: Start dynamic, add types incrementally</li>
+                <li><strong>Dependent Types</strong>: Types can depend on values for precise specifications</li>
+                <li><strong>R7RS Compatible</strong>: Full Scheme R7RS compliance with modern extensions</li>
+                <li><strong>Effect System</strong>: Monadic programming with algebraic effects</li>
+                <li><strong>Foreign Interface</strong>: Safe integration with C/C++, Rust, and system libraries</li>
+            </ul>
+
+            <h2>Core Language Features</h2>
+
+            <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 2rem 0;">
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="syntax.html">Syntax & Semantics</a></h3>
+                    <p>S-expression syntax with modern type annotations and pattern matching.</p>
+                    <pre style="margin-top: 1rem; font-size: 0.75rem;"><code>(define (factorial n)
+  (if (&lt;= n 1) 1
+      (* n (factorial (- n 1)))))</code></pre>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="monadic-purity.html">Monadic Purity</a></h3>
+                    <p>Referential transparency with controlled side effects through monadic composition.</p>
+                    <pre style="margin-top: 1rem; font-size: 0.75rem;"><code>(define read-file : (String → IO String)
+  (lambda (filename) ...))</code></pre>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="ffi.html">Foreign Function Interface</a></h3>
+                    <p>Safe integration with external libraries while maintaining type safety.</p>
+                    <pre style="margin-top: 1rem; font-size: 0.75rem;"><code>(extern "C" strlen : (CString → CSize))</code></pre>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="performance.html">Performance</a></h3>
+                    <p>JIT compilation, SIMD optimizations, and zero-cost abstractions.</p>
+                    <pre style="margin-top: 1rem; font-size: 0.75rem;"><code>;; Compiled to efficient native code
+(define sum-vector : (Vector Real → Real))</code></pre>
+                </div>
+            </div>
+
+            <h2>Basic Data Types</h2>
+
+            <h3>Primitive Types</h3>
+
+            <pre><code>;; Numeric types
+42                    ; Integer
+3.14159              ; Real  
+22/7                 ; Rational
+2+3i                 ; Complex
+
+;; Text types
+"Hello, Lambdust!"   ; String
+#\λ                  ; Character
+
+;; Boolean type
+#t                   ; True
+#f                   ; False
+
+;; Unit type
+unit                 ; Single value of unit type</code></pre>
+
+            <h3>Composite Types</h3>
+
+            <pre><code>;; Lists (linked lists)
+'(1 2 3 4 5)         ; List of integers
+'(a b c)             ; List of symbols
+
+;; Vectors (arrays)
+#(1 2 3 4 5)         ; Vector of integers
+
+;; Pairs and tuples
+(cons 1 2)           ; Pair
+'(1 . 2)             ; Pair literal
+
+;; Records
+(define-record Point (x y))
+(Point 10 20)        ; Record instance</code></pre>
+
+            <h2>Function Definition and Application</h2>
+
+            <h3>Basic Functions</h3>
+
+            <pre><code>;; Simple function definition
+(define add
+  (lambda (x y) (+ x y)))
+
+;; Shorthand syntax
+(define (add x y) (+ x y))
+
+;; Function application
+(add 3 4)            ; Result: 7
+
+;; Higher-order functions
+(define (twice f x) (f (f x)))
+(twice (lambda (x) (* x 2)) 5)  ; Result: 20</code></pre>
+
+            <h3>Functions with Type Annotations</h3>
+
+            <pre><code>;; Typed function
+(define add : (Number → Number → Number)
+  (lambda ((x : Number) (y : Number))
+    (+ x y)))
+
+;; Polymorphic function
+(define identity : (∀ α. α → α)
+  (lambda (x) x))
+
+;; Function with effects
+(define print-and-return : (∀ α. α → IO α)
+  (lambda (x)
+    (do-io
+      [_ ← (println x)]
+      (return x))))</code></pre>
+
+            <h2>Control Structures</h2>
+
+            <h3>Conditional Expressions</h3>
+
+            <pre><code>;; If expression
+(if (> x 0) "positive" "non-positive")
+
+;; Multi-way conditional
+(cond
+  [(&lt; x 0) "negative"]
+  [(= x 0) "zero"]
+  [(> x 0) "positive"]
+  [else "impossible"])
+
+;; When and unless
+(when (> x 0)
+  (println "x is positive"))
+
+(unless (null? lst)
+  (process-list lst))</code></pre>
+
+            <h3>Pattern Matching</h3>
+
+            <pre><code>;; Basic pattern matching
+(match value
+  [0 "zero"]
+  [1 "one"]
+  [n "other number"])
+
+;; List pattern matching
+(match lst
+  [() "empty list"]
+  [(cons x ()) "single element"]
+  [(cons x xs) "multiple elements"])
+
+;; Record pattern matching
+(match point
+  [(Point x y) (+ x y)])</code></pre>
+
+            <h2>Module System</h2>
+
+            <h3>Module Definition</h3>
+
+            <pre><code>;; Defining a module
+(module math.utils
+  (export factorial fibonacci gcd)
+  
+  (define (factorial n)
+    (if (&lt;= n 1) 1
+        (* n (factorial (- n 1)))))
+  
+  (define (fibonacci n)
+    (if (&lt; n 2) n
+        (+ (fibonacci (- n 1))
+           (fibonacci (- n 2)))))
+  
+  (define (gcd a b)
+    (if (= b 0) a
+        (gcd b (remainder a b)))))</code></pre>
+
+            <h3>Module Import</h3>
+
+            <pre><code>;; Import with prefix
+(import (prefix math. "math/utils"))
+(math.factorial 5)
+
+;; Import specific bindings
+(import (only "math/utils" factorial gcd))
+(factorial 5)
+
+;; Import all bindings
+(import "math/utils")
+(factorial 5)</code></pre>
+
+            <h2>Effect System</h2>
+
+            <p>Lambdust tracks side effects in the type system using monads and algebraic effects:</p>
+
+            <pre><code>;; Define effects
+(define-effect IO)
+(define-effect State)
+(define-effect Error)
+
+;; Pure computation
+(define pure-computation : (Integer → Integer)
+  (lambda (n) (* n n)))
+
+;; Computation with I/O
+(define io-computation : (String → IO String)
+  (lambda (filename)
+    (do-io
+      [content ← (read-file filename)]
+      [_ ← (println "File read successfully")]
+      (return content))))
+
+;; Computation with multiple effects
+(define stateful-io : (Integer → IO State Integer)
+  (lambda (n)
+    (do-monad
+      [current ← (get-state)]
+      [_ ← (put-state (+ current n))]
+      [_ ← (println "State updated")]
+      (return current))))</code></pre>
+
+            <h2>Error Handling</h2>
+
+            <pre><code>;; Using Maybe for optional values
+(define safe-divide : (Number → Number → Maybe Number)
+  (lambda (x y)
+    (if (= y 0) (None)
+        (Some (/ x y)))))
+
+;; Using Either for error handling
+(define parse-integer : (String → Either String Integer)
+  (lambda (str)
+    (if (string-is-integer? str)
+        (Right (string→integer str))
+        (Left "Not a valid integer"))))
+
+;; Exception handling with try-catch
+(define safe-operation : (String → IO (Either Error String))
+  (lambda (input)
+    (with-handler
+      [(IOError e) → (return (Left e))]
+      [(ParseError e) → (return (Left e))]
+      (do-io
+        [result ← (risky-operation input)]
+        (return (Right result))))))</code></pre>
+
+            <h2>Advanced Features</h2>
+
+            <h3>Macros and Metaprogramming</h3>
+
+            <pre><code>;; Simple macro
+(define-syntax when
+  (syntax-rules ()
+    [(when test body ...)
+     (if test (begin body ...) (void))]))
+
+;; Syntax-case macro with hygiene
+(define-syntax for
+  (lambda (stx)
+    (syntax-case stx ()
+      [(for (var in list) body ...)
+       #'(map (lambda (var) body ...) list)])))</code></pre>
+
+            <h3>Concurrency</h3>
+
+            <pre><code>;; Async computation
+(define async-computation : (Async Integer)
+  (lambda ()
+    (do-async
+      [x ← (async-read-file "data.txt")]
+      [y ← (async-process x)]
+      (return y))))
+
+;; Parallel computation
+(define parallel-map : (∀ α β. (α → β) → List α → Par (List β))
+  (lambda (f lst)
+    (par-map f lst)))</code></pre>
+
+            <h2>Best Practices</h2>
+
+            <ol>
+                <li><strong>Start with Pure Functions</strong>: Write pure functions by default, add effects only when necessary</li>
+                <li><strong>Use Gradual Typing</strong>: Begin with dynamic types, add annotations as code stabilizes</li>
+                <li><strong>Leverage Pattern Matching</strong>: Use pattern matching instead of explicit conditionals when possible</li>
+                <li><strong>Compose Functions</strong>: Build complex operations by composing simple functions</li>
+                <li><strong>Handle Errors Explicitly</strong>: Use Maybe, Either, or exception handling for error cases</li>
+                <li><strong>Document Effects</strong>: Make side effects explicit in function types</li>
+            </ol>
+
+            <h2>Learning Path</h2>
+
+            <p>We recommend studying Lambdust features in this order:</p>
+
+            <ol>
+                <li><strong><a href="../quickstart/index.html">Basic Syntax</a></strong> - Functions, data types, and control structures</li>
+                <li><strong><a href="../type-system/gradual-typing.html">Gradual Typing</a></strong> - Adding types incrementally</li>
+                <li><strong><a href="monadic-purity.html">Effect Systems</a></strong> - Managing side effects</li>
+                <li><strong>Module System</strong> - Organizing larger programs</li>
+                <li><strong><a href="../type-system/dependent-types.html">Dependent Types</a></strong> - Advanced type-level programming</li>
+                <li><strong><a href="ffi.html">Foreign Interface</a></strong> - Integrating with other languages</li>
+                <li><strong>Metaprogramming</strong> - Macros and compile-time computation</li>
+            </ol>
+
+            <div class="page-nav">
+                <a href="../index.html">← Documentation Home</a>
+                <a href="syntax.html">Syntax Guide →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

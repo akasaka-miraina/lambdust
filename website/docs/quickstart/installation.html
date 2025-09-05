@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Installation - Lambdust Documentation</title>
+    <meta name="description" content="Complete installation guide for Lambdust programming language on Windows, macOS, and Linux systems.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Quick Start</a> → 
+                Installation
+            </div>
+
+            <h1>Installation</h1>
+            
+            <p>Lambdust provides multiple installation methods across Windows, macOS, and Linux. Choose the method that best fits your development environment.</p>
+
+            <div class="type-signature">
+                System Requirements: x86_64 or ARM64, 4GB RAM, 2GB disk space
+            </div>
+
+            <h2>Quick Install</h2>
+
+            <div class="example-box">
+                <h4>One-Line Install (Recommended)</h4>
+                <pre><code># macOS and Linux
+curl -sSf https://get.lambdust.org | sh
+
+# Windows (PowerShell)
+iwr -useb get.lambdust.org/win | iex</code></pre>
+            </div>
+
+            <p>The installer will automatically detect your system, download the latest version, and add Lambdust to your PATH.</p>
+
+            <h2>Platform-Specific Installation</h2>
+
+            <h3>macOS</h3>
+
+            <h4>Homebrew (Recommended)</h4>
+            <pre><code># Install via Homebrew
+brew tap lambdust/tap
+brew install lambdust
+
+# Verify installation
+lambdust --version</code></pre>
+
+            <h4>MacPorts</h4>
+            <pre><code># Install via MacPorts
+sudo port install lambdust
+
+# Update MacPorts first if needed
+sudo port selfupdate</code></pre>
+
+            <h4>Direct Download</h4>
+            <pre><code># Download and install manually
+curl -L https://github.com/lambdust/lambdust/releases/latest/download/lambdust-macos.tar.gz | tar xz
+sudo mv lambdust /usr/local/bin/</code></pre>
+
+            <h3>Linux</h3>
+
+            <h4>Package Managers</h4>
+            <pre><code># Ubuntu/Debian (APT)
+curl -fsSL https://get.lambdust.org/linux/apt-key.gpg | sudo apt-key add -
+echo "deb https://get.lambdust.org/linux/apt stable main" | sudo tee /etc/apt/sources.list.d/lambdust.list
+sudo apt update && sudo apt install lambdust
+
+# Fedora/CentOS (DNF/YUM)
+sudo dnf config-manager --add-repo https://get.lambdust.org/linux/rpm/lambdust.repo
+sudo dnf install lambdust
+
+# Arch Linux (AUR)
+yay -S lambdust
+# or
+paru -S lambdust
+
+# openSUSE (Zypper)
+sudo zypper addrepo https://get.lambdust.org/linux/rpm/lambdust.repo
+sudo zypper install lambdust</code></pre>
+
+            <h4>Snap Package</h4>
+            <pre><code># Install via Snap (Universal Linux)
+sudo snap install lambdust --classic
+
+# Update
+sudo snap refresh lambdust</code></pre>
+
+            <h4>AppImage</h4>
+            <pre><code># Download and run AppImage
+wget https://github.com/lambdust/lambdust/releases/latest/download/lambdust-linux.AppImage
+chmod +x lambdust-linux.AppImage
+./lambdust-linux.AppImage</code></pre>
+
+            <h3>Windows</h3>
+
+            <h4>Windows Package Manager (winget)</h4>
+            <pre><code># Install via winget
+winget install lambdust.lambdust
+
+# Verify installation
+lambdust --version</code></pre>
+
+            <h4>Chocolatey</h4>
+            <pre><code># Install via Chocolatey
+choco install lambdust
+
+# Update
+choco upgrade lambdust</code></pre>
+
+            <h4>Scoop</h4>
+            <pre><code># Add bucket and install
+scoop bucket add lambdust https://github.com/lambdust/scoop-bucket
+scoop install lambdust</code></pre>
+
+            <h4>MSI Installer</h4>
+            <ol>
+                <li>Download the latest <code>lambdust-windows.msi</code> from <a href="https://github.com/lambdust/lambdust/releases">GitHub Releases</a></li>
+                <li>Run the installer as Administrator</li>
+                <li>Follow the installation wizard</li>
+                <li>Restart your terminal or IDE</li>
+            </ol>
+
+            <h2>Building from Source</h2>
+
+            <p>For developers who want the latest features or need to modify Lambdust:</p>
+
+            <h3>Prerequisites</h3>
+            <ul>
+                <li><strong>Rust</strong>: 1.70+ (install via <a href="https://rustup.rs/">rustup</a>)</li>
+                <li><strong>Git</strong>: For cloning the repository</li>
+                <li><strong>LLVM</strong>: 15+ (for code generation)</li>
+                <li><strong>CMake</strong>: 3.20+ (for building native dependencies)</li>
+            </ul>
+
+            <div class="example-box">
+                <h4>Build Steps</h4>
+                <pre><code># Clone the repository
+git clone https://github.com/lambdust/lambdust.git
+cd lambdust
+
+# Install dependencies
+cargo build --release
+
+# Run tests (optional but recommended)
+cargo test
+
+# Install globally
+cargo install --path .
+
+# Verify installation
+lambdust --version</code></pre>
+            </div>
+
+            <h3>Development Build</h3>
+            <pre><code># For development (faster builds, debug info)
+cargo build
+
+# Run without installing
+cargo run -- --version
+
+# Run with debug output
+RUST_LOG=debug cargo run -- --help</code></pre>
+
+            <h2>IDE and Editor Integration</h2>
+
+            <h3>Visual Studio Code</h3>
+            <pre><code># Install the Lambdust extension
+code --install-extension lambdust.lambdust-vscode
+
+# Or search for "Lambdust" in the Extensions panel</code></pre>
+
+            <h3>Emacs</h3>
+            <pre><code>;; Add to your Emacs configuration
+(use-package lambdust-mode
+  :ensure t
+  :mode "\\.ldust\\'")</code></pre>
+
+            <h3>Vim/Neovim</h3>
+            <pre><code>" Install via vim-plug
+Plug 'lambdust/vim-lambdust'
+
+" Or via Vundle
+Plugin 'lambdust/vim-lambdust'</code></pre>
+
+            <h3>IntelliJ IDEA</h3>
+            <ol>
+                <li>Open Settings → Plugins</li>
+                <li>Search for "Lambdust"</li>
+                <li>Install the Lambdust Language Plugin</li>
+                <li>Restart IntelliJ IDEA</li>
+            </ol>
+
+            <h2>Docker Installation</h2>
+
+            <p>For containerized development or CI/CD:</p>
+
+            <pre><code># Pull the official image
+docker pull lambdust/lambdust:latest
+
+# Run interactively
+docker run -it lambdust/lambdust:latest
+
+# Run a script
+docker run -v $(pwd):/workspace lambdust/lambdust:latest /workspace/script.ldust
+
+# Development container with volume mount
+docker run -it -v $(pwd):/code -w /code lambdust/lambdust:latest bash</code></pre>
+
+            <h3>Development Dockerfile</h3>
+            <pre><code>FROM lambdust/lambdust:latest
+
+# Install additional tools
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    build-essential
+
+# Set working directory
+WORKDIR /app
+
+# Copy your project
+COPY . .
+
+# Install dependencies (if using a package manager)
+RUN lambdust install
+
+CMD ["lambdust", "repl"]</code></pre>
+
+            <h2>Verification and Testing</h2>
+
+            <p>After installation, verify everything is working correctly:</p>
+
+            <div class="example-box">
+                <h4>Installation Verification</h4>
+                <pre><code># Check version
+lambdust --version
+
+# Run the REPL
+lambdust repl
+
+# Execute a simple program
+echo '(display "Hello, Lambdust!")' | lambdust
+
+# Check available commands
+lambdust --help
+
+# Run built-in tests
+lambdust test --stdlib</code></pre>
+            </div>
+
+            <h3>Common Issues and Solutions</h3>
+
+            <div class="warning-box">
+                <h4>PATH Issues</h4>
+                <p>If <code>lambdust</code> command is not found after installation:</p>
+                <ul>
+                    <li><strong>macOS/Linux</strong>: Add <code>~/.lambdust/bin</code> to your PATH</li>
+                    <li><strong>Windows</strong>: Restart your terminal or add installation directory to PATH manually</li>
+                </ul>
+            </div>
+
+            <h4>Permission Errors</h4>
+            <pre><code># Linux/macOS: Fix permissions if needed
+sudo chown -R $USER ~/.lambdust
+chmod +x ~/.lambdust/bin/lambdust
+
+# Windows: Run installer as Administrator</code></pre>
+
+            <h4>Missing Dependencies</h4>
+            <pre><code># Install system dependencies on Ubuntu/Debian
+sudo apt install build-essential libssl-dev pkg-config
+
+# On macOS with Homebrew
+brew install openssl pkg-config
+
+# On Windows, use the MSI installer which includes all dependencies</code></pre>
+
+            <h2>Next Steps</h2>
+
+            <p>Once Lambdust is installed successfully:</p>
+
+            <ol>
+                <li><strong><a href="first-program.html">Write your first program</a></strong> - Create a simple Lambdust application</li>
+                <li><strong><a href="repl-guide.html">Explore the REPL</a></strong> - Interactive development environment</li>
+                <li><strong><a href="../language-guide/syntax.html">Learn the syntax</a></strong> - Master Lambdust's syntax and semantics</li>
+                <li><strong><a href="../type-system/gradual-typing.html">Understand types</a></strong> - Leverage the powerful type system</li>
+            </ol>
+
+            <h2>Updating Lambdust</h2>
+
+            <p>Keep your Lambdust installation up to date:</p>
+
+            <pre><code># Using the built-in updater
+lambdust update
+
+# Or reinstall using your package manager
+brew upgrade lambdust          # macOS Homebrew
+sudo apt update && sudo apt upgrade lambdust  # Ubuntu/Debian
+winget upgrade lambdust        # Windows</code></pre>
+
+            <h2>Uninstallation</h2>
+
+            <p>If you need to remove Lambdust:</p>
+
+            <pre><code># Package manager uninstall
+brew uninstall lambdust        # macOS Homebrew
+sudo apt remove lambdust       # Ubuntu/Debian
+winget uninstall lambdust      # Windows
+
+# Manual cleanup
+rm -rf ~/.lambdust             # Remove user data
+# Remove from PATH if manually added</code></pre>
+
+            <div class="page-nav">
+                <a href="index.html">← Quick Start Overview</a>
+                <a href="first-program.html">First Program →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,7 +1,7 @@
 //! Warning system for program analysis.
 
+use super::analysis_types::{WarningSeverity, WarningType};
 use crate::diagnostics::Span;
-use super::analysis_types::{WarningType, WarningSeverity};
 
 /// Analysis warning.
 #[derive(Debug, Clone)]

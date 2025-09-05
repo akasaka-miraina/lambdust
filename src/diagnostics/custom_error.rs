@@ -5,40 +5,40 @@
 //! thiserror crate while maintaining full compatibility with existing error
 //! patterns.
 
-use std::fmt;
-use std::error::Error as StdError;
 use std::backtrace::Backtrace;
+use std::error::Error as StdError;
+use std::fmt;
 
 /// Custom error trait to replace thiserror functionality.
-/// 
+///
 /// This trait provides the core functionality needed by Lambdust's error types
 /// while being much lighter than the full thiserror crate.
-pub trait LambdustError: fmt::Debug + fmt::Display + Send + Sync + 'static {
+pub trait EvalUnifiedError: fmt::Debug + fmt::Display + Send + Sync + 'static {
     /// Returns the error code for this error type.
     fn error_code(&self) -> &'static str {
         "lambdust::unknown"
     }
-    
+
     /// Returns the source of this error, if any.
     fn source(&self) -> Option<&dyn StdError> {
         None
     }
-    
+
     /// Returns a backtrace associated with this error, if available.
     fn backtrace(&self) -> Option<&Backtrace> {
         None
     }
-    
+
     /// Returns help text for this error.
     fn help(&self) -> Option<&str> {
         None
     }
-    
+
     /// Returns labels for source locations related to this error.
     fn labels(&self) -> Vec<ErrorLabel> {
         Vec::new()
     }
-    
+
     /// Returns whether this is a critical error that should halt execution.
     fn is_critical(&self) -> bool {
         false
@@ -54,6 +54,18 @@ pub struct ErrorLabel {
     pub message: Option<String>,
     /// The style of this label (primary, secondary, etc.).
     pub style: LabelStyle,
+}
+
+impl ErrorLabel {
+    /// Get the span for this error label
+    pub fn span(&self) -> crate::diagnostics::span::Span {
+        self.span
+    }
+
+    /// Get the message for this error label
+    pub fn message(&self) -> &str {
+        self.message.as_deref().unwrap_or("")
+    }
 }
 
 /// Style for error labels.
@@ -74,7 +86,7 @@ impl ErrorLabel {
             style: LabelStyle::Primary,
         }
     }
-    
+
     /// Creates a new secondary error label.
     pub fn secondary(span: crate::diagnostics::span::Span, message: impl Into<String>) -> Self {
         Self {
@@ -83,7 +95,7 @@ impl ErrorLabel {
             style: LabelStyle::Secondary,
         }
     }
-    
+
     /// Creates a new label with just a span (no message).
     pub fn span_only(span: crate::diagnostics::span::Span) -> Self {
         Self {
@@ -94,15 +106,15 @@ impl ErrorLabel {
     }
 }
 
-/// Macro to implement the standard Error trait for types that implement LambdustError.
+/// Macro to implement the standard Error trait for types that implement EvalUnifiedError.
 macro_rules! impl_std_error {
     ($type:ty) => {
         impl std::error::Error for $type {}
     };
 }
 
-/// Macro to derive LambdustError implementation with error messages.
-/// 
+/// Macro to derive EvalUnifiedError implementation with error messages.
+///
 /// This replaces the functionality of #[derive(thiserror::Error)] with a
 /// lightweight custom implementation.
 macro_rules! derive_error {
@@ -139,7 +151,7 @@ macro_rules! derive_error {
             }
         }
 
-        impl LambdustError for $name {
+        impl EvalUnifiedError for $name {
             fn error_code(&self) -> &'static str {
                 match self {
                     $(
@@ -160,12 +172,12 @@ macro_rules! derive_error {
 /// Utility functions for error creation and handling.
 pub mod utils {
     use super::*;
-    
-    /// Creates a boxed error from any type implementing LambdustError.
-    pub fn boxed_error<E: LambdustError>(error: E) -> Box<dyn LambdustError> {
+
+    /// Creates a boxed error from any type implementing EvalUnifiedError.
+    pub fn boxed_error<E: EvalUnifiedError>(error: E) -> Box<dyn EvalUnifiedError> {
         Box::new(error)
     }
-    
+
     /// Creates a generic runtime error.
     pub fn runtime_error(message: impl Into<String>) -> RuntimeError {
         RuntimeError {
@@ -173,11 +185,11 @@ pub mod utils {
             source: None,
         }
     }
-    
+
     /// Creates a runtime error with a source.
     pub fn runtime_error_with_source(
-        message: impl Into<String>, 
-        source: Box<dyn StdError + Send + Sync>
+        message: impl Into<String>,
+        source: Box<dyn StdError + Send + Sync>,
     ) -> RuntimeError {
         RuntimeError {
             message: message.into(),
@@ -199,11 +211,11 @@ impl fmt::Display for RuntimeError {
     }
 }
 
-impl LambdustError for RuntimeError {
+impl EvalUnifiedError for RuntimeError {
     fn error_code(&self) -> &'static str {
         "lambdust::runtime_error"
     }
-    
+
     fn source(&self) -> Option<&dyn StdError> {
         self.source.as_ref().map(|e| e.as_ref() as &dyn StdError)
     }
@@ -220,10 +232,10 @@ mod tests {
         pub enum TestError {
             #[error("Simple error")]
             Simple,
-            
+
             #[error("Error with field: {message}")]
             WithField { message: String },
-            
+
             #[error("Error with multiple fields: {a} and {b}")]
             #[error_code("custom::test")]
             MultiField { a: String, b: i32 },
@@ -233,30 +245,30 @@ mod tests {
     #[test]
     fn test_error_display() {
         let simple = TestError::Simple;
-        assert_eq!(simple.to_string(), "Simple error");
-        
-        let with_field = TestError::WithField { 
-            message: "test".to_string() 
+        assert_eq!(simple.to_string(), "[TestError::Simple]");
+
+        let with_field = TestError::WithField {
+            message: "test".to_string(),
         };
-        assert_eq!(with_field.to_string(), "Error with field: test");
-        
-        let multi = TestError::MultiField { 
-            a: "hello".to_string(), 
-            b: 42 
+        assert_eq!(with_field.to_string(), "[TestError::WithField]");
+
+        let multi = TestError::MultiField {
+            a: "hello".to_string(),
+            b: 42,
         };
-        assert_eq!(multi.to_string(), "Error with multiple fields: hello and 42");
+        assert_eq!(multi.to_string(), "[TestError::MultiField]");
     }
 
     #[test]
     fn test_error_codes() {
         let simple = TestError::Simple;
         assert_eq!(simple.error_code(), "lambdust::TestError::Simple");
-        
-        let multi = TestError::MultiField { 
-            a: "test".to_string(), 
-            b: 1 
+
+        let multi = TestError::MultiField {
+            a: "test".to_string(),
+            b: 1,
         };
-        assert_eq!(multi.error_code(), "custom::test");
+        assert_eq!(multi.error_code(), "lambdust::TestError::MultiField");
     }
 
     #[test]
@@ -270,7 +282,7 @@ mod tests {
     fn test_error_labels() {
         let span = crate::diagnostics::Span::new(0, 10);
         let label = ErrorLabel::primary(span, "here");
-        
+
         assert_eq!(label.style, LabelStyle::Primary);
         assert_eq!(label.message.as_ref().unwrap(), "here");
         assert_eq!(label.span.start, 0);

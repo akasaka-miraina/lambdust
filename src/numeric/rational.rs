@@ -6,7 +6,7 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// Exact rational number representation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -354,11 +354,7 @@ impl Hash for Rational {
 
 /// Computes the greatest common divisor using Euclid's algorithm
 pub fn gcd(a: u64, b: u64) -> u64 {
-    if b == 0 {
-        a
-    } else {
-        gcd(b, a % b)
-    }
+    if b == 0 { a } else { gcd(b, a % b) }
 }
 
 /// Computes the least common multiple

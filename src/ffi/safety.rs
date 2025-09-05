@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Arc, RwLock};
 
-use crate::eval::Value;
 use crate::ast::Literal;
 use crate::diagnostics::Error;
+use crate::eval::Value;
 use crate::ffi::c_types::CType;
 
 /// Type alias for safety results to reduce error size
@@ -42,10 +42,7 @@ pub enum SafetyError {
         description: String,
     },
     /// Null pointer dereference
-    NullPointerDereference {
-        parameter: usize,
-        context: String,
-    },
+    NullPointerDereference { parameter: usize, context: String },
     /// Buffer bounds check failed
     BufferBoundsCheck {
         buffer_size: usize,
@@ -53,10 +50,7 @@ pub enum SafetyError {
         access_size: usize,
     },
     /// Uninitialized memory access
-    UninitializedMemory {
-        pointer: *const u8,
-        size: usize,
-    },
+    UninitializedMemory { pointer: *const u8, size: usize },
     /// Stack overflow protection
     StackOverflow {
         current_depth: usize,
@@ -72,32 +66,74 @@ pub enum SafetyError {
 impl fmt::Display for SafetyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SafetyError::SignatureMismatch { function, expected, actual } => {
-                write!(f, "Function '{function}' signature mismatch: expected {expected:?}, got {actual:?}")
+            SafetyError::SignatureMismatch {
+                function,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Function '{function}' signature mismatch: expected {expected:?}, got {actual:?}"
+                )
             }
             SafetyError::InvalidFunctionPointer { function, pointer } => {
                 write!(f, "Invalid function pointer for '{function}': {pointer:p}")
             }
-            SafetyError::RuntimeTypeCheck { parameter, expected, actual_value } => {
-                write!(f, "Runtime type check failed for parameter {parameter}: expected {expected}, got {actual_value}")
+            SafetyError::RuntimeTypeCheck {
+                parameter,
+                expected,
+                actual_value,
+            } => {
+                write!(
+                    f,
+                    "Runtime type check failed for parameter {parameter}: expected {expected}, got {actual_value}"
+                )
             }
-            SafetyError::BoundaryViolation { operation, description } => {
+            SafetyError::BoundaryViolation {
+                operation,
+                description,
+            } => {
                 write!(f, "Boundary violation in {operation}: {description}")
             }
             SafetyError::NullPointerDereference { parameter, context } => {
-                write!(f, "Null pointer dereference in parameter {parameter} ({context})")
+                write!(
+                    f,
+                    "Null pointer dereference in parameter {parameter} ({context})"
+                )
             }
-            SafetyError::BufferBoundsCheck { buffer_size, access_offset, access_size } => {
-                write!(f, "Buffer bounds check failed: buffer size {buffer_size}, access offset {access_offset}, access size {access_size}")
+            SafetyError::BufferBoundsCheck {
+                buffer_size,
+                access_offset,
+                access_size,
+            } => {
+                write!(
+                    f,
+                    "Buffer bounds check failed: buffer size {buffer_size}, access offset {access_offset}, access size {access_size}"
+                )
             }
             SafetyError::UninitializedMemory { pointer, size } => {
-                write!(f, "Uninitialized memory access at {pointer:p} (size {size})")
+                write!(
+                    f,
+                    "Uninitialized memory access at {pointer:p} (size {size})"
+                )
             }
-            SafetyError::StackOverflow { current_depth, max_depth } => {
-                write!(f, "Stack overflow: current depth {current_depth}, max depth {max_depth}")
+            SafetyError::StackOverflow {
+                current_depth,
+                max_depth,
+            } => {
+                write!(
+                    f,
+                    "Stack overflow: current depth {current_depth}, max depth {max_depth}"
+                )
             }
-            SafetyError::ResourceLeak { resource_type, resource_id } => {
-                write!(f, "Resource leak detected: {resource_type} (ID: {resource_id})")
+            SafetyError::ResourceLeak {
+                resource_type,
+                resource_id,
+            } => {
+                write!(
+                    f,
+                    "Resource leak detected: {resource_type} (ID: {resource_id})"
+                )
             }
         }
     }
@@ -147,10 +183,7 @@ pub enum TypeConstraint {
         size_param: usize,
     },
     /// Pointer parameter must be aligned
-    Aligned {
-        parameter: usize,
-        alignment: usize,
-    },
+    Aligned { parameter: usize, alignment: usize },
     /// Resource management constraint
     ResourceManagement {
         parameter: usize,
@@ -336,7 +369,7 @@ impl TypeSafetyValidator {
         args: &[Value],
         function_ptr: *const u8,
     ) -> SafetyResult<()> {
-        let config = self.config.read().unwrap();
+        let config = self.config.try_read().unwrap();
 
         // Update statistics
         {
@@ -368,7 +401,7 @@ impl TypeSafetyValidator {
 
         // Get function signature
         let signature = {
-            let signatures = self.signatures.read().unwrap();
+            let signatures = self.signatures.try_read().unwrap();
             signatures.get(function_name).cloned()
         };
 
@@ -400,7 +433,7 @@ impl TypeSafetyValidator {
         function_name: &str,
         return_value: &Value,
     ) -> SafetyResult<()> {
-        let config = self.config.read().unwrap();
+        let config = self.config.try_read().unwrap();
 
         // Decrement stack depth
         if config.stack_overflow_protection {
@@ -498,22 +531,28 @@ impl TypeSafetyValidator {
         args: &[Value],
         function_name: &str,
     ) -> SafetyResult<()> {
-        let config = self.config.read().unwrap();
+        let config = self.config.try_read().unwrap();
 
         for constraint in &signature.constraints {
             match constraint {
                 TypeConstraint::NonNull(param_idx) => {
-                    if config.null_pointer_checking && *param_idx < args.len()
-                        && matches!(args[*param_idx], Value::Nil) {
-                            let mut stats = self.stats.write().unwrap();
-                            stats.null_pointer_violations += 1;
-                            return Err(Box::new(SafetyError::NullPointerDereference {
-                                parameter: *param_idx,
-                                context: function_name.to_string(),
-                            }));
-                        }
+                    if config.null_pointer_checking
+                        && *param_idx < args.len()
+                        && matches!(args[*param_idx], Value::Nil)
+                    {
+                        let mut stats = self.stats.write().unwrap();
+                        stats.null_pointer_violations += 1;
+                        return Err(Box::new(SafetyError::NullPointerDereference {
+                            parameter: *param_idx,
+                            context: function_name.to_string(),
+                        }));
+                    }
                 }
-                TypeConstraint::Bounds { parameter, min, max } => {
+                TypeConstraint::Bounds {
+                    parameter,
+                    min,
+                    max,
+                } => {
                     if config.bounds_checking && *parameter < args.len() {
                         if let Value::Literal(literal) = &args[*parameter] {
                             if let Some(val) = literal.to_f64() {
@@ -522,16 +561,23 @@ impl TypeSafetyValidator {
                                     stats.bounds_violations += 1;
                                     return Err(Box::new(SafetyError::BoundaryViolation {
                                         operation: format!("parameter {parameter} bounds check"),
-                                        description: format!("value {val} not in range [{min}..{max}]"),
+                                        description: format!(
+                                            "value {val} not in range [{min}..{max}]"
+                                        ),
                                     }));
                                 }
                             }
                         }
                     }
                 }
-                TypeConstraint::BufferWithSize { buffer_param, size_param } => {
-                    if config.buffer_overflow_protection && 
-                       *buffer_param < args.len() && *size_param < args.len() {
+                TypeConstraint::BufferWithSize {
+                    buffer_param,
+                    size_param,
+                } => {
+                    if config.buffer_overflow_protection
+                        && *buffer_param < args.len()
+                        && *size_param < args.len()
+                    {
                         // This would require more complex validation in practice
                         // For now, just check that both parameters are present
                         if matches!(args[*buffer_param], Value::Nil) {
@@ -560,7 +606,7 @@ impl TypeSafetyValidator {
         args: &[Value],
         trigger: ValidationTrigger,
     ) -> SafetyResult<()> {
-        let rules = self.validation_rules.read().unwrap();
+        let rules = self.validation_rules.try_read().unwrap();
         if let Some(function_rules) = rules.get(function_name) {
             for rule in function_rules {
                 if rule.enabled && self.matches_trigger(&rule.trigger, &trigger) {
@@ -573,11 +619,18 @@ impl TypeSafetyValidator {
     }
 
     /// Check if a trigger matches
-    fn matches_trigger(&self, rule_trigger: &ValidationTrigger, actual_trigger: &ValidationTrigger) -> bool {
+    fn matches_trigger(
+        &self,
+        rule_trigger: &ValidationTrigger,
+        actual_trigger: &ValidationTrigger,
+    ) -> bool {
         match (rule_trigger, actual_trigger) {
             (ValidationTrigger::PreCall, ValidationTrigger::PreCall) => true,
             (ValidationTrigger::PostCall, ValidationTrigger::PostCall) => true,
-            (ValidationTrigger::ParameterConversion(a), ValidationTrigger::ParameterConversion(b)) => a == b,
+            (
+                ValidationTrigger::ParameterConversion(a),
+                ValidationTrigger::ParameterConversion(b),
+            ) => a == b,
             (ValidationTrigger::ReturnConversion, ValidationTrigger::ReturnConversion) => true,
             (ValidationTrigger::Custom(a), ValidationTrigger::Custom(b)) => a == b,
             _ => false,
@@ -624,7 +677,9 @@ impl TypeSafetyValidator {
                         if s.contains('\0') && !s.ends_with('\0') {
                             return Err(Box::new(SafetyError::BoundaryViolation {
                                 operation: "string validation".to_string(),
-                                description: "string contains null character but is not null-terminated".to_string(),
+                                description:
+                                    "string contains null character but is not null-terminated"
+                                        .to_string(),
                             }));
                         }
                     }
@@ -640,26 +695,26 @@ impl TypeSafetyValidator {
 
     /// Get a function signature
     pub fn get_function_signature(&self, function_name: &str) -> Option<FunctionSignature> {
-        let signatures = self.signatures.read().unwrap();
+        let signatures = self.signatures.try_read().unwrap();
         signatures.get(function_name).cloned()
     }
 
     /// List all registered functions
     pub fn list_registered_functions(&self) -> Vec<String> {
-        let signatures = self.signatures.read().unwrap();
+        let signatures = self.signatures.try_read().unwrap();
         signatures.keys().cloned().collect()
     }
 
     /// Get safety statistics
     pub fn stats(&self) -> SafetyStats {
-        self.stats.read().unwrap().clone()
+        self.stats.try_read().unwrap().clone()
     }
 
     /// Clear all registrations
     pub fn clear(&self) {
         let mut signatures = self.signatures.write().unwrap();
         signatures.clear();
-        
+
         let mut rules = self.validation_rules.write().unwrap();
         rules.clear();
     }
@@ -703,10 +758,7 @@ pub fn validate_function_call(
     GLOBAL_TYPE_SAFETY_VALIDATOR.validate_function_call(function_name, args, function_ptr)
 }
 
-pub fn validate_function_completion(
-    function_name: &str,
-    return_value: &Value,
-) -> SafetyResult<()> {
+pub fn validate_function_completion(function_name: &str, return_value: &Value) -> SafetyResult<()> {
     GLOBAL_TYPE_SAFETY_VALIDATOR.validate_function_completion(function_name, return_value)
 }
 
@@ -734,8 +786,10 @@ mod tests {
             constraints: vec![TypeConstraint::NonNull(1)],
         };
 
-        validator.register_function_signature(signature.clone()).unwrap();
-        
+        validator
+            .register_function_signature(signature.clone())
+            .unwrap();
+
         let retrieved = validator.get_function_signature("test_function").unwrap();
         assert_eq!(retrieved.name, "test_function");
         assert_eq!(retrieved.parameters.len(), 2);
@@ -761,9 +815,13 @@ mod tests {
         assert!(result.is_ok());
 
         // Invalid call - wrong type
-        let args = vec![Value::Literal(Literal::String("hello".to_string()))];
+        let args = vec![Value::Literal(Literal::String(Box::new(
+            "hello".to_string(),
+        )))];
         let result = validator.validate_function_call("test_function", &args, ptr::null());
-        assert!(matches!(result, Err(ref err) if matches!(**err, SafetyError::RuntimeTypeCheck { .. })));
+        assert!(
+            matches!(result, Err(ref err) if matches!(**err, SafetyError::RuntimeTypeCheck { .. }))
+        );
     }
 
     #[test]
@@ -781,14 +839,18 @@ mod tests {
         validator.register_function_signature(signature).unwrap();
 
         // Valid call
-        let args = vec![Value::Literal(Literal::String("hello".to_string()))];
+        let args = vec![Value::Literal(Literal::String(Box::new(
+            "hello".to_string(),
+        )))];
         let result = validator.validate_function_call("test_function", &args, ptr::null());
         assert!(result.is_ok());
 
         // Invalid call - null pointer
         let args = vec![Value::Nil];
         let result = validator.validate_function_call("test_function", &args, ptr::null());
-        assert!(matches!(result, Err(ref err) if matches!(**err, SafetyError::NullPointerDereference { .. })));
+        assert!(
+            matches!(result, Err(ref err) if matches!(**err, SafetyError::NullPointerDereference { .. }))
+        );
     }
 
     #[test]
@@ -817,13 +879,15 @@ mod tests {
         // Invalid call - out of bounds
         let args = vec![Value::Literal(Literal::Number(150.0))];
         let result = validator.validate_function_call("test_function", &args, ptr::null());
-        assert!(matches!(result, Err(ref err) if matches!(**err, SafetyError::BoundaryViolation { .. })));
+        assert!(
+            matches!(result, Err(ref err) if matches!(**err, SafetyError::BoundaryViolation { .. }))
+        );
     }
 
     #[test]
     fn test_validation_rules() {
         let validator = TypeSafetyValidator::new();
-        
+
         let rule = ValidationRule {
             name: "null_check".to_string(),
             trigger: ValidationTrigger::PreCall,
@@ -835,7 +899,10 @@ mod tests {
 
         // This would fail with null check
         let args = vec![Value::Nil];
-        let result = validator.apply_validation_rules("test_function", &args, ValidationTrigger::PreCall);
-        assert!(matches!(result, Err(ref err) if matches!(**err, SafetyError::NullPointerDereference { .. })));
+        let result =
+            validator.apply_validation_rules("test_function", &args, ValidationTrigger::PreCall);
+        assert!(
+            matches!(result, Err(ref err) if matches!(**err, SafetyError::NullPointerDereference { .. }))
+        );
     }
 }

@@ -1,15 +1,19 @@
 //! Parallel generational garbage collector coordinator
 //!
-//! This module implements the main coordinator for the parallel generational 
+//! This module implements the main coordinator for the parallel generational
 //! garbage collector, managing collection phases, thread synchronization, and
 //! generation-specific collection algorithms.
 
 use crate::eval::value::Value;
+#[cfg(feature = "jit")]
 use crate::jit::metrics::JitMetrics;
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, RwLock, Mutex, Condvar, atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering}};
-use std::time::{Duration, Instant};
+use std::sync::{
+    Arc, Condvar, Mutex, RwLock,
+    atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+};
 use std::thread::{self, ThreadId};
+use std::time::{Duration, Instant};
 
 /// Configuration for the parallel garbage collector
 #[derive(Debug, Clone)]
@@ -67,7 +71,7 @@ pub enum CollectionPhase {
 pub struct GcStatistics {
     /// Total number of minor collections
     pub minor_collections: AtomicU64,
-    /// Total number of major collections  
+    /// Total number of major collections
     pub major_collections: AtomicU64,
     /// Total time spent in minor collections
     pub minor_collection_time: AtomicU64,
@@ -95,24 +99,28 @@ impl GcStatistics {
     pub fn record_minor_collection(&self, pause_time: Duration) {
         self.minor_collections.fetch_add(1, Ordering::Relaxed);
         let pause_ns = pause_time.as_nanos() as u64;
-        self.minor_collection_time.fetch_add(pause_ns, Ordering::Relaxed);
-        
+        self.minor_collection_time
+            .fetch_add(pause_ns, Ordering::Relaxed);
+
         // Update running average
         let count = self.minor_collections.load(Ordering::Relaxed);
         let total_time = self.minor_collection_time.load(Ordering::Relaxed);
-        self.avg_minor_pause_ns.store(total_time / count, Ordering::Relaxed);
+        self.avg_minor_pause_ns
+            .store(total_time / count, Ordering::Relaxed);
     }
 
     /// Record a major collection
     pub fn record_major_collection(&self, pause_time: Duration) {
         self.major_collections.fetch_add(1, Ordering::Relaxed);
         let pause_ns = pause_time.as_nanos() as u64;
-        self.major_collection_time.fetch_add(pause_ns, Ordering::Relaxed);
-        
+        self.major_collection_time
+            .fetch_add(pause_ns, Ordering::Relaxed);
+
         // Update running average
         let count = self.major_collections.load(Ordering::Relaxed);
         let total_time = self.major_collection_time.load(Ordering::Relaxed);
-        self.avg_major_pause_ns.store(total_time / count, Ordering::Relaxed);
+        self.avg_major_pause_ns
+            .store(total_time / count, Ordering::Relaxed);
     }
 
     /// Update allocation statistics
@@ -172,26 +180,34 @@ impl SafepointCoordinator {
     /// Request all threads to reach safepoint
     pub fn request_safepoint(&self) -> Result<(), String> {
         self.safepoint_requested.store(true, Ordering::Relaxed);
-        
-        let mut lock = self.safepoint_lock.lock().map_err(|_| "Failed to acquire safepoint lock")?;
-        
+
+        let mut lock = self
+            .safepoint_lock
+            .lock()
+            .map_err(|_| "Failed to acquire safepoint lock")?;
+
         // Wait for all threads to reach safepoint
         let total = self.total_threads.load(Ordering::Relaxed);
-        
+
         loop {
             let threads_reached = self.threads_at_safepoint.load(Ordering::Relaxed);
             if threads_reached >= total {
                 break;
             }
-            
-            match self.safepoint_reached.wait_timeout(lock, Duration::from_millis(100)) {
+
+            match self
+                .safepoint_reached
+                .wait_timeout(lock, Duration::from_millis(100))
+            {
                 Ok((new_lock, timeout_result)) => {
                     lock = new_lock;
                     if timeout_result.timed_out() {
                         // Check if threads are making progress
                         let current_reached = self.threads_at_safepoint.load(Ordering::Relaxed);
                         if current_reached < threads_reached {
-                            return Err("Timeout waiting for threads to reach safepoint".to_string());
+                            return Err(
+                                "Timeout waiting for threads to reach safepoint".to_string()
+                            );
                         }
                     }
                 }
@@ -226,9 +242,9 @@ impl SafepointCoordinator {
 
         // Wait for release
         let lock = self.safepoint_lock.lock().unwrap();
-        let _result = self.safepoint_released.wait_while(lock, |_| {
-            self.safepoint_requested.load(Ordering::Relaxed)
-        });
+        let _result = self
+            .safepoint_released
+            .wait_while(lock, |_| self.safepoint_requested.load(Ordering::Relaxed));
     }
 }
 
@@ -250,6 +266,7 @@ pub struct ParallelGc {
     /// Safepoint coordinator
     safepoint: Arc<SafepointCoordinator>,
     /// JIT metrics integration
+    #[cfg(feature = "jit")]
     jit_metrics: Option<Arc<RwLock<JitMetrics>>>,
     /// Adaptive tuning parameters
     adaptive_params: Arc<RwLock<AdaptiveTuningParams>>,
@@ -290,7 +307,7 @@ impl Default for AdaptiveTuningParams {
 pub enum CollectionRequest {
     /// Minor collection requested
     Minor,
-    /// Major collection requested  
+    /// Major collection requested
     Major,
     /// Incremental collection step
     IncrementalStep,
@@ -306,6 +323,7 @@ impl ParallelGc {
             current_phase: Arc::new(RwLock::new(CollectionPhase::Idle)),
             statistics: Arc::new(GcStatistics::new()),
             safepoint: Arc::new(SafepointCoordinator::new()),
+            #[cfg(feature = "jit")]
             jit_metrics: None,
             adaptive_params: Arc::new(RwLock::new(AdaptiveTuningParams::default())),
             collection_requests: Arc::new(Mutex::new(VecDeque::new())),
@@ -315,8 +333,19 @@ impl ParallelGc {
     }
 
     /// Initialize the garbage collector with optional JIT metrics integration
-    pub fn initialize(&mut self, jit_metrics: Option<Arc<RwLock<JitMetrics>>>) -> Result<(), String> {
+    #[cfg(feature = "jit")]
+    pub fn initialize(
+        &mut self,
+        jit_metrics: Option<Arc<RwLock<JitMetrics>>>,
+    ) -> Result<(), String> {
         self.jit_metrics = jit_metrics;
+        self.start_worker_threads()?;
+        Ok(())
+    }
+
+    /// Initialize the garbage collector (no JIT when disabled)
+    #[cfg(not(feature = "jit"))]
+    pub fn initialize(&mut self) -> Result<(), String> {
         self.start_worker_threads()?;
         Ok(())
     }
@@ -324,8 +353,11 @@ impl ParallelGc {
     /// Start worker threads for concurrent collection
     fn start_worker_threads(&self) -> Result<(), String> {
         let num_threads = self.config.max_collector_threads;
-        let mut worker_handles = self.worker_threads.write().map_err(|_| "Failed to acquire worker threads lock")?;
-        
+        let mut worker_handles = self
+            .worker_threads
+            .write()
+            .map_err(|_| "Failed to acquire worker threads lock")?;
+
         for thread_id in 0..num_threads {
             let config = Arc::clone(&self.config);
             let statistics = Arc::clone(&self.statistics);
@@ -395,14 +427,20 @@ impl ParallelGc {
 
     /// Request a minor collection
     pub fn request_minor_collection(&self) -> Result<(), String> {
-        let mut requests = self.collection_requests.lock().map_err(|_| "Failed to acquire collection requests lock")?;
+        let mut requests = self
+            .collection_requests
+            .lock()
+            .map_err(|_| "Failed to acquire collection requests lock")?;
         requests.push_back(CollectionRequest::Minor);
         Ok(())
     }
 
     /// Request a major collection
     pub fn request_major_collection(&self) -> Result<(), String> {
-        let mut requests = self.collection_requests.lock().map_err(|_| "Failed to acquire collection requests lock")?;
+        let mut requests = self
+            .collection_requests
+            .lock()
+            .map_err(|_| "Failed to acquire collection requests lock")?;
         requests.push_back(CollectionRequest::Major);
         Ok(())
     }
@@ -414,7 +452,7 @@ impl ParallelGc {
 
     /// Get current collection phase
     pub fn get_current_phase(&self) -> CollectionPhase {
-        *self.current_phase.read().unwrap()
+        *self.current_phase.try_read().unwrap()
     }
 
     /// Update adaptive tuning parameters based on recent performance
@@ -425,7 +463,7 @@ impl ParallelGc {
 
         if let Ok(mut params) = self.adaptive_params.write() {
             params.allocation_rate = allocation_rate;
-            
+
             // Keep a rolling window of pause time samples
             params.pause_time_samples.push_back(recent_pause);
             if params.pause_time_samples.len() > 100 {
@@ -444,10 +482,12 @@ impl ParallelGc {
             let target_pause = Duration::from_millis(self.config.target_minor_pause_ms);
             if avg_pause > target_pause {
                 // Pause times too high, collect more frequently
-                params.collection_frequency_multiplier = (params.collection_frequency_multiplier * 1.1).min(3.0);
+                params.collection_frequency_multiplier =
+                    (params.collection_frequency_multiplier * 1.1).min(3.0);
             } else if avg_pause < target_pause / 2 {
                 // Pause times very low, can collect less frequently
-                params.collection_frequency_multiplier = (params.collection_frequency_multiplier * 0.9).max(0.5);
+                params.collection_frequency_multiplier =
+                    (params.collection_frequency_multiplier * 0.9).max(0.5);
             }
         }
     }
@@ -473,7 +513,10 @@ impl ParallelGc {
         self.shutdown_requested.store(true, Ordering::Relaxed);
 
         // Wait for worker threads to finish
-        let mut handles = self.worker_threads.write().map_err(|_| "Failed to acquire worker threads lock")?;
+        let mut handles = self
+            .worker_threads
+            .write()
+            .map_err(|_| "Failed to acquire worker threads lock")?;
         while let Some(handle) = handles.pop() {
             handle.join().map_err(|_| "Failed to join worker thread")?;
         }

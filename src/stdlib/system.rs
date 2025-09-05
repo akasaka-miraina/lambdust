@@ -7,12 +7,12 @@
 //! - Time functions: current-second, current-jiffy, jiffies-per-second
 //! - System features: features
 
-use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
-use crate::effects::Effect;
 use crate::diagnostics::{Error as DiagnosticError, Result};
+use crate::effects::Effect;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use std::sync::{Arc, Mutex, OnceLock};
 // Removed unused HashMap import
-use std::time::{SystemTime, UNIX_EPOCH, Instant};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 /// Global state for system information
 static SYSTEM_STATE: OnceLock<Arc<Mutex<SystemState>>> = OnceLock::new();
@@ -41,168 +41,222 @@ pub fn initialize_system_state(args: Vec<String>) {
         command_line_args: args,
         start_time: Instant::now(),
     }));
-    
+
     let _ = SYSTEM_STATE.set(state);
 }
 
 /// Get or create the system state
 fn get_system_state() -> Arc<Mutex<SystemState>> {
-    SYSTEM_STATE.get_or_init(|| {
-        Arc::new(Mutex::new(SystemState::new()))
-    }).clone()
+    SYSTEM_STATE
+        .get_or_init(|| Arc::new(Mutex::new(SystemState::new())))
+        .clone()
 }
 
 /// Bind all system interface procedures to the environment
 pub fn create_system_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // Bind system procedures using the mutable define method
-    env.define("exit".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "exit".to_string(),
-        arity_min: 0,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_exit),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "exit".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "exit".to_string(),
+            arity_min: 0,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_exit),
+            effects: vec![Effect::IO],
+        })),
+    );
 
-    env.define("emergency-exit".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "emergency-exit".to_string(),
-        arity_min: 0,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_emergency_exit),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "emergency-exit".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "emergency-exit".to_string(),
+            arity_min: 0,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_emergency_exit),
+            effects: vec![Effect::IO],
+        })),
+    );
 
-    env.define("command-line".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "command-line".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_command_line),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "command-line".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "command-line".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_command_line),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
-    env.define("get-environment-variable".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "get-environment-variable".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_get_environment_variable),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "get-environment-variable".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "get-environment-variable".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_get_environment_variable),
+            effects: vec![Effect::IO],
+        })),
+    );
 
-    env.define("get-environment-variables".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "get-environment-variables".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_get_environment_variables),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "get-environment-variables".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "get-environment-variables".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_get_environment_variables),
+            effects: vec![Effect::IO],
+        })),
+    );
 
-    env.define("current-second".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "current-second".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_current_second),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "current-second".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "current-second".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_current_second),
+            effects: vec![Effect::IO],
+        })),
+    );
 
-    env.define("current-jiffy".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "current-jiffy".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_current_jiffy),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "current-jiffy".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "current-jiffy".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_current_jiffy),
+            effects: vec![Effect::IO],
+        })),
+    );
 
-    env.define("jiffies-per-second".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "jiffies-per-second".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_jiffies_per_second),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "jiffies-per-second".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "jiffies-per-second".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_jiffies_per_second),
+            effects: vec![Effect::Pure],
+        })),
+    );
 
-    env.define("features".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "features".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_features),
-        effects: vec![Effect::Pure],
-    })));
+    env.define(
+        "features".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "features".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_features),
+            effects: vec![Effect::Pure],
+        })),
+    );
 }
 
 /// Bind all system interface procedures using copy-on-write semantics
 /// Returns a new environment with all system procedures bound
 pub fn bind_system_procedures_cow(env: &Arc<ThreadSafeEnvironment>) -> Arc<ThreadSafeEnvironment> {
     // Bind all system procedures using chained define calls
-    env.define_cow("exit".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "exit".to_string(),
-        arity_min: 0,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_exit),
-        effects: vec![Effect::IO],
-    })))
-    .define_cow("emergency-exit".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "emergency-exit".to_string(),
-        arity_min: 0,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_emergency_exit),
-        effects: vec![Effect::IO],
-    })))
-    .define_cow("command-line".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "command-line".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_command_line),
-        effects: vec![Effect::Pure],
-    })))
-    .define_cow("get-environment-variable".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "get-environment-variable".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_get_environment_variable),
-        effects: vec![Effect::IO],
-    })))
-    .define_cow("get-environment-variables".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "get-environment-variables".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_get_environment_variables),
-        effects: vec![Effect::IO],
-    })))
-    .define_cow("current-second".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "current-second".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_current_second),
-        effects: vec![Effect::IO],
-    })))
-    .define_cow("current-jiffy".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "current-jiffy".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_current_jiffy),
-        effects: vec![Effect::IO],
-    })))
-    .define_cow("jiffies-per-second".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "jiffies-per-second".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_jiffies_per_second),
-        effects: vec![Effect::Pure],
-    })))
-    .define_cow("features".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "features".to_string(),
-        arity_min: 0,
-        arity_max: Some(0),
-        implementation: PrimitiveImpl::RustFn(primitive_features),
-        effects: vec![Effect::Pure],
-    })))
+    env.define_cow(
+        "exit".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "exit".to_string(),
+            arity_min: 0,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_exit),
+            effects: vec![Effect::IO],
+        })),
+    )
+    .define_cow(
+        "emergency-exit".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "emergency-exit".to_string(),
+            arity_min: 0,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_emergency_exit),
+            effects: vec![Effect::IO],
+        })),
+    )
+    .define_cow(
+        "command-line".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "command-line".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_command_line),
+            effects: vec![Effect::Pure],
+        })),
+    )
+    .define_cow(
+        "get-environment-variable".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "get-environment-variable".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_get_environment_variable),
+            effects: vec![Effect::IO],
+        })),
+    )
+    .define_cow(
+        "get-environment-variables".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "get-environment-variables".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_get_environment_variables),
+            effects: vec![Effect::IO],
+        })),
+    )
+    .define_cow(
+        "current-second".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "current-second".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_current_second),
+            effects: vec![Effect::IO],
+        })),
+    )
+    .define_cow(
+        "current-jiffy".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "current-jiffy".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_current_jiffy),
+            effects: vec![Effect::IO],
+        })),
+    )
+    .define_cow(
+        "jiffies-per-second".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "jiffies-per-second".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_jiffies_per_second),
+            effects: vec![Effect::Pure],
+        })),
+    )
+    .define_cow(
+        "features".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "features".to_string(),
+            arity_min: 0,
+            arity_max: Some(0),
+            implementation: PrimitiveImpl::RustFn(primitive_features),
+            effects: vec![Effect::Pure],
+        })),
+    )
 }
 
 // ============= PROCESS CONTROL PROCEDURES =============
 
-/// (exit [obj]) - Exit the program
-/// - If obj is omitted or #t, exit with code 0
-/// - If obj is #f, exit with code 1  
-/// - If obj is an exact integer, exit with that code
+/// (exit [exit-obj]) - Exit the program
+/// - If exit-obj is omitted or #t, exit with code 0
+/// - If exit-obj is #f, exit with code 1
+/// - If exit-obj is an exact integer, exit with that code
 /// - Otherwise exit with code 1
 pub fn primitive_exit(args: &[Value]) -> Result<Value> {
     if args.len() > 1 {
@@ -230,8 +284,8 @@ pub fn primitive_exit(args: &[Value]) -> Result<Value> {
                 }
             }
             // Keep old rational case for safety, though it should be caught above
-            Value::Literal(crate::ast::Literal::Rational { numerator, denominator }) => {
-                let value = (*numerator as f64 / *denominator as f64) as i64;
+            Value::Literal(crate::ast::Literal::Rational(rational)) => {
+                let value = (rational.numerator as f64 / rational.denominator as f64) as i64;
                 value.clamp(0, 255) as i32
             }
             // All other values default to failure
@@ -247,12 +301,15 @@ pub fn primitive_exit(args: &[Value]) -> Result<Value> {
     )))
 }
 
-/// (emergency-exit [obj]) - Exit immediately without cleanup
+/// (emergency-exit [exit-obj]) - Exit immediately without cleanup
 /// Same semantics as exit but without running cleanup handlers
 pub fn primitive_emergency_exit(args: &[Value]) -> Result<Value> {
     if args.len() > 1 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("emergency-exit expects 0 or 1 arguments, got {}", args.len()),
+            format!(
+                "emergency-exit expects 0 or 1 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
@@ -270,8 +327,8 @@ pub fn primitive_emergency_exit(args: &[Value]) -> Result<Value> {
                     0
                 }
             }
-            Value::Literal(crate::ast::Literal::Rational { numerator, denominator }) => {
-                let value = (*numerator as f64 / *denominator as f64) as i64;
+            Value::Literal(crate::ast::Literal::Rational(rational)) => {
+                let value = (rational.numerator as f64 / rational.denominator as f64) as i64;
                 value.clamp(0, 255) as i32
             }
             _ => 1,
@@ -291,16 +348,16 @@ pub fn primitive_emergency_exit(args: &[Value]) -> Result<Value> {
 pub fn primitive_command_line(_args: &[Value]) -> Result<Value> {
     let state = get_system_state();
     let state_guard = state.lock().map_err(|_| {
-        Box::new(DiagnosticError::runtime_error("Failed to access system state".to_string(), None))
+        Box::new(DiagnosticError::runtime_error(
+            "Failed to access system state".to_string(),
+            None,
+        ))
     })?;
 
     // Convert command line arguments to a Scheme list
     let mut result = Value::Nil;
     for arg in state_guard.command_line_args.iter().rev() {
-        result = Value::Pair(
-            Arc::new(Value::string(arg.clone())),
-            Arc::new(result),
-        );
+        result = Value::Pair(Box::new(Value::string(arg.clone())), Box::new(result));
     }
 
     Ok(result)
@@ -312,14 +369,17 @@ pub fn primitive_command_line(_args: &[Value]) -> Result<Value> {
 pub fn primitive_get_environment_variable(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("get-environment-variable expects 1 argument, got {}", args.len()),
+            format!(
+                "get-environment-variable expects 1 argument, got {}",
+                args.len()
+            ),
             None,
         )));
     }
 
     // Extract the variable name
     let var_name = match &args[0] {
-        Value::Literal(crate::ast::Literal::String(s)) => s.clone(),
+        Value::Literal(crate::ast::Literal::String(s)) => (**s).clone(),
         _ => {
             return Err(Box::new(DiagnosticError::runtime_error(
                 "get-environment-variable requires a string argument".to_string(),
@@ -341,14 +401,11 @@ pub fn primitive_get_environment_variables(_args: &[Value]) -> Result<Value> {
 
     // Get all environment variables and build an association list
     let vars: Vec<_> = std::env::vars().collect();
-    
+
     // Build the list in reverse order to maintain proper order
     for (key, value) in vars.into_iter().rev() {
-        let pair = Value::Pair(
-            Arc::new(Value::string(key)),
-            Arc::new(Value::string(value)),
-        );
-        result = Value::Pair(Arc::new(pair), Arc::new(result));
+        let pair = Value::Pair(Box::new(Value::string(key)), Box::new(Value::string(value)));
+        result = Value::Pair(Box::new(pair), Box::new(result));
     }
 
     Ok(result)
@@ -366,12 +423,10 @@ pub fn primitive_current_second(_args: &[Value]) -> Result<Value> {
             let fractional = seconds as f64 + (nanos as f64 / 1_000_000_000.0);
             Ok(Value::number(fractional))
         }
-        Err(_) => {
-            Err(Box::new(DiagnosticError::runtime_error(
-                "Failed to get current time".to_string(),
-                None,
-            )))
-        }
+        Err(_) => Err(Box::new(DiagnosticError::runtime_error(
+            "Failed to get current time".to_string(),
+            None,
+        ))),
     }
 }
 
@@ -380,22 +435,25 @@ pub fn primitive_current_second(_args: &[Value]) -> Result<Value> {
 pub fn primitive_current_jiffy(_args: &[Value]) -> Result<Value> {
     let state = get_system_state();
     let state_guard = state.lock().map_err(|_| {
-        Box::new(DiagnosticError::runtime_error("Failed to access system state".to_string(), None))
+        Box::new(DiagnosticError::runtime_error(
+            "Failed to access system state".to_string(),
+            None,
+        ))
     })?;
 
     // Calculate jiffies since program start
     let elapsed = state_guard.start_time.elapsed();
-    
+
     // Use nanoseconds as our jiffy unit for high precision
     let jiffies = elapsed.as_nanos() as i64;
-    
+
     Ok(Value::integer(jiffies))
 }
 
 /// (jiffies-per-second) - Return number of jiffies per second
 /// This is a constant for our implementation
 pub fn primitive_jiffies_per_second(_args: &[Value]) -> Result<Value> {
-    // We use nanoseconds as jiffies, so 1 billion jiffies per second  
+    // We use nanoseconds as jiffies, so 1 billion jiffies per second
     Ok(Value::integer(1_000_000_000))
 }
 
@@ -405,20 +463,18 @@ pub fn primitive_jiffies_per_second(_args: &[Value]) -> Result<Value> {
 pub fn primitive_features(_args: &[Value]) -> Result<Value> {
     // R7RS-small required features
     let features = vec![
-        "r7rs",                    // R7RS compliance
-        "exact-closed",            // Exact arithmetic is closed under operations
-        "exact-complex",           // Exact complex numbers supported
-        "ieee-float",              // IEEE floating point
-        "full-unicode",            // Full Unicode support
-        "ratios",                  // Rational number support
-        
+        "r7rs",          // R7RS compliance
+        "exact-closed",  // Exact arithmetic is closed under operations
+        "exact-complex", // Exact complex numbers supported
+        "ieee-float",    // IEEE floating point
+        "full-unicode",  // Full Unicode support
+        "ratios",        // Rational number support
         // Lambdust-specific features
-        "lambdust",                // This implementation
-        "gradual-typing",          // Gradual type system
-        "effect-system",           // Effect system support
-        "call/cc",                 // call-with-current-continuation
-        "threads",                 // Threading support
-        
+        "lambdust",       // This implementation
+        "gradual-typing", // Gradual type system
+        "effect-system",  // Effect system support
+        "call/cc",        // call-with-current-continuation
+        "threads",        // Threading support
         // Platform features
         #[cfg(unix)]
         "posix",
@@ -428,25 +484,20 @@ pub fn primitive_features(_args: &[Value]) -> Result<Value> {
         "64bit",
         #[cfg(target_pointer_width = "32")]
         "32bit",
-        
         // I/O features
-        "port-position",           // Port position tracking
-        "r7rs-io",                 // R7RS I/O system
-        
+        "port-position", // Port position tracking
+        "r7rs-io",       // R7RS I/O system
         // Data structure features
-        "bytevectors",             // Bytevector support
-        "hashtables",              // Hash table support
-        "records",                 // Record type support
+        "bytevectors", // Bytevector support
+        "hashtables",  // Hash table support
+        "records",     // Record type support
     ];
 
     // Convert to Scheme list
     let mut result = Value::Nil;
     for feature in features.iter().rev() {
         let symbol_id = crate::utils::symbol::intern_symbol(feature.to_string());
-        result = Value::Pair(
-            Arc::new(Value::symbol(symbol_id)),
-            Arc::new(result),
-        );
+        result = Value::Pair(Box::new(Value::symbol(symbol_id)), Box::new(result));
     }
 
     Ok(result)
@@ -465,15 +516,15 @@ mod tests {
     fn test_system_bindings() {
         // Test that all system binding functions can be called without panicking
         let env = create_test_env();
-        
+
         // This should not panic even if the COW semantics don't work as expected
         create_system_bindings(&env);
-        
+
         // Test that we can at least call the primitive functions directly
         let result = primitive_jiffies_per_second(&[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Value::integer(1_000_000_000));
-        
+
         let result = primitive_features(&[]);
         assert!(result.is_ok());
         // Should return a list
@@ -495,14 +546,14 @@ mod tests {
         ]);
 
         let result = primitive_command_line(&[]).unwrap();
-        
+
         // Should return a list of strings
         match result {
             Value::Pair(car, _) => {
                 // First element should be "lambdust"
                 match car.as_ref() {
                     Value::Literal(crate::ast::Literal::String(s)) => {
-                        assert_eq!(s, "lambdust");
+                        assert_eq!(**s, "lambdust");
                     }
                     _ => panic!("Expected string"),
                 }
@@ -519,7 +570,7 @@ mod tests {
         // Test with a known environment variable (PATH should exist on most systems)
         let args = vec![Value::string("PATH")];
         let result = primitive_get_environment_variable(&args).unwrap();
-        
+
         // Should return either a string (if PATH exists) or #f (if not)
         match result {
             Value::Literal(crate::ast::Literal::String(_)) => {
@@ -540,7 +591,7 @@ mod tests {
     #[test]
     fn test_get_environment_variables() {
         let result = primitive_get_environment_variables(&[]).unwrap();
-        
+
         // Should return an association list
         match result {
             Value::Nil => {
@@ -582,7 +633,7 @@ mod tests {
     #[test]
     fn test_features() {
         let result = primitive_features(&[]).unwrap();
-        
+
         // Should return a list containing required R7RS features
         let mut current = &result;
         let mut found_r7rs = false;
@@ -617,7 +668,7 @@ mod tests {
         let result = primitive_exit(&args);
         assert!(result.is_err());
 
-        // Test exit with #f (should exit with 1)  
+        // Test exit with #f (should exit with 1)
         let args = vec![Value::boolean(false)];
         let result = primitive_exit(&args);
         assert!(result.is_err());

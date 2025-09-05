@@ -12,10 +12,10 @@ use std::ptr;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, SystemTime};
 
-use crate::eval::{Value, Environment};
 use crate::ast::Literal;
 use crate::diagnostics::Error;
-use crate::ffi::c_types::{CType, TypeMarshaller, ConversionError};
+use crate::eval::{Environment, Value};
+use crate::ffi::c_types::{CType, ConversionError, TypeMarshaller};
 
 /// Errors that can occur during callback operations
 #[derive(Debug, Clone)]
@@ -23,15 +23,9 @@ pub enum CallbackError {
     /// Callback not found
     NotFound(String),
     /// Invalid callback signature
-    InvalidSignature {
-        callback: String,
-        reason: String,
-    },
+    InvalidSignature { callback: String, reason: String },
     /// Callback execution failed
-    ExecutionFailed {
-        callback: String,
-        error: String,
-    },
+    ExecutionFailed { callback: String, error: String },
     /// Type conversion error
     ConversionError(ConversionError),
     /// Callback already registered
@@ -100,8 +94,7 @@ pub struct CallbackSignature {
 }
 
 /// Calling conventions for callbacks
-#[derive(Debug, Clone, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum CallingConvention {
     /// C calling convention (default)
     #[default]
@@ -113,7 +106,6 @@ pub enum CallingConvention {
     /// System V ABI (Unix)
     SystemV,
 }
-
 
 /// A registered callback function
 #[derive(Debug)]
@@ -231,7 +223,7 @@ impl CallbackRegistry {
     ) -> std::result::Result<*const c_void, CallbackError> {
         // Check if already registered
         {
-            let callbacks = self.callbacks.read().unwrap();
+            let callbacks = self.callbacks.try_read().unwrap();
             if callbacks.contains_key(&signature.name) {
                 return Err(CallbackError::AlreadyRegistered(signature.name.clone()));
             }
@@ -265,7 +257,7 @@ impl CallbackRegistry {
         {
             let mut stats = self.stats.write().unwrap();
             stats.total_registered += 1;
-            stats.currently_active = self.callbacks.read().unwrap().len();
+            stats.currently_active = self.callbacks.try_read().unwrap().len();
         }
 
         Ok(c_function_ptr)
@@ -288,7 +280,7 @@ impl CallbackRegistry {
             // Update statistics
             {
                 let mut stats = self.stats.write().unwrap();
-                stats.currently_active = self.callbacks.read().unwrap().len();
+                stats.currently_active = self.callbacks.try_read().unwrap().len();
             }
 
             Ok(())
@@ -299,20 +291,20 @@ impl CallbackRegistry {
 
     /// Get a callback by name
     pub fn get_callback(&self, name: &str) -> Option<Arc<CallbackFunction>> {
-        let callbacks = self.callbacks.read().unwrap();
+        let callbacks = self.callbacks.try_read().unwrap();
         callbacks.get(name).cloned()
     }
 
     /// List all registered callbacks
     pub fn list_callbacks(&self) -> Vec<String> {
-        let callbacks = self.callbacks.read().unwrap();
+        let callbacks = self.callbacks.try_read().unwrap();
         callbacks.keys().cloned().collect()
     }
 
     /// Clean up expired callbacks
     pub fn cleanup_expired(&self) -> usize {
         let expired_names: Vec<String> = {
-            let callbacks = self.callbacks.read().unwrap();
+            let callbacks = self.callbacks.try_read().unwrap();
             callbacks
                 .iter()
                 .filter(|(_, callback)| callback.is_expired())
@@ -330,11 +322,14 @@ impl CallbackRegistry {
 
     /// Get callback statistics
     pub fn stats(&self) -> CallbackStats {
-        self.stats.read().unwrap().clone()
+        self.stats.try_read().unwrap().clone()
     }
 
     /// Generate a C function pointer for the callback
-    fn generate_c_function_ptr(&self, _signature: &CallbackSignature) -> std::result::Result<*const c_void, CallbackError> {
+    fn generate_c_function_ptr(
+        &self,
+        _signature: &CallbackSignature,
+    ) -> std::result::Result<*const c_void, CallbackError> {
         // This is a simplified implementation
         // In a real implementation, this would generate platform-specific
         // assembly stubs or use libffi to create callable function pointers
@@ -344,7 +339,7 @@ impl CallbackRegistry {
         // 1. Allocating executable memory
         // 2. Generating assembly code that calls back into Rust
         // 3. Setting up proper stack frame and calling convention
-        
+
         let dummy_ptr = self as *const CallbackRegistry as *const c_void;
         Ok(dummy_ptr)
     }
@@ -352,7 +347,7 @@ impl CallbackRegistry {
     /// Execute a callback (called from generated C code)
     ///
     /// # Safety
-    /// 
+    ///
     /// The caller must ensure that:
     /// - `args` is a valid pointer to an array of `arg_count` valid `*const c_void` pointers
     /// - Each pointer in the `args` array points to valid data of the expected type for the callback
@@ -379,7 +374,8 @@ impl CallbackRegistry {
         let _stack_guard = StackGuard::new(Arc::clone(&self.stack_depth));
 
         // Get the callback
-        let callback = self.get_callback(name)
+        let callback = self
+            .get_callback(name)
             .ok_or_else(|| CallbackError::NotFound(name.to_string()))?;
 
         // Check if expired
@@ -405,7 +401,7 @@ impl CallbackRegistry {
         for i in 0..arg_count.min(callback.signature.parameters.len()) {
             let arg_ptr = unsafe { *args.add(i) };
             let param_type = &callback.signature.parameters[i];
-            
+
             // This is simplified - in practice, we'd need to properly
             // convert from C types to Lambdust values
             let value = match param_type {
@@ -416,19 +412,20 @@ impl CallbackRegistry {
                 CType::CString => {
                     let c_str_ptr = unsafe { *(arg_ptr as *const *const libc::c_char) };
                     if c_str_ptr.is_null() {
-                        Value::Literal(Literal::String("".to_string()))
+                        Value::Literal(Literal::String(Box::new("".to_string())))
                     } else {
                         let c_str = unsafe { std::ffi::CStr::from_ptr(c_str_ptr) };
-                        let rust_str = c_str.to_str()
-                            .map_err(|e| CallbackError::ConversionError(
-                                ConversionError::StringConversion(e.to_string())
-                            ))?;
-                        Value::Literal(Literal::String(rust_str.to_string()))
+                        let rust_str = c_str.to_str().map_err(|e| {
+                            CallbackError::ConversionError(ConversionError::StringConversion(
+                                e.to_string(),
+                            ))
+                        })?;
+                        Value::Literal(Literal::String(Box::new(rust_str.to_string())))
                     }
                 }
                 _ => Value::Nil, // Simplified
             };
-            
+
             scheme_args.push(value);
         }
 
@@ -445,7 +442,7 @@ impl CallbackRegistry {
                 _ => Err(CallbackError::ExecutionFailed {
                     callback: name.to_string(),
                     error: "Not a function".to_string(),
-                })
+                }),
             }
         };
 
@@ -506,7 +503,8 @@ pub mod async_callbacks {
     use tokio::sync::oneshot;
 
     /// Async callback execution result
-    pub type AsyncCallbackResult = Pin<Box<dyn Future<Output = std::result::Result<Value, CallbackError>> + Send>>;
+    pub type AsyncCallbackResult =
+        Pin<Box<dyn Future<Output = std::result::Result<Value, CallbackError>> + Send>>;
 
     /// Async callback registry
     #[derive(Debug)]
@@ -535,7 +533,8 @@ pub mod async_callbacks {
             expires_after: Option<Duration>,
         ) -> std::result::Result<*const c_void, CallbackError> {
             // For now, delegate to sync implementation
-            self.base.register_callback(signature, function, environment, expires_after)
+            self.base
+                .register_callback(signature, function, environment, expires_after)
         }
 
         /// Execute an async callback
@@ -640,7 +639,7 @@ mod tests {
     #[test]
     fn test_cleanup_expired() {
         let registry = CallbackRegistry::new();
-        
+
         // This test would need more setup to create expired callbacks
         let cleaned = registry.cleanup_expired();
         assert_eq!(cleaned, 0); // No expired callbacks initially

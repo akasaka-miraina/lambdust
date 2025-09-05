@@ -6,11 +6,11 @@
 //! - Module body compilation
 //! - Dependency extraction
 
-use super::{Module, ModuleId, ModuleMetadata, ModuleSource, ImportSpec, ExportSpec};
-use crate::diagnostics::{Error, Result, Span};
-use crate::eval::Value;
+use super::{ExportSpec, ImportSpec, Module, ModuleId, ModuleMetadata, ModuleSource};
 use crate::ast::{Expr, Program};
 use crate::diagnostics::Spanned;
+use crate::diagnostics::{Error, Result, Span};
+use crate::eval::Value;
 use std::collections::HashMap;
 
 /// Represents a module definition as parsed from source code.
@@ -36,11 +36,11 @@ pub fn compile_module_definition(
     import_resolver: &mut dyn FnMut(&ImportSpec) -> Result<HashMap<String, Value>>,
 ) -> Result<Module> {
     let mut module_env = HashMap::new();
-    
+
     // Process imports
     for import_spec in &definition.imports {
         let import_bindings = import_resolver(import_spec)?;
-        
+
         // Merge import bindings into module environment
         for (symbol, value) in import_bindings {
             if module_env.insert(symbol.clone(), value).is_some() {
@@ -51,23 +51,25 @@ pub fn compile_module_definition(
             }
         }
     }
-    
+
     // Evaluate module body in the environment
     let mut local_bindings = HashMap::new();
     evaluate_module_body(&definition.body, &module_env, &mut local_bindings)?;
-    
+
     // Apply export specification
     let exports = super::export::apply_export_config(
         &local_bindings,
         &definition.export.config,
         &definition.export.symbols,
     )?;
-    
+
     // Extract dependencies
-    let dependencies = definition.imports.iter()
+    let dependencies = definition
+        .imports
+        .iter()
         .map(|import| import.module_id.clone())
         .collect();
-    
+
     Ok(Module {
         id: definition.id,
         exports,
@@ -85,22 +87,20 @@ pub fn parse_module_definition(program: &Program) -> Result<ModuleDefinition> {
             None,
         )));
     }
-    
+
     // Look for define-module form
     let define_module_expr = &program.expressions[0];
-    
+
     match &define_module_expr.inner {
-        Expr::List(elements) if !elements.is_empty() => {
-            match &elements[0].inner {
-                Expr::Symbol(keyword) if keyword == "define-module" => {
-                    parse_define_module_form(&elements[1..], define_module_expr.span)
-                }
-                _ => Err(Box::new(Error::syntax_error(
-                    "Module must start with define-module".to_string(),
-                    Some(define_module_expr.span),
-                ))),
+        Expr::List(elements) if !elements.is_empty() => match &elements[0].inner {
+            Expr::Symbol(keyword) if keyword == "define-module" => {
+                parse_define_module_form(&elements[1..], define_module_expr.span)
             }
-        }
+            _ => Err(Box::new(Error::syntax_error(
+                "Module must start with define-module".to_string(),
+                Some(define_module_expr.span),
+            ))),
+        },
         _ => Err(Box::new(Error::syntax_error(
             "Module definition must be a list".to_string(),
             Some(define_module_expr.span),
@@ -109,26 +109,23 @@ pub fn parse_module_definition(program: &Program) -> Result<ModuleDefinition> {
 }
 
 /// Parses a define-module form.
-fn parse_define_module_form(
-    elements: &[Spanned<Expr>],
-    span: Span,
-) -> Result<ModuleDefinition> {
+fn parse_define_module_form(elements: &[Spanned<Expr>], span: Span) -> Result<ModuleDefinition> {
     if elements.is_empty() {
         return Err(Box::new(Error::syntax_error(
             "define-module requires module name".to_string(),
             Some(span),
         )));
     }
-    
+
     // Parse module name
     let module_id = parse_module_name_expr(&elements[0])?;
-    
+
     // Parse module body (imports, exports, definitions)
     let mut imports = Vec::new();
     let mut export = None;
     let mut body = Vec::new();
     let mut metadata = ModuleMetadata::default();
-    
+
     for expr in &elements[1..] {
         match &expr.inner {
             Expr::List(form_elements) if !form_elements.is_empty() => {
@@ -136,7 +133,8 @@ fn parse_define_module_form(
                     Expr::Symbol(keyword) => {
                         match keyword.as_str() {
                             "import" => {
-                                let import_spec = super::import::parse_import_spec(&form_elements[1..])?;
+                                let import_spec =
+                                    super::import::parse_import_spec(&form_elements[1..])?;
                                 imports.push(import_spec);
                             }
                             "export" => {
@@ -146,7 +144,8 @@ fn parse_define_module_form(
                                         Some(expr.span),
                                     )));
                                 }
-                                export = Some(super::export::parse_export_spec(&form_elements[1..])?);
+                                export =
+                                    Some(super::export::parse_export_spec(&form_elements[1..])?);
                             }
                             "metadata" => {
                                 metadata = parse_metadata(&form_elements[1..], expr.span)?;
@@ -169,13 +168,13 @@ fn parse_define_module_form(
             }
         }
     }
-    
+
     // Default export if none specified
     let export = export.unwrap_or_else(|| ExportSpec {
         symbols: Vec::new(),
         config: super::ExportConfig::Direct,
     });
-    
+
     Ok(ModuleDefinition {
         id: module_id,
         imports,
@@ -194,20 +193,22 @@ fn parse_module_name_expr(expr: &Spanned<Expr>) -> Result<ModuleId> {
             for element in elements {
                 match &element.inner {
                     Expr::Symbol(symbol) => parts.push(symbol.clone()),
-                    _ => return Err(Box::new(Error::syntax_error(
-                        "Module name must contain only symbols".to_string(),
-                        Some(element.span),
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::syntax_error(
+                            "Module name must contain only symbols".to_string(),
+                            Some(element.span),
+                        )));
+                    }
                 }
             }
-            
+
             if parts.is_empty() {
                 return Err(Box::new(Error::syntax_error(
                     "Module name cannot be empty".to_string(),
                     Some(expr.span),
                 )));
             }
-            
+
             let module_name = format!("({})", parts.join(" "));
             super::name::parse_module_name(&module_name)
         }
@@ -221,27 +222,31 @@ fn parse_module_name_expr(expr: &Spanned<Expr>) -> Result<ModuleId> {
 /// Parses module metadata.
 fn parse_metadata(elements: &[Spanned<Expr>], _span: Span) -> Result<ModuleMetadata> {
     let mut metadata = ModuleMetadata::default();
-    
+
     for element in elements {
         match &element.inner {
             Expr::List(pair) if pair.len() == 2 => {
                 let key = match &pair[0].inner {
                     Expr::Symbol(symbol) => symbol.clone(),
-                    _ => return Err(Box::new(Error::syntax_error(
-                        "Metadata key must be a symbol".to_string(),
-                        Some(pair[0].span),
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::syntax_error(
+                            "Metadata key must be a symbol".to_string(),
+                            Some(pair[0].span),
+                        )));
+                    }
                 };
-                
+
                 let value = match &pair[1].inner {
-                    Expr::Literal(crate::ast::Literal::String(s)) => s.clone(),
+                    Expr::Literal(crate::ast::Literal::String(s)) => (**s).clone(),
                     Expr::Symbol(s) => s.clone(),
-                    _ => return Err(Box::new(Error::syntax_error(
-                        "Metadata value must be a string or symbol".to_string(),
-                        Some(pair[1].span),
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::syntax_error(
+                            "Metadata value must be a string or symbol".to_string(),
+                            Some(pair[1].span),
+                        )));
+                    }
                 };
-                
+
                 match key.as_str() {
                     "version" => metadata.version = Some(value),
                     "description" => metadata.description = Some(value),
@@ -251,13 +256,15 @@ fn parse_metadata(elements: &[Spanned<Expr>], _span: Span) -> Result<ModuleMetad
                     }
                 }
             }
-            _ => return Err(Box::new(Error::syntax_error(
-                "Metadata must be key-value pairs".to_string(),
-                Some(element.span),
-            ))),
+            _ => {
+                return Err(Box::new(Error::syntax_error(
+                    "Metadata must be key-value pairs".to_string(),
+                    Some(element.span),
+                )));
+            }
         }
     }
-    
+
     Ok(metadata)
 }
 
@@ -269,7 +276,7 @@ fn evaluate_module_body(
 ) -> Result<()> {
     // For now, we'll do a simple extraction of define forms
     // In a full implementation, this would use the actual evaluator
-    
+
     for expr in body {
         match &expr.inner {
             Expr::List(elements) if !elements.is_empty() => {
@@ -288,7 +295,7 @@ fn evaluate_module_body(
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -304,7 +311,7 @@ fn extract_define_binding(
             Some(span),
         )));
     }
-    
+
     match &elements[0].inner {
         Expr::Symbol(name) => {
             // Simple variable definition
@@ -339,19 +346,20 @@ fn extract_define_binding(
 pub fn validate_module_definition(definition: &ModuleDefinition) -> Result<()> {
     // Validate module ID
     super::name::validate_module_id(&definition.id)?;
-    
+
     // Validate imports
     for import_spec in &definition.imports {
         super::import::validate_import_spec(import_spec)?;
     }
-    
+
     // Validate exports (would need bindings to do full validation)
     // For now, we'll do basic validation
-    if definition.export.symbols.is_empty() && 
-       matches!(definition.export.config, super::ExportConfig::Direct) {
+    if definition.export.symbols.is_empty()
+        && matches!(definition.export.config, super::ExportConfig::Direct)
+    {
         // Empty export list might be intentional, so we'll allow it
     }
-    
+
     // Check for circular imports (basic check)
     for import_spec in &definition.imports {
         if import_spec.module_id == definition.id {
@@ -361,7 +369,7 @@ pub fn validate_module_definition(definition: &ModuleDefinition) -> Result<()> {
             )));
         }
     }
-    
+
     Ok(())
 }
 
@@ -369,8 +377,8 @@ pub fn validate_module_definition(definition: &ModuleDefinition) -> Result<()> {
 mod tests {
     use super::*;
     use crate::ast::Literal;
-    use crate::diagnostics::Spanned;
     use crate::diagnostics::Span;
+    use crate::diagnostics::Spanned;
 
     fn make_span() -> Span {
         Span::new(0, 0)
@@ -385,7 +393,7 @@ mod tests {
 
     fn make_string(s: &str) -> Spanned<Expr> {
         Spanned {
-            inner: Expr::Literal(Literal::String(s.to_string())),
+            inner: Expr::Literal(Literal::String(Box::new(s.to_string()))),
             span: make_span(),
         }
     }
@@ -393,13 +401,10 @@ mod tests {
     #[test]
     fn test_parse_module_name_expr() {
         let expr = Spanned {
-            inner: Expr::List(vec![
-                make_symbol("::"),
-                make_symbol("string"),
-            ]),
+            inner: Expr::List(vec![make_symbol("::"), make_symbol("string")]),
             span: make_span(),
         };
-        
+
         let module_id = parse_module_name_expr(&expr).unwrap();
         assert_eq!(module_id.namespace, super::super::ModuleNamespace::Builtin);
         assert_eq!(module_id.components, vec!["string"]);
@@ -409,10 +414,7 @@ mod tests {
     fn test_parse_metadata() {
         let elements = vec![
             Spanned {
-                inner: Expr::List(vec![
-                    make_symbol("version"),
-                    make_string("1.0.0"),
-                ]),
+                inner: Expr::List(vec![make_symbol("version"), make_string("1.0.0")]),
                 span: make_span(),
             },
             Spanned {
@@ -423,22 +425,22 @@ mod tests {
                 span: make_span(),
             },
         ];
-        
+
         let metadata = parse_metadata(&elements, make_span()).unwrap();
         assert_eq!(metadata.version, Some("1.0.0".to_string()));
-        assert_eq!(metadata.description, Some("String manipulation module".to_string()));
+        assert_eq!(
+            metadata.description,
+            Some("String manipulation module".to_string())
+        );
     }
 
     #[test]
     fn test_extract_define_binding() {
         let mut bindings = HashMap::new();
-        let elements = vec![
-            make_symbol("test-function"),
-            make_string("test value"),
-        ];
-        
+        let elements = vec![make_symbol("test-function"), make_string("test value")];
+
         extract_define_binding(&elements, &mut bindings, make_span()).unwrap();
-        
+
         assert!(bindings.contains_key("test-function"));
     }
 
@@ -455,7 +457,7 @@ mod tests {
             metadata: ModuleMetadata::default(),
             span: Some(make_span()),
         };
-        
+
         let result = validate_module_definition(&definition);
         assert!(result.is_ok());
     }

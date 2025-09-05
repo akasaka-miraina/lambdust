@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  language-validation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../../:/workspace:cached
+      - validation-cache:/workspace/target
+    environment:
+      - CARGO_HOME=/workspace/.cargo
+      - RUST_BACKTRACE=full
+      - RUST_LOG=debug
+      - CARGO_TERM_COLOR=always
+      - MIRIFLAGS=-Zmiri-strict-provenance -Zmiri-symbolic-alignment-check
+      - ASAN_OPTIONS=detect_stack_use_after_return=true:check_initialization_order=true:halt_on_error=true
+    working_dir: /workspace
+    command: ./docker/language-validation/validation-suite.sh
+    stdin_open: true
+    tty: true
+    
+  # Interactive debugging session
+  debug:
+    build:
+      context: .
+      dockerfile: Dockerfile  
+    volumes:
+      - ../../:/workspace:cached
+      - validation-cache:/workspace/target
+    environment:
+      - CARGO_HOME=/workspace/.cargo
+      - RUST_BACKTRACE=full
+      - RUST_LOG=trace
+    working_dir: /workspace
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+
+  # Memory sanitizer specific validation
+  msan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../../:/workspace:cached
+      - validation-cache:/workspace/target
+    environment:
+      - CARGO_HOME=/workspace/.cargo
+      - RUSTFLAGS=-Zsanitizer=memory
+      - RUST_BACKTRACE=full
+    working_dir: /workspace
+    command: cargo +nightly test --target x86_64-unknown-linux-gnu --lib optimized_value
+    
+  # Address sanitizer specific validation  
+  asan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../../:/workspace:cached  
+      - validation-cache:/workspace/target
+    environment:
+      - CARGO_HOME=/workspace/.cargo
+      - RUSTFLAGS=-Zsanitizer=address
+      - ASAN_OPTIONS=detect_stack_use_after_return=true:halt_on_error=true
+      - RUST_BACKTRACE=full
+    working_dir: /workspace
+    command: cargo +nightly test --target x86_64-unknown-linux-gnu --lib optimized_value
+
+volumes:
+  validation-cache:

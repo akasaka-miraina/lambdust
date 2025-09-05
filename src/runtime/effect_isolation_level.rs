@@ -21,7 +21,7 @@ pub enum EffectIsolationLevel {
 pub struct EffectIsolationRules {
     /// Allowed effect types
     pub allowed_effects: Vec<Effect>,
-    /// Blocked effect types  
+    /// Blocked effect types
     pub blocked_effects: Vec<Effect>,
     /// Custom validation function
     pub custom_validator: Option<fn(&Effect, ThreadId, ThreadId) -> bool>,
@@ -52,28 +52,27 @@ impl Default for EffectIsolationRules {
 }
 
 impl EffectIsolationRules {
-    
     /// Checks if an effect is allowed based on these rules.
     pub fn allows_effect(&self, effect: &Effect, _source: ThreadId, _target: ThreadId) -> bool {
         // Check if explicitly blocked
         if self.blocked_effects.contains(effect) {
             return false;
         }
-        
+
         // Check if explicitly allowed
         if self.allowed_effects.contains(effect) {
             return true;
         }
-        
+
         // Use custom validator if available
         if let Some(validator) = self.custom_validator {
             return validator(effect, _source, _target);
         }
-        
+
         // Default to blocking unknown effects
         false
     }
-    
+
     /// Adds an exception rule.
     pub fn add_exception(&mut self, exception: IsolationException) {
         self.exceptions.push(exception);
@@ -82,9 +81,9 @@ impl EffectIsolationRules {
 
 impl PartialEq for EffectIsolationRules {
     fn eq(&self, other: &Self) -> bool {
-        self.allowed_effects == other.allowed_effects &&
-        self.blocked_effects == other.blocked_effects &&
-        self.exceptions == other.exceptions
+        self.allowed_effects == other.allowed_effects
+            && self.blocked_effects == other.blocked_effects
+            && self.exceptions == other.exceptions
         // Custom validator function pointers can't be compared
     }
 }
@@ -102,9 +101,9 @@ impl std::hash::Hash for EffectIsolationRules {
 
 impl PartialEq for IsolationException {
     fn eq(&self, other: &Self) -> bool {
-        self.effect == other.effect &&
-        self.threads == other.threads &&
-        self.condition == other.condition
+        self.effect == other.effect
+            && self.threads == other.threads
+            && self.condition == other.condition
     }
 }
 

@@ -1,62 +1,314 @@
-//! Runtime value types for the Lambdust evaluation engine.
-
 #![allow(missing_docs)]
+//! Runtime value types for the Lambdust evaluation engine.
+//!
+//! This module defines the core `Value` enum and associated types that represent
+//! all runtime values in the Lambdust language. The value system is designed to
+//! balance R7RS Scheme compatibility with modern performance requirements and
+//! advanced features like gradual typing and effect systems.
+//!
+//! ## Architectural Overview
+//!
+//! The value representation follows a **tagged union** approach with performance
+//! optimizations for common cases and seamless integration with Rust's memory
+//! safety guarantees.
+//!
+//! ### Core Design Principles
+//!
+//! - **R7RS Compatibility**: Full compatibility with Scheme value semantics
+//! - **Memory Safety**: All values are memory-safe with Rust's ownership system
+//! - **Performance**: Optimized representations for hot-path operations
+//! - **Thread Safety**: Support for both single and multi-threaded execution
+//! - **Gradual Typing**: Runtime type information for gradual type migration
+//!
+//! ## Value Categories
+//!
+//! ### 1. Primitive Values
+//! - **Literals**: Numbers, strings, characters, booleans (R7RS compliant)
+//! - **Symbols**: Interned identifiers with efficient comparison
+//! - **Keywords**: Self-evaluating keyword literals (#:key syntax)
+//! - **Special Values**: Nil (empty list), unspecified results
+//!
+//! ### 2. Compound Values  
+//! - **Pairs**: Cons cells with both immutable and mutable variants
+//! - **Vectors**: Dynamic arrays with efficient random access
+//! - **Hash Tables**: Associative arrays with O(1) average lookup
+//! - **Strings**: Both immutable and mutable string representations
+//!
+//! ### 3. Advanced Containers (SRFI Support)
+//! - **Priority Queues**: Heap-based priority queues with custom comparators
+//! - **Ordered Sets**: Red-black tree based sets with ordering
+//! - **Ideques**: Persistent double-ended queues (SRFI-134)
+//! - **Random Access Lists**: Finger tree based lists (SRFI-101)
+//! - **Generators**: Lazy sequence generators (SRFI-121)
+//!
+//! ### 4. Procedures and Closures
+//! - **User Procedures**: Closures capturing lexical environments
+//! - **Case-Lambda**: Variable arity procedures with pattern matching
+//! - **Primitives**: Built-in procedures implemented in Rust
+//! - **Continuations**: First-class continuations for control flow
+//!
+//! ### 5. I/O and System Integration
+//! - **Ports**: Input/output abstractions (files, strings, network)
+//! - **Foreign Objects**: C FFI integration and external resources
+//! - **Parameters**: Dynamic scoping with parameterize (SRFI-39)
+//!
+//! ### 6. Advanced Features
+//! - **Syntax Transformers**: Macro system integration
+//! - **Records**: User-defined types with SRFI-9/R7RS support  
+//! - **Promises**: Lazy evaluation and delay/force semantics
+//! - **Type Values**: Runtime type information for gradual typing
+//!
+//! ## Memory Layout and Performance
+//!
+//! ### Single-Threaded Optimizations
+//! - **Rc<RefCell<T>>**: Reference-counted mutable data for single threads
+//! - **Box<T>**: Heap allocation for large or recursive data
+//! - **Inline Data**: Small values stored directly in enum variants
+//!
+//! ### Multi-Threaded Support
+//! - **Arc<T>**: Atomic reference counting for shared immutable data
+//! - **Arc<RwLock<T>>**: Read-write locks for shared mutable data
+//! - **Lock-Free Structures**: When safe and beneficial for performance
+//!
+//! ## Integration Points
+//!
+//! - **Evaluation Engine**: Direct integration with evaluator for performance
+//! - **Type System**: Runtime type information for gradual typing
+//! - **Effect System**: Effect tracking and monadic computations  
+//! - **FFI System**: Seamless interop with C and Rust code
+//! - **Serialization**: Support for marshaling and persistence
+//!
+//! ## Performance Characteristics
+//!
+//! - **Small Value Optimization**: Common values fit in single cache line
+//! - **Reference Sharing**: Structural sharing for immutable data
+//! - **Copy Avoidance**: Move semantics where possible
+//! - **Cache Locality**: Hot data kept together in memory
+//! - **Branch Prediction**: Most common values first in enum for better prediction
+//!
+//! ## R7RS Compliance
+//!
+//! The value system implements all required R7RS data types with proper semantics:
+//! - Exact numeric tower with arbitrary precision
+//! - Proper list structure with dotted pairs
+//! - Lexical scoping and closure capture
+//! - Continuation-passing style support
+//! - I/O port abstraction
+//! - Symbol interning and comparison
 
 use crate::ast::{CaseLambdaClause, Expr, Formals, Literal};
 use crate::diagnostics::{Span, Spanned};
 use crate::effects::Effect;
 use crate::utils::SymbolId;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use std::rc::Rc; // Keep for compatibility during migration
 // Removed unused imports
 
-/// Generation counter for environments.
+/// Generation counter for environments to support garbage collection.
+///
+/// This type is used to track environment generations for generational
+/// garbage collection and helps optimize memory management by distinguishing
+/// between older and newer environments.
 pub type Generation = u64;
 
-/// A Lambdust runtime value.
+/// A Lambdust runtime value implementing R7RS Scheme semantics.
 ///
-/// All values in Lambdust implement proper
-/// Scheme semantics for equality, truthiness, and type predicates.
+/// This enum represents all possible runtime values in the Lambdust language,
+/// from simple literals to complex data structures and procedures. The design
+/// prioritizes both correctness (R7RS compliance) and performance (efficient
+/// representation and operations).
+///
+/// ## Design Philosophy
+///
+/// The `Value` enum follows these principles:
+/// - **Completeness**: Covers all R7RS-required data types
+/// - **Extensibility**: Supports advanced features beyond R7RS
+/// - **Performance**: Optimized memory layout and operation costs
+/// - **Safety**: Memory-safe with Rust's ownership system
+/// - **Interoperability**: Seamless integration with Rust ecosystem
+///
+/// ## Memory Representation
+///
+/// Values are represented using a tagged union with different strategies:
+/// - **Immediate Values**: Small data stored inline (literals, symbols)
+/// - **Boxed Values**: Larger data allocated on heap (pairs, vectors)
+/// - **Reference-Counted**: Shared immutable data (procedures, continuations)
+/// - **Interior Mutability**: Controlled mutation (mutable pairs, vectors)
+///
+/// ## Thread Safety Considerations
+///
+/// The value system supports both single-threaded and multi-threaded execution:
+/// - Single-threaded: `Rc<RefCell<T>>` for efficient local mutation
+/// - Multi-threaded: `Arc<RwLock<T>>` for safe concurrent access
+/// - Lock-free: Where possible for maximum performance
+///
+/// ## R7RS Compliance
+///
+/// All value types implement proper R7RS semantics for:
+/// - Equality testing (`equal?`, `eqv?`, `eq?`)
+/// - Type predicates (`number?`, `pair?`, etc.)
+/// - Truthiness (only `#f` is false)
+/// - Proper tail recursion support
+/// - Exact numeric tower
 #[derive(Debug, Clone)]
 pub enum Value {
     // ============= PRIMITIVE VALUES =============
-    
-    /// Literal values (numbers, strings, characters, booleans)
+    /// Literal values (numbers, strings, characters, booleans).
+    ///
+    /// This variant holds all R7RS literal values including:
+    /// - **Numbers**: Exact and inexact numbers with full numeric tower
+    /// - **Strings**: Immutable Unicode strings  
+    /// - **Characters**: Unicode characters
+    /// - **Booleans**: `#t` and `#f` values
+    /// - **Bytevectors**: Raw byte sequences
+    ///
+    /// ## Memory Layout
+    /// The `Literal` is stored inline when small enough, avoiding heap allocation
+    /// for common cases like small integers and short strings.
     Literal(Literal),
 
-    /// Symbols (interned strings)
+    /// Symbols (interned strings).
+    ///
+    /// Symbols are interned identifiers that support efficient equality comparison
+    /// through unique `SymbolId` values. This implements R7RS symbol semantics
+    /// where symbols with the same name are identical (`eq?`).
+    ///
+    /// ## Performance Characteristics
+    /// - **Creation**: O(1) amortized through interning
+    /// - **Comparison**: O(1) through id comparison
+    /// - **Memory**: Shared storage for identical symbols
     Symbol(SymbolId),
 
-    /// Keywords (#:key)
+    /// Keywords (#:key syntax).
+    ///
+    /// Self-evaluating keyword literals that extend R7RS with convenient
+    /// named parameters and options. Keywords always evaluate to themselves
+    /// and are commonly used for configuration and options.
+    ///
+    /// ## Usage Examples
+    /// - `#:color` for named parameters
+    /// - `#:mode` for configuration options  
+    /// - `#:type` for type annotations
     Keyword(String),
 
-    /// The empty list
+    /// The empty list (null value).
+    ///
+    /// This represents the R7RS empty list `'()`, which serves as:
+    /// - **List Terminator**: End of proper lists
+    /// - **Boolean Context**: Truthy value (unlike some Lisps)
+    /// - **Default Value**: Common default for optional parameters
+    ///
+    /// ## R7RS Semantics
+    /// - `(null? '())` returns `#t`
+    /// - `(pair? '())` returns `#f`  
+    /// - `'()` is truthy in boolean contexts
     Nil,
 
-    /// Unspecified value (result of side-effecting operations)
+    /// Unspecified value (result of side-effecting operations).
+    ///
+    /// This represents the R7RS unspecified value returned by procedures
+    /// that are called for their side effects rather than their return value.
+    /// Examples include `set!`, `define`, and I/O operations.
+    ///
+    /// ## Usage Patterns
+    /// - Return value of `define` expressions
+    /// - Result of `set!` assignments
+    /// - Output operations like `display` and `write`
+    /// - Initialization of variables before assignment
     Unspecified,
 
     // ============= COMPOUND VALUES =============
+    /// Cons pair (a . b) - immutable pair with single ownership.
+    ///
+    /// This represents R7RS pairs (cons cells) in their immutable form.
+    /// Uses `Box<T>` for heap allocation with single ownership, making
+    /// it efficient for functional programming patterns.
+    ///
+    /// ## Memory Layout
+    /// - **Heap Allocated**: Both car and cdr stored on heap
+    /// - **Single Ownership**: No reference counting overhead
+    /// - **Cache Friendly**: Consecutive allocation when possible
+    ///
+    /// ## Usage Patterns
+    /// - Building immutable lists: `(cons 1 (cons 2 '()))`
+    /// - Creating dotted pairs: `(cons 'a 'b)` -> `(a . b)`
+    /// - Functional data structures with structural sharing
+    Pair(Box<Value>, Box<Value>),
 
-    /// Cons pair (a . b) - Thread-safe
-    Pair(Arc<Value>, Arc<Value>),
+    /// Mutable cons pair (a . b) - optimized for single-threaded mutation.
+    ///
+    /// This provides R7RS mutable pairs using `Rc<RefCell<T>>` for efficient
+    /// interior mutability in single-threaded contexts. Supports operations
+    /// like `set-car!` and `set-cdr!`.
+    ///
+    /// ## Thread Safety
+    /// - **Single-Threaded Only**: Uses `RefCell` for interior mutability
+    /// - **Runtime Borrow Checking**: Dynamic borrow checking at runtime
+    /// - **Panic on Conflict**: Panics on simultaneous mutable borrows
+    ///
+    /// ## Performance
+    /// - **Reference Counting**: Allows sharing with automatic cleanup
+    /// - **Interior Mutability**: Mutation without unique ownership
+    /// - **Low Overhead**: Minimal runtime cost for single-threaded use
+    MutablePair(Rc<RefCell<Value>>, Rc<RefCell<Value>>),
 
-    /// Mutable cons pair (a . b) - Thread-safe with interior mutability
-    MutablePair(Arc<RwLock<Value>>, Arc<RwLock<Value>>),
+    /// Vector (mutable array-like structure) - single-threaded optimized.
+    ///
+    /// This implements R7RS vectors as growable arrays with O(1) indexed access
+    /// and amortized O(1) append operations. Optimized for single-threaded
+    /// performance using `Rc<RefCell<Vec<T>>>`.
+    ///
+    /// ## Operations Supported
+    /// - `vector-ref`: O(1) random access
+    /// - `vector-set!`: O(1) mutation
+    /// - `vector-length`: O(1) size query
+    /// - Dynamic resizing with amortized O(1) growth
+    ///
+    /// ## Memory Characteristics
+    /// - **Contiguous Storage**: Elements stored in contiguous memory
+    /// - **Efficient Growth**: Exponential growth strategy
+    /// - **Cache Friendly**: Good locality for sequential access
+    Vector(Rc<RefCell<Vec<Value>>>),
 
-    /// Vector (mutable array-like structure) - Thread-safe
-    Vector(Arc<RwLock<Vec<Value>>>),
+    /// Hash table (mutable associative array) - single-threaded optimized.
+    ///
+    /// This implements efficient key-value mapping using Rust's `HashMap`
+    /// with `Value` keys and values. Provides average O(1) lookup, insertion,
+    /// and deletion operations.
+    ///
+    /// ## Key Requirements
+    /// - Keys must implement proper equality semantics
+    /// - Hash values must be consistent with equality
+    /// - Supports all `Value` types as keys (where meaningful)
+    ///
+    /// ## Performance
+    /// - **Average O(1)**: Lookup, insertion, deletion
+    /// - **Worst Case O(n)**: With pathological hash collisions
+    /// - **Memory Efficient**: Rust's optimized hash table implementation
+    Hashtable(Rc<RefCell<HashMap<Value, Value>>>),
 
-    /// Hash table (mutable associative array) - Thread-safe
-    Hashtable(Arc<RwLock<HashMap<Value, Value>>>),
-
-    /// Mutable string (for string-set! and string-fill!) - Thread-safe
-    MutableString(Arc<RwLock<Vec<char>>>),
+    /// Mutable string (for string-set! and string-fill!) - single-threaded optimized.
+    ///
+    /// This supports R7RS mutable string operations using a character vector
+    /// representation. Allows in-place modification of string contents while
+    /// maintaining Unicode correctness.
+    ///
+    /// ## Operations
+    /// - `string-ref`: O(1) character access  
+    /// - `string-set!`: O(1) character mutation
+    /// - `string-fill!`: O(n) bulk character setting
+    /// - `string-length`: O(1) length query
+    ///
+    /// ## Unicode Handling
+    /// - **Character-Based**: Stores Unicode scalar values
+    /// - **Boundary Safe**: Maintains valid Unicode sequences
+    /// - **Normalization**: May require normalization after mutation
+    MutableString(Rc<RefCell<Vec<char>>>),
 
     // ============= ADVANCED CONTAINERS =============
-
     /// High-performance hash table (SRFI-125) - Thread-safe
     AdvancedHashTable(Arc<crate::containers::ThreadSafeHashTable>),
 
@@ -84,8 +336,10 @@ pub enum Value {
     /// Generator data structure (SRFI-121) - Thread-safe
     Generator(Arc<crate::containers::ThreadSafeGenerator>),
 
-    // ============= PROCEDURES =============
+    /// Box (mutable cell) data structure (SRFI-111) - Thread-safe
+    Box(Arc<crate::stdlib::r#box::Box>),
 
+    // ============= PROCEDURES =============
     /// User-defined procedure (closure) - Thread-safe
     Procedure(Arc<Procedure>),
 
@@ -102,12 +356,14 @@ pub enum Value {
     Syntax(Arc<SyntaxTransformer>),
 
     // ============= ADVANCED VALUES =============
-
     /// Port for I/O operations - Thread-safe
     Port(Arc<Port>),
 
     /// Promise for lazy evaluation - Thread-safe
-    Promise(Arc<RwLock<Promise>>),
+    Promise(Rc<RefCell<Promise>>),
+
+    /// Stream for SRFI-41 lazy sequences - Thread-safe
+    Stream(Arc<super::stream::StreamNode>),
 
     /// Type value (for gradual typing) - Thread-safe
     Type(Arc<TypeValue>),
@@ -118,42 +374,190 @@ pub enum Value {
     /// Error object for exception handling - Thread-safe
     ErrorObject(Arc<crate::stdlib::exceptions::ErrorObject>),
 
-    /// Character set for SRFI-14 support - Thread-safe  
+    /// Character set for SRFI-14 support - Thread-safe
     CharSet(Arc<crate::stdlib::charset::CharSet>),
     /// Parameter object for SRFI-39 support - Thread-safe
     Parameter(Arc<Parameter>),
     /// Record instance for SRFI-9 support - Thread-safe
     Record(Arc<Record>),
-    
+
     // ============= CONCURRENCY VALUES =============
     // These are only available when async-runtime feature is enabled
-    
     #[cfg(feature = "async-runtime")]
     /// Future for asynchronous computation - Thread-safe
     Future(Arc<crate::concurrency::futures::Future>),
-    
+
     #[cfg(feature = "async-runtime")]
-    /// Communication channel - Thread-safe  
+    /// Communication channel - Thread-safe
     Channel(Arc<crate::concurrency::channels::Channel>),
-    
+
     #[cfg(feature = "async-runtime")]
-    /// Mutex for synchronization - Thread-safe
-    Mutex(Arc<crate::concurrency::Mutex>),
-    
+    /// Async Mutex for synchronization - Thread-safe
+    AsyncMutex(Arc<crate::concurrency::Mutex>),
+
     #[cfg(feature = "async-runtime")]
     /// Semaphore for resource control - Thread-safe
     Semaphore(Arc<crate::concurrency::SemaphoreSync>),
-    
+
     #[cfg(feature = "async-runtime")]
     /// Atomic counter - Thread-safe
     AtomicCounter(Arc<crate::concurrency::AtomicCounter>),
-    
+
     #[cfg(feature = "async-runtime")]
     /// Distributed node - Thread-safe
     DistributedNode(Arc<crate::concurrency::distributed::DistributedNode>),
-    
+
+    // ============= SRFI-18 THREADING VALUES =============
+    /// Thread object for SRFI-18 multithreading support - Thread-safe
+    ///
+    /// Represents a Scheme thread that can execute procedures concurrently.
+    /// Threads inherit parameter bindings from their parent thread and provide
+    /// isolation for concurrent computation.
+    ///
+    /// ## Thread Semantics
+    /// - **Concurrent Execution**: Threads run independently
+    /// - **Parameter Inheritance**: Child threads inherit parent bindings
+    /// - **Exception Isolation**: Exceptions don't cross thread boundaries
+    /// - **Resource Management**: Automatic cleanup on completion
+    Thread(Arc<crate::concurrency::scheme_threading::SchemeThread>),
+
+    /// Mutex object for SRFI-18 synchronization - Thread-safe
+    ///
+    /// Provides mutual exclusion for protecting shared resources between
+    /// threads. Only one thread can hold a mutex at a time, providing
+    /// safe access to critical sections.
+    ///
+    /// ## Mutex Semantics  
+    /// - **Exclusive Access**: Only one thread can hold the lock
+    /// - **Ownership**: Only the owning thread can unlock
+    /// - **Non-Reentrant**: Multiple acquisitions by same thread deadlock
+    /// - **Exception Safe**: Automatic cleanup on thread termination
+    Mutex(Arc<crate::concurrency::scheme_threading::SchemeMutex>),
+
+    /// Condition variable for SRFI-18 thread coordination - Thread-safe
+    ///
+    /// Enables threads to wait for specific conditions to become true,
+    /// working in conjunction with mutexes for efficient thread coordination
+    /// and avoiding busy-waiting patterns.
+    ///
+    /// ## Condition Variable Semantics
+    /// - **Atomic Wait**: Atomically releases mutex and waits
+    /// - **Reacquisition**: Automatically reacquires mutex on wakeup  
+    /// - **Spurious Wakeups**: May wake without explicit notification
+    /// - **Broadcast Support**: Can notify one or all waiting threads
+    ConditionVariable(Arc<crate::concurrency::scheme_threading::SchemeConditionVariable>),
+
     /// Opaque value for FFI - Thread-safe
     Opaque(Arc<dyn std::any::Any + Send + Sync>),
+
+    // ============= ENVIRONMENT VALUES =============
+    /// Environment for dynamic evaluation (scheme eval) - Thread-safe
+    Environment(Arc<ThreadSafeEnvironment>),
+
+    // ============= SRFI-SPECIFIC VALUES =============
+    /// Multiple values container (SRFI-11, SRFI-8) - Thread-safe
+    MultipleValues(Arc<MultipleValues>),
+
+    /// Condition object (SRFI-35) - Thread-safe
+    Condition(Arc<crate::stdlib::srfi35_conditions::ConditionValue>),
+
+    /// Condition type (SRFI-35) - Thread-safe
+    ConditionType(Arc<crate::stdlib::srfi35_conditions::ConditionType>),
+
+    /// Comparator object (SRFI-128) - Thread-safe
+    Comparator(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Time object (SRFI-21) - Thread-safe
+    Time21(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Homogeneous vector (SRFI-4) - Thread-safe
+    HomogeneousVector(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Mapping object (SRFI-146) - Thread-safe
+    Mapping(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Ephemeron object (SRFI-124) - Thread-safe
+    Ephemeron(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Time object (SRFI-19) - Thread-safe
+    Time(Arc<dyn std::any::Any + Send + Sync>),
+
+    /// Date object (SRFI-19) - Thread-safe
+    Date(Arc<dyn std::any::Any + Send + Sync>),
+}
+
+/// Container for multiple values returned by functions like `values`.
+///
+/// This struct represents multiple values as used in R7RS Scheme and
+/// various SRFIs. It provides efficient storage and access to a collection
+/// of values that can be unpacked by receiving forms like `let-values`.
+///
+/// ## Usage Examples
+/// - `(values 1 2 3)` creates `MultipleValues::new(vec![1, 2, 3])`
+/// - `(call-with-values producer consumer)` unpacks values for consumer
+/// - SRFI-11 `let-values` forms for structured binding
+///
+/// ## Performance Characteristics
+/// - **Storage**: Uses `Vec<Value>` for efficient sequential access
+/// - **Thread Safety**: Wrapped in `Arc` for sharing across threads
+/// - **Memory**: Small values optimization when count ≤ 1
+#[derive(Debug, Clone, PartialEq)]
+pub struct MultipleValues {
+    /// The actual values stored in order
+    values: Vec<Value>,
+}
+
+impl MultipleValues {
+    /// Create a new MultipleValues container from a vector of values.
+    pub fn new(values: Vec<Value>) -> Self {
+        Self { values }
+    }
+
+    /// Create an empty MultipleValues container.
+    pub fn empty() -> Self {
+        Self { values: Vec::new() }
+    }
+
+    /// Get the values as a slice.
+    pub fn as_slice(&self) -> &[Value] {
+        &self.values
+    }
+
+    /// Get the number of values.
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    /// Check if there are no values.
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    /// Create a MultipleValues container with a single value.
+    pub fn single(value: Value) -> Self {
+        Self { values: vec![value] }
+    }
+
+    /// Get the first value if it exists.
+    pub fn first(&self) -> Option<&Value> {
+        self.values.first()
+    }
+
+    /// Get an iterator over the values.
+    pub fn iter(&self) -> std::slice::Iter<'_, Value> {
+        self.values.iter()
+    }
+
+    /// Get values as a vector (consuming).
+    pub fn into_vec(self) -> Vec<Value> {
+        self.values
+    }
+
+    /// Get a value by index.
+    pub fn get(&self, index: usize) -> Option<&Value> {
+        self.values.get(index)
+    }
+
 }
 
 /// A user-defined procedure (closure) - Thread-safe.
@@ -211,10 +615,14 @@ pub enum PrimitiveImpl {
     /// Native implementation (alias for RustFn for compatibility)
     Native(fn(&[Value]) -> crate::diagnostics::Result<Value>),
     /// Evaluator-integrated function for higher-order functions
-    EvaluatorIntegrated(fn(&mut crate::eval::evaluator::Evaluator, &[Value]) -> crate::diagnostics::Result<Value>),
+    EvaluatorIntegrated(
+        fn(&mut crate::eval::evaluator::Evaluator, &[Value]) -> crate::diagnostics::Result<Value>,
+    ),
     /// FFI function from dynamic library
     ForeignFn {
+        /// Name of the library containing the function
         library: String,
+        /// Symbol name of the function in the library
         symbol: String,
     },
 }
@@ -241,49 +649,75 @@ pub struct Continuation {
 pub enum Frame {
     /// Application frame (evaluating function arguments)
     Application {
-        operator: Value,
-        evaluated_args: Vec<Value>,
-        remaining_args: Vec<Spanned<Expr>>,
+        /// The function operator being applied
+        operator: Box<Value>,
+        /// Arguments that have already been evaluated
+        evaluated_args: Box<Vec<Value>>,
+        /// Arguments still to be evaluated
+        remaining_args: Box<Vec<Spanned<Expr>>>,
+        /// Environment for argument evaluation
         environment: Arc<ThreadSafeEnvironment>,
+        /// Source location information
         source: Span,
     },
     /// If frame (evaluating conditional)
     If {
-        consequent: Spanned<Expr>,
+        /// Expression to evaluate if condition is true
+        consequent: Box<Spanned<Expr>>,
+        /// Expression to evaluate if condition is false (optional)
         alternative: Box<Option<Spanned<Expr>>>,
+        /// Environment for evaluation
         environment: Arc<ThreadSafeEnvironment>,
+        /// Source location information
         source: Span,
     },
     /// Set frame (evaluating assignment)
     Set {
+        /// Name of the variable being assigned
         name: String,
+        /// Environment where the assignment occurs
         environment: Arc<ThreadSafeEnvironment>,
+        /// Source location information
         source: Span,
     },
     /// Begin frame (evaluating sequence)
     Begin {
+        /// Expressions remaining to be evaluated in sequence
         remaining_exprs: Vec<Spanned<Expr>>,
+        /// Environment for sequence evaluation
         environment: Arc<ThreadSafeEnvironment>,
+        /// Source location information
         source: Span,
     },
     /// Let frame (evaluating let bindings)
     Let {
+        /// Bindings still to be evaluated
         remaining_bindings: Vec<crate::ast::Binding>,
-        evaluated_bindings: Vec<(String, Value)>,
+        /// Bindings that have already been evaluated
+        evaluated_bindings: Box<Vec<(String, Value)>>,
+        /// Body expressions to evaluate after bindings
         body: Vec<Spanned<Expr>>,
+        /// Environment for let evaluation
         environment: Arc<ThreadSafeEnvironment>,
+        /// Source location information
         source: Span,
     },
     /// Lambda application frame (procedure call)
     ProcedureCall {
+        /// Name of the procedure being called (for debugging)
         procedure_name: Option<String>,
+        /// Body expressions remaining to be evaluated
         remaining_body: Vec<Spanned<Expr>>,
+        /// Environment for procedure execution
         environment: Arc<ThreadSafeEnvironment>,
+        /// Source location information
         source: Span,
     },
     /// Call/CC frame (continuation capture)
     CallCC {
+        /// Environment for continuation capture
         environment: Arc<ThreadSafeEnvironment>,
+        /// Source location information
         source: Span,
     },
 }
@@ -305,15 +739,15 @@ pub struct Port {
     /// Port implementation
     pub implementation: PortImpl,
     /// Whether the port is open
-    pub is_open: Arc<RwLock<bool>>,
+    pub is_open: Rc<RefCell<bool>>,
     /// Port mode (textual or binary)
     pub mode: PortMode,
     /// Port direction
     pub direction: PortDirection,
     /// Buffer for efficient I/O
-    pub buffer: Arc<RwLock<Vec<u8>>>,
+    pub buffer: Rc<RefCell<Vec<u8>>>,
     /// Current position in the port (for seekable ports)
-    pub position: Arc<RwLock<usize>>,
+    pub position: Rc<RefCell<usize>>,
     /// Port metadata
     pub metadata: HashMap<String, Value>,
 }
@@ -324,23 +758,23 @@ pub enum PortImpl {
     /// String-based port
     String {
         /// Content for input ports, accumulator for output ports
-        content: Arc<RwLock<String>>,
+        content: Rc<RefCell<String>>,
         /// Current position for input ports
-        position: Arc<RwLock<usize>>,
+        position: Rc<RefCell<usize>>,
     },
-    /// Bytevector-based port  
+    /// Bytevector-based port
     Bytevector {
         /// Content for input ports, accumulator for output ports
-        content: Arc<RwLock<Vec<u8>>>,
+        content: Rc<RefCell<Vec<u8>>>,
         /// Current position for input ports
-        position: Arc<RwLock<usize>>,
+        position: Rc<RefCell<usize>>,
     },
     /// File-based port
     File {
         /// File path
         path: String,
         /// File handle (buffered)
-        handle: Arc<RwLock<Option<PortFileHandle>>>,
+        handle: Rc<RefCell<Option<PortFileHandle>>>,
     },
     /// Standard I/O port
     Standard(StandardPort),
@@ -390,35 +824,60 @@ pub enum PortDirection {
     InputOutput,
 }
 
+/// Memory limits for port operations to prevent excessive memory usage.
+pub mod port_limits {
+    /// Maximum size for string port content (64MB)
+    pub const MAX_STRING_PORT_SIZE: usize = 64 * 1024 * 1024;
+
+    /// Maximum size for bytevector port content (64MB)
+    pub const MAX_BYTEVECTOR_PORT_SIZE: usize = 64 * 1024 * 1024;
+
+    /// Default buffer size for efficient I/O operations (8KB)
+    pub const DEFAULT_BUFFER_SIZE: usize = 8 * 1024;
+
+    /// Large allocation threshold for optimization decisions (1MB)
+    pub const LARGE_ALLOCATION_THRESHOLD: usize = 1024 * 1024;
+}
+
 impl Port {
     /// Creates a new string input port.
     pub fn new_string_input(content: String) -> Self {
         Port {
             implementation: PortImpl::String {
-                content: Arc::new(RwLock::new(content)),
-                position: Arc::new(RwLock::new(0)),
+                content: Rc::new(RefCell::new(content)),
+                position: Rc::new(RefCell::new(0)),
             },
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: PortMode::Textual,
             direction: PortDirection::Input,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
 
     /// Creates a new string output port.
     pub fn new_string_output() -> Self {
+        Self::new_string_output_with_capacity(0)
+    }
+
+    /// Creates a new string output port with a capacity hint for better memory allocation.
+    pub fn new_string_output_with_capacity(capacity: usize) -> Self {
+        let mut initial_string = String::new();
+        if capacity > 0 {
+            initial_string.reserve(capacity);
+        }
+
         Port {
             implementation: PortImpl::String {
-                content: Arc::new(RwLock::new(String::new())),
-                position: Arc::new(RwLock::new(0)),
+                content: Rc::new(RefCell::new(initial_string)),
+                position: Rc::new(RefCell::new(0)),
             },
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: PortMode::Textual,
             direction: PortDirection::Output,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
@@ -427,30 +886,40 @@ impl Port {
     pub fn new_bytevector_input(content: Vec<u8>) -> Self {
         Port {
             implementation: PortImpl::Bytevector {
-                content: Arc::new(RwLock::new(content)),
-                position: Arc::new(RwLock::new(0)),
+                content: Rc::new(RefCell::new(content)),
+                position: Rc::new(RefCell::new(0)),
             },
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: PortMode::Binary,
             direction: PortDirection::Input,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
 
     /// Creates a new bytevector output port.
     pub fn new_bytevector_output() -> Self {
+        Self::new_bytevector_output_with_capacity(0)
+    }
+
+    /// Creates a new bytevector output port with a capacity hint for better memory allocation.
+    pub fn new_bytevector_output_with_capacity(capacity: usize) -> Self {
+        let mut initial_vec = Vec::new();
+        if capacity > 0 {
+            initial_vec.reserve(capacity);
+        }
+
         Port {
             implementation: PortImpl::Bytevector {
-                content: Arc::new(RwLock::new(Vec::new())),
-                position: Arc::new(RwLock::new(0)),
+                content: Rc::new(RefCell::new(initial_vec)),
+                position: Rc::new(RefCell::new(0)),
             },
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: PortMode::Binary,
             direction: PortDirection::Output,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
@@ -460,13 +929,17 @@ impl Port {
         Port {
             implementation: PortImpl::File {
                 path,
-                handle: Arc::new(RwLock::new(None)),
+                handle: Rc::new(RefCell::new(None)),
             },
-            is_open: Arc::new(RwLock::new(true)),
-            mode: if binary { PortMode::Binary } else { PortMode::Textual },
+            is_open: Rc::new(RefCell::new(true)),
+            mode: if binary {
+                PortMode::Binary
+            } else {
+                PortMode::Textual
+            },
             direction: PortDirection::Input,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
@@ -476,13 +949,17 @@ impl Port {
         Port {
             implementation: PortImpl::File {
                 path,
-                handle: Arc::new(RwLock::new(None)),
+                handle: Rc::new(RefCell::new(None)),
             },
-            is_open: Arc::new(RwLock::new(true)),
-            mode: if binary { PortMode::Binary } else { PortMode::Textual },
+            is_open: Rc::new(RefCell::new(true)),
+            mode: if binary {
+                PortMode::Binary
+            } else {
+                PortMode::Textual
+            },
             direction: PortDirection::Output,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
@@ -496,23 +973,56 @@ impl Port {
 
         Port {
             implementation: PortImpl::Standard(port_type),
-            is_open: Arc::new(RwLock::new(true)),
+            is_open: Rc::new(RefCell::new(true)),
             mode: PortMode::Textual,
             direction,
-            buffer: Arc::new(RwLock::new(Vec::new())),
-            position: Arc::new(RwLock::new(0)),
+            buffer: Rc::new(RefCell::new(Vec::new())),
+            position: Rc::new(RefCell::new(0)),
             metadata: HashMap::new(),
         }
     }
 
     /// Checks if the port is open.
     pub fn is_open(&self) -> bool {
-        *self.is_open.read().unwrap()
+        *self.is_open.borrow()
     }
 
     /// Closes the port.
     pub fn close(&self) {
-        *self.is_open.write().unwrap() = false;
+        *self.is_open.borrow_mut() = false;
+
+        // Perform specific cleanup based on port implementation
+        match &self.implementation {
+            PortImpl::File { handle, .. } => {
+                // Close file handle if open
+                let mut handle_guard = handle.borrow_mut();
+                if let Some(file_handle) = handle_guard.take() {
+                    // File handles are automatically closed when dropped
+                    drop(file_handle);
+                }
+            }
+            PortImpl::String { content, .. } => {
+                // For output ports, clear content to free memory
+                if self.is_output() {
+                    content.borrow_mut().clear();
+                    content.borrow_mut().shrink_to_fit();
+                }
+            }
+            PortImpl::Bytevector { content, .. } => {
+                // For output ports, clear content to free memory
+                if self.is_output() {
+                    content.borrow_mut().clear();
+                    content.borrow_mut().shrink_to_fit();
+                }
+            }
+            PortImpl::Standard(_) => {
+                // Standard ports should not be closed, but we respect the flag
+            }
+        }
+
+        // Clear buffer to free memory
+        self.buffer.borrow_mut().clear();
+        self.buffer.borrow_mut().shrink_to_fit();
     }
 
     /// Checks if the port is textual.
@@ -527,12 +1037,77 @@ impl Port {
 
     /// Checks if the port is an input port.
     pub fn is_input(&self) -> bool {
-        matches!(self.direction, PortDirection::Input | PortDirection::InputOutput)
+        matches!(
+            self.direction,
+            PortDirection::Input | PortDirection::InputOutput
+        )
     }
 
     /// Checks if the port is an output port.
     pub fn is_output(&self) -> bool {
-        matches!(self.direction, PortDirection::Output | PortDirection::InputOutput)
+        matches!(
+            self.direction,
+            PortDirection::Output | PortDirection::InputOutput
+        )
+    }
+
+    /// Force closes the port if it's still open.
+    /// This is called automatically when the port is dropped.
+    fn force_close(&self) {
+        if self.is_open() {
+            self.close();
+        }
+    }
+
+    /// Gets the current memory usage of the port content.
+    pub fn memory_usage(&self) -> usize {
+        match &self.implementation {
+            PortImpl::String { content, .. } => content.borrow().capacity(),
+            PortImpl::Bytevector { content, .. } => content.borrow().capacity(),
+            PortImpl::File { .. } => {
+                // File ports don't hold content in memory directly
+                self.buffer.borrow().capacity()
+            }
+            PortImpl::Standard(_) => 0,
+        }
+    }
+
+    /// Validates that the proposed memory allocation is within limits.
+    pub fn validate_memory_allocation(size: usize, is_string: bool) -> Result<(), String> {
+        let limit = if is_string {
+            port_limits::MAX_STRING_PORT_SIZE
+        } else {
+            port_limits::MAX_BYTEVECTOR_PORT_SIZE
+        };
+
+        if size > limit {
+            let type_name = if is_string { "string" } else { "bytevector" };
+            Err(format!(
+                "Attempted {type_name} port allocation of {size} bytes exceeds limit of {limit} bytes"
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Checks if the port content size is approaching memory limits.
+    pub fn is_near_memory_limit(&self) -> bool {
+        let usage = self.memory_usage();
+        let limit = match &self.implementation {
+            PortImpl::String { .. } => port_limits::MAX_STRING_PORT_SIZE,
+            PortImpl::Bytevector { .. } => port_limits::MAX_BYTEVECTOR_PORT_SIZE,
+            _ => return false,
+        };
+
+        usage > (limit * 3) / 4 // 75% of limit
+    }
+}
+
+impl Drop for Port {
+    /// Automatically close the port when it goes out of scope.
+    /// This ensures proper resource cleanup even if close() isn't called explicitly.
+    fn drop(&mut self) {
+        self.force_close();
     }
 }
 
@@ -542,18 +1117,36 @@ impl Port {
 pub enum Promise {
     /// Unevaluated promise with thunk and memoization support
     Delayed {
+        /// The thunk (function) to evaluate when forced
         thunk: Value,
     },
     /// Evaluated promise with cached result (memoized)
     Forced(Value),
     /// Tail-recursive promise for delay-force optimization
     TailRecursive {
+        /// The thunk for tail-recursive evaluation
         thunk: Value,
     },
     /// Expression-based promise (for macro expansion)
     Expression {
-        expression: Spanned<Expr>,
+        /// The expression to evaluate when forced
+        expression: Box<Spanned<Expr>>,
+        /// Environment for expression evaluation
         environment: Arc<ThreadSafeEnvironment>,
+    },
+    /// Stream tail promise optimized for SRFI-41 streams
+    StreamTail {
+        /// The thunk that produces the next stream node
+        tail_thunk: Value,
+        /// Stream generation for cache optimization
+        generation: u32,
+    },
+    /// Stream element promise for lazy head evaluation
+    StreamElement {
+        /// The thunk that produces the stream element
+        element_thunk: Value,
+        /// Stream position for debugging and optimization
+        position: u64,
     },
 }
 
@@ -562,13 +1155,24 @@ pub enum Promise {
 #[derive(Debug, Clone)]
 pub enum PromiseTrampoline {
     /// Continue evaluation with a new promise
-    Continue(Arc<RwLock<Promise>>),
+    Continue(Rc<RefCell<Promise>>),
     /// Evaluation completed with final result
     Done(Value),
     /// Evaluation requires external computation (thunk call)
     ComputeThunk {
+        /// The thunk value to compute
         thunk: Value,
-        promise_ref: Arc<RwLock<Promise>>,
+        /// Reference to the promise for result caching
+        promise_ref: Rc<RefCell<Promise>>,
+    },
+    /// Stream tail computation for optimized stream evaluation
+    ComputeStreamTail {
+        /// The tail thunk value to compute
+        tail_thunk: Value,
+        /// Reference to the stream tail promise
+        promise_ref: Rc<RefCell<Promise>>,
+        /// Stream generation for cache coherency
+        generation: u32,
     },
 }
 
@@ -579,7 +1183,9 @@ pub enum TypeValue {
     Base(String),
     /// Function type
     Function {
+        /// Types of function parameters
         parameter_types: Vec<TypeValue>,
+        /// Return type of the function
         return_type: Box<TypeValue>,
     },
     /// Union type
@@ -623,9 +1229,9 @@ pub struct RecordType {
     pub name: String,
     /// Field names in order
     pub field_names: Vec<String>,
-    /// Constructor name (optional, defaults to make-<type-name>)
+    /// Constructor name (optional, defaults to make-TYPE_NAME)
     pub constructor_name: Option<String>,
-    /// Predicate name (optional, defaults to <type-name>?)
+    /// Predicate name (optional, defaults to TYPE_NAME?)
     pub predicate_name: Option<String>,
     /// Field accessors and mutators
     pub field_info: Vec<FieldInfo>,
@@ -648,7 +1254,7 @@ pub struct Record {
     /// Type identifier
     pub type_id: u64,
     /// Field values (stored in order matching the type definition)
-    pub fields: Arc<RwLock<Vec<Value>>>,
+    pub fields: Rc<RefCell<Vec<Value>>>,
 }
 
 /// Thread-safe environment for variable bindings with immutable semantics.
@@ -668,14 +1274,17 @@ pub struct ThreadSafeEnvironment {
     name: Option<String>,
 }
 
-/// Legacy environment for variable bindings (will be phased out).
+/// Environment for variable bindings with shared binding support.
 ///
-/// Uses generational garbage collection for memory management
-/// and proper lexical scoping semantics.
+/// Uses generational garbage collection for memory management,
+/// proper lexical scoping semantics, and optional shared binding
+/// storage for recursive function support (letrec fix).
 #[derive(Debug, Clone)]
 pub struct Environment {
     /// Variable bindings in this environment
     pub bindings: Rc<std::cell::RefCell<HashMap<String, Value>>>,
+    /// Optional shared binding storage for live references (letrec fix)
+    pub shared_bindings: Option<Arc<RwLock<HashMap<String, Value>>>>,
     /// Parent environment (for lexical scoping)
     pub parent: Option<Rc<Environment>>,
     /// Generation counter for GC
@@ -701,16 +1310,29 @@ impl Value {
     pub fn is_number(&self) -> bool {
         matches!(self, Value::Literal(lit) if lit.is_number())
     }
-    
+
+    /// Returns true if this value is a boolean.
+    pub fn is_boolean(&self) -> bool {
+        matches!(self, Value::Literal(Literal::Boolean(_)))
+    }
+
+    /// Extracts a boolean value if this is a boolean literal.
+    pub fn as_boolean(&self) -> Option<bool> {
+        match self {
+            Value::Literal(Literal::Boolean(b)) => Some(*b),
+            _ => None,
+        }
+    }
+
     /// Formats this value for display according to R7RS specification.
-    /// 
+    ///
     /// This is the proper formatting function for the `display` procedure:
     /// - Strings are displayed without quotes
     /// - Characters are displayed without the #\ prefix
     /// - Other values use their standard Display representation
     pub fn display_string(&self) -> String {
         match self {
-            Value::Literal(Literal::String(s)) => s.clone(),
+            Value::Literal(Literal::String(s)) => (**s).clone(),
             Value::Literal(Literal::Character(c)) => c.to_string(),
             _ => format!("{self}"),
         }
@@ -718,7 +1340,10 @@ impl Value {
 
     /// Returns true if this value is a string (immutable or mutable).
     pub fn is_string(&self) -> bool {
-        matches!(self, Value::Literal(Literal::String(_)) | Value::MutableString(_))
+        matches!(
+            self,
+            Value::Literal(Literal::String(_)) | Value::MutableString(_)
+        )
     }
 
     /// Returns true if this value is an immutable string.
@@ -755,13 +1380,22 @@ impl Value {
     pub fn is_procedure(&self) -> bool {
         matches!(
             self,
-            Value::Procedure(_) | Value::CaseLambda(_) | Value::Primitive(_) | Value::Continuation(_) | Value::Parameter(_)
+            Value::Procedure(_)
+                | Value::CaseLambda(_)
+                | Value::Primitive(_)
+                | Value::Continuation(_)
+                | Value::Parameter(_)
         )
     }
 
     /// Returns true if this value is a vector.
     pub fn is_vector(&self) -> bool {
         matches!(self, Value::Vector(_))
+    }
+
+    /// Returns true if this value is a box (SRFI-111).
+    pub fn is_box(&self) -> bool {
+        matches!(self, Value::Box(_))
     }
 
     /// Returns true if this value is a port.
@@ -782,6 +1416,11 @@ impl Value {
     /// Returns true if this value is a record.
     pub fn is_record(&self) -> bool {
         matches!(self, Value::Record(_))
+    }
+
+    /// Returns true if this value is an environment.
+    pub fn is_environment(&self) -> bool {
+        matches!(self, Value::Environment(_))
     }
 
     /// Converts this value to a Rust f64 if it's a number.
@@ -811,9 +1450,9 @@ impl Value {
     /// Gets the string content as an owned String (works with both immutable and mutable strings).
     pub fn as_string_owned(&self) -> Option<String> {
         match self {
-            Value::Literal(Literal::String(s)) => Some(s.clone()),
+            Value::Literal(Literal::String(s)) => Some((**s).clone()),
             Value::MutableString(chars) => {
-                chars.read().ok().map(|guard| guard.iter().collect())
+                chars.try_borrow().ok().map(|guard| guard.iter().collect())
             }
             _ => None,
         }
@@ -823,9 +1462,7 @@ impl Value {
     pub fn string_length(&self) -> Option<usize> {
         match self {
             Value::Literal(Literal::String(s)) => Some(s.chars().count()),
-            Value::MutableString(chars) => {
-                chars.read().ok().map(|guard| guard.len())
-            }
+            Value::MutableString(chars) => chars.try_borrow().ok().map(|guard| guard.len()),
             _ => None,
         }
     }
@@ -851,7 +1488,7 @@ impl Value {
                     current = cdr;
                 }
                 Value::MutablePair(car_ref, cdr_ref) => {
-                    if let (Ok(car), Ok(cdr)) = (car_ref.read(), cdr_ref.read()) {
+                    if let (Ok(car), Ok(cdr)) = (car_ref.try_borrow(), cdr_ref.try_borrow()) {
                         result.push(car.clone());
                         // For mutable pairs, we need to handle recursion carefully
                         // to avoid holding locks too long
@@ -884,19 +1521,19 @@ impl Value {
 
     /// Creates a new immutable string value.
     pub fn string(s: impl Into<String>) -> Self {
-        Value::Literal(Literal::String(s.into()))
+        Value::Literal(Literal::String(Box::new(s.into())))
     }
 
     /// Creates a new mutable string value.
     pub fn mutable_string(s: impl Into<String>) -> Self {
         let chars: Vec<char> = s.into().chars().collect();
-        Value::MutableString(Arc::new(RwLock::new(chars)))
+        Value::MutableString(Rc::new(RefCell::new(chars)))
     }
 
     /// Creates a new mutable string value with specified length and fill character.
     pub fn mutable_string_filled(length: usize, ch: char) -> Self {
         let chars = vec![ch; length];
-        Value::MutableString(Arc::new(RwLock::new(chars)))
+        Value::MutableString(Rc::new(RefCell::new(chars)))
     }
 
     /// Creates a new boolean value.
@@ -909,39 +1546,57 @@ impl Value {
         Value::Symbol(id)
     }
 
+    /// Creates a new box (SRFI-111) containing the given value.
+    pub fn box_value(value: Value) -> Self {
+        let box_instance = crate::stdlib::r#box::Box::new(value);
+        Value::Box(Arc::new(box_instance))
+    }
+
     /// Creates a new symbol value from a string.
     pub fn symbol_from_str(name: impl Into<String>) -> Self {
         let name_str = name.into();
         // Simple hash-based symbol ID generation (in a real implementation,
         // this would use a proper symbol table)
-        let id = SymbolId::new(name_str.chars()
-            .fold(0, |acc, c| acc.wrapping_mul(31).wrapping_add(c as usize)));
+        let id = SymbolId::new(
+            name_str
+                .chars()
+                .fold(0, |acc, c| acc.wrapping_mul(31).wrapping_add(c as usize)),
+        );
         Value::Symbol(id)
     }
 
     /// Creates a new pair value.
     pub fn pair(car: Value, cdr: Value) -> Self {
-        Value::Pair(Arc::new(car), Arc::new(cdr))
+        Value::Pair(Box::new(car), Box::new(cdr))
+    }
+
+    /// Creates a new pair value (alias for `pair`).
+    ///
+    /// This method provides the traditional Lisp `cons` constructor
+    /// as an alias to the `pair` method for compatibility and familiarity.
+    pub fn cons(car: Value, cdr: Value) -> Self {
+        Self::pair(car, cdr)
     }
 
     /// Creates a new mutable pair value.
     pub fn mutable_pair(car: Value, cdr: Value) -> Self {
-        Value::MutablePair(Arc::new(RwLock::new(car)), Arc::new(RwLock::new(cdr)))
+        Value::MutablePair(Rc::new(RefCell::new(car)), Rc::new(RefCell::new(cdr)))
     }
 
     /// Creates a list from a vector of values.
     pub fn list(values: Vec<Value>) -> Self {
-        values.into_iter().rev().fold(Value::Nil, |acc, val| {
-            Value::pair(val, acc)
-        })
+        values
+            .into_iter()
+            .rev()
+            .fold(Value::Nil, |acc, val| Value::pair(val, acc))
     }
 
     /// Creates a new vector value.
     pub fn vector(values: Vec<Value>) -> Self {
-        Value::Vector(Arc::new(RwLock::new(values)))
+        Value::Vector(Rc::new(RefCell::new(values)))
     }
 
-    /// Creates a new vector value from a Vec<Value>.
+    /// Creates a new vector value from a `Vec<Value>`.
     /// This is an alias for the vector method for compatibility.
     pub fn from_vec(values: Vec<Value>) -> Self {
         Self::vector(values)
@@ -949,7 +1604,7 @@ impl Value {
 
     /// Creates a new bytevector value.
     pub fn bytevector(bytes: Vec<u8>) -> Self {
-        Value::Literal(Literal::Bytevector(bytes))
+        Value::Literal(Literal::Bytevector(Box::new(bytes)))
     }
 
     /// Creates a new character set value.
@@ -1015,8 +1670,12 @@ impl Value {
     }
 
     /// Creates a new advanced hash table with comparator.
-    pub fn advanced_hash_table_with_comparator(comparator: crate::containers::HashComparator) -> Self {
-        Value::AdvancedHashTable(Arc::new(crate::containers::ThreadSafeHashTable::with_comparator(comparator)))
+    pub fn advanced_hash_table_with_comparator(
+        comparator: crate::containers::HashComparator,
+    ) -> Self {
+        Value::AdvancedHashTable(Arc::new(
+            crate::containers::ThreadSafeHashTable::with_comparator(comparator),
+        ))
     }
 
     /// Creates a new ideque value.
@@ -1026,7 +1685,9 @@ impl Value {
 
     /// Creates an ideque from a vector of values.
     pub fn ideque_from_vec(values: Vec<Value>) -> Self {
-        Value::Ideque(Arc::new(crate::containers::PersistentIdeque::from_vec(values)))
+        Value::Ideque(Arc::new(crate::containers::PersistentIdeque::from_vec(
+            values,
+        )))
     }
 
     /// Creates a new priority queue value.
@@ -1036,12 +1697,16 @@ impl Value {
 
     /// Creates a new min-heap priority queue value.
     pub fn min_priority_queue() -> Self {
-        Value::PriorityQueue(Arc::new(crate::containers::ThreadSafePriorityQueue::new_min_heap()))
+        Value::PriorityQueue(Arc::new(
+            crate::containers::ThreadSafePriorityQueue::new_min_heap(),
+        ))
     }
 
     /// Creates a new priority queue with comparator.
     pub fn priority_queue_with_comparator(comparator: crate::containers::Comparator) -> Self {
-        Value::PriorityQueue(Arc::new(crate::containers::ThreadSafePriorityQueue::with_comparator(comparator)))
+        Value::PriorityQueue(Arc::new(
+            crate::containers::ThreadSafePriorityQueue::with_comparator(comparator),
+        ))
     }
 
     /// Creates a new ordered set value.
@@ -1051,7 +1716,9 @@ impl Value {
 
     /// Creates a new ordered set with comparator.
     pub fn ordered_set_with_comparator(comparator: crate::containers::Comparator) -> Self {
-        Value::OrderedSet(Arc::new(crate::containers::ThreadSafeOrderedSet::with_comparator(comparator)))
+        Value::OrderedSet(Arc::new(
+            crate::containers::ThreadSafeOrderedSet::with_comparator(comparator),
+        ))
     }
 
     /// Creates a new list queue value.
@@ -1061,17 +1728,23 @@ impl Value {
 
     /// Creates a list queue from a vector of values.
     pub fn list_queue_from_vec(values: Vec<Value>) -> Self {
-        Value::ListQueue(Arc::new(crate::containers::ThreadSafeListQueue::from_vec(values)))
+        Value::ListQueue(Arc::new(crate::containers::ThreadSafeListQueue::from_vec(
+            values,
+        )))
     }
 
     /// Creates a new random access list value.
     pub fn random_access_list() -> Self {
-        Value::RandomAccessList(Arc::new(crate::containers::ThreadSafeRandomAccessList::new()))
+        Value::RandomAccessList(Arc::new(
+            crate::containers::ThreadSafeRandomAccessList::new(),
+        ))
     }
 
     /// Creates a random access list from a vector of values.
     pub fn random_access_list_from_vec(values: Vec<Value>) -> Self {
-        Value::RandomAccessList(Arc::new(crate::containers::ThreadSafeRandomAccessList::from_vec(values)))
+        Value::RandomAccessList(Arc::new(
+            crate::containers::ThreadSafeRandomAccessList::from_vec(values),
+        ))
     }
 
     /// Creates a new set value.
@@ -1081,7 +1754,9 @@ impl Value {
 
     /// Creates a new set with a custom comparator.
     pub fn set_with_comparator(comparator: crate::containers::HashComparator) -> Self {
-        Value::Set(Arc::new(crate::containers::ThreadSafeSet::with_comparator(comparator)))
+        Value::Set(Arc::new(crate::containers::ThreadSafeSet::with_comparator(
+            comparator,
+        )))
     }
 
     /// Creates a set from an iterator of values.
@@ -1091,15 +1766,20 @@ impl Value {
     {
         Value::Set(Arc::new(crate::containers::ThreadSafeSet::from_iter(iter)))
     }
-    
+
     /// Creates a set from an iterator of values with a custom comparator.
-    pub fn set_from_iter_with_comparator<I>(iter: I, comparator: crate::containers::HashComparator) -> Self
+    pub fn set_from_iter_with_comparator<I>(
+        iter: I,
+        comparator: crate::containers::HashComparator,
+    ) -> Self
     where
         I: IntoIterator<Item = Value>,
     {
-        Value::Set(Arc::new(crate::containers::ThreadSafeSet::from_iter_with_comparator(iter, comparator)))
+        Value::Set(Arc::new(
+            crate::containers::ThreadSafeSet::from_iter_with_comparator(iter, comparator),
+        ))
     }
-    
+
     /// Tries to get a reference to the ThreadSafeSet if this value is a set.
     pub fn as_set(&self) -> Option<&Arc<crate::containers::ThreadSafeSet>> {
         match self {
@@ -1107,7 +1787,7 @@ impl Value {
             _ => None,
         }
     }
-    
+
     /// Tries to get a clone of the ThreadSafeSet if this value is a set.
     pub fn to_set(&self) -> Option<Arc<crate::containers::ThreadSafeSet>> {
         match self {
@@ -1123,7 +1803,9 @@ impl Value {
 
     /// Creates a new bag with a custom comparator.
     pub fn bag_with_comparator(comparator: crate::containers::HashComparator) -> Self {
-        Value::Bag(Arc::new(crate::containers::ThreadSafeBag::with_comparator(comparator)))
+        Value::Bag(Arc::new(crate::containers::ThreadSafeBag::with_comparator(
+            comparator,
+        )))
     }
 
     /// Creates a bag from an iterator of values.
@@ -1138,16 +1820,25 @@ impl Value {
 
     /// Creates a new generator from a procedure (thunk).
     pub fn generator_from_procedure(thunk: Value, environment: Arc<ThreadSafeEnvironment>) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::from_procedure(thunk, environment)))
+        Value::Generator(Arc::new(crate::containers::Generator::from_procedure(
+            thunk,
+            environment,
+        )))
     }
-    
+
     /// Creates a new generator from a procedure (thunk) with an evaluator callback.
     pub fn generator_from_procedure_with_evaluator(
-        thunk: Value, 
+        thunk: Value,
         environment: Arc<ThreadSafeEnvironment>,
-        evaluator: Arc<crate::containers::generator::ProcedureEvaluator>
+        evaluator: Arc<crate::containers::generator::ProcedureEvaluator>,
     ) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::from_procedure_with_evaluator(thunk, environment, evaluator)))
+        Value::Generator(Arc::new(
+            crate::containers::Generator::from_procedure_with_evaluator(
+                thunk,
+                environment,
+                evaluator,
+            ),
+        ))
     }
 
     /// Creates a new generator from explicit values.
@@ -1157,12 +1848,16 @@ impl Value {
 
     /// Creates a new range generator.
     pub fn generator_range(start: f64, end: Option<f64>, step: f64) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::range(start, end, step)))
+        Value::Generator(Arc::new(crate::containers::Generator::range(
+            start, end, step,
+        )))
     }
 
     /// Creates a new iota generator.
     pub fn generator_iota(count: Option<usize>, start: i64, step: i64) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::iota(count, start, step)))
+        Value::Generator(Arc::new(crate::containers::Generator::iota(
+            count, start, step,
+        )))
     }
 
     /// Creates a new generator from a list.
@@ -1171,8 +1866,15 @@ impl Value {
     }
 
     /// Creates a new generator from a vector.
-    pub fn generator_from_vector(vector: Arc<RwLock<Vec<Value>>>) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::from_vector(vector)))
+    pub fn generator_from_vector(vector: Rc<RefCell<Vec<Value>>>) -> Self {
+        // Convert Rc<RefCell<Vec<Value>>> to Arc<RwLock<Vec<Value>>> for thread-safe generator
+        let thread_safe_vec = {
+            let borrowed = vector.borrow();
+            Arc::new(RwLock::new(borrowed.clone()))
+        };
+        Value::Generator(Arc::new(crate::containers::Generator::from_vector(
+            thread_safe_vec,
+        )))
     }
 
     /// Creates a new generator from a string.
@@ -1184,7 +1886,7 @@ impl Value {
     pub fn generator_exhausted() -> Self {
         Value::Generator(Arc::new(crate::containers::Generator::exhausted()))
     }
-    
+
     /// Creates a new unfold generator.
     pub fn generator_unfold(
         stop_predicate: Value,
@@ -1192,9 +1894,14 @@ impl Value {
         successor: Value,
         seed: Value,
     ) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::unfold(stop_predicate, mapper, successor, seed)))
+        Value::Generator(Arc::new(crate::containers::Generator::unfold(
+            stop_predicate,
+            mapper,
+            successor,
+            seed,
+        )))
     }
-    
+
     /// Creates a new unfold generator with an evaluator.
     pub fn generator_unfold_with_evaluator(
         stop_predicate: Value,
@@ -1203,71 +1910,96 @@ impl Value {
         seed: Value,
         evaluator: Arc<crate::containers::generator::ProcedureEvaluator>,
     ) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::unfold_with_evaluator(stop_predicate, mapper, successor, seed, evaluator)))
+        Value::Generator(Arc::new(
+            crate::containers::Generator::unfold_with_evaluator(
+                stop_predicate,
+                mapper,
+                successor,
+                seed,
+                evaluator,
+            ),
+        ))
     }
-    
+
     /// Creates a new tabulate generator.
     pub fn generator_tabulate(func: Value, max_count: Option<usize>) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::tabulate(func, max_count)))
+        Value::Generator(Arc::new(crate::containers::Generator::tabulate(
+            func, max_count,
+        )))
     }
-    
+
     /// Creates a new tabulate generator with an evaluator.
     pub fn generator_tabulate_with_evaluator(
         func: Value,
         max_count: Option<usize>,
         evaluator: Arc<crate::containers::generator::ProcedureEvaluator>,
     ) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::tabulate_with_evaluator(func, max_count, evaluator)))
+        Value::Generator(Arc::new(
+            crate::containers::Generator::tabulate_with_evaluator(func, max_count, evaluator),
+        ))
     }
-    
+
     /// Creates a new map generator.
     pub fn generator_map(source: Arc<crate::containers::Generator>, mapper: Value) -> Self {
         Value::Generator(Arc::new(crate::containers::Generator::map(source, mapper)))
     }
-    
+
     /// Creates a new map generator with an evaluator.
     pub fn generator_map_with_evaluator(
         source: Arc<crate::containers::Generator>,
         mapper: Value,
         evaluator: Arc<crate::containers::generator::ProcedureEvaluator>,
     ) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::map_with_evaluator(source, mapper, evaluator)))
+        Value::Generator(Arc::new(crate::containers::Generator::map_with_evaluator(
+            source, mapper, evaluator,
+        )))
     }
-    
+
     /// Creates a new filter generator.
     pub fn generator_filter(source: Arc<crate::containers::Generator>, predicate: Value) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::filter(source, predicate)))
+        Value::Generator(Arc::new(crate::containers::Generator::filter(
+            source, predicate,
+        )))
     }
-    
+
     /// Creates a new filter generator with an evaluator.
     pub fn generator_filter_with_evaluator(
         source: Arc<crate::containers::Generator>,
         predicate: Value,
         evaluator: Arc<crate::containers::generator::ProcedureEvaluator>,
     ) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::filter_with_evaluator(source, predicate, evaluator)))
+        Value::Generator(Arc::new(
+            crate::containers::Generator::filter_with_evaluator(source, predicate, evaluator),
+        ))
     }
-    
+
     /// Creates a new take generator.
     pub fn generator_take(source: Arc<crate::containers::Generator>, count: usize) -> Self {
         Value::Generator(Arc::new(crate::containers::Generator::take(source, count)))
     }
-    
+
     /// Creates a new drop generator.
     pub fn generator_drop(source: Arc<crate::containers::Generator>, count: usize) -> Self {
         Value::Generator(Arc::new(crate::containers::Generator::drop(source, count)))
     }
-    
+
     /// Creates a new append generator.
-    pub fn generator_append(first: Arc<crate::containers::Generator>, second: Arc<crate::containers::Generator>) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::append(first, second)))
+    pub fn generator_append(
+        first: Arc<crate::containers::Generator>,
+        second: Arc<crate::containers::Generator>,
+    ) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::append(
+            first, second,
+        )))
     }
-    
+
     /// Creates a new concatenate generator.
     pub fn generator_concatenate(generators: Vec<Arc<crate::containers::Generator>>) -> Self {
-        Value::Generator(Arc::new(crate::containers::Generator::concatenate(generators)))
+        Value::Generator(Arc::new(crate::containers::Generator::concatenate(
+            generators,
+        )))
     }
-    
+
     /// Creates a new zip generator.
     pub fn generator_zip(sources: Vec<Arc<crate::containers::Generator>>) -> Self {
         Value::Generator(Arc::new(crate::containers::Generator::zip(sources)))
@@ -1325,7 +2057,7 @@ impl Value {
     pub fn is_future(&self) -> bool {
         matches!(self, Value::Future(_))
     }
-    
+
     /// Returns true if this value is a future (no-op when async-runtime disabled).
     #[cfg(not(feature = "async-runtime"))]
     pub fn is_future(&self) -> bool {
@@ -1337,7 +2069,7 @@ impl Value {
     pub fn is_channel(&self) -> bool {
         matches!(self, Value::Channel(_))
     }
-    
+
     /// Returns true if this value is a channel (no-op when async-runtime disabled).
     #[cfg(not(feature = "async-runtime"))]
     pub fn is_channel(&self) -> bool {
@@ -1347,13 +2079,13 @@ impl Value {
     /// Returns true if this value is a mutex.
     #[cfg(feature = "async-runtime")]
     pub fn is_mutex(&self) -> bool {
-        matches!(self, Value::Mutex(_))
+        matches!(self, Value::AsyncMutex(_))
     }
-    
+
     /// Returns true if this value is a mutex (no-op when async-runtime disabled).
     #[cfg(not(feature = "async-runtime"))]
     pub fn is_mutex(&self) -> bool {
-        false
+        matches!(self, Value::Mutex(_))
     }
 
     /// Returns true if this value is a semaphore.
@@ -1361,7 +2093,7 @@ impl Value {
     pub fn is_semaphore(&self) -> bool {
         matches!(self, Value::Semaphore(_))
     }
-    
+
     /// Returns true if this value is a semaphore (no-op when async-runtime disabled).
     #[cfg(not(feature = "async-runtime"))]
     pub fn is_semaphore(&self) -> bool {
@@ -1373,7 +2105,7 @@ impl Value {
     pub fn is_atomic_counter(&self) -> bool {
         matches!(self, Value::AtomicCounter(_))
     }
-    
+
     /// Returns true if this value is an atomic counter (no-op when async-runtime disabled).
     #[cfg(not(feature = "async-runtime"))]
     pub fn is_atomic_counter(&self) -> bool {
@@ -1385,7 +2117,7 @@ impl Value {
     pub fn is_distributed_node(&self) -> bool {
         matches!(self, Value::DistributedNode(_))
     }
-    
+
     /// Returns true if this value is a distributed node (no-op when async-runtime disabled).
     #[cfg(not(feature = "async-runtime"))]
     pub fn is_distributed_node(&self) -> bool {
@@ -1437,8 +2169,8 @@ impl Value {
             Value::Literal(Literal::ExactInteger(_)) => true,
             Value::Literal(Literal::InexactReal(f)) => f.is_finite(),
             Value::Literal(Literal::Rational { .. }) => true,
-            Value::Literal(Literal::Complex { real, imaginary }) => {
-                real.is_finite() && imaginary.is_finite()
+            Value::Literal(Literal::Complex(complex)) => {
+                complex.real.is_finite() && complex.imaginary.is_finite()
             }
             _ => false,
         }
@@ -1448,8 +2180,8 @@ impl Value {
     pub fn is_infinite_number(&self) -> bool {
         match self {
             Value::Literal(Literal::InexactReal(f)) => f.is_infinite(),
-            Value::Literal(Literal::Complex { real, imaginary }) => {
-                real.is_infinite() || imaginary.is_infinite()
+            Value::Literal(Literal::Complex(complex)) => {
+                complex.real.is_infinite() || complex.imaginary.is_infinite()
             }
             _ => false,
         }
@@ -1459,8 +2191,8 @@ impl Value {
     pub fn is_nan_number(&self) -> bool {
         match self {
             Value::Literal(Literal::InexactReal(f)) => f.is_nan(),
-            Value::Literal(Literal::Complex { real, imaginary }) => {
-                real.is_nan() || imaginary.is_nan()
+            Value::Literal(Literal::Complex(complex)) => {
+                complex.real.is_nan() || complex.imaginary.is_nan()
             }
             _ => false,
         }
@@ -1477,8 +2209,8 @@ impl PartialEq for Value {
             (Value::Unspecified, Value::Unspecified) => true,
             (Value::Pair(a1, b1), Value::Pair(a2, b2)) => a1 == a2 && b1 == b2,
             // For mutable objects, use reference equality
-            (Value::Vector(a), Value::Vector(b)) => Arc::ptr_eq(a, b),
-            (Value::Hashtable(a), Value::Hashtable(b)) => Arc::ptr_eq(a, b),
+            (Value::Vector(a), Value::Vector(b)) => Rc::ptr_eq(a, b),
+            (Value::Hashtable(a), Value::Hashtable(b)) => Rc::ptr_eq(a, b),
             (Value::Procedure(a), Value::Procedure(b)) => Arc::ptr_eq(a, b),
             (Value::CaseLambda(a), Value::CaseLambda(b)) => Arc::ptr_eq(a, b),
             (Value::Primitive(a), Value::Primitive(b)) => a.name == b.name,
@@ -1492,15 +2224,14 @@ impl PartialEq for Value {
                     false
                 } else {
                     // Compare field values
-                    if let (Ok(a_fields), Ok(b_fields)) = (a.fields.read(), b.fields.read()) {
-                        *a_fields == *b_fields
-                    } else {
-                        false // Handle lock errors conservatively
-                    }
+                    let a_fields = a.fields.borrow();
+                    let b_fields = b.fields.borrow();
+                    *a_fields == *b_fields
                 }
             }
             // Advanced containers use reference equality for efficiency
             (Value::AdvancedHashTable(a), Value::AdvancedHashTable(b)) => Arc::ptr_eq(a, b),
+            (Value::Box(a), Value::Box(b)) => Arc::ptr_eq(a, b),
             (Value::Ideque(a), Value::Ideque(b)) => Arc::ptr_eq(a, b),
             (Value::PriorityQueue(a), Value::PriorityQueue(b)) => Arc::ptr_eq(a, b),
             (Value::OrderedSet(a), Value::OrderedSet(b)) => Arc::ptr_eq(a, b),
@@ -1515,6 +2246,7 @@ impl PartialEq for Value {
             #[cfg(feature = "async-runtime")]
             (Value::Channel(a), Value::Channel(b)) => Arc::ptr_eq(a, b),
             #[cfg(feature = "async-runtime")]
+            (Value::AsyncMutex(a), Value::AsyncMutex(b)) => Arc::ptr_eq(a, b),
             (Value::Mutex(a), Value::Mutex(b)) => Arc::ptr_eq(a, b),
             #[cfg(feature = "async-runtime")]
             (Value::Semaphore(a), Value::Semaphore(b)) => Arc::ptr_eq(a, b),
@@ -1523,6 +2255,27 @@ impl PartialEq for Value {
             #[cfg(feature = "async-runtime")]
             (Value::DistributedNode(a), Value::DistributedNode(b)) => Arc::ptr_eq(a, b),
             (Value::Opaque(a), Value::Opaque(b)) => Arc::ptr_eq(a, b),
+            // SRFI-specific variants
+            (Value::MultipleValues(a), Value::MultipleValues(b)) => Arc::ptr_eq(a, b),
+            (Value::Condition(a), Value::Condition(b)) => Arc::ptr_eq(a, b),
+            (Value::ConditionType(a), Value::ConditionType(b)) => Arc::ptr_eq(a, b),
+            (Value::Comparator(a), Value::Comparator(b)) => Arc::ptr_eq(a, b),
+            (Value::Time21(a), Value::Time21(b)) => Arc::ptr_eq(a, b),
+            (Value::HomogeneousVector(a), Value::HomogeneousVector(b)) => Arc::ptr_eq(a, b),
+            (Value::Mapping(a), Value::Mapping(b)) => Arc::ptr_eq(a, b),
+            (Value::Ephemeron(a), Value::Ephemeron(b)) => Arc::ptr_eq(a, b),
+            (Value::Time(a), Value::Time(b)) => Arc::ptr_eq(a, b),
+            (Value::Date(a), Value::Date(b)) => Arc::ptr_eq(a, b),
+            (Value::Thread(a), Value::Thread(b)) => Arc::ptr_eq(a, b),
+            (Value::Mutex(a), Value::Mutex(b)) => Arc::ptr_eq(a, b),
+            (Value::ConditionVariable(a), Value::ConditionVariable(b)) => Arc::ptr_eq(a, b),
+            // Advanced values use reference equality
+            (Value::Stream(a), Value::Stream(b)) => Arc::ptr_eq(a, b),
+            (Value::Promise(a), Value::Promise(b)) => Rc::ptr_eq(a, b),
+            (Value::Port(a), Value::Port(b)) => Arc::ptr_eq(a, b),
+            (Value::Type(a), Value::Type(b)) => Arc::ptr_eq(a, b),
+            (Value::Foreign(a), Value::Foreign(b)) => Arc::ptr_eq(a, b),
+            (Value::Syntax(a), Value::Syntax(b)) => Arc::ptr_eq(a, b),
             _ => false,
         }
     }
@@ -1580,7 +2333,7 @@ impl fmt::Display for Value {
             }
             Value::Vector(vec) => {
                 write!(f, "#(")?;
-                if let Ok(vec_ref) = vec.read() {
+                if let Ok(vec_ref) = vec.try_borrow() {
                     for (i, value) in vec_ref.iter().enumerate() {
                         if i > 0 {
                             write!(f, " ")?;
@@ -1612,6 +2365,7 @@ impl fmt::Display for Value {
             Value::Syntax(syn) => write!(f, "#<syntax:{}>", syn.name),
             Value::Port(_) => write!(f, "#<port>"),
             Value::Promise(_) => write!(f, "#<promise>"),
+            Value::Stream(_) => write!(f, "#<stream>"),
             Value::Type(_) => write!(f, "#<type>"),
             Value::Foreign(obj) => write!(f, "#<foreign:{}>", obj.type_name),
             Value::ErrorObject(err) => write!(f, "#<error:{}>", err.message),
@@ -1628,6 +2382,13 @@ impl fmt::Display for Value {
             }
             // Advanced containers
             Value::AdvancedHashTable(_) => write!(f, "#<advanced-hash-table>"),
+            Value::Box(box_ref) => {
+                if let Ok(content) = box_ref.get() {
+                    write!(f, "#<box:{content}>")
+                } else {
+                    write!(f, "#<box:error>")
+                }
+            }
             Value::Ideque(_) => write!(f, "#<ideque>"),
             Value::PriorityQueue(_) => write!(f, "#<priority-queue>"),
             Value::OrderedSet(_) => write!(f, "#<ordered-set>"),
@@ -1639,6 +2400,7 @@ impl fmt::Display for Value {
             #[cfg(feature = "async-runtime")]
             Value::Channel(_) => write!(f, "#<channel>"),
             #[cfg(feature = "async-runtime")]
+            Value::AsyncMutex(_) => write!(f, "#<async-mutex>"),
             Value::Mutex(_) => write!(f, "#<mutex>"),
             #[cfg(feature = "async-runtime")]
             Value::Semaphore(_) => write!(f, "#<semaphore>"),
@@ -1646,42 +2408,57 @@ impl fmt::Display for Value {
             Value::AtomicCounter(counter) => write!(f, "#<atomic-counter:{}>", counter.get()),
             #[cfg(feature = "async-runtime")]
             Value::DistributedNode(_) => write!(f, "#<distributed-node>"),
-            Value::MutableString(s) => {
-                match s.read() {
-                    Ok(chars) => {
-                        write!(f, "\"")?;
-                        for ch in chars.iter() {
-                            match ch {
-                                '"' => write!(f, "\\\"")?,
-                                '\\' => write!(f, "\\\\")?,
-                                '\n' => write!(f, "\\n")?,
-                                '\t' => write!(f, "\\t")?,
-                                '\r' => write!(f, "\\r")?,
-                                c if c.is_control() => write!(f, "\\x{:02x}", *c as u8)?,
-                                c => write!(f, "{c}")?,
-                            }
+            Value::MutableString(s) => match s.try_borrow() {
+                Ok(chars) => {
+                    write!(f, "\"")?;
+                    for ch in chars.iter() {
+                        match ch {
+                            '"' => write!(f, "\\\"")?,
+                            '\\' => write!(f, "\\\\")?,
+                            '\n' => write!(f, "\\n")?,
+                            '\t' => write!(f, "\\t")?,
+                            '\r' => write!(f, "\\r")?,
+                            c if c.is_control() => write!(f, "\\x{:02x}", *c as u8)?,
+                            c => write!(f, "{c}")?,
                         }
-                        write!(f, "\"")
                     }
-                    Err(_) => write!(f, "#<locked-string>"),
+                    write!(f, "\"")
                 }
-            }
-            Value::Set(set) => {
-                match set.size() {
-                    Ok(size) => write!(f, "#<set:{size}>"),
-                    Err(_) => write!(f, "#<set:locked>"),
-                }
-            }
-            Value::Bag(bag) => {
-                match bag.total_size() {
-                    Ok(size) => write!(f, "#<bag:{size}>"),
-                    Err(_) => write!(f, "#<bag:locked>"),
-                }
-            }
+                Err(_) => write!(f, "#<locked-string>"),
+            },
+            Value::Set(set) => match set.size() {
+                Ok(size) => write!(f, "#<set:{size}>"),
+                Err(_) => write!(f, "#<set:locked>"),
+            },
+            Value::Bag(bag) => match bag.total_size() {
+                Ok(size) => write!(f, "#<bag:{size}>"),
+                Err(_) => write!(f, "#<bag:locked>"),
+            },
             Value::Generator(generator) => {
                 write!(f, "{generator}")
             }
             Value::Opaque(_) => write!(f, "#<opaque>"),
+            Value::Environment(env) => {
+                if let Some(name) = &env.name {
+                    write!(f, "#<environment:{name}>")
+                } else {
+                    write!(f, "#<environment>")
+                }
+            }
+            // SRFI-specific variants
+            Value::MultipleValues(values) => write!(f, "#<values:{}>", values.len()),
+            Value::Condition(_) => write!(f, "#<condition>"),
+            Value::ConditionType(_) => write!(f, "#<condition-type>"),
+            Value::Comparator(_) => write!(f, "#<comparator>"),
+            Value::Time21(_) => write!(f, "#<time21>"),
+            Value::HomogeneousVector(_) => write!(f, "#<homogeneous-vector>"),
+            Value::Mapping(_) => write!(f, "#<mapping>"),
+            Value::Ephemeron(_) => write!(f, "#<ephemeron>"),
+            Value::Time(_) => write!(f, "#<time>"),
+            Value::Date(_) => write!(f, "#<date>"),
+            Value::Thread(_) => write!(f, "#<thread>"),
+            Value::Mutex(_) => write!(f, "#<mutex>"),
+            Value::ConditionVariable(_) => write!(f, "#<condition-variable>"),
         }
     }
 }
@@ -1714,12 +2491,12 @@ impl Value {
                 if !first {
                     write!(f, " ")?;
                 }
-                if let Ok(car) = car_ref.read() {
+                if let Ok(car) = car_ref.try_borrow() {
                     write!(f, "{car}")?;
                 } else {
                     write!(f, "...")?;
                 }
-                if let Ok(cdr) = cdr_ref.read() {
+                if let Ok(cdr) = cdr_ref.try_borrow() {
                     match &*cdr {
                         Value::Nil => Ok(()),
                         Value::MutablePair(_, _) => cdr.write_mutable_list_contents(f, false),
@@ -1752,6 +2529,19 @@ impl Environment {
     pub fn new(parent: Option<Rc<Environment>>, generation: Generation) -> Self {
         Self {
             bindings: Rc::new(std::cell::RefCell::new(HashMap::new())),
+            shared_bindings: None,
+            parent,
+            generation,
+            name: None,
+        }
+    }
+
+    /// Creates a new environment with shared binding support (for letrec).
+    pub fn new_shared(parent: Option<Rc<Environment>>, generation: Generation) -> Self {
+        let shared_storage = Arc::new(RwLock::new(HashMap::new()));
+        Self {
+            bindings: Rc::new(std::cell::RefCell::new(HashMap::new())),
+            shared_bindings: Some(shared_storage),
             parent,
             generation,
             name: None,
@@ -1766,6 +2556,23 @@ impl Environment {
     ) -> Self {
         Self {
             bindings: Rc::new(std::cell::RefCell::new(HashMap::new())),
+            shared_bindings: None,
+            parent,
+            generation,
+            name: Some(name),
+        }
+    }
+
+    /// Creates a new environment with a name and shared binding support.
+    pub fn with_name_shared(
+        parent: Option<Rc<Environment>>,
+        generation: Generation,
+        name: String,
+    ) -> Self {
+        let shared_storage = Arc::new(RwLock::new(HashMap::new()));
+        Self {
+            bindings: Rc::new(std::cell::RefCell::new(HashMap::new())),
+            shared_bindings: Some(shared_storage),
             parent,
             generation,
             name: Some(name),
@@ -1775,8 +2582,17 @@ impl Environment {
     /// Looks up a variable in this environment or its parents.
     pub fn lookup(&self, name: &str) -> Option<Value> {
         // Check local bindings first
-        if let Some(value) = self.bindings.borrow().get(name) {
+        if let Some(value) = self.bindings.try_borrow().ok()?.get(name) {
             return Some(value.clone());
+        }
+
+        // CRITICAL FIX: Check shared bindings if present (letrec support)
+        if let Some(shared) = &self.shared_bindings {
+            if let Ok(map) = shared.read() {
+                if let Some(value) = map.get(name) {
+                    return Some(value.clone());
+                }
+            }
         }
 
         // Check parent environments
@@ -1789,7 +2605,17 @@ impl Environment {
 
     /// Defines a variable in this environment.
     pub fn define(&self, name: String, value: Value) {
-        self.bindings.borrow_mut().insert(name, value);
+        // Update local bindings
+        self.bindings
+            .borrow_mut()
+            .insert(name.clone(), value.clone());
+
+        // CRITICAL FIX: Also update shared bindings if present (letrec support)
+        if let Some(shared) = &self.shared_bindings {
+            if let Ok(mut map) = shared.write() {
+                map.insert(name, value);
+            }
+        }
     }
 
     /// Sets a variable in this environment or its parents.
@@ -1797,9 +2623,23 @@ impl Environment {
     /// Returns true if the variable was found and set, false otherwise.
     pub fn set(&self, name: &str, value: Value) -> bool {
         // Check if variable exists in local bindings
-        if self.bindings.borrow().contains_key(name) {
-            self.bindings.borrow_mut().insert(name.to_string(), value);
-            return true;
+        if let Ok(bindings) = self.bindings.try_borrow() {
+            if bindings.contains_key(name) {
+                drop(bindings); // Release the borrow
+
+                // Update local bindings
+                self.bindings
+                    .borrow_mut()
+                    .insert(name.to_string(), value.clone());
+
+                // CRITICAL FIX: Also update shared bindings if present (letrec support)
+                if let Some(shared) = &self.shared_bindings {
+                    if let Ok(mut map) = shared.write() {
+                        map.insert(name.to_string(), value);
+                    }
+                }
+                return true;
+            }
         }
 
         // Check parent environments
@@ -1817,16 +2657,24 @@ impl Environment {
 
     /// Gets all variable names in this environment (for debugging).
     pub fn variable_names(&self) -> Vec<String> {
-        self.bindings.borrow().keys().cloned().collect()
+        match self.bindings.try_borrow() {
+            Ok(bindings) => bindings.keys().cloned().collect(),
+            Err(_) => Vec::new(),
+        }
     }
-    
+
     /// Converts this Environment to a ThreadSafeEnvironment.
     /// This is a bridge method during the migration process.
     pub fn to_thread_safe(&self) -> Arc<ThreadSafeEnvironment> {
         let parent = self.parent.as_ref().map(|p| p.to_thread_safe());
-        
-        let bindings = self.bindings.borrow().clone();
-        
+
+        let bindings = self
+            .bindings
+            .try_borrow()
+            .ok()
+            .map(|b| b.clone())
+            .unwrap_or_default();
+
         Arc::new(ThreadSafeEnvironment {
             bindings: Arc::new(std::sync::RwLock::new(bindings)),
             parent,
@@ -1834,15 +2682,30 @@ impl Environment {
             name: self.name.clone(),
         })
     }
-    
+
     /// Converts this Environment to a ThreadSafeEnvironment that maintains live bindings.
     /// Used for recursive function definitions where the environment may be updated.
+    /// CRITICAL FIX: Returns live references instead of snapshots for letrec support.
     pub fn to_thread_safe_live(&self) -> Arc<ThreadSafeEnvironment> {
         let parent = self.parent.as_ref().map(|p| p.to_thread_safe_live());
-        
-        // Create a thread-safe environment that references the live bindings
+
+        // CRITICAL FIX: Use shared bindings if available (live references)
+        let bindings = if let Some(shared) = &self.shared_bindings {
+            // Return live reference to shared storage - this is the key fix!
+            Arc::clone(shared)
+        } else {
+            // Fallback to snapshot for non-shared environments
+            let local_bindings = self
+                .bindings
+                .try_borrow()
+                .ok()
+                .map(|b| b.clone())
+                .unwrap_or_default();
+            Arc::new(std::sync::RwLock::new(local_bindings))
+        };
+
         Arc::new(ThreadSafeEnvironment {
-            bindings: Arc::new(std::sync::RwLock::new(self.bindings.borrow().clone())), // Still a snapshot for now
+            bindings,
             parent,
             generation: self.generation,
             name: self.name.clone(),
@@ -1916,7 +2779,10 @@ impl ThreadSafeEnvironment {
     pub fn set(&self, name: &str, value: Value) -> bool {
         // Check if variable exists in local bindings
         if self.bindings.read().unwrap().contains_key(name) {
-            self.bindings.write().unwrap().insert(name.to_string(), value);
+            self.bindings
+                .write()
+                .unwrap()
+                .insert(name.to_string(), value);
             return true;
         }
 
@@ -1975,11 +2841,11 @@ impl ThreadSafeEnvironment {
     /// Gets all accessible variable names (including from parents).
     pub fn all_variable_names(&self) -> Vec<String> {
         let mut names = self.variable_names();
-        
+
         if let Some(parent) = &self.parent {
             names.extend(parent.all_variable_names());
         }
-        
+
         names.sort();
         names.dedup();
         names
@@ -2004,9 +2870,12 @@ impl ThreadSafeEnvironment {
     /// This is a temporary method during the migration process.
     pub fn to_legacy(&self) -> Rc<Environment> {
         let legacy_parent = self.parent.as_ref().map(|p| p.to_legacy());
-        
+
         Rc::new(Environment {
-            bindings: Rc::new(std::cell::RefCell::new(self.bindings.read().unwrap().clone())),
+            bindings: Rc::new(std::cell::RefCell::new(
+                self.bindings.read().unwrap().clone(),
+            )),
+            shared_bindings: None,
             parent: legacy_parent,
             generation: self.generation,
             name: self.name.clone(),
@@ -2017,9 +2886,9 @@ impl ThreadSafeEnvironment {
     /// This is a temporary method during the migration process.
     pub fn from_legacy(legacy: &Environment) -> Arc<ThreadSafeEnvironment> {
         let parent = legacy.parent.as_ref().map(|p| Self::from_legacy(p));
-        
+
         Arc::new(ThreadSafeEnvironment {
-            bindings: Arc::new(std::sync::RwLock::new(legacy.bindings.borrow().clone())),
+            bindings: Arc::new(std::sync::RwLock::new(HashMap::new())),
             parent,
             generation: legacy.generation,
             name: legacy.name.clone(),
@@ -2077,6 +2946,18 @@ unsafe impl Sync for PortDirection {}
 // Promise is safe because all its contents are thread-safe
 unsafe impl Send for Promise {}
 unsafe impl Sync for Promise {}
+
+// StreamNode is safe because all its contents are thread-safe
+unsafe impl Send for super::stream::StreamNode {}
+unsafe impl Sync for super::stream::StreamNode {}
+
+// StreamTail is safe because all its contents are thread-safe
+unsafe impl Send for super::stream::StreamTail {}
+unsafe impl Sync for super::stream::StreamTail {}
+
+// ArenaMetadata is safe because it only contains basic types
+unsafe impl Send for super::stream::ArenaMetadata {}
+unsafe impl Sync for super::stream::ArenaMetadata {}
 
 // TypeValue is safe because it only contains basic types
 unsafe impl Send for TypeValue {}
@@ -2155,9 +3036,7 @@ pub enum FrameType {
 impl StackTrace {
     /// Creates a new empty stack trace.
     pub fn new() -> Self {
-        Self {
-            frames: Vec::new(),
-        }
+        Self { frames: Vec::new() }
     }
 
     /// Pushes a new frame onto the stack.

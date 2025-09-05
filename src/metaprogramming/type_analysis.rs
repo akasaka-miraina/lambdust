@@ -1,7 +1,7 @@
 //! Type inference and constraint analysis components.
 
+use super::analysis_types::{ConstraintType, InferredType};
 use crate::diagnostics::Span;
-use super::analysis_types::{InferredType, ConstraintType};
 use std::collections::HashMap;
 
 /// Type information from inference.

@@ -3,10 +3,10 @@
 //! This module provides async semaphore functionality for controlling
 //! the number of concurrent operations with permits system.
 
-use crate::diagnostics::{Error, Result};
 use super::ConcurrencyError;
+use crate::diagnostics::{Error, Result};
 use std::sync::Arc;
-use tokio::sync::{Semaphore};
+use tokio::sync::Semaphore;
 
 /// Semaphore for controlling access to a limited resource.
 #[derive(Debug, Clone)]
@@ -34,21 +34,29 @@ impl SemaphoreSync {
 
     /// Acquires a permit from the semaphore.
     pub async fn acquire(&self) -> Result<SemaphorePermit<'_>> {
-        let permit = self.inner.acquire().await
+        let permit = self
+            .inner
+            .acquire()
+            .await
             .map_err(|_| ConcurrencyError::ChannelClosed)?;
         Ok(SemaphorePermit { permit })
     }
 
     /// Attempts to acquire a permit without blocking.
     pub fn try_acquire(&self) -> Result<SemaphorePermit<'_>> {
-        let permit = self.inner.try_acquire()
+        let permit = self
+            .inner
+            .try_acquire()
             .map_err(|_| Error::runtime_error("No permits available".to_string(), None))?;
         Ok(SemaphorePermit { permit })
     }
 
     /// Acquires multiple permits.
     pub async fn acquire_many(&self, permits: u32) -> Result<SemaphorePermit<'_>> {
-        let permit = self.inner.acquire_many(permits).await
+        let permit = self
+            .inner
+            .acquire_many(permits)
+            .await
             .map_err(|_| ConcurrencyError::ChannelClosed)?;
         Ok(SemaphorePermit { permit })
     }

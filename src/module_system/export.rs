@@ -5,9 +5,9 @@
 //! - (export (rename (internal-name external-name))) - Export with renaming
 //! - Validation of exported symbols and visibility rules
 
-use super::{ExportSpec, ExportConfig, ModuleError};
-use crate::diagnostics::{Error, Result, Spanned};
+use super::{ExportConfig, ExportSpec, ModuleError};
 use crate::ast::Expr;
+use crate::diagnostics::{Error, Result, Spanned};
 use crate::eval::Value;
 use std::collections::HashMap;
 
@@ -29,17 +29,17 @@ pub fn apply_direct_export(
     symbols: &[String],
 ) -> Result<HashMap<String, Value>> {
     let mut exports = HashMap::new();
-    
+
     for symbol in symbols {
         if let Some(value) = bindings.get(symbol) {
             exports.insert(symbol.clone(), value.clone());
         } else {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                format!("Cannot export undefined symbol: {symbol}")
+                format!("Cannot export undefined symbol: {symbol}"),
             ))));
         }
     }
-    
+
     Ok(exports)
 }
 
@@ -49,24 +49,24 @@ pub fn apply_rename_export(
     rename_map: &HashMap<String, String>,
 ) -> Result<HashMap<String, Value>> {
     let mut exports = HashMap::new();
-    
+
     for (internal_name, external_name) in rename_map {
         if let Some(value) = bindings.get(internal_name) {
             exports.insert(external_name.clone(), value.clone());
         } else {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                format!("Cannot export undefined symbol: {internal_name}")
+                format!("Cannot export undefined symbol: {internal_name}"),
             ))));
         }
     }
-    
+
     Ok(exports)
 }
 
 /// Parses export specifications from Scheme syntax.
 pub fn parse_export_spec(export_form: &[Spanned<Expr>]) -> Result<ExportSpec> {
     use crate::ast::Expr;
-    
+
     if export_form.is_empty() {
         return Err(Box::new(Error::syntax_error(
             "Empty export specification".to_string(),
@@ -76,7 +76,7 @@ pub fn parse_export_spec(export_form: &[Spanned<Expr>]) -> Result<ExportSpec> {
 
     let mut symbols = Vec::new();
     let mut rename_map = HashMap::new();
-    
+
     for expr in export_form {
         match &expr.inner {
             Expr::Symbol(symbol) => {
@@ -90,19 +90,23 @@ pub fn parse_export_spec(export_form: &[Spanned<Expr>]) -> Result<ExportSpec> {
                             parse_rename_spec(rename_spec, &mut rename_map)?;
                         }
                     }
-                    _ => return Err(Box::new(Error::syntax_error(
-                        "Unknown export form".to_string(),
-                        Some(elements[0].span),
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::syntax_error(
+                            "Unknown export form".to_string(),
+                            Some(elements[0].span),
+                        )));
+                    }
                 }
             }
-            _ => return Err(Box::new(Error::syntax_error(
-                "Invalid export specification".to_string(),
-                Some(expr.span),
-            ))),
+            _ => {
+                return Err(Box::new(Error::syntax_error(
+                    "Invalid export specification".to_string(),
+                    Some(expr.span),
+                )));
+            }
         }
     }
-    
+
     let config = if rename_map.is_empty() {
         ExportConfig::Direct
     } else if symbols.is_empty() {
@@ -113,35 +117,36 @@ pub fn parse_export_spec(export_form: &[Spanned<Expr>]) -> Result<ExportSpec> {
             None,
         )));
     };
-    
+
     Ok(ExportSpec { symbols, config })
 }
 
 /// Parses a single rename specification.
-fn parse_rename_spec(
-    spec: &Spanned<Expr>,
-    rename_map: &mut HashMap<String, String>,
-) -> Result<()> {
+fn parse_rename_spec(spec: &Spanned<Expr>, rename_map: &mut HashMap<String, String>) -> Result<()> {
     use crate::ast::Expr;
-    
+
     match &spec.inner {
         Expr::List(pair) if pair.len() == 2 => {
             let internal_name = match &pair[0].inner {
                 Expr::Symbol(symbol) => symbol.clone(),
-                _ => return Err(Box::new(Error::syntax_error(
-                    "Rename specification must contain symbols".to_string(),
-                    Some(pair[0].span),
-                ))),
+                _ => {
+                    return Err(Box::new(Error::syntax_error(
+                        "Rename specification must contain symbols".to_string(),
+                        Some(pair[0].span),
+                    )));
+                }
             };
-            
+
             let external_name = match &pair[1].inner {
                 Expr::Symbol(symbol) => symbol.clone(),
-                _ => return Err(Box::new(Error::syntax_error(
-                    "Rename specification must contain symbols".to_string(),
-                    Some(pair[1].span),
-                ))),
+                _ => {
+                    return Err(Box::new(Error::syntax_error(
+                        "Rename specification must contain symbols".to_string(),
+                        Some(pair[1].span),
+                    )));
+                }
             };
-            
+
             rename_map.insert(internal_name, external_name);
             Ok(())
         }
@@ -163,7 +168,7 @@ pub fn validate_export_spec(
             for symbol in &spec.symbols {
                 if !available_bindings.contains_key(symbol) {
                     return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                        format!("Cannot export undefined symbol: {symbol}")
+                        format!("Cannot export undefined symbol: {symbol}"),
                     ))));
                 }
             }
@@ -173,33 +178,34 @@ pub fn validate_export_spec(
             for internal_name in rename_map.keys() {
                 if !available_bindings.contains_key(internal_name) {
                     return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                        format!("Cannot export undefined symbol: {internal_name}")
+                        format!("Cannot export undefined symbol: {internal_name}"),
                     ))));
                 }
             }
-            
+
             // Check for duplicate external names
             let mut external_names = std::collections::HashSet::new();
             for external_name in rename_map.values() {
                 if !external_names.insert(external_name) {
                     return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                        format!("Duplicate export name: {external_name}")
+                        format!("Duplicate export name: {external_name}"),
                     ))));
                 }
             }
         }
     }
-    
+
     Ok(())
 }
 
 /// Creates a default export specification that exports all public bindings.
 pub fn create_default_export_spec(bindings: &HashMap<String, Value>) -> ExportSpec {
-    let symbols: Vec<String> = bindings.keys()
+    let symbols: Vec<String> = bindings
+        .keys()
         .filter(|symbol| !is_private_symbol(symbol))
         .cloned()
         .collect();
-    
+
     ExportSpec {
         symbols,
         config: ExportConfig::Direct,
@@ -217,18 +223,17 @@ pub fn is_private_symbol(symbol: &str) -> bool {
 }
 
 /// Computes the intersection of export specifications.
-pub fn intersect_export_specs(
-    spec1: &ExportSpec,
-    spec2: &ExportSpec,
-) -> Result<ExportSpec> {
+pub fn intersect_export_specs(spec1: &ExportSpec, spec2: &ExportSpec) -> Result<ExportSpec> {
     match (&spec1.config, &spec2.config) {
         (ExportConfig::Direct, ExportConfig::Direct) => {
             // Intersect symbol lists
-            let intersection: Vec<String> = spec1.symbols.iter()
+            let intersection: Vec<String> = spec1
+                .symbols
+                .iter()
                 .filter(|symbol| spec2.symbols.contains(symbol))
                 .cloned()
                 .collect();
-            
+
             Ok(ExportSpec {
                 symbols: intersection,
                 config: ExportConfig::Direct,
@@ -242,10 +247,7 @@ pub fn intersect_export_specs(
 }
 
 /// Computes the union of export specifications.
-pub fn union_export_specs(
-    spec1: &ExportSpec,
-    spec2: &ExportSpec,
-) -> Result<ExportSpec> {
+pub fn union_export_specs(spec1: &ExportSpec, spec2: &ExportSpec) -> Result<ExportSpec> {
     match (&spec1.config, &spec2.config) {
         (ExportConfig::Direct, ExportConfig::Direct) => {
             // Union symbol lists
@@ -255,7 +257,7 @@ pub fn union_export_specs(
                     union_symbols.push(symbol.clone());
                 }
             }
-            
+
             Ok(ExportSpec {
                 symbols: union_symbols,
                 config: ExportConfig::Direct,
@@ -269,28 +271,28 @@ pub fn union_export_specs(
 }
 
 /// Filters export specification to remove specific symbols.
-pub fn filter_export_spec(
-    spec: &ExportSpec,
-    excluded_symbols: &[String],
-) -> ExportSpec {
+pub fn filter_export_spec(spec: &ExportSpec, excluded_symbols: &[String]) -> ExportSpec {
     match &spec.config {
         ExportConfig::Direct => {
-            let filtered_symbols: Vec<String> = spec.symbols.iter()
+            let filtered_symbols: Vec<String> = spec
+                .symbols
+                .iter()
                 .filter(|symbol| !excluded_symbols.contains(symbol))
                 .cloned()
                 .collect();
-            
+
             ExportSpec {
                 symbols: filtered_symbols,
                 config: ExportConfig::Direct,
             }
         }
         ExportConfig::Rename(rename_map) => {
-            let filtered_map: HashMap<String, String> = rename_map.iter()
+            let filtered_map: HashMap<String, String> = rename_map
+                .iter()
                 .filter(|(internal_name, _)| !excluded_symbols.contains(internal_name))
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect();
-            
+
             ExportSpec {
                 symbols: Vec::new(),
                 config: ExportConfig::Rename(filtered_map),
@@ -344,7 +346,7 @@ mod tests {
     fn test_export_undefined_symbol() {
         let bindings = HashMap::new(); // Empty bindings
         let symbols = vec!["nonexistent".to_string()];
-        
+
         let result = apply_direct_export(&bindings, &symbols);
         assert!(result.is_err());
     }
@@ -381,14 +383,14 @@ mod tests {
             symbols: vec!["a".to_string(), "b".to_string()],
             config: ExportConfig::Direct,
         };
-        
+
         let spec2 = ExportSpec {
             symbols: vec!["b".to_string(), "c".to_string()],
             config: ExportConfig::Direct,
         };
 
         let union = union_export_specs(&spec1, &spec2).unwrap();
-        
+
         assert_eq!(union.symbols.len(), 3);
         assert!(union.symbols.contains(&"a".to_string()));
         assert!(union.symbols.contains(&"b".to_string()));
@@ -401,14 +403,14 @@ mod tests {
             symbols: vec!["a".to_string(), "b".to_string(), "c".to_string()],
             config: ExportConfig::Direct,
         };
-        
+
         let spec2 = ExportSpec {
             symbols: vec!["b".to_string(), "c".to_string(), "d".to_string()],
             config: ExportConfig::Direct,
         };
 
         let intersection = intersect_export_specs(&spec1, &spec2).unwrap();
-        
+
         assert_eq!(intersection.symbols.len(), 2);
         assert!(intersection.symbols.contains(&"b".to_string()));
         assert!(intersection.symbols.contains(&"c".to_string()));
@@ -422,10 +424,10 @@ mod tests {
             symbols: vec!["a".to_string(), "b".to_string(), "c".to_string()],
             config: ExportConfig::Direct,
         };
-        
+
         let excluded = vec!["b".to_string()];
         let filtered = filter_export_spec(&spec, &excluded);
-        
+
         assert_eq!(filtered.symbols.len(), 2);
         assert!(filtered.symbols.contains(&"a".to_string()));
         assert!(filtered.symbols.contains(&"c".to_string()));

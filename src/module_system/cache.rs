@@ -61,7 +61,7 @@ impl ModuleCache {
     /// Gets a module from the cache if it exists.
     pub fn get(&self, id: &ModuleId) -> Option<Arc<Module>> {
         let mut cache = self.cache.write().ok()?;
-        
+
         if let Some(entry) = cache.get_mut(id) {
             // Check TTL if configured
             if let Some(ttl) = self.config.ttl {
@@ -70,11 +70,11 @@ impl ModuleCache {
                     return None;
                 }
             }
-            
+
             // Update access statistics
             entry.last_accessed = SystemTime::now();
             entry.access_count += 1;
-            
+
             Some(entry.module.clone())
         } else {
             None
@@ -84,19 +84,19 @@ impl ModuleCache {
     /// Inserts a module into the cache.
     pub fn insert(&self, id: ModuleId, module: Arc<Module>) {
         let mut cache = self.cache.write().expect("Cache write lock poisoned");
-        
+
         // Check if we need to evict entries
         if cache.len() >= self.config.max_entries {
             self.evict_lru(&mut cache);
         }
-        
+
         let entry = CacheEntry {
             module,
             created_at: SystemTime::now(),
             last_accessed: SystemTime::now(),
             access_count: 1,
         };
-        
+
         cache.insert(id, entry);
     }
 
@@ -114,7 +114,7 @@ impl ModuleCache {
 
     /// Gets the number of cached modules.
     pub fn len(&self) -> usize {
-        let cache = self.cache.read().expect("Cache read lock poisoned");
+        let cache = self.cache.try_read().expect("Cache read lock poisoned");
         cache.len()
     }
 
@@ -125,22 +125,24 @@ impl ModuleCache {
 
     /// Lists all cached module IDs.
     pub fn list_modules(&self) -> Vec<ModuleId> {
-        let cache = self.cache.read().expect("Cache read lock poisoned");
+        let cache = self.cache.try_read().expect("Cache read lock poisoned");
         cache.keys().cloned().collect()
     }
 
     /// Gets cache statistics.
     pub fn stats(&self) -> CacheStats {
-        let cache = self.cache.read().expect("Cache read lock poisoned");
-        
+        let cache = self.cache.try_read().expect("Cache read lock poisoned");
+
         let total_accesses: u64 = cache.values().map(|entry| entry.access_count).sum();
-        let oldest_entry = cache.values()
+        let oldest_entry = cache
+            .values()
             .min_by_key(|entry| entry.created_at)
             .map(|entry| entry.created_at);
-        let newest_entry = cache.values()
+        let newest_entry = cache
+            .values()
             .max_by_key(|entry| entry.created_at)
             .map(|entry| entry.created_at);
-        
+
         CacheStats {
             entry_count: cache.len(),
             total_accesses,
@@ -157,14 +159,14 @@ impl ModuleCache {
 
         let mut cache = self.cache.write().expect("Cache write lock poisoned");
         let mut to_remove = Vec::new();
-        
+
         // Find modules that depend on the given module
         for (cached_id, entry) in cache.iter() {
             if entry.module.dependencies.contains(id) {
                 to_remove.push(cached_id.clone());
             }
         }
-        
+
         // Remove dependent modules
         for dependent_id in to_remove {
             cache.remove(&dependent_id);
@@ -173,7 +175,8 @@ impl ModuleCache {
 
     /// Evicts the least recently used entry.
     fn evict_lru(&self, cache: &mut HashMap<ModuleId, CacheEntry>) {
-        if let Some((lru_id, _)) = cache.iter()
+        if let Some((lru_id, _)) = cache
+            .iter()
             .min_by_key(|(_, entry)| entry.last_accessed)
             .map(|(id, entry)| (id.clone(), entry.clone()))
         {
@@ -183,9 +186,9 @@ impl ModuleCache {
 
     /// Validates cache integrity by checking dependencies.
     pub fn validate(&self) -> Vec<CacheValidationError> {
-        let cache = self.cache.read().expect("Cache read lock poisoned");
+        let cache = self.cache.try_read().expect("Cache read lock poisoned");
         let mut errors = Vec::new();
-        
+
         for (id, entry) in cache.iter() {
             // Check if all dependencies are satisfied
             for dep_id in &entry.module.dependencies {
@@ -196,13 +199,13 @@ impl ModuleCache {
                     });
                 }
             }
-            
+
             // Check for circular dependencies (basic check)
             if entry.module.dependencies.contains(id) {
                 errors.push(CacheValidationError::SelfDependency(id.clone()));
             }
         }
-        
+
         errors
     }
 }
@@ -254,12 +257,19 @@ impl std::fmt::Display for CacheValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CacheValidationError::MissingDependency { module, dependency } => {
-                write!(f, "Module {} has missing dependency {}", 
-                       super::format_module_id(module), 
-                       super::format_module_id(dependency))
+                write!(
+                    f,
+                    "Module {} has missing dependency {}",
+                    super::format_module_id(module),
+                    super::format_module_id(dependency)
+                )
             }
             CacheValidationError::SelfDependency(module) => {
-                write!(f, "Module {} depends on itself", super::format_module_id(module))
+                write!(
+                    f,
+                    "Module {} depends on itself",
+                    super::format_module_id(module)
+                )
             }
         }
     }
@@ -267,8 +277,8 @@ impl std::fmt::Display for CacheValidationError {
 
 #[cfg(test)]
 mod tests {
+    use super::super::{ModuleMetadata, ModuleNamespace, ModuleSource};
     use super::*;
-    use super::super::{ModuleNamespace, ModuleSource, ModuleMetadata};
     use std::collections::HashMap;
 
     fn create_test_module(name: &str) -> Arc<Module> {
@@ -300,7 +310,7 @@ mod tests {
         // Insert and retrieve
         cache.insert(module_id.clone(), module.clone());
         assert_eq!(cache.len(), 1);
-        
+
         let retrieved = cache.get(&module_id);
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().id, module_id);
@@ -339,7 +349,7 @@ mod tests {
         // Insert third module - should evict mod2 (least recently used)
         cache.insert(id3.clone(), create_test_module("mod3"));
         assert_eq!(cache.len(), 2);
-        
+
         assert!(cache.get(&id1).is_some());
         assert!(cache.get(&id2).is_none());
         assert!(cache.get(&id3).is_some());
@@ -370,7 +380,7 @@ mod tests {
         };
 
         cache.insert(module_id.clone(), create_test_module("test"));
-        
+
         // Access the module a few times
         cache.get(&module_id);
         cache.get(&module_id);

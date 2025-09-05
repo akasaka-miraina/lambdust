@@ -3,14 +3,14 @@
 //! This module provides CSP-style channels with support for
 //! bounded/unbounded queues, select operations, and backpressure control.
 
-use crate::eval::Value;
-use crate::diagnostics::{Error, Result};
 use super::{ConcurrencyError, futures::Future};
+use crate::diagnostics::{Error, Result};
+use crate::eval::Value;
+use futures::FutureExt;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, broadcast, watch};
+use tokio::sync::{broadcast, mpsc, watch};
 use tokio::time::timeout;
-use futures::FutureExt;
 
 /// A typed channel for sending and receiving values.
 #[derive(Debug, Clone)]
@@ -86,34 +86,54 @@ impl Channel {
     pub fn new(config: ChannelConfig) -> Result<Self> {
         match config.channel_type {
             ChannelType::MpscBounded => {
-                let buffer_size = config.buffer_size
-                    .ok_or_else(|| Error::runtime_error("Buffer size required for bounded channel".to_string(), None))?;
+                let buffer_size = config.buffer_size.ok_or_else(|| {
+                    Error::runtime_error(
+                        "Buffer size required for bounded channel".to_string(),
+                        None,
+                    )
+                })?;
                 let (tx, rx) = mpsc::channel(buffer_size);
                 Ok(Self {
-                    sender: ChannelSender { inner: SenderInner::Bounded(tx) },
-                    receiver: Arc::new(tokio::sync::Mutex::new(ChannelReceiver { inner: ReceiverInner::Bounded(rx) })),
+                    sender: ChannelSender {
+                        inner: SenderInner::Bounded(tx),
+                    },
+                    receiver: Arc::new(tokio::sync::Mutex::new(ChannelReceiver {
+                        inner: ReceiverInner::Bounded(rx),
+                    })),
                 })
             }
             ChannelType::MpscUnbounded => {
                 let (tx, rx) = mpsc::unbounded_channel();
                 Ok(Self {
-                    sender: ChannelSender { inner: SenderInner::Unbounded(tx) },
-                    receiver: Arc::new(tokio::sync::Mutex::new(ChannelReceiver { inner: ReceiverInner::Unbounded(rx) })),
+                    sender: ChannelSender {
+                        inner: SenderInner::Unbounded(tx),
+                    },
+                    receiver: Arc::new(tokio::sync::Mutex::new(ChannelReceiver {
+                        inner: ReceiverInner::Unbounded(rx),
+                    })),
                 })
             }
             ChannelType::Broadcast => {
                 let capacity = config.buffer_size.unwrap_or(1000);
                 let (tx, rx) = broadcast::channel(capacity);
                 Ok(Self {
-                    sender: ChannelSender { inner: SenderInner::Broadcast(tx) },
-                    receiver: Arc::new(tokio::sync::Mutex::new(ChannelReceiver { inner: ReceiverInner::Broadcast(rx) })),
+                    sender: ChannelSender {
+                        inner: SenderInner::Broadcast(tx),
+                    },
+                    receiver: Arc::new(tokio::sync::Mutex::new(ChannelReceiver {
+                        inner: ReceiverInner::Broadcast(rx),
+                    })),
                 })
             }
             ChannelType::Watch => {
                 let (tx, rx) = watch::channel(Value::Unspecified);
                 Ok(Self {
-                    sender: ChannelSender { inner: SenderInner::Watch(tx) },
-                    receiver: Arc::new(tokio::sync::Mutex::new(ChannelReceiver { inner: ReceiverInner::Watch(rx) })),
+                    sender: ChannelSender {
+                        inner: SenderInner::Watch(tx),
+                    },
+                    receiver: Arc::new(tokio::sync::Mutex::new(ChannelReceiver {
+                        inner: ReceiverInner::Watch(rx),
+                    })),
                 })
             }
         }
@@ -173,13 +193,16 @@ impl Channel {
     /// Creates a receiver subscription for broadcast channels.
     pub fn subscribe(&self) -> Result<ChannelReceiver> {
         match &self.sender.inner {
-            SenderInner::Broadcast(tx) => {
-                Ok(ChannelReceiver { inner: ReceiverInner::Broadcast(tx.subscribe()) })
-            }
-            SenderInner::Watch(tx) => {
-                Ok(ChannelReceiver { inner: ReceiverInner::Watch(tx.subscribe()) })
-            }
-            _ => Err(Box::new(Error::runtime_error("Channel type does not support subscriptions".to_string(), None))),
+            SenderInner::Broadcast(tx) => Ok(ChannelReceiver {
+                inner: ReceiverInner::Broadcast(tx.subscribe()),
+            }),
+            SenderInner::Watch(tx) => Ok(ChannelReceiver {
+                inner: ReceiverInner::Watch(tx.subscribe()),
+            }),
+            _ => Err(Box::new(Error::runtime_error(
+                "Channel type does not support subscriptions".to_string(),
+                None,
+            ))),
         }
     }
 }
@@ -188,49 +211,42 @@ impl ChannelSender {
     /// Sends a value through the channel.
     pub async fn send(&self, value: Value) -> Result<()> {
         match &self.inner {
-            SenderInner::Bounded(tx) => {
-                tx.send(value).await
-                    .map_err(|_| ConcurrencyError::ChannelClosed.boxed())
-            }
-            SenderInner::Unbounded(tx) => {
-                tx.send(value)
-                    .map_err(|_| ConcurrencyError::ChannelClosed.boxed())
-            }
-            SenderInner::Broadcast(tx) => {
-                tx.send(value)
-                    .map(|_| ())
-                    .map_err(|_| ConcurrencyError::ChannelClosed.boxed())
-            }
-            SenderInner::Watch(tx) => {
-                tx.send(value)
-                    .map_err(|_| ConcurrencyError::ChannelClosed.boxed())
-            }
+            SenderInner::Bounded(tx) => tx
+                .send(value)
+                .await
+                .map_err(|_| ConcurrencyError::ChannelClosed.boxed()),
+            SenderInner::Unbounded(tx) => tx
+                .send(value)
+                .map_err(|_| ConcurrencyError::ChannelClosed.boxed()),
+            SenderInner::Broadcast(tx) => tx
+                .send(value)
+                .map(|_| ())
+                .map_err(|_| ConcurrencyError::ChannelClosed.boxed()),
+            SenderInner::Watch(tx) => tx
+                .send(value)
+                .map_err(|_| ConcurrencyError::ChannelClosed.boxed()),
         }
     }
 
     /// Attempts to send a value without blocking.
     pub fn try_send(&self, value: Value) -> Result<()> {
         match &self.inner {
-            SenderInner::Bounded(tx) => {
-                tx.try_send(value)
-                    .map_err(|e| match e {
-                        mpsc::error::TrySendError::Closed(_) => ConcurrencyError::ChannelClosed.boxed(),
-                        mpsc::error::TrySendError::Full(_) => Error::runtime_error("Channel full".to_string(), None).into(),
-                    })
-            }
-            SenderInner::Unbounded(tx) => {
-                tx.send(value)
-                    .map_err(|_| ConcurrencyError::ChannelClosed.boxed())
-            }
-            SenderInner::Broadcast(tx) => {
-                tx.send(value)
-                    .map(|_| ())
-                    .map_err(|_| ConcurrencyError::ChannelClosed.boxed())
-            }
-            SenderInner::Watch(tx) => {
-                tx.send(value)
-                    .map_err(|_| ConcurrencyError::ChannelClosed.boxed())
-            }
+            SenderInner::Bounded(tx) => tx.try_send(value).map_err(|e| match e {
+                mpsc::error::TrySendError::Closed(_) => ConcurrencyError::ChannelClosed.boxed(),
+                mpsc::error::TrySendError::Full(_) => {
+                    Error::runtime_error("Channel full".to_string(), None).into()
+                }
+            }),
+            SenderInner::Unbounded(tx) => tx
+                .send(value)
+                .map_err(|_| ConcurrencyError::ChannelClosed.boxed()),
+            SenderInner::Broadcast(tx) => tx
+                .send(value)
+                .map(|_| ())
+                .map_err(|_| ConcurrencyError::ChannelClosed.boxed()),
+            SenderInner::Watch(tx) => tx
+                .send(value)
+                .map_err(|_| ConcurrencyError::ChannelClosed.boxed()),
         }
     }
 
@@ -266,24 +282,23 @@ impl ChannelReceiver {
     /// Receives a value from the channel.
     pub async fn recv(&mut self) -> Result<Value> {
         match &mut self.inner {
-            ReceiverInner::Bounded(rx) => {
-                rx.recv().await
-                    .ok_or_else(|| ConcurrencyError::ChannelClosed.boxed())
-            }
-            ReceiverInner::Unbounded(rx) => {
-                rx.recv().await
-                    .ok_or_else(|| ConcurrencyError::ChannelClosed.boxed())
-            }
-            ReceiverInner::Broadcast(rx) => {
-                rx.recv().await
-                    .map_err(|e| match e {
-                        broadcast::error::RecvError::Closed => ConcurrencyError::ChannelClosed.into(),
-                        broadcast::error::RecvError::Lagged(n) => 
-                            Error::runtime_error(format!("Lagged behind by {n} messages"), None).into(),
-                    })
-            }
+            ReceiverInner::Bounded(rx) => rx
+                .recv()
+                .await
+                .ok_or_else(|| ConcurrencyError::ChannelClosed.boxed()),
+            ReceiverInner::Unbounded(rx) => rx
+                .recv()
+                .await
+                .ok_or_else(|| ConcurrencyError::ChannelClosed.boxed()),
+            ReceiverInner::Broadcast(rx) => rx.recv().await.map_err(|e| match e {
+                broadcast::error::RecvError::Closed => ConcurrencyError::ChannelClosed.into(),
+                broadcast::error::RecvError::Lagged(n) => {
+                    Error::runtime_error(format!("Lagged behind by {n} messages"), None).into()
+                }
+            }),
             ReceiverInner::Watch(rx) => {
-                rx.changed().await
+                rx.changed()
+                    .await
                     .map_err(|_| ConcurrencyError::ChannelClosed.boxed())?;
                 Ok(rx.borrow().clone())
             }
@@ -293,36 +308,38 @@ impl ChannelReceiver {
     /// Attempts to receive a value without blocking.
     pub fn try_recv(&mut self) -> Result<Value> {
         match &mut self.inner {
-            ReceiverInner::Bounded(rx) => {
-                rx.try_recv()
-                    .map_err(|e| match e {
-                        mpsc::error::TryRecvError::Empty => Error::runtime_error("Channel empty".to_string(), None).into(),
-                        mpsc::error::TryRecvError::Disconnected => ConcurrencyError::ChannelClosed.boxed(),
-                    })
-            }
-            ReceiverInner::Unbounded(rx) => {
-                rx.try_recv()
-                    .map_err(|e| match e {
-                        mpsc::error::TryRecvError::Empty => Error::runtime_error("Channel empty".to_string(), None).into(),
-                        mpsc::error::TryRecvError::Disconnected => ConcurrencyError::ChannelClosed.boxed(),
-                    })
-            }
-            ReceiverInner::Broadcast(rx) => {
-                rx.try_recv()
-                    .map_err(|e| match e {
-                        broadcast::error::TryRecvError::Empty => Error::runtime_error("Channel empty".to_string(), None).into(),
-                        broadcast::error::TryRecvError::Closed => ConcurrencyError::ChannelClosed.boxed(),
-                        broadcast::error::TryRecvError::Lagged(n) => 
-                            Error::runtime_error(format!("Lagged behind by {n} messages"), None).into(),
-                    })
-            }
-            ReceiverInner::Watch(rx) => {
-                match rx.has_changed() {
-                    Ok(true) => Ok(rx.borrow_and_update().clone()),
-                    Ok(false) => Err(Box::new(Error::runtime_error("No new value available".to_string(), None))),
-                    Err(e) => Err(Box::new(Error::runtime_error(format!("Watch receiver error: {e}"), None))),
+            ReceiverInner::Bounded(rx) => rx.try_recv().map_err(|e| match e {
+                mpsc::error::TryRecvError::Empty => {
+                    Error::runtime_error("Channel empty".to_string(), None).into()
                 }
-            }
+                mpsc::error::TryRecvError::Disconnected => ConcurrencyError::ChannelClosed.boxed(),
+            }),
+            ReceiverInner::Unbounded(rx) => rx.try_recv().map_err(|e| match e {
+                mpsc::error::TryRecvError::Empty => {
+                    Error::runtime_error("Channel empty".to_string(), None).into()
+                }
+                mpsc::error::TryRecvError::Disconnected => ConcurrencyError::ChannelClosed.boxed(),
+            }),
+            ReceiverInner::Broadcast(rx) => rx.try_recv().map_err(|e| match e {
+                broadcast::error::TryRecvError::Empty => {
+                    Error::runtime_error("Channel empty".to_string(), None).into()
+                }
+                broadcast::error::TryRecvError::Closed => ConcurrencyError::ChannelClosed.boxed(),
+                broadcast::error::TryRecvError::Lagged(n) => {
+                    Error::runtime_error(format!("Lagged behind by {n} messages"), None).into()
+                }
+            }),
+            ReceiverInner::Watch(rx) => match rx.has_changed() {
+                Ok(true) => Ok(rx.borrow_and_update().clone()),
+                Ok(false) => Err(Box::new(Error::runtime_error(
+                    "No new value available".to_string(),
+                    None,
+                ))),
+                Err(e) => Err(Box::new(Error::runtime_error(
+                    format!("Watch receiver error: {e}"),
+                    None,
+                ))),
+            },
         }
     }
 
@@ -364,7 +381,7 @@ impl Select {
                 value,
             ]))
         });
-        
+
         self.futures.push(SelectBranch { future, id });
         self
     }
@@ -379,7 +396,7 @@ impl Select {
                 Value::Unspecified,
             ]))
         });
-        
+
         self.futures.push(SelectBranch { future, id });
         self
     }
@@ -394,7 +411,7 @@ impl Select {
                 Value::Unspecified,
             ]))
         });
-        
+
         self.futures.push(SelectBranch { future, id });
         self
     }
@@ -402,13 +419,18 @@ impl Select {
     /// Executes the select operation.
     pub async fn execute(self) -> Result<Value> {
         if self.futures.is_empty() {
-            return Err(Box::new(Error::runtime_error("No operations in select".to_string(), None)))
+            return Err(Box::new(Error::runtime_error(
+                "No operations in select".to_string(),
+                None,
+            )));
         }
 
-        let futures: Vec<_> = self.futures.into_iter()
+        let futures: Vec<_> = self
+            .futures
+            .into_iter()
             .map(|branch| async move { branch.future.await_result().await }.boxed())
             .collect();
-        
+
         futures::future::select_all(futures).await.0
     }
 }
@@ -418,7 +440,6 @@ impl Default for Select {
         Self::new()
     }
 }
-
 
 /// Channel utilities and convenience functions.
 pub struct ChannelOps;
@@ -433,25 +454,30 @@ impl ChannelOps {
     }
 
     /// Creates a pipeline of channels connected by transformations.
-    pub fn pipeline(stages: Vec<Box<dyn Fn(Value) -> Result<Value> + Send + Sync>>) -> Result<(ChannelSender, Arc<tokio::sync::Mutex<ChannelReceiver>>)> {
+    pub fn pipeline(
+        stages: Vec<Box<dyn Fn(Value) -> Result<Value> + Send + Sync>>,
+    ) -> Result<(ChannelSender, Arc<tokio::sync::Mutex<ChannelReceiver>>)> {
         if stages.is_empty() {
-            return Err(Box::new(Error::runtime_error("Empty pipeline".to_string(), None)));
+            return Err(Box::new(Error::runtime_error(
+                "Empty pipeline".to_string(),
+                None,
+            )));
         }
 
         let first_channel = Channel::unbounded()?;
         let mut current_receiver = first_channel.receiver();
         let stages_len = stages.len();
-        
+
         for (i, stage) in stages.into_iter().enumerate() {
             if i == stages_len - 1 {
                 // Last stage - return the current receiver
                 break;
             }
-            
+
             let next_channel = Channel::unbounded()?;
             let next_sender = next_channel.sender();
             let next_receiver = next_channel.receiver();
-            
+
             // Spawn a task to process this stage
             tokio::spawn(async move {
                 loop {
@@ -471,10 +497,10 @@ impl ChannelOps {
                     }
                 }
             });
-            
+
             current_receiver = next_receiver;
         }
-        
+
         Ok((first_channel.sender(), current_receiver))
     }
 }

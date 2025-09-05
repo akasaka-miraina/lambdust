@@ -4,8 +4,8 @@
 //! - `make-parameter`: Create a new parameter object
 //! - Parameter objects are callable as procedures to get their current value
 
-use crate::eval::{Value, Parameter};
 use crate::diagnostics::Result;
+use crate::eval::{Parameter, Value};
 use std::collections::HashMap;
 
 /// Creates a new parameter with the given initial value and optional converter.
@@ -23,8 +23,8 @@ use std::collections::HashMap;
 /// (define my-param (make-parameter 42))
 /// (my-param) ; => 42
 ///
-/// (define validated-param (make-parameter 0 
-///   (lambda (x) 
+/// (define validated-param (make-parameter 0
+///   (lambda (x)
 ///     (if (number? x) x (error "Must be a number")))))
 /// ```
 pub fn make_parameter(args: &[Value]) -> Result<Value> {
@@ -41,7 +41,10 @@ pub fn make_parameter(args: &[Value]) -> Result<Value> {
             Ok(Value::parameter(param))
         }
         _ => Err(Box::new(crate::diagnostics::Error::runtime_error(
-            format!("make-parameter expects 1 or 2 arguments, got {}", args.len()),
+            format!(
+                "make-parameter expects 1 or 2 arguments, got {}",
+                args.len()
+            ),
             None,
         ))),
     }
@@ -57,7 +60,7 @@ pub fn is_parameter(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     Ok(Value::boolean(args[0].is_parameter()))
 }
 
@@ -94,19 +97,19 @@ pub fn process_parameter_bindings(
     mut evaluate_expr: impl FnMut(&crate::ast::Expr) -> Result<Value>,
 ) -> Result<HashMap<u64, Value>> {
     let mut runtime_bindings = HashMap::new();
-    
+
     for binding in bindings {
         // Evaluate the parameter expression
         let param_value = evaluate_expr(&binding.parameter.inner)?;
-        
+
         // Ensure it's actually a parameter
         if let Value::Parameter(param) = param_value {
             // Evaluate the value expression
             let value = evaluate_expr(&binding.value.inner)?;
-            
+
             // Apply converter if present
             let processed_value = param.apply_converter(value)?;
-            
+
             // Add to runtime bindings
             runtime_bindings.insert(param.id, processed_value);
         } else {
@@ -116,15 +119,15 @@ pub fn process_parameter_bindings(
             )));
         }
     }
-    
+
     Ok(runtime_bindings)
 }
 
 /// Installs parameter-related functions into the global environment.
 pub fn install_parameter_functions(env: &crate::eval::ThreadSafeEnvironment) {
-    use crate::eval::{PrimitiveProcedure, PrimitiveImpl};
+    use crate::eval::{PrimitiveImpl, PrimitiveProcedure};
     use std::sync::Arc;
-    
+
     // make-parameter
     let make_param_proc = PrimitiveProcedure {
         name: "make-parameter".to_string(),
@@ -133,8 +136,11 @@ pub fn install_parameter_functions(env: &crate::eval::ThreadSafeEnvironment) {
         implementation: PrimitiveImpl::RustFn(make_parameter),
         effects: vec![],
     };
-    env.define("make-parameter".to_string(), Value::Primitive(Arc::new(make_param_proc)));
-    
+    env.define(
+        "make-parameter".to_string(),
+        Value::Primitive(Arc::new(make_param_proc)),
+    );
+
     // parameter?
     let is_param_proc = PrimitiveProcedure {
         name: "parameter?".to_string(),
@@ -143,25 +149,28 @@ pub fn install_parameter_functions(env: &crate::eval::ThreadSafeEnvironment) {
         implementation: PrimitiveImpl::RustFn(is_parameter),
         effects: vec![],
     };
-    env.define("parameter?".to_string(), Value::Primitive(Arc::new(is_param_proc)));
+    env.define(
+        "parameter?".to_string(),
+        Value::Primitive(Arc::new(is_param_proc)),
+    );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::{Value, Parameter};
-    
+    use crate::eval::{Parameter, Value};
+
     #[test]
     fn test_make_parameter_basic() {
         let args = vec![Value::integer(42)];
         let result = make_parameter(&args).unwrap();
-        
+
         assert!(result.is_parameter());
         if let Value::Parameter(param) = result {
             assert_eq!(param.get().as_integer(), Some(42));
         }
     }
-    
+
     #[test]
     fn test_make_parameter_with_converter() {
         let args = vec![
@@ -169,48 +178,48 @@ mod tests {
             Value::integer(0), // placeholder converter
         ];
         let result = make_parameter(&args).unwrap();
-        
+
         assert!(result.is_parameter());
         if let Value::Parameter(param) = result {
             assert!(param.has_converter());
         }
     }
-    
+
     #[test]
     fn test_is_parameter() {
         let param = Parameter::new(Value::integer(42), None);
         let param_value = Value::parameter(param);
-        
+
         let args = vec![param_value];
         let result = is_parameter(&args).unwrap();
         assert_eq!(result, Value::boolean(true));
-        
+
         let args = vec![Value::integer(42)];
         let result = is_parameter(&args).unwrap();
         assert_eq!(result, Value::boolean(false));
     }
-    
+
     #[test]
     fn test_call_parameter() {
         let param = Parameter::new(Value::integer(42), None);
-        
+
         // Get current value (0 args)
         let result = call_parameter(&param, &[]).unwrap();
         assert_eq!(result.as_integer(), Some(42));
-        
+
         // Set new value (1 arg)
         let result = call_parameter(&param, &[Value::integer(100)]).unwrap();
         assert_eq!(result, Value::Unspecified);
-        
+
         // Verify new value
         let result = call_parameter(&param, &[]).unwrap();
         assert_eq!(result.as_integer(), Some(100));
     }
-    
+
     #[test]
     fn test_call_parameter_arity_error() {
         let param = Parameter::new(Value::integer(42), None);
-        
+
         // Too many arguments
         let result = call_parameter(&param, &[Value::integer(1), Value::integer(2)]);
         assert!(result.is_err());

@@ -2,7 +2,7 @@
 
 use crate::effects::Effect;
 use std::thread::ThreadId;
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 /// Transaction for coordinating effects.
 #[derive(Debug, Clone)]

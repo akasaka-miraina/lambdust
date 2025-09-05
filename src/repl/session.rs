@@ -2,13 +2,13 @@
 
 #![allow(dead_code, missing_docs)]
 
-use crate::{Result, Error};
+use crate::{Error, Result};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 
 /// Represents a saved REPL session
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,7 +154,12 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn add_command(&mut self, input: String, output: Option<String>, error: Option<String>) -> Result<()> {
+    pub fn add_command(
+        &mut self,
+        input: String,
+        output: Option<String>,
+        error: Option<String>,
+    ) -> Result<()> {
         if let Some(ref mut state) = self.current_state {
             let command = SessionCommand {
                 input,
@@ -170,7 +175,8 @@ impl SessionManager {
 
             // Auto-save if enabled and enough time has passed
             if state.auto_save_enabled {
-                let should_auto_save = state.last_save_time
+                let should_auto_save = state
+                    .last_save_time
                     .map(|last| last.elapsed() >= state.auto_save_interval)
                     .unwrap_or(true);
 
@@ -189,7 +195,7 @@ impl SessionManager {
                 let session_id = &state.current_session.id;
                 format!("{session_id}.json")
             });
-            
+
             let json = serde_json::to_string_pretty(&state.current_session)
                 .map_err(|e| Error::io_error(format!("Failed to serialize session: {e}")))?;
 
@@ -212,15 +218,18 @@ impl SessionManager {
         // Update available sessions info after borrow ends
         let session_file = {
             if let Some(ref state) = self.current_state {
-                Some((state.current_session.clone(), self.sessions_dir.join({
-                let session_id = &state.current_session.id;
-                format!("{session_id}.json")
-            })))
+                Some((
+                    state.current_session.clone(),
+                    self.sessions_dir.join({
+                        let session_id = &state.current_session.id;
+                        format!("{session_id}.json")
+                    }),
+                ))
             } else {
                 None
             }
         };
-        
+
         if let Some((session, file_path)) = session_file {
             self.update_session_info(&session, &file_path)?;
         }
@@ -234,7 +243,10 @@ impl SessionManager {
             state.current_session.modified_at = Utc::now();
             self.save_current_session()
         } else {
-            Err(Box::new(Error::runtime_error("No active session to save", None)))
+            Err(Box::new(Error::runtime_error(
+                "No active session to save",
+                None,
+            )))
         }
     }
 
@@ -249,7 +261,9 @@ impl SessionManager {
 
         let session_file = self.sessions_dir.join(format!("{session_id}.json"));
         if !session_file.exists() {
-            return Err(Box::new(Error::io_error(format!("Session file not found: {session_id}"))));
+            return Err(Box::new(Error::io_error(format!(
+                "Session file not found: {session_id}"
+            ))));
         }
 
         let content = fs::read_to_string(&session_file)
@@ -277,8 +291,10 @@ impl SessionManager {
         }
 
         println!("Available sessions:");
-        println!("{:<20} {:<30} {:<20} {:<10} {:<10}", 
-                 "ID", "Name", "Modified", "Commands", "Size");
+        println!(
+            "{:<20} {:<30} {:<20} {:<10} {:<10}",
+            "ID", "Name", "Modified", "Commands", "Size"
+        );
         println!("{}", "-".repeat(90));
 
         let mut sessions: Vec<_> = self.available_sessions.values().collect();
@@ -296,18 +312,26 @@ impl SessionManager {
                 format!("{size_mb}MB")
             };
 
-            println!("{:<20} {:<30} {:<20} {:<10} {:<10}",
-                     &session_info.id[..20.min(session_info.id.len())],
-                     &session_info.name[..30.min(session_info.name.len())],
-                     session_info.modified_at.format("%Y-%m-%d %H:%M:%S"),
-                     session_info.command_count,
-                     size_str);
+            println!(
+                "{:<20} {:<30} {:<20} {:<10} {:<10}",
+                &session_info.id[..20.min(session_info.id.len())],
+                &session_info.name[..30.min(session_info.name.len())],
+                session_info.modified_at.format("%Y-%m-%d %H:%M:%S"),
+                session_info.command_count,
+                size_str
+            );
         }
 
         if let Some(ref state) = self.current_state {
-            println!("\nCurrent session: {} ({})", 
-                     state.current_session.name,
-                     if state.unsaved_changes { "unsaved changes" } else { "saved" });
+            println!(
+                "\nCurrent session: {} ({})",
+                state.current_session.name,
+                if state.unsaved_changes {
+                    "unsaved changes"
+                } else {
+                    "saved"
+                }
+            );
         }
 
         Ok(())
@@ -326,18 +350,22 @@ impl SessionManager {
             println!("   Modified: {modified}");
             let command_count = session.commands.len();
             println!("   Commands: {command_count}");
-            let status = if state.unsaved_changes { "unsaved changes" } else { "saved" };
+            let status = if state.unsaved_changes {
+                "unsaved changes"
+            } else {
+                "saved"
+            };
             println!("   Status: {status}");
-            
+
             if let Some(ref desc) = session.metadata.description {
                 println!("   Description: {desc}");
             }
-            
+
             if !session.metadata.tags.is_empty() {
                 let tags = session.metadata.tags.join(", ");
                 println!("   Tags: {tags}");
             }
-            
+
             if !session.metadata.imports.is_empty() {
                 let imports = session.metadata.imports.join(", ");
                 println!("   Imports: {imports}");
@@ -363,10 +391,16 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn replay_session(&self, session_id: &str, start_from: Option<usize>) -> Result<Vec<String>> {
+    pub fn replay_session(
+        &self,
+        session_id: &str,
+        start_from: Option<usize>,
+    ) -> Result<Vec<String>> {
         let session_file = self.sessions_dir.join(format!("{session_id}.json"));
         if !session_file.exists() {
-            return Err(Box::new(Error::io_error(format!("Session file not found: {session_id}"))));
+            return Err(Box::new(Error::io_error(format!(
+                "Session file not found: {session_id}"
+            ))));
         }
 
         let content = fs::read_to_string(&session_file)
@@ -376,7 +410,8 @@ impl SessionManager {
             .map_err(|e| Error::io_error(format!("Failed to parse session file: {e}")))?;
 
         let start_index = start_from.unwrap_or(0);
-        let commands: Vec<String> = session.commands
+        let commands: Vec<String> = session
+            .commands
             .iter()
             .skip(start_index)
             .map(|cmd| cmd.input.clone())
@@ -401,7 +436,9 @@ impl SessionManager {
     pub fn export_session(&self, session_id: &str, output_path: &Path) -> Result<()> {
         let session_file = self.sessions_dir.join(format!("{session_id}.json"));
         if !session_file.exists() {
-            return Err(Box::new(Error::io_error(format!("Session file not found: {session_id}"))));
+            return Err(Box::new(Error::io_error(format!(
+                "Session file not found: {session_id}"
+            ))));
         }
 
         let content = fs::read_to_string(&session_file)
@@ -443,15 +480,15 @@ impl SessionManager {
             writeln!(output_file, ";; Command {command_num} - {timestamp}")?;
             let input = &command.input;
             writeln!(output_file, "{input}")?;
-            
+
             if let Some(ref output) = command.output {
                 writeln!(output_file, ";; => {output}")?;
             }
-            
+
             if let Some(ref error) = command.error {
                 writeln!(output_file, ";; Error: {error}")?;
             }
-            
+
             writeln!(output_file)?;
         }
 
@@ -462,15 +499,20 @@ impl SessionManager {
 
     pub fn delete_session(&mut self, session_id: &str) -> Result<()> {
         let session_file = self.sessions_dir.join(format!("{session_id}.json"));
-        
+
         if !session_file.exists() {
-            return Err(Box::new(Error::io_error(format!("Session file not found: {session_id}"))));
+            return Err(Box::new(Error::io_error(format!(
+                "Session file not found: {session_id}"
+            ))));
         }
 
         // Don't allow deleting the current session
         if let Some(ref state) = self.current_state {
             if state.current_session.id == session_id {
-                return Err(Box::new(Error::runtime_error("Cannot delete the current session", None)));
+                return Err(Box::new(Error::runtime_error(
+                    "Cannot delete the current session",
+                    None,
+                )));
             }
         }
 
@@ -493,12 +535,14 @@ impl SessionManager {
             .map_err(|e| Error::io_error(format!("Failed to read sessions directory: {e}")))?;
 
         for entry in entries {
-            let entry = entry.map_err(|e| Error::io_error(format!("Failed to read directory entry: {e}")))?;
+            let entry = entry
+                .map_err(|e| Error::io_error(format!("Failed to read directory entry: {e}")))?;
             let path = entry.path();
-            
+
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if let Ok(session_info) = self.load_session_info(&path) {
-                    self.available_sessions.insert(session_info.id.clone(), session_info);
+                    self.available_sessions
+                        .insert(session_info.id.clone(), session_info);
                 }
             }
         }
@@ -541,7 +585,8 @@ impl SessionManager {
             size_bytes: metadata.len(),
         };
 
-        self.available_sessions.insert(session.id.clone(), session_info);
+        self.available_sessions
+            .insert(session.id.clone(), session_info);
         Ok(())
     }
 
@@ -571,7 +616,13 @@ impl SessionManager {
 
     pub fn remove_session_tag(&mut self, tag: &str) -> Result<bool> {
         if let Some(ref mut state) = self.current_state {
-            if let Some(pos) = state.current_session.metadata.tags.iter().position(|t| t == tag) {
+            if let Some(pos) = state
+                .current_session
+                .metadata
+                .tags
+                .iter()
+                .position(|t| t == tag)
+            {
                 state.current_session.metadata.tags.remove(pos);
                 state.current_session.modified_at = Utc::now();
                 state.unsaved_changes = true;
@@ -585,11 +636,16 @@ impl SessionManager {
     }
 
     pub fn current_session_id(&self) -> Option<&str> {
-        self.current_state.as_ref().map(|state| state.current_session.id.as_str())
+        self.current_state
+            .as_ref()
+            .map(|state| state.current_session.id.as_str())
     }
 
     pub fn has_unsaved_changes(&self) -> bool {
-        self.current_state.as_ref().map(|state| state.unsaved_changes).unwrap_or(false)
+        self.current_state
+            .as_ref()
+            .map(|state| state.unsaved_changes)
+            .unwrap_or(false)
     }
 }
 
@@ -608,7 +664,7 @@ mod tests {
     fn test_session_creation() {
         let dir = tempdir().unwrap();
         let mut manager = SessionManager::with_sessions_dir(dir.path()).unwrap();
-        
+
         // Should start with a new session
         assert!(manager.current_state.is_some());
         assert!(manager.current_session_id().is_some());
@@ -618,15 +674,18 @@ mod tests {
     fn test_command_addition() -> Result<()> {
         let dir = tempdir().unwrap();
         let mut manager = SessionManager::with_sessions_dir(dir.path())?;
-        
+
         manager.add_command("(+ 1 2)".to_string(), Some("3".to_string()), None)?;
-        
+
         if let Some(ref state) = manager.current_state {
             assert_eq!(state.current_session.commands.len(), 1);
             assert_eq!(state.current_session.commands[0].input, "(+ 1 2)");
-            assert_eq!(state.current_session.commands[0].output, Some("3".to_string()));
+            assert_eq!(
+                state.current_session.commands[0].output,
+                Some("3".to_string())
+            );
         }
-        
+
         Ok(())
     }
 
@@ -634,25 +693,25 @@ mod tests {
     fn test_session_save_load() -> Result<()> {
         let dir = tempdir().unwrap();
         let mut manager = SessionManager::with_sessions_dir(dir.path())?;
-        
+
         manager.add_command("(define x 42)".to_string(), None, None)?;
         manager.add_command("x".to_string(), Some("42".to_string()), None)?;
-        
+
         let session_id = manager.current_session_id().unwrap().to_string();
         manager.save_current_session()?;
-        
+
         // Start a new session
         manager.start_new_session()?;
         assert!(manager.current_session_id() != Some(&session_id));
-        
+
         // Load the saved session
         manager.load_session(&session_id)?;
         assert_eq!(manager.current_session_id(), Some(session_id.as_str()));
-        
+
         if let Some(ref state) = manager.current_state {
             assert_eq!(state.current_session.commands.len(), 2);
         }
-        
+
         Ok(())
     }
 }

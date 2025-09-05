@@ -6,7 +6,7 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::ops::{Add, Sub, Mul, Div, Rem, Neg, Shl, Shr};
+use std::ops::{Add, Div, Mul, Neg, Rem, Shl, Shr, Sub};
 
 /// Arbitrary precision integer
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,10 +30,10 @@ impl BigInt {
 
         let positive = value >= 0;
         let abs_value = value.unsigned_abs();
-        
+
         let mut digits = Vec::new();
         let mut remaining = abs_value;
-        
+
         while remaining > 0 {
             digits.push((remaining & BASE_MASK) as u32);
             remaining >>= 32;
@@ -50,13 +50,16 @@ impl BigInt {
 
         let mut digits = Vec::new();
         let mut remaining = value;
-        
+
         while remaining > 0 {
             digits.push((remaining & BASE_MASK) as u32);
             remaining >>= 32;
         }
 
-        Self { digits, positive: true }
+        Self {
+            digits,
+            positive: true,
+        }
     }
 
     /// Creates a BigInt from a string in the given radix (2-36)
@@ -177,7 +180,7 @@ impl BigInt {
         for &digit in &self.digits {
             result += (digit as f64) * base_power;
             base_power *= BASE as f64;
-            
+
             if !result.is_finite() {
                 return None; // Overflow
             }
@@ -202,7 +205,7 @@ impl BigInt {
         while self.digits.last() == Some(&0) {
             self.digits.pop();
         }
-        
+
         if self.digits.is_empty() {
             self.positive = true; // Zero is positive
         }
@@ -234,7 +237,7 @@ impl BigInt {
             let a = self.digits.get(i).copied().unwrap_or(0) as u64;
             let b = other.digits.get(i).copied().unwrap_or(0) as u64;
             let sum = a + b + carry;
-            
+
             result.push((sum & BASE_MASK) as u32);
             carry = sum >> 32;
         }
@@ -260,7 +263,7 @@ impl BigInt {
             let a = self.digits[i] as i64;
             let b = other.digits.get(i).copied().unwrap_or(0) as i64;
             let diff = a - b - borrow;
-            
+
             if diff < 0 {
                 result.push((diff + BASE as i64) as u32);
                 borrow = 1;
@@ -462,7 +465,7 @@ impl BigInt {
         for _ in 0..rounds {
             let a = Self::from_i64(2); // Simplified witness selection
             let mut x = a.mod_exp(&d, self);
-            
+
             if x == Self::one() || x == n_minus_1 {
                 continue;
             }

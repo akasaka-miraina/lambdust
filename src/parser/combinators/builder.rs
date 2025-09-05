@@ -6,10 +6,10 @@
 //! - 再利用可能なパーサーテンプレート
 //! - 設定可能なパーサーファクトリー
 
-use super::types::*;
+use super::combinator::helpers::*;
 use super::combinator::*;
 use super::scheme::*;
-use super::combinator::helpers::*;
+use super::types::*;
 use crate::diagnostics::Span;
 use std::collections::HashMap;
 
@@ -62,62 +62,62 @@ impl<'a> ParserBuilder<'a> {
             error_messages: HashMap::new(),
         }
     }
-    
+
     /// エラー回復を有効化
     pub fn with_error_recovery(mut self) -> Self {
         self.error_recovery = true;
         self
     }
-    
+
     /// デバッグモードを有効化
     pub fn with_debug(mut self) -> Self {
         self.debug_mode = true;
         self
     }
-    
+
     /// カスタムエラーメッセージを追加
     pub fn with_error_message(mut self, context: String, message: String) -> Self {
         self.error_messages.insert(context, message);
         self
     }
-    
+
     /// 文字列リテラル解析を追加
     pub fn expect_string(mut self, expected: &'static str) -> Self {
         let parser = Box::new(StringLiteralParser::new(expected));
         self.parsers.push(parser);
         self
     }
-    
+
     /// 識別子解析を追加
     pub fn expect_identifier(mut self) -> Self {
         let parser = Box::new(IdentifierParser::new());
         self.parsers.push(parser);
         self
     }
-    
+
     /// 数値解析を追加
     pub fn expect_number(mut self) -> Self {
         let parser = Box::new(NumberParser::new());
         self.parsers.push(parser);
         self
     }
-    
+
     /// S式解析を追加
     pub fn expect_s_expression(mut self) -> Self {
         let parser = Box::new(SExpressionParserWrapper::new());
         self.parsers.push(parser);
         self
     }
-    
+
     /// 空白をスキップ
     pub fn skip_whitespace(mut self) -> Self {
         let parser = Box::new(WhitespaceSkipParser::new());
         self.parsers.push(parser);
         self
     }
-    
+
     /// オプショナル要素
-    pub fn maybe<T>(mut self, parser: T) -> Self 
+    pub fn maybe<T>(mut self, parser: T) -> Self
     where
         T: ParserCombinator<'a, ParsedValue<'a>> + 'static,
     {
@@ -125,7 +125,7 @@ impl<'a> ParserBuilder<'a> {
         self.parsers.push(parser);
         self
     }
-    
+
     /// 複数回の繰り返し
     pub fn repeat<T>(mut self, parser: T) -> Self
     where
@@ -135,12 +135,12 @@ impl<'a> ParserBuilder<'a> {
         self.parsers.push(parser);
         self
     }
-    
+
     /// パーサーを構築して実行
     pub fn build_and_parse(self, input: Input<'a>) -> ParseResult<'a, Vec<ParsedValue<'a>>> {
         let mut results = Vec::new();
         let mut remaining = input;
-        
+
         for parser in self.parsers {
             match parser.parse(remaining) {
                 Ok((new_remaining, value)) => {
@@ -163,12 +163,13 @@ impl<'a> ParserBuilder<'a> {
                 }
             }
         }
-        
+
         Ok((remaining, results))
     }
 }
 
 /// 文字列リテラルパーサー
+#[derive(Clone)]
 struct StringLiteralParser {
     expected: &'static str,
 }
@@ -182,9 +183,9 @@ impl StringLiteralParser {
 impl<'a> ParserCombinator<'a, ParsedValue<'a>> for StringLiteralParser {
     fn parse(&self, input: Input<'a>) -> ParseResult<'a, ParsedValue<'a>> {
         let parser = tag(self.expected);
-        parser.parse(input).map(|(remaining, matched)| {
-            (remaining, ParsedValue::String(matched))
-        })
+        parser
+            .parse(input)
+            .map(|(remaining, matched)| (remaining, ParsedValue::String(matched)))
     }
 }
 
@@ -200,9 +201,9 @@ impl IdentifierParser {
 impl<'a> ParserCombinator<'a, ParsedValue<'a>> for IdentifierParser {
     fn parse(&self, input: Input<'a>) -> ParseResult<'a, ParsedValue<'a>> {
         let parser = SchemeParser::symbol();
-        parser.parse(input).map(|(remaining, symbol)| {
-            (remaining, ParsedValue::String(symbol))
-        })
+        parser
+            .parse(input)
+            .map(|(remaining, symbol)| (remaining, ParsedValue::String(symbol)))
     }
 }
 
@@ -241,9 +242,9 @@ impl SExpressionParserWrapper {
 impl<'a> ParserCombinator<'a, ParsedValue<'a>> for SExpressionParserWrapper {
     fn parse(&self, input: Input<'a>) -> ParseResult<'a, ParsedValue<'a>> {
         let parser = SchemeParser::s_expression();
-        parser.parse(input).map(|(remaining, sexp)| {
-            (remaining, ParsedValue::SExpression(sexp))
-        })
+        parser
+            .parse(input)
+            .map(|(remaining, sexp)| (remaining, ParsedValue::SExpression(sexp)))
     }
 }
 
@@ -260,7 +261,10 @@ impl<'a> ParserCombinator<'a, ParsedValue<'a>> for WhitespaceSkipParser {
     fn parse(&self, input: Input<'a>) -> ParseResult<'a, ParsedValue<'a>> {
         let parser = SchemeParser::skip_whitespace_and_comments();
         parser.parse(input).map(|(remaining, _)| {
-            (remaining, ParsedValue::Raw("whitespace_skipped".to_string()))
+            (
+                remaining,
+                ParsedValue::Raw("whitespace_skipped".to_string()),
+            )
         })
     }
 }
@@ -306,12 +310,12 @@ where
     fn parse(&self, input: Input<'a>) -> ParseResult<'a, ParsedValue<'a>> {
         let mut results = Vec::new();
         let mut remaining = input;
-        
+
         while let Ok((new_remaining, value)) = self.inner.parse(remaining) {
             results.push(value);
             remaining = new_remaining;
         }
-        
+
         Ok((remaining, ParsedValue::List(results)))
     }
 }
@@ -324,12 +328,12 @@ impl ParserTemplates {
     pub fn scheme_function_definition<'a>() -> impl ParserCombinator<'a, ParsedValue<'a>> {
         FunctionDefinitionParser::new()
     }
-    
+
     /// Scheme変数定義パーサー
     pub fn scheme_variable_definition<'a>() -> impl ParserCombinator<'a, ParsedValue<'a>> {
         VariableDefinitionParser::new()
     }
-    
+
     /// Scheme条件式パーサー
     pub fn scheme_if_expression<'a>() -> impl ParserCombinator<'a, ParsedValue<'a>> {
         IfExpressionParser::new()
@@ -356,7 +360,7 @@ impl<'a> ParserCombinator<'a, ParsedValue<'a>> for FunctionDefinitionParser {
             .expect_string("(")
             .expect_identifier()
             .skip_whitespace();
-        
+
         // 簡略化された実装
         Ok((input, ParsedValue::Raw("function_definition".to_string())))
     }
@@ -418,21 +422,21 @@ macro_rules! scheme_parser {
 #[allow(unused_imports, dead_code)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_parser_builder_basic() {
         let builder = ParserBuilder::new()
             .expect_string("hello")
             .skip_whitespace()
             .expect_identifier();
-        
+
         let result = builder.build_and_parse("hello world");
         assert!(result.is_ok());
         let (remaining, values) = result.unwrap();
         assert_eq!(values.len(), 3); // hello, whitespace_skipped, world
         assert_eq!(values[0], ParsedValue::String("hello"));
     }
-    
+
     #[test]
     fn test_parser_builder_with_error_recovery() {
         let builder = ParserBuilder::new()
@@ -440,46 +444,46 @@ mod tests {
             .with_debug()
             .expect_string("missing")
             .expect_identifier();
-        
+
         let result = builder.build_and_parse("hello world");
         // エラー回復が有効なので、一部の失敗があっても続行
         assert!(result.is_ok() || result.is_err());
     }
-    
+
     #[test]
     fn test_number_parser() {
         let parser = NumberParser::new();
-        
+
         let result = parser.parse("123");
         assert!(result.is_ok());
         let (remaining, value) = result.unwrap();
         assert_eq!(remaining, "");
         assert_eq!(value, ParsedValue::Integer(123));
     }
-    
+
     #[test]
     fn test_identifier_parser() {
         let parser = IdentifierParser::new();
-        
+
         let result = parser.parse("hello-world");
         assert!(result.is_ok());
         let (remaining, value) = result.unwrap();
         assert_eq!(remaining, "");
         assert_eq!(value, ParsedValue::String("hello-world"));
     }
-    
+
     #[test]
     fn test_optional_parser() {
         let inner = StringLiteralParser::new("optional");
         let parser = OptionalParser::new(inner);
-        
+
         // 存在する場合
         let result = parser.parse("optional");
         assert!(result.is_ok());
         let (remaining, value) = result.unwrap();
         assert_eq!(remaining, "");
         assert_eq!(value, ParsedValue::String("optional"));
-        
+
         // 存在しない場合
         let result = parser.parse("something_else");
         assert!(result.is_ok());
@@ -487,12 +491,12 @@ mod tests {
         assert_eq!(remaining, "something_else");
         assert_eq!(value, ParsedValue::Raw("none".to_string()));
     }
-    
+
     #[test]
     fn test_repeat_parser() {
         let inner = StringLiteralParser::new("a");
         let parser = RepeatParser::new(inner);
-        
+
         let result = parser.parse("aaab");
         assert!(result.is_ok());
         let (remaining, value) = result.unwrap();
@@ -506,7 +510,7 @@ mod tests {
             panic!("Expected list value");
         }
     }
-    
+
     #[test]
     fn test_scheme_parser_macro() {
         // マクロのテスト（概念実証）

@@ -4,15 +4,18 @@
 //! seamlessly with the parallel garbage collector while preserving complete
 //! stack trace information and maintaining R7RS call/cc semantics.
 
-use crate::utils::{GcIntegration, GcIntegrationConfig};
-use crate::utils::gc::{ObjectId, gc_alloc, GcObject, GenerationId};
+use crate::ast::Expr;
+use crate::diagnostics::{Error, Result, Span, Spanned};
 use crate::eval::{
-    Value, ThreadSafeEnvironment, Continuation, Frame, StackTrace, StackFrame, FrameType
+    Continuation, Frame, FrameType, StackFrame, StackTrace, ThreadSafeEnvironment, Value,
 };
-use crate::ast::{Expr};
-use crate::diagnostics::{Result, Error, Span, Spanned};
-use std::sync::{Arc, RwLock, Mutex, atomic::{AtomicBool, AtomicU64, AtomicU32, Ordering}};
+use crate::utils::gc::{GcObject, GenerationId, ObjectId, gc_alloc};
+use crate::utils::{GcIntegration, GcIntegrationConfig};
 use std::collections::HashMap;
+use std::sync::{
+    Arc, Mutex, RwLock,
+    atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
+};
 use std::time::Instant;
 
 /// GC-aware continuation manager that handles continuation capture and invocation
@@ -151,13 +154,8 @@ pub struct CaptureMetadata {
 
 impl GcContinuationManager {
     /// Creates a new GC-aware continuation manager.
-    pub fn new(
-        gc_integration: Arc<GcIntegration>,
-        config: GcContinuationConfig,
-    ) -> Self {
-        let stack_trace_manager = Arc::new(StackTraceManager::new(
-            StackTraceConfig::default()
-        ));
+    pub fn new(gc_integration: Arc<GcIntegration>, config: GcContinuationConfig) -> Self {
+        let stack_trace_manager = Arc::new(StackTraceManager::new(StackTraceConfig::default()));
 
         Self {
             gc_integration,
@@ -182,10 +180,10 @@ impl GcContinuationManager {
         current_stack_trace: Option<StackTrace>,
     ) -> Result<Arc<Continuation>> {
         let continuation_id = self.next_continuation_id.fetch_add(1, Ordering::SeqCst);
-        
+
         // Create environment capture info
         let environment_info = self.capture_environment_info(&environment)?;
-        
+
         // Create capture metadata
         let capture_metadata = CaptureMetadata {
             captured_at: Instant::now(),
@@ -216,10 +214,10 @@ impl GcContinuationManager {
             let wrapper = ContinuationGcWrapper::new(continuation_data);
             let gc_ptr = gc_alloc(wrapper);
             let object_id = gc_ptr.id();
-            
+
             // Register with GC integration
             self.gc_integration.register_continuation_root(object_id);
-            
+
             Some(object_id)
         } else {
             None
@@ -228,7 +226,8 @@ impl GcContinuationManager {
         // Preserve stack trace if configured
         if self.config.preserve_stack_traces {
             if let Some(ref trace) = current_stack_trace {
-                self.stack_trace_manager.preserve_trace(continuation_id, trace.clone())?;
+                self.stack_trace_manager
+                    .preserve_trace(continuation_id, trace.clone())?;
             }
         }
 
@@ -259,7 +258,7 @@ impl GcContinuationManager {
         let continuation_id = continuation.id;
 
         // Check if continuation is still active
-        if let Ok(registry) = self.continuation_registry.read() {
+        if let Ok(registry) = self.continuation_registry.try_read() {
             if let Some(entry) = registry.get(&continuation_id) {
                 if !entry.active.load(Ordering::SeqCst) {
                     return Err(Box::new(Error::runtime_error(
@@ -280,14 +279,17 @@ impl GcContinuationManager {
 
         // Restore stack trace if preserved
         if self.config.preserve_stack_traces {
-            if let Some(preserved_trace) = self.stack_trace_manager.get_preserved_trace(continuation_id) {
+            if let Some(preserved_trace) = self
+                .stack_trace_manager
+                .get_preserved_trace(continuation_id)
+            {
                 // The actual restoration would be handled by the evaluator
                 // This is just the retrieval mechanism
             }
         }
 
         // Mark continuation as inactive
-        if let Ok(registry) = self.continuation_registry.read() {
+        if let Ok(registry) = self.continuation_registry.try_read() {
             if let Some(entry) = registry.get(&continuation_id) {
                 entry.active.store(false, Ordering::SeqCst);
             }
@@ -304,12 +306,14 @@ impl GcContinuationManager {
             if let Some(entry) = registry.remove(&continuation_id) {
                 // Unregister from GC if it was tracked
                 if let Some(gc_object_id) = entry.gc_object_id {
-                    self.gc_integration.unregister_continuation_root(gc_object_id);
+                    self.gc_integration
+                        .unregister_continuation_root(gc_object_id);
                 }
-                
+
                 // Clean up preserved stack trace
                 if self.config.preserve_stack_traces {
-                    self.stack_trace_manager.remove_preserved_trace(continuation_id);
+                    self.stack_trace_manager
+                        .remove_preserved_trace(continuation_id);
                 }
             }
         }
@@ -329,7 +333,7 @@ impl GcContinuationManager {
         let mut current_env = Some(env.clone());
         while let Some(env) = current_env {
             environment_chain.push(env.clone());
-            
+
             // Capture variable bindings for GC root scanning
             let var_names = env.all_variable_names();
             for var_name in var_names {
@@ -337,7 +341,7 @@ impl GcContinuationManager {
                     binding_snapshot.insert(var_name, value);
                 }
             }
-            
+
             current_env = env.parent().cloned();
         }
 
@@ -362,15 +366,16 @@ impl GcContinuationManager {
 
     /// Gets statistics about active continuations.
     pub fn get_continuation_statistics(&self) -> ContinuationStatistics {
-        let active_count = if let Ok(registry) = self.continuation_registry.read() {
-            registry.values()
+        let active_count = if let Ok(registry) = self.continuation_registry.try_read() {
+            registry
+                .values()
                 .filter(|entry| entry.active.load(Ordering::SeqCst))
                 .count()
         } else {
             0
         };
 
-        let total_count = if let Ok(registry) = self.continuation_registry.read() {
+        let total_count = if let Ok(registry) = self.continuation_registry.try_read() {
             registry.len()
         } else {
             0
@@ -388,8 +393,9 @@ impl GcContinuationManager {
 
     /// Counts the number of GC-tracked continuations.
     fn count_gc_tracked_continuations(&self) -> usize {
-        if let Ok(registry) = self.continuation_registry.read() {
-            registry.values()
+        if let Ok(registry) = self.continuation_registry.try_read() {
+            registry
+                .values()
                 .filter(|entry| entry.gc_object_id.is_some())
                 .count()
         } else {
@@ -424,7 +430,7 @@ impl StackTraceManager {
 
         if let Ok(mut traces) = self.preserved_traces.write() {
             traces.insert(continuation_id, preserved_trace);
-            
+
             // Clean up old traces if we exceed the limit
             if traces.len() > self.config.max_preserved_traces {
                 self.cleanup_old_traces(&mut traces);
@@ -436,7 +442,7 @@ impl StackTraceManager {
 
     /// Gets a preserved stack trace.
     pub fn get_preserved_trace(&self, continuation_id: u64) -> Option<PreservedStackTrace> {
-        if let Ok(traces) = self.preserved_traces.read() {
+        if let Ok(traces) = self.preserved_traces.try_read() {
             traces.get(&continuation_id).cloned()
         } else {
             None
@@ -452,7 +458,7 @@ impl StackTraceManager {
 
     /// Gets the count of preserved traces.
     pub fn preserved_trace_count(&self) -> usize {
-        if let Ok(traces) = self.preserved_traces.read() {
+        if let Ok(traces) = self.preserved_traces.try_read() {
             traces.len()
         } else {
             0
@@ -468,10 +474,10 @@ impl StackTraceManager {
         // Sort by age and remove oldest traces
         let mut entries: Vec<_> = traces.iter().map(|(k, v)| (*k, v.preserved_at)).collect();
         entries.sort_by_key(|(_, time)| *time);
-        
+
         let to_remove = traces.len() - self.config.max_preserved_traces;
         let ids_to_remove: Vec<_> = entries.iter().take(to_remove).map(|(id, _)| *id).collect();
-        
+
         for id in ids_to_remove {
             traces.remove(&id);
         }
@@ -528,6 +534,10 @@ impl GcObject for ContinuationGcWrapper {
         let env_size = 512; // Estimated environment overhead
         base_size + frame_size + env_size
     }
+    
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 /// Statistics about continuation usage.
@@ -568,15 +578,15 @@ impl Default for StackTraceConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::GcIntegration;
-    use crate::eval::value::{ThreadSafeEnvironment, Value, Frame};
     use crate::diagnostics::Span;
+    use crate::eval::value::{Frame, ThreadSafeEnvironment, Value};
+    use crate::utils::GcIntegration;
 
     #[test]
     fn test_continuation_manager_creation() {
         let gc_integration = Arc::new(GcIntegration::with_default_config());
         let manager = GcContinuationManager::with_default_config(gc_integration);
-        
+
         let stats = manager.get_continuation_statistics();
         assert_eq!(stats.active_continuations, 0);
         assert_eq!(stats.total_continuations, 0);
@@ -586,13 +596,13 @@ mod tests {
     fn test_continuation_capture() {
         let gc_integration = Arc::new(GcIntegration::with_default_config());
         let manager = GcContinuationManager::with_default_config(gc_integration);
-        
+
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         let frames = Vec::new();
-        
+
         let result = manager.capture_continuation(frames, env, None, None);
         assert!(result.is_ok());
-        
+
         let stats = manager.get_continuation_statistics();
         assert_eq!(stats.active_continuations, 1);
         assert_eq!(stats.total_continuations, 1);
@@ -602,16 +612,16 @@ mod tests {
     fn test_stack_trace_preservation() {
         let gc_integration = Arc::new(GcIntegration::with_default_config());
         let manager = GcContinuationManager::with_default_config(gc_integration);
-        
+
         let mut stack_trace = StackTrace::new();
         stack_trace.push(StackFrame::top_level(None));
-        
+
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         let frames = Vec::new();
-        
+
         let result = manager.capture_continuation(frames, env, None, Some(stack_trace));
         assert!(result.is_ok());
-        
+
         let stats = manager.get_continuation_statistics();
         assert_eq!(stats.preserved_stack_traces, 1);
     }
@@ -620,16 +630,18 @@ mod tests {
     fn test_continuation_cleanup() {
         let gc_integration = Arc::new(GcIntegration::with_default_config());
         let manager = GcContinuationManager::with_default_config(gc_integration);
-        
+
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         let frames = Vec::new();
-        
-        let continuation = manager.capture_continuation(frames, env, None, None).unwrap();
+
+        let continuation = manager
+            .capture_continuation(frames, env, None, None)
+            .unwrap();
         let continuation_id = continuation.id;
-        
+
         let cleanup_result = manager.cleanup_continuation(continuation_id);
         assert!(cleanup_result.is_ok());
-        
+
         let stats = manager.get_continuation_statistics();
         assert_eq!(stats.active_continuations, 0);
     }

@@ -1,0 +1,553 @@
+//! SRFI-13 Optimization Benchmarks
+//!
+//! These benchmarks validate the performance targets set by the cs-architect:
+//! - String search: 4-16x speedup
+//! - String construction: 5-10x speedup  
+//! - Character operations: 8-16x speedup
+//! - Cache performance: 95%+ hit rates
+
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use lambdust::stdlib::strings::{
+    srfi13_arena_builder::{ArenaStringBuilder, OptimizationHint},
+    srfi13_cache_optimizer::CacheOptimizedStringOps,
+    srfi13_optimized_search::{AdaptiveStringSearch, SIMDScanner},
+    srfi13_simd_chars::SIMDCharacterOps,
+};
+use std::collections::HashMap;
+
+// ============= BENCHMARK DATA =============
+
+fn generate_test_data() -> (Vec<String>, Vec<String>, Vec<char>) {
+    let short_strings: Vec<String> = (0..1000).map(|i| format!("short_string_{}", i)).collect();
+
+    let long_strings: Vec<String> = (0..100)
+        .map(|i| format!("This is a much longer string for testing purposes number {} with various characters and patterns", i))
+        .collect();
+
+    let test_chars: Vec<char> = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        .chars()
+        .collect();
+
+    (short_strings, long_strings, test_chars)
+}
+
+fn generate_large_text(size: usize) -> String {
+    let base = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ";
+    base.repeat(size / base.len() + 1)[..size].to_string()
+}
+
+fn generate_patterns() -> Vec<String> {
+    vec![
+        "a".to_string(),                                                       // Single char
+        "the".to_string(),                                                     // Short pattern
+        "consectetur".to_string(),                                             // Medium pattern
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit".to_string(), // Long pattern
+    ]
+}
+
+// ============= STRING SEARCH BENCHMARKS =============
+
+fn benchmark_string_search_algorithms(c: &mut Criterion) {
+    let mut group = c.benchmark_group("string_search_comparison");
+
+    let text_sizes = vec![1000, 5000, 10000, 50000];
+    let patterns = generate_patterns();
+
+    for &size in &text_sizes {
+        let text = generate_large_text(size);
+
+        for pattern in &patterns {
+            let pattern_type = match pattern.len() {
+                1 => "single_char",
+                2..=4 => "short_pattern",
+                5..=16 => "medium_pattern",
+                _ => "long_pattern",
+            };
+
+            // Baseline: Standard Rust string search
+            group.bench_with_input(
+                BenchmarkId::new(format!("baseline_{}", pattern_type), size),
+                &(&text, pattern),
+                |b, &(text, pattern)| {
+                    b.iter(|| black_box(text.find(pattern)));
+                },
+            );
+
+            // Optimized: Adaptive search algorithm
+            group.bench_with_input(
+                BenchmarkId::new(format!("optimized_{}", pattern_type), size),
+                &(&text, pattern),
+                |b, &(text, pattern)| {
+                    let search = AdaptiveStringSearch::new();
+                    b.iter(|| black_box(search.optimized_string_contains(text, pattern)));
+                },
+            );
+        }
+    }
+
+    group.finish();
+}
+
+fn benchmark_simd_character_search(c: &mut Criterion) {
+    let mut group = c.benchmark_group("simd_character_search");
+
+    let text_sizes = vec![1000, 5000, 10000];
+    let target_chars = vec!['a', 'z', 'A', 'Z', '0', '9'];
+
+    for &size in &text_sizes {
+        let text = generate_large_text(size);
+
+        for &target_char in &target_chars {
+            // Baseline: Standard character search
+            group.bench_with_input(
+                BenchmarkId::new("baseline_char_search", size),
+                &(&text, target_char),
+                |b, &(text, target_char)| {
+                    b.iter(|| black_box(text.find(target_char)));
+                },
+            );
+
+            // SIMD-optimized character search
+            group.bench_with_input(
+                BenchmarkId::new("simd_char_search", size),
+                &(&text, target_char),
+                |b, &(text, target_char)| {
+                    let scanner = SIMDScanner::new();
+                    b.iter(|| black_box(scanner.find_char(text, target_char)));
+                },
+            );
+        }
+    }
+
+    group.finish();
+}
+
+// ============= CHARACTER PROCESSING BENCHMARKS =============
+
+fn benchmark_character_operations(c: &mut Criterion) {
+    let mut group = c.benchmark_group("character_operations");
+
+    let text_sizes = vec![1000, 5000, 10000];
+
+    for &size in &text_sizes {
+        let text = generate_large_text(size);
+
+        // Case conversion benchmarks
+        group.bench_with_input(
+            BenchmarkId::new("baseline_to_uppercase", size),
+            &text,
+            |b, text| {
+                b.iter(|| black_box(text.to_uppercase()));
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("simd_to_uppercase", size),
+            &text,
+            |b, text| {
+                let ops = SIMDCharacterOps::new();
+                b.iter(|| {
+                    black_box(ops.simd_case_conversion(
+                        text,
+                        lambdust::stdlib::strings::srfi13_simd_chars::CaseConversion::ToUpper,
+                    ))
+                });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("baseline_to_lowercase", size),
+            &text,
+            |b, text| {
+                b.iter(|| black_box(text.to_lowercase()));
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("simd_to_lowercase", size),
+            &text,
+            |b, text| {
+                let ops = SIMDCharacterOps::new();
+                b.iter(|| {
+                    black_box(ops.simd_case_conversion(
+                        text,
+                        lambdust::stdlib::strings::srfi13_simd_chars::CaseConversion::ToLower,
+                    ))
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+fn benchmark_character_classification(c: &mut Criterion) {
+    let mut group = c.benchmark_group("character_classification");
+
+    let text_sizes = vec![1000, 5000, 10000];
+
+    for &size in &text_sizes {
+        let text = generate_large_text(size);
+
+        // Baseline: Standard character classification
+        group.bench_with_input(
+            BenchmarkId::new("baseline_is_alphabetic", size),
+            &text,
+            |b, text| {
+                b.iter(|| {
+                    let result: Vec<bool> = text.chars().map(|c| c.is_alphabetic()).collect();
+                    black_box(result)
+                });
+            },
+        );
+
+        // SIMD character classification
+        group.bench_with_input(
+            BenchmarkId::new("simd_is_alphabetic", size),
+            &text,
+            |b, text| {
+                let ops = SIMDCharacterOps::new();
+                b.iter(|| {
+                    let result = ops.simd_character_classification(
+                        text,
+                        lambdust::stdlib::strings::srfi13_simd_chars::CharacterClass::Alphabetic,
+                    );
+                    black_box(result)
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// ============= STRING CONSTRUCTION BENCHMARKS =============
+
+fn benchmark_string_construction(c: &mut Criterion) {
+    let mut group = c.benchmark_group("string_construction");
+
+    let (short_strings, long_strings, _) = generate_test_data();
+
+    // String concatenation benchmarks
+    let concat_sizes = vec![10, 50, 100, 500];
+
+    for &size in &concat_sizes {
+        let strings: Vec<&str> = short_strings[..size].iter().map(|s| s.as_str()).collect();
+
+        // Baseline: Standard concatenation
+        group.bench_with_input(
+            BenchmarkId::new("baseline_concat", size),
+            &strings,
+            |b, strings| {
+                b.iter(|| {
+                    let result = strings.join("");
+                    black_box(result)
+                });
+            },
+        );
+
+        // Arena-optimized concatenation
+        group.bench_with_input(
+            BenchmarkId::new("arena_concat", size),
+            &strings,
+            |b, strings| {
+                b.iter(|| {
+                    let mut builder = ArenaStringBuilder::new(OptimizationHint::BatchProcessing);
+                    let result = builder.concatenate_with_simd(strings).unwrap();
+                    black_box(result)
+                });
+            },
+        );
+    }
+
+    // String repetition benchmarks
+    let repeat_counts = vec![10, 100, 1000];
+    let pattern = "test_pattern";
+
+    for &count in &repeat_counts {
+        // Baseline: Standard repetition
+        group.bench_with_input(
+            BenchmarkId::new("baseline_repeat", count),
+            &(pattern, count),
+            |b, &(pattern, count)| {
+                b.iter(|| black_box(pattern.repeat(count)));
+            },
+        );
+
+        // Arena-optimized repetition
+        group.bench_with_input(
+            BenchmarkId::new("arena_repeat", count),
+            &(pattern, count),
+            |b, &(pattern, count)| {
+                let mut builder = ArenaStringBuilder::new(OptimizationHint::SingleConcat);
+                b.iter(|| {
+                    let result = builder.repeat_pattern(pattern, count).unwrap();
+                    black_box(result)
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+fn benchmark_string_join(c: &mut Criterion) {
+    let mut group = c.benchmark_group("string_join");
+
+    let (short_strings, _, _) = generate_test_data();
+    let separators = vec![",", ", ", " | ", " -> "];
+    let join_sizes = vec![10, 50, 100, 200];
+
+    for &size in &join_sizes {
+        let strings: Vec<&str> = short_strings[..size].iter().map(|s| s.as_str()).collect();
+
+        for separator in &separators {
+            // Baseline: Standard join
+            group.bench_with_input(
+                BenchmarkId::new(format!("baseline_join_sep{}", separator.len()), size),
+                &(&strings, separator),
+                |b, &(strings, separator)| {
+                    b.iter(|| black_box(strings.join(separator)));
+                },
+            );
+
+            // Arena-optimized join
+            group.bench_with_input(
+                BenchmarkId::new(format!("arena_join_sep{}", separator.len()), size),
+                &(&strings, separator),
+                |b, &(strings, separator)| {
+                    let mut builder = ArenaStringBuilder::new(OptimizationHint::BatchProcessing);
+                    b.iter(|| {
+                        let result = builder.join_with_separator(strings, separator).unwrap();
+                        black_box(result)
+                    });
+                },
+            );
+        }
+    }
+
+    group.finish();
+}
+
+// ============= CACHE OPTIMIZATION BENCHMARKS =============
+
+fn benchmark_cache_optimized_operations(c: &mut Criterion) {
+    let mut group = c.benchmark_group("cache_optimized_operations");
+
+    let text_sizes = vec![1000, 5000, 10000];
+
+    for &size in &text_sizes {
+        let text = generate_large_text(size);
+        let target_char = 'e';
+
+        // Sequential access pattern (best case for cache)
+        group.bench_with_input(
+            BenchmarkId::new("baseline_sequential_search", size),
+            &(&text, target_char),
+            |b, &(text, target_char)| {
+                b.iter(|| {
+                    // Simulate sequential character access
+                    let mut count = 0;
+                    for ch in text.chars() {
+                        if ch == target_char {
+                            count += 1;
+                        }
+                    }
+                    black_box(count)
+                });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("cache_optimized_sequential", size),
+            &(&text, target_char),
+            |b, &(text, target_char)| {
+                let mut ops = CacheOptimizedStringOps::new();
+                b.iter(|| {
+                    let result = ops.cache_optimized_char_search(text, target_char);
+                    black_box(result)
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+fn benchmark_string_comparison(c: &mut Criterion) {
+    let mut group = c.benchmark_group("string_comparison");
+
+    let (_, long_strings, _) = generate_test_data();
+    let comparison_pairs: Vec<(&str, &str)> = long_strings
+        .windows(2)
+        .map(|pair| (pair[0].as_str(), pair[1].as_str()))
+        .take(50)
+        .collect();
+
+    // Baseline string comparison
+    group.bench_function("baseline_string_compare", |b| {
+        b.iter(|| {
+            for &(s1, s2) in &comparison_pairs {
+                black_box(s1.cmp(s2));
+            }
+        });
+    });
+
+    // Cache-optimized string comparison
+    group.bench_function("cache_optimized_compare", |b| {
+        let mut ops = CacheOptimizedStringOps::new();
+        b.iter(|| {
+            for &(s1, s2) in &comparison_pairs {
+                black_box(ops.cache_optimized_string_compare(s1, s2));
+            }
+        });
+    });
+
+    group.finish();
+}
+
+// ============= COMPREHENSIVE PERFORMANCE VALIDATION =============
+
+fn benchmark_comprehensive_performance(c: &mut Criterion) {
+    let mut group = c.benchmark_group("comprehensive_performance");
+
+    // Test realistic workloads combining multiple operations
+    let text = generate_large_text(10000);
+    let patterns = generate_patterns();
+    let words: Vec<&str> = text.split_whitespace().collect();
+
+    // Realistic workload: Search + Transform + Concatenate
+    group.bench_function("baseline_comprehensive", |b| {
+        b.iter(|| {
+            // Search phase
+            let mut search_results = Vec::new();
+            for pattern in &patterns {
+                if let Some(pos) = text.find(pattern) {
+                    search_results.push(pos);
+                }
+            }
+
+            // Transform phase
+            let uppercase_words: Vec<String> = words.iter().map(|w| w.to_uppercase()).collect();
+
+            // Construction phase
+            let result = uppercase_words.join(" ");
+
+            black_box((search_results, result))
+        });
+    });
+
+    group.bench_function("optimized_comprehensive", |b| {
+        b.iter(|| {
+            // Optimized search phase
+            let search = AdaptiveStringSearch::new();
+            let mut search_results = Vec::new();
+            for pattern in &patterns {
+                if let Some(pos) = search.optimized_string_contains(&text, pattern) {
+                    search_results.push(pos);
+                }
+            }
+
+            // Optimized transform phase
+            let ops = SIMDCharacterOps::new();
+            let uppercase_words: Vec<String> = words
+                .iter()
+                .map(|w| {
+                    ops.simd_case_conversion(
+                        w,
+                        lambdust::stdlib::strings::srfi13_simd_chars::CaseConversion::ToUpper,
+                    )
+                })
+                .collect();
+
+            // Optimized construction phase
+            let word_refs: Vec<&str> = uppercase_words.iter().map(|s| s.as_str()).collect();
+            let mut builder = ArenaStringBuilder::new(OptimizationHint::BatchProcessing);
+            let result = builder.join_with_separator(&word_refs, " ").unwrap();
+
+            black_box((search_results, result))
+        });
+    });
+
+    group.finish();
+}
+
+// ============= MEMORY EFFICIENCY BENCHMARKS =============
+
+fn benchmark_memory_efficiency(c: &mut Criterion) {
+    let mut group = c.benchmark_group("memory_efficiency");
+
+    // Arena allocation efficiency
+    let construction_sizes = vec![100, 500, 1000];
+
+    for &size in &construction_sizes {
+        let strings: Vec<String> = (0..size).map(|i| format!("string_number_{}", i)).collect();
+        let string_refs: Vec<&str> = strings.iter().map(|s| s.as_str()).collect();
+
+        group.bench_with_input(
+            BenchmarkId::new("memory_baseline_concat", size),
+            &string_refs,
+            |b, strings| {
+                b.iter(|| {
+                    let result = strings.join("");
+                    black_box(result)
+                });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("memory_arena_concat", size),
+            &string_refs,
+            |b, strings| {
+                b.iter(|| {
+                    let mut builder = ArenaStringBuilder::new(OptimizationHint::BatchProcessing);
+                    let result = builder.concatenate_with_simd(strings).unwrap();
+                    let (used, capacity) = builder.memory_stats();
+                    black_box((result, used, capacity))
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// ============= BENCHMARK GROUPS =============
+
+criterion_group!(
+    string_search_benches,
+    benchmark_string_search_algorithms,
+    benchmark_simd_character_search
+);
+
+criterion_group!(
+    character_processing_benches,
+    benchmark_character_operations,
+    benchmark_character_classification
+);
+
+criterion_group!(
+    string_construction_benches,
+    benchmark_string_construction,
+    benchmark_string_join
+);
+
+criterion_group!(
+    cache_optimization_benches,
+    benchmark_cache_optimized_operations,
+    benchmark_string_comparison
+);
+
+criterion_group!(
+    comprehensive_benches,
+    benchmark_comprehensive_performance,
+    benchmark_memory_efficiency
+);
+
+criterion_main!(
+    string_search_benches,
+    character_processing_benches,
+    string_construction_benches,
+    cache_optimization_benches,
+    comprehensive_benches
+);

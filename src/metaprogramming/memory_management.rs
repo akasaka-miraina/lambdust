@@ -69,10 +69,10 @@ impl MemoryManager {
     pub fn collect_garbage(&self) -> crate::diagnostics::Result<usize> {
         // Placeholder implementation - would integrate with actual GC
         let collected = 1024; // Mock collected bytes
-        
+
         // Update usage tracking would go here
         // self.usage_tracker.record_collection(collected);
-        
+
         Ok(collected)
     }
 
@@ -114,7 +114,7 @@ impl MemoryManager {
     /// Updates memory usage.
     pub fn update_usage(&mut self, usage: usize) {
         *self.usage_tracker.current_usage.write().unwrap() = usage;
-        
+
         if usage > self.usage_tracker.peak_usage {
             self.usage_tracker.peak_usage = usage;
         }
@@ -143,7 +143,12 @@ impl MemoryManager {
             return None;
         }
 
-        let total: usize = self.usage_tracker.usage_history.iter().map(|p| p.usage).sum();
+        let total: usize = self
+            .usage_tracker
+            .usage_history
+            .iter()
+            .map(|p| p.usage)
+            .sum();
         Some(total as f64 / self.usage_tracker.usage_history.len() as f64)
     }
 

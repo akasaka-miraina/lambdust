@@ -1,21 +1,27 @@
+#![allow(missing_docs)]
 //! Lambdust Command-Line Interface
 //!
 //! This binary provides a REPL and file execution capabilities for the Lambdust language.
 
-use lambdust::{Lambdust, Error, Result};
-use lambdust::cli::{LightweightCli, ArgDef, CliError};
-use lambdust::runtime::{BootstrapIntegrationConfig, BootstrapMode, LibraryPathResolver, LibraryPathConfig};
+use lambdust::cli::{ArgDef, CliError, LightweightCli};
+use lambdust::runtime::{
+    BootstrapIntegrationConfig, BootstrapMode, LibraryPathConfig, LibraryPathResolver,
+};
+use lambdust::{Error, Lambdust, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-#[cfg(feature = "minimal-repl")]
+#[cfg(all(
+    feature = "minimal-repl", 
+    not(any(feature = "repl", feature = "enhanced-repl"))
+))]
 use lambdust::repl::start_minimal_repl;
 
 #[cfg(feature = "repl")]
 use {
     colored::*,
-    rustyline::{error::ReadlineError, DefaultEditor},
+    rustyline::{DefaultEditor, error::ReadlineError},
 };
 
 #[cfg(feature = "enhanced-repl")]
@@ -24,11 +30,11 @@ use lambdust::repl::{EnhancedRepl, ReplConfig};
 fn main() -> Result<()> {
     // Capture command line arguments for the system interface
     let args: Vec<String> = std::env::args().collect();
-    
+
     // Initialize the system state with command line arguments
     // This must be done before creating the Lambdust instance so the system functions work
     lambdust::stdlib::system::initialize_system_state(args);
-    
+
     let cli = LightweightCli::new("lambdust")
         .version(lambdust::VERSION)
         .author("Lambdust Contributors")
@@ -37,13 +43,13 @@ fn main() -> Result<()> {
             ArgDef::new("file")
                 .help("Lambdust source file to execute")
                 .value_name("FILE")
-                .index(0)
+                .index(0),
         )
         .arg(
             ArgDef::new("repl")
                 .short('r')
                 .long("repl")
-                .help("Start interactive REPL")
+                .help("Start interactive REPL"),
         )
         .arg(
             ArgDef::new("eval")
@@ -51,19 +57,19 @@ fn main() -> Result<()> {
                 .long("eval")
                 .help("Evaluate expression")
                 .value_name("EXPR")
-                .takes_value()
+                .takes_value(),
         )
         .arg(
             ArgDef::new("type-check")
                 .short('t')
                 .long("type-check")
-                .help("Type check only, don't evaluate")
+                .help("Type check only, don't evaluate"),
         )
         .arg(
             ArgDef::new("verbose")
                 .short('v')
                 .long("verbose")
-                .help("Enable verbose output")
+                .help("Enable verbose output"),
         )
         .arg(
             ArgDef::new("bootstrap-mode")
@@ -71,24 +77,24 @@ fn main() -> Result<()> {
                 .help("Bootstrap mode: full, minimal, or fallback")
                 .value_name("MODE")
                 .takes_value()
-                .possible_values(&["full", "minimal", "fallback"])
+                .possible_values(&["full", "minimal", "fallback"]),
         )
         .arg(
             ArgDef::new("lazy-loading")
                 .long("lazy-loading")
-                .help("Enable lazy loading of Scheme libraries")
+                .help("Enable lazy loading of Scheme libraries"),
         )
         .arg(
             ArgDef::new("lib-dir")
                 .long("lib-dir")
                 .help("Override library directory path (alternative to LAMBDUST_LIB_DIR)")
                 .value_name("PATH")
-                .takes_value()
+                .takes_value(),
         )
         .arg(
             ArgDef::new("validate-libs")
                 .long("validate-libs")
-                .help("Validate library setup and show status")
+                .help("Validate library setup and show status"),
         );
 
     let matches = match cli.parse_env() {
@@ -115,8 +121,9 @@ fn main() -> Result<()> {
     // Configure bootstrap based on command line arguments
     let bootstrap_start = Instant::now();
     let bootstrap_config = create_bootstrap_config(&matches)?;
-    let mut lambdust = create_lambdust_with_bootstrap(bootstrap_config, matches.get_flag("verbose"))?;
-    
+    let mut lambdust =
+        create_lambdust_with_bootstrap(bootstrap_config, matches.get_flag("verbose"))?;
+
     if matches.get_flag("verbose") {
         let bootstrap_time = bootstrap_start.elapsed();
         println!("Bootstrap completed in {bootstrap_time:?}");
@@ -133,13 +140,16 @@ fn main() -> Result<()> {
         // Start REPL if no file specified or explicitly requested
         #[cfg(feature = "enhanced-repl")]
         start_enhanced_repl(lambdust)?;
-        
+
         #[cfg(all(feature = "repl", not(feature = "enhanced-repl")))]
         start_repl(&mut lambdust)?;
-        
-        #[cfg(all(feature = "minimal-repl", not(any(feature = "repl", feature = "enhanced-repl"))))]
+
+        #[cfg(all(
+            feature = "minimal-repl",
+            not(any(feature = "repl", feature = "enhanced-repl"))
+        ))]
         start_minimal_repl(&mut lambdust)?;
-        
+
         #[cfg(not(any(feature = "minimal-repl", feature = "repl", feature = "enhanced-repl")))]
         {
             eprintln!("REPL support not compiled in. Use --eval or provide a file.");
@@ -172,7 +182,9 @@ fn eval_expression(lambdust: &mut Lambdust, expr: &str, type_check_only: bool) -
 fn execute_file(lambdust: &mut Lambdust, filename: &str, type_check_only: bool) -> Result<()> {
     let path = Path::new(filename);
     if !path.exists() {
-        return Err(Box::new(Error::io_error(format!("File not found: {filename}"))));
+        return Err(Box::new(Error::io_error(format!(
+            "File not found: {filename}"
+        ))));
     }
 
     let source = fs::read_to_string(path)
@@ -197,8 +209,14 @@ fn execute_file(lambdust: &mut Lambdust, filename: &str, type_check_only: bool) 
 }
 
 #[cfg(feature = "repl")]
+#[allow(dead_code)]
 fn start_repl(lambdust: &mut Lambdust) -> Result<()> {
-    println!("{}", format!("Lambdust {} REPL", lambdust::VERSION).bright_blue().bold());
+    println!(
+        "{}",
+        format!("Lambdust {} REPL", lambdust::VERSION)
+            .bright_blue()
+            .bold()
+    );
     println!("{}", "Type (exit) to quit".dimmed());
     println!();
 
@@ -206,11 +224,10 @@ fn start_repl(lambdust: &mut Lambdust) -> Result<()> {
         .map_err(|e| Error::io_error(format!("Failed to initialize REPL: {e}")))?;
 
     // Load history if available
-    let history_file = dirs::home_dir()
-        .map(|mut p| {
-            p.push(".lambdust_history");
-            p
-        });
+    let history_file = dirs::home_dir().map(|mut p| {
+        p.push(".lambdust_history");
+        p
+    });
 
     if let Some(ref history_path) = history_file {
         let _ = rl.load_history(history_path);
@@ -220,11 +237,11 @@ fn start_repl(lambdust: &mut Lambdust) -> Result<()> {
 
     loop {
         let prompt = format!("λust:{line_number}> ");
-        
+
         match rl.readline(&prompt) {
             Ok(line) => {
                 let line = line.trim();
-                
+
                 if line.is_empty() {
                     continue;
                 }
@@ -288,36 +305,55 @@ fn start_repl(lambdust: &mut Lambdust) -> Result<()> {
 
 #[cfg(feature = "enhanced-repl")]
 fn start_enhanced_repl(lambdust: Lambdust) -> Result<()> {
-    let config = ReplConfig::default();
+    let _config = ReplConfig::default();
     let mut repl = EnhancedRepl::with_defaults(lambdust)?;
     repl.run()
 }
 
 #[cfg(feature = "repl")]
-fn evaluate_repl_expression(lambdust: &mut Lambdust, source: &str) -> Result<lambdust::eval::Value> {
+#[allow(dead_code)]
+fn evaluate_repl_expression(
+    lambdust: &mut Lambdust,
+    source: &str,
+) -> Result<lambdust::eval::Value> {
     // This function provides improved macro handling for REPL sessions
     // by maintaining macro state between evaluations
-    
+
     // Use the standard evaluation pipeline which now includes proper macro expansion
     lambdust.eval(source, Some("<repl>"))
 }
 
 #[cfg(feature = "repl")]
+#[allow(dead_code)]
 fn print_repl_help() {
     println!("{}", "Lambdust REPL Commands:".bright_blue().bold());
     println!("  {}  - Show this help", ":help, :h".bright_yellow());
-    println!("  {}  - Show version information", ":version, :v".bright_yellow());
-    println!("  {}  - Exit the REPL", "(exit), (quit), :quit, :q".bright_yellow());
+    println!(
+        "  {}  - Show version information",
+        ":version, :v".bright_yellow()
+    );
+    println!(
+        "  {}  - Exit the REPL",
+        "(exit), (quit), :quit, :q".bright_yellow()
+    );
     println!();
     println!("{}", "Example expressions:".bright_blue().bold());
     println!("  {}  - Basic arithmetic", "(+ 1 2 3)".bright_cyan());
-    println!("  {}  - Function definition", "(define (square x) (* x x))".bright_cyan());
-    println!("  {}  - Type annotation", "(:: (+ 1 2) Number)".bright_cyan());
+    println!(
+        "  {}  - Function definition",
+        "(define (square x) (* x x))".bright_cyan()
+    );
+    println!(
+        "  {}  - Type annotation",
+        "(:: (+ 1 2) Number)".bright_cyan()
+    );
     println!();
 }
 
 /// Creates bootstrap configuration from command line arguments.
-fn create_bootstrap_config(matches: &lambdust::cli::ParsedArgs) -> Result<BootstrapIntegrationConfig> {
+fn create_bootstrap_config(
+    matches: &lambdust::cli::ParsedArgs,
+) -> Result<BootstrapIntegrationConfig> {
     // Create library path configuration
     let lib_path_config = LibraryPathConfig {
         include_dev_paths: true,
@@ -347,8 +383,8 @@ fn create_bootstrap_config(matches: &lambdust::cli::ParsedArgs) -> Result<Bootst
     Ok(BootstrapIntegrationConfig {
         mode,
         verbose: matches.get_flag("verbose"),
-        lazy_loading: matches.get_flag("lazy-loading") || 
-                     std::env::var("LAMBDUST_LAZY_LOADING").as_deref() == Ok("true"),
+        lazy_loading: matches.get_flag("lazy-loading")
+            || std::env::var("LAMBDUST_LAZY_LOADING").as_deref() == Ok("true"),
         development_mode: std::env::var("LAMBDUST_DEV_MODE").as_deref() == Ok("true"),
         library_paths: if let Some(lib_dir) = matches.get_one::<String>("lib-dir") {
             vec![PathBuf::from(lib_dir)]
@@ -360,7 +396,9 @@ fn create_bootstrap_config(matches: &lambdust::cli::ParsedArgs) -> Result<Bootst
 }
 
 /// Determines bootstrap mode using library path configuration.
-fn determine_bootstrap_mode_with_lib_config(lib_config: &LibraryPathConfig) -> Result<BootstrapMode> {
+fn determine_bootstrap_mode_with_lib_config(
+    lib_config: &LibraryPathConfig,
+) -> Result<BootstrapMode> {
     match LibraryPathResolver::with_config(lib_config.clone()) {
         Ok(resolver) => {
             let validation = resolver.validate_library_setup()?;
@@ -370,7 +408,7 @@ fn determine_bootstrap_mode_with_lib_config(lib_config: &LibraryPathConfig) -> R
                 Ok(BootstrapMode::Minimal)
             }
         }
-        Err(_) => Ok(BootstrapMode::Minimal)
+        Err(_) => Ok(BootstrapMode::Minimal),
     }
 }
 
@@ -419,7 +457,7 @@ fn validate_library_setup(matches: &lambdust::cli::ParsedArgs) -> Result<()> {
             match resolver.validate_library_setup() {
                 Ok(report) => {
                     println!("{}", report.summary());
-                    
+
                     if report.is_usable() {
                         println!("✓ Library setup is usable. Full bootstrap mode available.");
                     } else {
@@ -443,12 +481,18 @@ fn validate_library_setup(matches: &lambdust::cli::ParsedArgs) -> Result<()> {
 }
 
 /// Creates a Lambdust instance with bootstrap integration.
-fn create_lambdust_with_bootstrap(config: BootstrapIntegrationConfig, verbose: bool) -> Result<Lambdust> {
+fn create_lambdust_with_bootstrap(
+    config: BootstrapIntegrationConfig,
+    verbose: bool,
+) -> Result<Lambdust> {
     // Try to create with bootstrap integration
     match lambdust::Runtime::with_bootstrap_config(config.clone()) {
         Ok(runtime) => {
             if verbose {
-                println!("Successfully initialized with {:?} bootstrap mode", config.mode);
+                println!(
+                    "Successfully initialized with {:?} bootstrap mode",
+                    config.mode
+                );
             }
             Ok(Lambdust::with_runtime(runtime))
         }
@@ -456,14 +500,14 @@ fn create_lambdust_with_bootstrap(config: BootstrapIntegrationConfig, verbose: b
             if verbose {
                 eprintln!("Bootstrap failed: {e}. Using fallback...");
             }
-            
+
             // Try fallback mode
             let fallback_config = BootstrapIntegrationConfig {
                 mode: BootstrapMode::Fallback,
                 verbose,
                 ..config
             };
-            
+
             match lambdust::Runtime::with_bootstrap_config(fallback_config) {
                 Ok(runtime) => Ok(Lambdust::with_runtime(runtime)),
                 Err(fallback_error) => {

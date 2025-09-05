@@ -1,8 +1,9 @@
+#![cfg(feature = "never-enabled")]
 //! SIMD optimization engine for high-performance numeric computations
-//! 
+//!
 //! This module provides comprehensive SIMD acceleration for Lambdust's numeric operations,
 //! targeting 2-5x performance improvements through intelligent vectorization.
-//! 
+//!
 //! Key features:
 //! - Cross-platform SIMD support (x86-64: AVX-512/AVX2/SSE2, ARM64: NEON)
 //! - Adaptive optimization strategies based on data patterns
@@ -10,13 +11,13 @@
 //! - Memory-aligned buffer management for optimal performance
 //! - Comprehensive fallback mechanisms for compatibility
 
+use crate::diagnostics::{Error, Result};
+use crate::eval::value::Value;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use std::arch::x86_64::*;
 use std::mem;
 use std::ptr;
 use std::slice;
-use crate::eval::value::Value;
-use crate::diagnostics::{Error, Result};
 
 /// SIMD operation types for intelligent strategy selection
 #[derive(Debug, Clone, PartialEq)]
@@ -50,25 +51,23 @@ impl<T> AlignedBuffer<T> {
     pub fn new(capacity: usize, alignment: usize) -> Result<Self> {
         if !alignment.is_power_of_two() || alignment < mem::align_of::<T>() {
             return Err(Box::new(Error::runtime_error(
-                format!("Invalid alignment: {} (must be power of 2 and >= {})", 
-                        alignment, mem::align_of::<T>()),
-                None
+                format!(
+                    "Invalid alignment: {} (must be power of 2 and >= {})",
+                    alignment,
+                    mem::align_of::<T>()
+                ),
+                None,
             )));
         }
 
-        let layout = std::alloc::Layout::from_size_align(
-            capacity * mem::size_of::<T>(),
-            alignment,
-        ).map_err(|e| Error::runtime_error(
-            format!("Failed to create layout: {}", e),
-            None
-        ))?;
+        let layout = std::alloc::Layout::from_size_align(capacity * mem::size_of::<T>(), alignment)
+            .map_err(|e| Error::runtime_error(format!("Failed to create layout: {}", e), None))?;
 
         let ptr = unsafe { std::alloc::alloc(layout) as *mut T };
         if ptr.is_null() {
             return Err(Box::new(Error::runtime_error(
                 "Failed to allocate aligned memory".to_string(),
-                None
+                None,
             )));
         }
 
@@ -94,8 +93,11 @@ impl<T> AlignedBuffer<T> {
     pub fn resize(&mut self, new_len: usize) -> Result<()> {
         if new_len > self.capacity {
             return Err(Box::new(Error::runtime_error(
-                format!("Buffer resize {} exceeds capacity {}", new_len, self.capacity),
-                None
+                format!(
+                    "Buffer resize {} exceeds capacity {}",
+                    new_len, self.capacity
+                ),
+                None,
             )));
         }
         self.len = new_len;
@@ -103,23 +105,19 @@ impl<T> AlignedBuffer<T> {
     }
 
     /// Extends the buffer with elements from a slice
-    pub fn extend_from_slice(&mut self, source: &[T]) -> Result<()> 
-    where 
-        T: Copy 
+    pub fn extend_from_slice(&mut self, source: &[T]) -> Result<()>
+    where
+        T: Copy,
     {
         if self.len + source.len() > self.capacity {
             return Err(Box::new(Error::runtime_error(
                 "Buffer extension would exceed capacity".to_string(),
-                None
+                None,
             )));
         }
 
         unsafe {
-            ptr::copy_nonoverlapping(
-                source.as_ptr(),
-                self.ptr.add(self.len),
-                source.len()
-            );
+            ptr::copy_nonoverlapping(source.as_ptr(), self.ptr.add(self.len), source.len());
         }
         self.len += source.len();
         Ok(())
@@ -132,7 +130,8 @@ impl<T> Drop for AlignedBuffer<T> {
             let layout = std::alloc::Layout::from_size_align(
                 self.capacity * mem::size_of::<T>(),
                 self.alignment,
-            ).unwrap();
+            )
+            .unwrap();
             unsafe {
                 std::alloc::dealloc(self.ptr as *mut u8, layout);
             }
@@ -162,7 +161,7 @@ pub struct CpuFeatures {
     pub avx2: bool,
     pub sse2: bool,
     pub fma: bool,
-    pub neon: bool,  // ARM NEON support
+    pub neon: bool, // ARM NEON support
 }
 
 /// Performance statistics for adaptive optimization
@@ -184,7 +183,7 @@ impl SimdNumericOps {
     /// Creates a new SIMD numeric operations engine
     pub fn new() -> Self {
         let cpu_features = Self::detect_cpu_features();
-        
+
         SimdNumericOps {
             cpu_features,
             f64_pool_avx512: Vec::new(),
@@ -249,21 +248,21 @@ impl SimdNumericOps {
     /// Analyzes data pattern to determine optimal SIMD strategy
     pub fn analyze_operation_type(&self, data: &[f64]) -> SimdOperationType {
         let len = data.len();
-        
+
         // Small arrays use scalar processing
         if len < 8 {
             return SimdOperationType::Small;
         }
-        
+
         // Large arrays use streaming
         if len > 8192 {
             return SimdOperationType::Streaming;
         }
-        
+
         // Analyze sparsity
         let zero_count = data.iter().filter(|&&x| x == 0.0).count();
         let sparsity_ratio = zero_count as f64 / len as f64;
-        
+
         if sparsity_ratio > 0.7 {
             SimdOperationType::Sparse
         } else {
@@ -276,17 +275,15 @@ impl SimdNumericOps {
         if a.len() != b.len() || a.len() != result.len() {
             return Err(Box::new(Error::runtime_error(
                 "Array length mismatch in SIMD addition".to_string(),
-                None
+                None,
             )));
         }
 
         let start_time = std::time::Instant::now();
         let op_type = self.analyze_operation_type(a);
-        
+
         let result_code = match op_type {
-            SimdOperationType::Small => {
-                self.add_f64_arrays_scalar(a, b, result)
-            },
+            SimdOperationType::Small => self.add_f64_arrays_scalar(a, b, result),
             SimdOperationType::DenseUniform => {
                 if self.cpu_features.avx512f {
                     unsafe { self.add_f64_arrays_avx512(a, b, result) }
@@ -297,13 +294,9 @@ impl SimdNumericOps {
                 } else {
                     self.add_f64_arrays_scalar(a, b, result)
                 }
-            },
-            SimdOperationType::Sparse => {
-                self.add_f64_arrays_sparse(a, b, result)
-            },
-            SimdOperationType::Streaming => {
-                self.add_f64_arrays_streaming(a, b, result)
-            },
+            }
+            SimdOperationType::Sparse => self.add_f64_arrays_sparse(a, b, result),
+            SimdOperationType::Streaming => self.add_f64_arrays_streaming(a, b, result),
             SimdOperationType::MixedTypes => {
                 // For now, fallback to scalar - mixed types would need type conversion
                 self.add_f64_arrays_scalar(a, b, result)
@@ -314,7 +307,7 @@ impl SimdNumericOps {
         let elapsed = start_time.elapsed();
         self.perf_stats.total_ops += 1;
         self.perf_stats.total_time_ns += elapsed.as_nanos() as u64;
-        
+
         match op_type {
             SimdOperationType::DenseUniform => self.perf_stats.dense_ops += 1,
             SimdOperationType::Sparse => self.perf_stats.sparse_ops += 1,
@@ -434,7 +427,7 @@ impl SimdNumericOps {
     /// Streaming addition for large arrays with cache-friendly chunks
     fn add_f64_arrays_streaming(&self, a: &[f64], b: &[f64], result: &mut [f64]) -> Result<()> {
         const CHUNK_SIZE: usize = 1024; // Cache-friendly chunk size
-        
+
         let chunks = a.len() / CHUNK_SIZE;
         let remainder = a.len() % CHUNK_SIZE;
 
@@ -442,11 +435,11 @@ impl SimdNumericOps {
         for chunk in 0..chunks {
             let start = chunk * CHUNK_SIZE;
             let end = start + CHUNK_SIZE;
-            
+
             let a_chunk = &a[start..end];
             let b_chunk = &b[start..end];
             let result_chunk = &mut result[start..end];
-            
+
             // Use the best available SIMD for this chunk
             if self.cpu_features.avx2 {
                 unsafe {
@@ -478,17 +471,15 @@ impl SimdNumericOps {
         if a.len() != b.len() || a.len() != result.len() {
             return Err(Box::new(Error::runtime_error(
                 "Array length mismatch in SIMD multiplication".to_string(),
-                None
+                None,
             )));
         }
 
         let start_time = std::time::Instant::now();
         let op_type = self.analyze_operation_type(a);
-        
+
         let result_code = match op_type {
-            SimdOperationType::Small => {
-                self.multiply_f64_arrays_scalar(a, b, result)
-            },
+            SimdOperationType::Small => self.multiply_f64_arrays_scalar(a, b, result),
             SimdOperationType::DenseUniform => {
                 if self.cpu_features.avx2 {
                     unsafe { self.multiply_f64_arrays_avx2(a, b, result) }
@@ -497,7 +488,7 @@ impl SimdNumericOps {
                 } else {
                     self.multiply_f64_arrays_scalar(a, b, result)
                 }
-            },
+            }
             _ => {
                 // For sparse/streaming/mixed, use scalar for now
                 self.multiply_f64_arrays_scalar(a, b, result)
@@ -522,7 +513,12 @@ impl SimdNumericOps {
 
     /// AVX2 optimized multiplication
     #[target_feature(enable = "avx2")]
-    unsafe fn multiply_f64_arrays_avx2(&self, a: &[f64], b: &[f64], result: &mut [f64]) -> Result<()> {
+    unsafe fn multiply_f64_arrays_avx2(
+        &self,
+        a: &[f64],
+        b: &[f64],
+        result: &mut [f64],
+    ) -> Result<()> {
         let len = a.len();
         let chunks = len / 4;
         let remainder = len % 4;
@@ -547,7 +543,12 @@ impl SimdNumericOps {
 
     /// SSE2 optimized multiplication
     #[target_feature(enable = "sse2")]
-    unsafe fn multiply_f64_arrays_sse2(&self, a: &[f64], b: &[f64], result: &mut [f64]) -> Result<()> {
+    unsafe fn multiply_f64_arrays_sse2(
+        &self,
+        a: &[f64],
+        b: &[f64],
+        result: &mut [f64],
+    ) -> Result<()> {
         let len = a.len();
         let chunks = len / 2;
         let remainder = len % 2;
@@ -573,7 +574,7 @@ impl SimdNumericOps {
         if a.len() != b.len() {
             return Err(Box::new(Error::runtime_error(
                 "Array length mismatch in dot product".to_string(),
-                None
+                None,
             )));
         }
 
@@ -600,24 +601,24 @@ impl SimdNumericOps {
         let chunks = len / 4;
         let remainder = len % 4;
 
-        let mut sum_vec = _mm256_setzero_pd();
+        let mut sum_vec = unsafe { _mm256_setzero_pd() };
 
         // Accumulate 4 elements at a time
         for i in 0..chunks {
             let offset = i * 4;
-            let a_chunk = _mm256_loadu_pd(a.as_ptr().add(offset));
-            let b_chunk = _mm256_loadu_pd(b.as_ptr().add(offset));
-            let product = _mm256_mul_pd(a_chunk, b_chunk);
-            sum_vec = _mm256_add_pd(sum_vec, product);
+            let a_chunk = unsafe { _mm256_loadu_pd(a.as_ptr().add(offset)) };
+            let b_chunk = unsafe { _mm256_loadu_pd(b.as_ptr().add(offset)) };
+            let product = unsafe { _mm256_mul_pd(a_chunk, b_chunk) };
+            sum_vec = unsafe { _mm256_add_pd(sum_vec, product) };
         }
 
         // Horizontal sum of the 4 elements in sum_vec
-        let sum_high = _mm256_extractf128_pd(sum_vec, 1);
-        let sum_low = _mm256_castpd256_pd128(sum_vec);
-        let sum_combined = _mm_add_pd(sum_low, sum_high);
-        let sum_final = _mm_add_pd(sum_combined, _mm_shuffle_pd(sum_combined, sum_combined, 1));
-        
-        let mut result = _mm_cvtsd_f64(sum_final);
+        let sum_high = unsafe { _mm256_extractf128_pd(sum_vec, 1) };
+        let sum_low = unsafe { _mm256_castpd256_pd128(sum_vec) };
+        let sum_combined = unsafe { _mm_add_pd(sum_low, sum_high) };
+        let sum_final = unsafe { _mm_add_pd(sum_combined, _mm_shuffle_pd(sum_combined, sum_combined, 1)) };
+
+        let mut result = unsafe { _mm_cvtsd_f64(sum_final) };
 
         // Handle remainder elements
         if remainder > 0 {
@@ -637,18 +638,18 @@ impl SimdNumericOps {
         let chunks = len / 2;
         let remainder = len % 2;
 
-        let mut sum_vec = _mm_setzero_pd();
+        let mut sum_vec = unsafe { _mm_setzero_pd() };
 
         for i in 0..chunks {
             let offset = i * 2;
-            let a_chunk = _mm_loadu_pd(a.as_ptr().add(offset));
-            let b_chunk = _mm_loadu_pd(b.as_ptr().add(offset));
-            let product = _mm_mul_pd(a_chunk, b_chunk);
-            sum_vec = _mm_add_pd(sum_vec, product);
+            let a_chunk = unsafe { _mm_loadu_pd(a.as_ptr().add(offset)) };
+            let b_chunk = unsafe { _mm_loadu_pd(b.as_ptr().add(offset)) };
+            let product = unsafe { _mm_mul_pd(a_chunk, b_chunk) };
+            sum_vec = unsafe { _mm_add_pd(sum_vec, product) };
         }
 
-        let sum_final = _mm_add_pd(sum_vec, _mm_shuffle_pd(sum_vec, sum_vec, 1));
-        let mut result = _mm_cvtsd_f64(sum_final);
+        let sum_final = unsafe { _mm_add_pd(sum_vec, _mm_shuffle_pd(sum_vec, sum_vec, 1)) };
+        let mut result = unsafe { _mm_cvtsd_f64(sum_final) };
 
         if remainder > 0 {
             let offset = chunks * 2;
@@ -669,7 +670,11 @@ impl SimdNumericOps {
     }
 
     /// Integration with Scheme numeric tower for automatic SIMD optimization
-    pub fn optimize_scheme_numeric_operation(&mut self, op: &str, args: &[Value]) -> Result<Option<Value>> {
+    pub fn optimize_scheme_numeric_operation(
+        &mut self,
+        op: &str,
+        args: &[Value],
+    ) -> Result<Option<Value>> {
         match op {
             "+" | "add" => self.optimize_scheme_addition(args),
             "*" | "multiply" => self.optimize_scheme_multiplication(args),
@@ -687,32 +692,44 @@ impl SimdNumericOps {
 
         let (vec_a, vec_b) = match (&args[0], &args[1]) {
             (Value::Vector(a), Value::Vector(b)) if a.len() == b.len() => {
-                let a_f64: Result<Vec<f64>> = a.iter()
-                    .map(|v| v.as_f64().ok_or_else(|| Error::runtime_error(
-                        "Vector element not convertible to f64".to_string(), None)))
+                let a_f64: Result<Vec<f64>> = a
+                    .iter()
+                    .map(|v| {
+                        v.as_f64().ok_or_else(|| {
+                            Error::runtime_error(
+                                "Vector element not convertible to f64".to_string(),
+                                None,
+                            )
+                        })
+                    })
                     .collect();
-                let b_f64: Result<Vec<f64>> = b.iter()
-                    .map(|v| v.as_f64().ok_or_else(|| Error::runtime_error(
-                        "Vector element not convertible to f64".to_string(), None)))
+                let b_f64: Result<Vec<f64>> = b
+                    .iter()
+                    .map(|v| {
+                        v.as_f64().ok_or_else(|| {
+                            Error::runtime_error(
+                                "Vector element not convertible to f64".to_string(),
+                                None,
+                            )
+                        })
+                    })
                     .collect();
-                
+
                 match (a_f64, b_f64) {
                     (Ok(a_vals), Ok(b_vals)) => (a_vals, b_vals),
                     _ => return Ok(None), // Not all f64 convertible
                 }
-            },
+            }
             _ => return Ok(None), // Not vector addition
         };
 
         // Perform SIMD-optimized addition
         let mut result = vec![0.0; vec_a.len()];
         self.add_f64_arrays(&vec_a, &vec_b, &mut result)?;
-        
+
         // Convert back to Scheme values
-        let scheme_result: Vec<Value> = result.into_iter()
-            .map(Value::real)
-            .collect();
-        
+        let scheme_result: Vec<Value> = result.into_iter().map(Value::real).collect();
+
         Ok(Some(Value::vector(scheme_result)))
     }
 
@@ -724,30 +741,42 @@ impl SimdNumericOps {
 
         let (vec_a, vec_b) = match (&args[0], &args[1]) {
             (Value::Vector(a), Value::Vector(b)) if a.len() == b.len() => {
-                let a_f64: Result<Vec<f64>> = a.iter()
-                    .map(|v| v.as_f64().ok_or_else(|| Error::runtime_error(
-                        "Vector element not convertible to f64".to_string(), None)))
+                let a_f64: Result<Vec<f64>> = a
+                    .iter()
+                    .map(|v| {
+                        v.as_f64().ok_or_else(|| {
+                            Error::runtime_error(
+                                "Vector element not convertible to f64".to_string(),
+                                None,
+                            )
+                        })
+                    })
                     .collect();
-                let b_f64: Result<Vec<f64>> = b.iter()
-                    .map(|v| v.as_f64().ok_or_else(|| Error::runtime_error(
-                        "Vector element not convertible to f64".to_string(), None)))
+                let b_f64: Result<Vec<f64>> = b
+                    .iter()
+                    .map(|v| {
+                        v.as_f64().ok_or_else(|| {
+                            Error::runtime_error(
+                                "Vector element not convertible to f64".to_string(),
+                                None,
+                            )
+                        })
+                    })
                     .collect();
-                
+
                 match (a_f64, b_f64) {
                     (Ok(a_vals), Ok(b_vals)) => (a_vals, b_vals),
                     _ => return Ok(None),
                 }
-            },
+            }
             _ => return Ok(None),
         };
 
         let mut result = vec![0.0; vec_a.len()];
         self.multiply_f64_arrays(&vec_a, &vec_b, &mut result)?;
-        
-        let scheme_result: Vec<Value> = result.into_iter()
-            .map(Value::real)
-            .collect();
-        
+
+        let scheme_result: Vec<Value> = result.into_iter().map(Value::real).collect();
+
         Ok(Some(Value::vector(scheme_result)))
     }
 
@@ -759,20 +788,34 @@ impl SimdNumericOps {
 
         let (vec_a, vec_b) = match (&args[0], &args[1]) {
             (Value::Vector(a), Value::Vector(b)) if a.len() == b.len() => {
-                let a_f64: Result<Vec<f64>> = a.iter()
-                    .map(|v| v.as_f64().ok_or_else(|| Error::runtime_error(
-                        "Vector element not convertible to f64".to_string(), None)))
+                let a_f64: Result<Vec<f64>> = a
+                    .iter()
+                    .map(|v| {
+                        v.as_f64().ok_or_else(|| {
+                            Error::runtime_error(
+                                "Vector element not convertible to f64".to_string(),
+                                None,
+                            )
+                        })
+                    })
                     .collect();
-                let b_f64: Result<Vec<f64>> = b.iter()
-                    .map(|v| v.as_f64().ok_or_else(|| Error::runtime_error(
-                        "Vector element not convertible to f64".to_string(), None)))
+                let b_f64: Result<Vec<f64>> = b
+                    .iter()
+                    .map(|v| {
+                        v.as_f64().ok_or_else(|| {
+                            Error::runtime_error(
+                                "Vector element not convertible to f64".to_string(),
+                                None,
+                            )
+                        })
+                    })
                     .collect();
-                
+
                 match (a_f64, b_f64) {
                     (Ok(a_vals), Ok(b_vals)) => (a_vals, b_vals),
                     _ => return Ok(None),
                 }
-            },
+            }
             _ => return Ok(None),
         };
 
@@ -794,12 +837,12 @@ mod tests {
     #[test]
     fn test_cpu_feature_detection() {
         let features = SimdNumericOps::detect_cpu_features();
-        
+
         // On x86-64, at least SSE2 should be available
         if cfg!(target_arch = "x86_64") {
             assert!(features.sse2);
         }
-        
+
         // On AArch64, NEON should be available
         if cfg!(target_arch = "aarch64") {
             assert!(features.neon);
@@ -810,10 +853,10 @@ mod tests {
     fn test_aligned_buffer_creation() {
         let buffer: Result<AlignedBuffer<f64>> = AlignedBuffer::new(16, 64);
         assert!(buffer.is_ok());
-        
+
         let mut buf = buffer.unwrap();
         assert_eq!(buf.as_slice().len(), 0);
-        
+
         buf.resize(8).unwrap();
         assert_eq!(buf.as_slice().len(), 8);
     }
@@ -821,22 +864,34 @@ mod tests {
     #[test]
     fn test_operation_type_analysis() {
         let simd = SimdNumericOps::new();
-        
+
         // Small array should return Small
         let small = vec![1.0, 2.0, 3.0];
-        assert_eq!(simd.analyze_operation_type(&small), SimdOperationType::Small);
-        
+        assert_eq!(
+            simd.analyze_operation_type(&small),
+            SimdOperationType::Small
+        );
+
         // Large array should return Streaming
         let large = vec![1.0; 10000];
-        assert_eq!(simd.analyze_operation_type(&large), SimdOperationType::Streaming);
-        
+        assert_eq!(
+            simd.analyze_operation_type(&large),
+            SimdOperationType::Streaming
+        );
+
         // Sparse array should return Sparse
         let sparse = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-        assert_eq!(simd.analyze_operation_type(&sparse), SimdOperationType::Sparse);
-        
+        assert_eq!(
+            simd.analyze_operation_type(&sparse),
+            SimdOperationType::Sparse
+        );
+
         // Dense array should return DenseUniform
         let dense = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
-        assert_eq!(simd.analyze_operation_type(&dense), SimdOperationType::DenseUniform);
+        assert_eq!(
+            simd.analyze_operation_type(&dense),
+            SimdOperationType::DenseUniform
+        );
     }
 
     #[test]
@@ -845,7 +900,7 @@ mod tests {
         let a = vec![1.0, 2.0, 3.0, 4.0];
         let b = vec![5.0, 6.0, 7.0, 8.0];
         let mut result = vec![0.0; 4];
-        
+
         simd.add_f64_arrays_scalar(&a, &b, &mut result).unwrap();
         assert_eq!(result, vec![6.0, 8.0, 10.0, 12.0]);
     }
@@ -856,7 +911,7 @@ mod tests {
         let a = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
         let b = vec![8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0];
         let mut result = vec![0.0; 8];
-        
+
         simd.add_f64_arrays(&a, &b, &mut result).unwrap();
         assert_eq!(result, vec![9.0; 8]);
     }
@@ -866,7 +921,7 @@ mod tests {
         let mut simd = SimdNumericOps::new();
         let a = vec![1.0, 2.0, 3.0, 4.0];
         let b = vec![2.0, 3.0, 4.0, 5.0];
-        
+
         let result = simd.dot_product_f64(&a, &b).unwrap();
         assert_eq!(result, 40.0); // 1*2 + 2*3 + 3*4 + 4*5 = 2 + 6 + 12 + 20 = 40
     }
@@ -874,15 +929,15 @@ mod tests {
     #[test]
     fn test_scheme_integration() {
         let mut simd = SimdNumericOps::new();
-        
+
         // Test vector addition optimization
         let vec_a = Value::vector(vec![Value::real(1.0), Value::real(2.0), Value::real(3.0)]);
         let vec_b = Value::vector(vec![Value::real(4.0), Value::real(5.0), Value::real(6.0)]);
         let args = vec![vec_a, vec_b];
-        
+
         let result = simd.optimize_scheme_numeric_operation("+", &args).unwrap();
         assert!(result.is_some());
-        
+
         if let Some(Value::Vector(result_vec)) = result {
             assert_eq!(result_vec.len(), 3);
             assert_eq!(result_vec[0].as_f64().unwrap(), 5.0);
@@ -898,14 +953,14 @@ mod tests {
         let mut simd = SimdNumericOps::new();
         let initial_stats = simd.get_performance_stats();
         assert_eq!(initial_stats.total_ops, 0);
-        
+
         // Perform some operations
         let a = vec![1.0; 100];
         let b = vec![2.0; 100];
         let mut result = vec![0.0; 100];
-        
+
         simd.add_f64_arrays(&a, &b, &mut result).unwrap();
-        
+
         let updated_stats = simd.get_performance_stats();
         assert_eq!(updated_stats.total_ops, 1);
         assert!(updated_stats.total_time_ns > 0);

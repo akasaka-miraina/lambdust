@@ -2,8 +2,12 @@
 //!
 //! This module contains the core macro expansion logic that coordinates
 //! pattern matching, template expansion, and hygiene preservation.
+//!
+//! This is the legacy expander that works with the traditional AST.
+//! For the new syntax object system, use SyntaxAwareMacroExpander.
 
-use super::{MacroEnvironment, Pattern, Template, HygieneContext, PatternBindings};
+use super::syntax_integration::SyntaxAwareMacroExpander;
+use super::{HygieneContext, MacroEnvironment, Pattern, PatternBindings, Template};
 use crate::ast::Expr;
 use crate::diagnostics::{Error, Result, Span, Spanned};
 // use std::collections::HashMap;
@@ -41,6 +45,10 @@ pub struct ExpansionStats {
 }
 
 /// Core macro expander that handles pattern matching and template expansion.
+///
+/// NOTE: This is the legacy expander. New code should use SyntaxAwareMacroExpander
+/// which provides better hygiene and syntax object support.
+#[derive(Debug)]
 pub struct ConfigurableExpander {
     /// Macro environment for looking up macro definitions
     pub macro_env: MacroEnvironment,
@@ -54,6 +62,8 @@ pub struct ConfigurableExpander {
     pub config: ExpansionConfig,
     /// Statistics collected during expansion
     pub stats: ExpansionStats,
+    /// Bridge to new syntax object system
+    pub syntax_expander: Option<Box<SyntaxAwareMacroExpander>>,
 }
 
 impl Default for ConfigurableExpander {
@@ -72,6 +82,7 @@ impl ConfigurableExpander {
             hygiene_context: HygieneContext::new(),
             config: ExpansionConfig::default(),
             stats: ExpansionStats::default(),
+            syntax_expander: None,
         }
     }
 
@@ -84,7 +95,18 @@ impl ConfigurableExpander {
             hygiene_context: HygieneContext::new(),
             config,
             stats: ExpansionStats::default(),
+            syntax_expander: None,
         }
+    }
+
+    /// Enables syntax object support by creating a bridge to the new system
+    pub fn enable_syntax_objects(&mut self) {
+        self.syntax_expander = Some(Box::new(SyntaxAwareMacroExpander::new()));
+    }
+
+    /// Gets access to the syntax-aware expander
+    pub fn syntax_expander(&mut self) -> Option<&mut SyntaxAwareMacroExpander> {
+        self.syntax_expander.as_mut().map(|boxed| boxed.as_mut())
     }
 
     /// Expands a macro by matching patterns and expanding templates.
@@ -99,29 +121,31 @@ impl ConfigurableExpander {
             // For now, do a simple pattern match - this will need to be improved
             // for full macro support
             let mut bindings = crate::macro_system::PatternBindings::new();
-            if self.try_match_simple_pattern(&rule.pattern, args, &mut bindings).is_ok() {
+            if self
+                .try_match_simple_pattern(&rule.pattern, args, &mut bindings)
+                .is_ok()
+            {
                 // Pattern matched, expand the template
                 let expanded = rule.template.expand(&bindings, span)?;
-                
+
                 // Apply hygiene if enabled
                 if self.config.hygiene_enabled {
                     // Create a dummy environment for hygiene context
                     use crate::eval::Environment;
                     let env = Environment::new(None, 0);
-                    let renamed_expr = self.hygiene_context.rename_identifiers(
-                        expanded.clone(),
-                        &env
-                    )?;
+                    let renamed_expr = self
+                        .hygiene_context
+                        .rename_identifiers(expanded.clone(), &env)?;
                     if self.config.collect_stats {
                         self.stats.hygiene_renamings += 1;
                     }
                     return Ok(renamed_expr);
                 }
-                
+
                 return Ok(expanded);
             }
         }
-        
+
         Err(Box::new(Error::macro_error(
             "No matching pattern for macro".to_string(),
             span,
@@ -173,10 +197,7 @@ pub struct SyntaxRule {
 impl SyntaxTransformer {
     /// Creates a new syntax transformer with the given rules.
     pub fn new(rules: Vec<SyntaxRule>) -> Self {
-        Self {
-            rules,
-            name: None,
-        }
+        Self { rules, name: None }
     }
 
     /// Creates a new syntax transformer with a name.

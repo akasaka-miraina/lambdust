@@ -1,13 +1,13 @@
 //! Performance optimization features for SRFI-135 Text processing.
 //!
-//! This module implements SIMD acceleration, string interning, 
+//! This module implements SIMD acceleration, string interning,
 //! memory pooling, and other performance optimizations.
 
 use crate::stdlib::text::Text;
-use std::sync::{Arc, RwLock, Mutex};
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex, RwLock};
 
 // Note: These dependencies would need to be added to Cargo.toml:
 // lru = "0.12"
@@ -56,10 +56,10 @@ impl StringInterningPool {
     /// Interns a string, returning a shared reference.
     pub fn intern(&self, s: String) -> Arc<String> {
         let hash = self.hash_string(&s);
-        
+
         // First try to read from the pool
         {
-            let pool = self.pool.read().unwrap();
+            let pool = self.pool.try_read().unwrap();
             if let Some(interned) = pool.get(&hash) {
                 // Update statistics
                 let mut stats = self.stats.lock().unwrap();
@@ -85,12 +85,12 @@ impl StringInterningPool {
             // Insert new string
             let interned = Arc::new(s);
             pool.insert(hash, interned.clone());
-            
+
             // Update statistics
             let mut stats = self.stats.lock().unwrap();
             stats.total_requests += 1;
             stats.cache_misses += 1;
-            
+
             interned
         }
     }
@@ -109,7 +109,7 @@ impl StringInterningPool {
     pub fn clear(&self) {
         let mut pool = self.pool.write().unwrap();
         pool.clear();
-        
+
         let mut stats = self.stats.lock().unwrap();
         *stats = InterningStats::default();
     }
@@ -194,17 +194,17 @@ impl TextMemoryPool {
         };
 
         let mut pool_guard = pool.lock().unwrap();
-        
+
         if let Some(mut buf) = pool_guard.pop() {
             if buf.capacity() >= capacity {
                 buf.clear();
                 buf.reserve(capacity);
-                
+
                 // Update statistics
                 let mut stats = self.stats.lock().unwrap();
                 stats.pool_allocations += 1;
                 stats.memory_reused += buf.capacity();
-                
+
                 return buf;
             } else {
                 // Return undersized buffer back to pool
@@ -215,14 +215,14 @@ impl TextMemoryPool {
         // Allocate new buffer
         let mut stats = self.stats.lock().unwrap();
         stats.new_allocations += 1;
-        
+
         Vec::with_capacity(capacity)
     }
 
     /// Returns a byte vector to the pool.
     pub fn deallocate(&self, mut buf: Vec<u8>) {
         let capacity = buf.capacity();
-        
+
         if capacity == 0 {
             return;
         }
@@ -234,13 +234,13 @@ impl TextMemoryPool {
         };
 
         buf.clear();
-        
+
         let mut pool_guard = pool.lock().unwrap();
-        
+
         // Limit pool size to prevent memory bloat
         if pool_guard.len() < 100 {
             pool_guard.push(buf);
-            
+
             // Update statistics
             let mut stats = self.stats.lock().unwrap();
             stats.returns_to_pool += 1;
@@ -257,7 +257,7 @@ impl TextMemoryPool {
         self.small_pool.lock().unwrap().clear();
         self.medium_pool.lock().unwrap().clear();
         self.large_pool.lock().unwrap().clear();
-        
+
         let mut stats = self.stats.lock().unwrap();
         *stats = PoolStats::default();
     }
@@ -289,7 +289,7 @@ impl SimdTextOps {
     /// Fast character counting using SIMD when available.
     pub fn count_char(text: &Text, ch: char) -> usize {
         let s = text.to_string();
-        
+
         // For ASCII characters, we could use SIMD
         // For now, fall back to standard implementation
         if ch.is_ascii() {
@@ -309,24 +309,24 @@ impl SimdTextOps {
     pub fn find_substring(haystack: &Text, needle: &Text) -> Option<usize> {
         let haystack_str = haystack.to_string();
         let needle_str = needle.to_string();
-        
+
         // For short patterns, use simple search
         if needle_str.len() <= 4 {
-            haystack_str.find(&needle_str).map(|byte_pos| {
-                haystack_str[..byte_pos].chars().count()
-            })
+            haystack_str
+                .find(&needle_str)
+                .map(|byte_pos| haystack_str[..byte_pos].chars().count())
         } else {
             // For longer patterns, could use SIMD-accelerated algorithms
-            haystack_str.find(&needle_str).map(|byte_pos| {
-                haystack_str[..byte_pos].chars().count()
-            })
+            haystack_str
+                .find(&needle_str)
+                .map(|byte_pos| haystack_str[..byte_pos].chars().count())
         }
     }
 
     /// Fast case conversion using SIMD when available.
     pub fn to_ascii_uppercase(text: &Text) -> Text {
         let s = text.to_string();
-        
+
         if s.is_ascii() {
             // Could use SIMD for ASCII-only text
             Text::from_string(s.to_ascii_uppercase())
@@ -338,7 +338,7 @@ impl SimdTextOps {
     /// Fast case conversion using SIMD when available.
     pub fn to_ascii_lowercase(text: &Text) -> Text {
         let s = text.to_string();
-        
+
         if s.is_ascii() {
             // Could use SIMD for ASCII-only text
             Text::from_string(s.to_ascii_lowercase())
@@ -376,18 +376,21 @@ impl TextPerformanceMonitor {
     /// Records timing information.
     pub fn record_timing(&self, name: &str, duration_nanos: u64) {
         let mut timings = self.timings.write().unwrap();
-        timings.entry(name.to_string()).or_default().push(duration_nanos);
+        timings
+            .entry(name.to_string())
+            .or_default()
+            .push(duration_nanos);
     }
 
     /// Gets counter value.
     pub fn get_counter(&self, name: &str) -> u64 {
-        let counters = self.counters.read().unwrap();
+        let counters = self.counters.try_read().unwrap();
         counters.get(name).copied().unwrap_or(0)
     }
 
     /// Gets average timing for an operation.
     pub fn get_average_timing(&self, name: &str) -> Option<f64> {
-        let timings = self.timings.read().unwrap();
+        let timings = self.timings.try_read().unwrap();
         if let Some(times) = timings.get(name) {
             if !times.is_empty() {
                 let sum: u64 = times.iter().sum();
@@ -402,13 +405,13 @@ impl TextPerformanceMonitor {
 
     /// Gets all counter names.
     pub fn counter_names(&self) -> Vec<String> {
-        let counters = self.counters.read().unwrap();
+        let counters = self.counters.try_read().unwrap();
         counters.keys().cloned().collect()
     }
 
     /// Gets all timing names.
     pub fn timing_names(&self) -> Vec<String> {
-        let timings = self.timings.read().unwrap();
+        let timings = self.timings.try_read().unwrap();
         timings.keys().cloned().collect()
     }
 
@@ -459,26 +462,26 @@ impl<T: Clone> TextCache<T> {
     pub fn get(&self, key: &str) -> Option<T> {
         let mut cache = self.cache.write().unwrap();
         let result = cache.get(key).cloned();
-        
+
         let mut stats = self.stats.lock().unwrap();
         if result.is_some() {
             stats.hits += 1;
         } else {
             stats.misses += 1;
         }
-        
+
         result
     }
 
     /// Puts a value into the cache.
     pub fn put(&self, key: String, value: T) {
         let mut cache = self.cache.write().unwrap();
-        
+
         if cache.len() >= cache.cap().get() {
             let mut stats = self.stats.lock().unwrap();
             stats.evictions += 1;
         }
-        
+
         cache.put(key, value);
     }
 
@@ -550,12 +553,11 @@ impl OptimizedTextBuilder {
 
     /// Builds the final text.
     pub fn build(mut self) -> Text {
-        let s = String::from_utf8(self.buffer.clone())
-            .unwrap_or_else(|_| String::new());
-        
+        let s = String::from_utf8(self.buffer.clone()).unwrap_or_else(|_| String::new());
+
         // Return buffer to pool
         TextMemoryPool::global().deallocate(std::mem::take(&mut self.buffer));
-        
+
         // Try to intern the string if it's not too large
         if s.len() <= 1024 {
             let interned = StringInterningPool::global().intern(s);
@@ -606,21 +608,24 @@ impl Drop for OptimizedTextBuilder {
 /// Gets overall performance statistics.
 pub fn get_performance_stats() -> HashMap<String, serde_json::Value> {
     let mut stats = HashMap::new();
-    
+
     // String interning stats
     let interning_stats = StringInterningPool::global().stats();
-    stats.insert("interning".to_string(), serde_json::json!({
-        "total_requests": interning_stats.total_requests,
-        "cache_hits": interning_stats.cache_hits,
-        "cache_misses": interning_stats.cache_misses,
-        "memory_saved": interning_stats.memory_saved,
-        "hit_rate": if interning_stats.total_requests > 0 {
-            interning_stats.cache_hits as f64 / interning_stats.total_requests as f64
-        } else {
-            0.0
-        }
-    }));
-    
+    stats.insert(
+        "interning".to_string(),
+        serde_json::json!({
+            "total_requests": interning_stats.total_requests,
+            "cache_hits": interning_stats.cache_hits,
+            "cache_misses": interning_stats.cache_misses,
+            "memory_saved": interning_stats.memory_saved,
+            "hit_rate": if interning_stats.total_requests > 0 {
+                interning_stats.cache_hits as f64 / interning_stats.total_requests as f64
+            } else {
+                0.0
+            }
+        }),
+    );
+
     // Memory pool stats
     let pool_stats = TextMemoryPool::global().stats();
     stats.insert("memory_pool".to_string(), serde_json::json!({
@@ -634,7 +639,7 @@ pub fn get_performance_stats() -> HashMap<String, serde_json::Value> {
             0.0
         }
     }));
-    
+
     stats
 }
 
@@ -651,13 +656,13 @@ mod tests {
     #[test]
     fn test_string_interning() {
         let pool = StringInterningPool::new();
-        
+
         let s1 = pool.intern("hello".to_string());
         let s2 = pool.intern("hello".to_string());
-        
+
         // Should be the same Arc
         assert!(Arc::ptr_eq(&s1, &s2));
-        
+
         let stats = pool.stats();
         assert_eq!(stats.total_requests, 2);
         assert_eq!(stats.cache_hits, 1);
@@ -667,16 +672,16 @@ mod tests {
     #[test]
     fn test_memory_pool() {
         let pool = TextMemoryPool::new();
-        
+
         let buf1 = pool.allocate(100);
         assert!(buf1.capacity() >= 100);
-        
+
         pool.deallocate(buf1);
-        
+
         let buf2 = pool.allocate(100);
         // Should reuse the buffer
         assert!(buf2.capacity() >= 100);
-        
+
         let stats = pool.stats();
         assert!(stats.pool_allocations > 0 || stats.new_allocations > 0);
     }
@@ -684,10 +689,10 @@ mod tests {
     #[test]
     fn test_simd_operations() {
         let text = Text::from_string_slice("hello world hello");
-        
+
         let count = SimdTextOps::count_char(&text, 'l');
         assert_eq!(count, 5);
-        
+
         let needle = Text::from_string_slice("world");
         let pos = SimdTextOps::find_substring(&text, &needle);
         assert_eq!(pos, Some(6));
@@ -696,11 +701,11 @@ mod tests {
     #[test]
     fn test_optimized_text_builder() {
         let mut builder = OptimizedTextBuilder::new();
-        
+
         builder.push_str("hello");
         builder.push_char(' ');
         builder.push_str("world");
-        
+
         let text = builder.build();
         assert_eq!(text.to_string(), "hello world");
     }
@@ -708,13 +713,13 @@ mod tests {
     #[test]
     fn test_text_cache() {
         let cache: TextCache<String> = TextCache::new(2);
-        
+
         cache.put("key1".to_string(), "value1".to_string());
         cache.put("key2".to_string(), "value2".to_string());
-        
+
         assert_eq!(cache.get("key1"), Some("value1".to_string()));
         assert_eq!(cache.get("key3"), None);
-        
+
         let stats = cache.stats();
         assert_eq!(stats.hits, 1);
         assert_eq!(stats.misses, 1);
@@ -723,12 +728,12 @@ mod tests {
     #[test]
     fn test_performance_monitor() {
         let monitor = TextPerformanceMonitor::new();
-        
+
         monitor.increment_counter("test_op");
         monitor.increment_counter("test_op");
         monitor.record_timing("test_op", 1000);
         monitor.record_timing("test_op", 2000);
-        
+
         assert_eq!(monitor.get_counter("test_op"), 2);
         assert_eq!(monitor.get_average_timing("test_op"), Some(1500.0));
     }

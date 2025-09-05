@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Configuration for integrating with external systems and services.
-/// 
+///
 /// Enables automated reporting to CI/CD systems, performance dashboards,
 /// and notification channels for continuous performance monitoring.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,7 +21,7 @@ pub struct ExternalReporting {
 }
 
 /// Configuration for GitHub integration and CI/CD reporting.
-/// 
+///
 /// Enables automatic issue creation on performance regressions
 /// and PR comments with benchmark results.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,7 +37,7 @@ pub struct GitHubConfig {
 }
 
 /// Configuration for performance tracking dashboard integration.
-/// 
+///
 /// Allows uploading benchmark results to external monitoring
 /// and visualization platforms for trend analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,7 +51,7 @@ pub struct DashboardConfig {
 }
 
 /// Configuration for performance change notifications.
-/// 
+///
 /// Sends alerts to team communication channels when performance
 /// changes exceed specified thresholds.
 #[derive(Debug, Clone, Serialize, Deserialize)]

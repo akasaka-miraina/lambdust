@@ -22,19 +22,19 @@
 //! ## Features
 //!
 //! - **Epsilon Closure**: Handles epsilon transitions efficiently
-//! - **Anchors**: Supports ^ (start) and $ (end) anchors  
+//! - **Anchors**: Supports ^ (start) and $ (end) anchors
 //! - **Character Classes**: Efficient character class matching
 //! - **Match Positions**: Tracks start/end positions of matches
 
-use std::collections::HashSet;
 use crate::regex::engine::{Nfa, NfaEngine, StateId, Transition};
+use std::collections::HashSet;
 
 /// Match result containing position and matched text.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Match {
     /// Start position in input text (byte offset)
     pub start: usize,
-    /// End position in input text (byte offset) 
+    /// End position in input text (byte offset)
     pub end: usize,
     /// Matched text slice
     text: String,
@@ -45,17 +45,17 @@ impl Match {
     pub fn new(start: usize, end: usize, text: String) -> Self {
         Self { start, end, text }
     }
-    
+
     /// Returns the matched text as a string slice.
     pub fn as_str(&self) -> &str {
         &self.text
     }
-    
+
     /// Returns the length of the match.
     pub fn len(&self) -> usize {
         self.end - self.start
     }
-    
+
     /// Tests if the match is empty.
     pub fn is_empty(&self) -> bool {
         self.start == self.end
@@ -77,7 +77,7 @@ pub struct Matcher<'nfa> {
     nfa: &'nfa Nfa,
     /// Current active states
     current_states: HashSet<StateId>,
-    /// Next active states  
+    /// Next active states
     next_states: HashSet<StateId>,
     /// Whether we're at start of input
     at_start: bool,
@@ -93,7 +93,7 @@ impl<'nfa> Matcher<'nfa> {
             at_start: true,
         }
     }
-    
+
     /// Finds the first match in the input text.
     pub fn find(&mut self, text: &str) -> Option<Match> {
         for start_pos in 0..=text.len() {
@@ -103,35 +103,35 @@ impl<'nfa> Matcher<'nfa> {
         }
         None
     }
-    
+
     /// Attempts to find a match starting at the specified position.
     pub fn find_at(&mut self, text: &str, start_pos: usize) -> Option<Match> {
         if start_pos > text.len() {
             return None;
         }
-        
+
         // Initialize state sets
         self.current_states.clear();
         self.next_states.clear();
         self.at_start = start_pos == 0;
-        
+
         // Start with epsilon closure of start state
         self.current_states.insert(self.nfa.start_state);
         Matcher::epsilon_closure_for_nfa(self.nfa, &mut self.current_states);
-        
+
         // Check for immediate accept (empty match)
         if self.has_accept_state(&self.current_states) {
             return Some(Match::new(start_pos, start_pos, String::new()));
         }
-        
+
         // Process each character
         let text_bytes = text.as_bytes();
         let mut pos = start_pos;
-        
+
         while pos < text.len() {
             let ch = text_bytes[pos] as char; // Simplified: assume ASCII
             self.next_states.clear();
-            
+
             // Process transitions for current character
             for &state_id in &self.current_states {
                 if let Some(state) = self.nfa.states.get(&state_id) {
@@ -142,31 +142,31 @@ impl<'nfa> Matcher<'nfa> {
                     }
                 }
             }
-            
+
             // Compute epsilon closure of next states
             Matcher::epsilon_closure_for_nfa(self.nfa, &mut self.next_states);
-            
+
             // Check for match
             if self.has_accept_state(&self.next_states) {
                 let match_text = text[start_pos..=pos].to_string();
                 return Some(Match::new(start_pos, pos + 1, match_text));
             }
-            
+
             // If no active states, matching failed
             if self.next_states.is_empty() {
                 break;
             }
-            
+
             // Swap state sets for next iteration
             std::mem::swap(&mut self.current_states, &mut self.next_states);
             pos += 1;
             self.at_start = false;
         }
-        
+
         // Handle end-of-input anchors
         if !self.current_states.is_empty() {
             self.next_states.clear();
-            
+
             for &state_id in &self.current_states {
                 if let Some(state) = self.nfa.states.get(&state_id) {
                     for (transition, target) in &state.transitions {
@@ -176,20 +176,26 @@ impl<'nfa> Matcher<'nfa> {
                     }
                 }
             }
-            
+
             Matcher::epsilon_closure_for_nfa(self.nfa, &mut self.next_states);
-            
+
             if self.has_accept_state(&self.next_states) {
                 let match_text = text[start_pos..pos].to_string();
                 return Some(Match::new(start_pos, pos, match_text));
             }
         }
-        
+
         None
     }
-    
+
     /// Tests if a transition matches the current character and context.
-    fn transition_matches(&self, transition: &Transition, ch: char, pos: usize, text_len: usize) -> bool {
+    fn transition_matches(
+        &self,
+        transition: &Transition,
+        ch: char,
+        pos: usize,
+        text_len: usize,
+    ) -> bool {
         match transition {
             Transition::Epsilon => false, // Handled separately
             Transition::Char(expected) => ch == *expected,
@@ -199,36 +205,35 @@ impl<'nfa> Matcher<'nfa> {
             Transition::End => pos == text_len,
         }
     }
-    
+
     /// Computes epsilon closure of a state set in-place.
     fn epsilon_closure(&self, states: &mut HashSet<StateId>) {
         Matcher::epsilon_closure_for_nfa(self.nfa, states);
     }
-    
+
     /// Static helper for computing epsilon closure to avoid borrowing issues.
     fn epsilon_closure_for_nfa(nfa: &Nfa, states: &mut HashSet<StateId>) {
         let mut stack: Vec<StateId> = states.iter().copied().collect();
-        
+
         while let Some(state_id) = stack.pop() {
             if let Some(state) = nfa.states.get(&state_id) {
                 for (transition, target) in &state.transitions {
-                    if matches!(transition, Transition::Epsilon)
-                        && states.insert(*target) {
-                            // New state added, explore it
-                            stack.push(*target);
-                        }
+                    if matches!(transition, Transition::Epsilon) && states.insert(*target) {
+                        // New state added, explore it
+                        stack.push(*target);
+                    }
                 }
             }
         }
     }
-    
+
     /// Tests if any state in the set is an accept state.
     fn has_accept_state(&self, states: &HashSet<StateId>) -> bool {
-        states.iter().any(|&state_id| {
-            self.nfa.accept_states.contains(&state_id)
-        })
+        states
+            .iter()
+            .any(|&state_id| self.nfa.accept_states.contains(&state_id))
     }
-    
+
     /// Resets the matcher for reuse.
     pub fn reset(&mut self) {
         self.current_states.clear();
@@ -257,7 +262,7 @@ impl<'m, 't> FindMatches<'m, 't> {
 
 impl<'m, 't> Iterator for FindMatches<'m, 't> {
     type Item = Match;
-    
+
     fn next(&mut self) -> Option<Self::Item> {
         while self.pos <= self.text.len() {
             if let Some(m) = self.matcher.find_at(self.text, self.pos) {
@@ -275,7 +280,7 @@ impl<'m, 't> Iterator for FindMatches<'m, 't> {
 pub fn find_iter<'t>(engine: &'t NfaEngine, text: &'t str) -> impl Iterator<Item = Match> + 't {
     let mut matcher = Matcher::new(engine);
     let mut pos = 0;
-    
+
     std::iter::from_fn(move || {
         while pos <= text.len() {
             if let Some(m) = matcher.find_at(text, pos) {
@@ -299,159 +304,166 @@ mod tests {
         NfaEngine::from_pattern(&parsed).unwrap()
     }
 
-    fn create_matcher(pattern: &str) -> (NfaEngine, Matcher) {
-        let engine = create_engine(pattern);
-        let matcher = Matcher::new(&engine);
-        (engine, matcher)
+    fn create_matcher(pattern: &str) -> NfaEngine {
+        create_engine(pattern)
     }
 
     #[test]
     fn test_simple_char_match() {
         let engine = create_engine("a");
         let mut matcher = Matcher::new(&engine);
-        
+
         assert!(matcher.find("a").is_some());
         assert!(matcher.find("abc").is_some());
         assert!(matcher.find("bac").is_some());
         assert!(matcher.find("xyz").is_none());
     }
-    
+
     #[test]
     fn test_concatenation_match() {
-        let (_engine, mut matcher) = create_matcher("abc");
-        
+        let engine = create_matcher("abc");
+        let mut matcher = Matcher::new(&engine);
+
         let m = matcher.find("abc").unwrap();
         assert_eq!(m.start, 0);
         assert_eq!(m.end, 3);
         assert_eq!(m.as_str(), "abc");
-        
+
         let m2 = matcher.find("xyzabc").unwrap();
         assert_eq!(m2.start, 3);
         assert_eq!(m2.end, 6);
-        
+
         assert!(matcher.find("ab").is_none());
         assert!(matcher.find("acb").is_none());
     }
-    
+
     #[test]
     fn test_alternation_match() {
-        let (_engine, mut matcher) = create_matcher("a|b");
-        
+        let engine = create_matcher("a|b");
+        let mut matcher = Matcher::new(&engine);
+
         assert!(matcher.find("a").is_some());
         assert!(matcher.find("b").is_some());
         assert!(matcher.find("c").is_none());
-        
+
         let m = matcher.find("ba").unwrap();
         assert_eq!(m.as_str(), "b");
         assert_eq!(m.start, 0);
     }
-    
+
     #[test]
     fn test_star_quantifier() {
-        let (_engine, mut matcher) = create_matcher("a*");
-        
+        let engine = create_matcher("a*");
+        let mut matcher = Matcher::new(&engine);
+
         // Should match empty string
         let m = matcher.find("").unwrap();
         assert_eq!(m.start, 0);
         assert_eq!(m.end, 0);
-        
+
         // Should match "a"
         let m2 = matcher.find("a").unwrap();
         assert_eq!(m2.as_str(), "a");
-        
-        // Should match "aaa"  
+
+        // Should match "aaa"
         let m3 = matcher.find("aaa").unwrap();
         assert_eq!(m3.as_str(), "aaa");
-        
+
         // Should match at start of "baa"
         let m4 = matcher.find("baa").unwrap();
         assert_eq!(m4.start, 0);
         assert_eq!(m4.end, 0); // Empty match at start
     }
-    
+
     #[test]
     fn test_plus_quantifier() {
-        let (_engine, mut matcher) = create_matcher("a+");
-        
+        let engine = create_matcher("a+");
+        let mut matcher = Matcher::new(&engine);
+
         // Should not match empty string
         assert!(matcher.find("").is_none());
-        
+
         // Should match "a"
         let m = matcher.find("a").unwrap();
         assert_eq!(m.as_str(), "a");
-        
+
         // Should match "aaa"
         let m2 = matcher.find("aaa").unwrap();
         assert_eq!(m2.as_str(), "aaa");
-        
+
         // Should not match at start of "baa"
         let m3 = matcher.find("baa").unwrap();
         assert_eq!(m3.start, 1); // Matches "aa" part
         assert_eq!(m3.as_str(), "aa");
     }
-    
+
     #[test]
     fn test_question_quantifier() {
-        let (_engine, mut matcher) = create_matcher("a?");
-        
+        let engine = create_matcher("a?");
+        let mut matcher = Matcher::new(&engine);
+
         // Should match empty string
         let m = matcher.find("").unwrap();
         assert_eq!(m.start, 0);
         assert_eq!(m.end, 0);
-        
+
         // Should match "a"
         let m2 = matcher.find("a").unwrap();
         assert_eq!(m2.as_str(), "a");
-        
+
         // Should match first "a" in "aa"
         let m3 = matcher.find("aa").unwrap();
         assert_eq!(m3.as_str(), "a");
         assert_eq!(m3.start, 0);
         assert_eq!(m3.end, 1);
     }
-    
+
     #[test]
     fn test_any_char() {
-        let (_engine, mut matcher) = create_matcher(".");
-        
+        let engine = create_matcher(".");
+        let mut matcher = Matcher::new(&engine);
+
         assert!(matcher.find("a").is_some());
         assert!(matcher.find("1").is_some());
         assert!(matcher.find("@").is_some());
         assert!(matcher.find("").is_none());
-        
+
         // Should not match newline by default
         assert!(matcher.find("\n").is_none());
     }
-    
+
     #[test]
     fn test_character_class() {
-        let (_engine, mut matcher) = create_matcher("[abc]");
-        
+        let engine = create_matcher("[abc]");
+        let mut matcher = Matcher::new(&engine);
+
         assert!(matcher.find("a").is_some());
         assert!(matcher.find("b").is_some());
         assert!(matcher.find("c").is_some());
         assert!(matcher.find("d").is_none());
         assert!(matcher.find("xay").is_some()); // Should find 'a'
     }
-    
+
     #[test]
     fn test_digit_class() {
-        let (_engine, mut matcher) = create_matcher(r"\d");
-        
+        let engine = create_matcher(r"\d");
+        let mut matcher = Matcher::new(&engine);
+
         assert!(matcher.find("5").is_some());
         assert!(matcher.find("0").is_some());
         assert!(matcher.find("9").is_some());
         assert!(matcher.find("a").is_none());
-        
+
         let m = matcher.find("abc123").unwrap();
         assert_eq!(m.as_str(), "1");
         assert_eq!(m.start, 3);
     }
-    
+
     #[test]
     fn test_word_class() {
-        let (_engine, mut matcher) = create_matcher(r"\w");
-        
+        let engine = create_matcher(r"\w");
+        let mut matcher = Matcher::new(&engine);
+
         assert!(matcher.find("a").is_some());
         assert!(matcher.find("Z").is_some());
         assert!(matcher.find("5").is_some());
@@ -459,25 +471,27 @@ mod tests {
         assert!(matcher.find("@").is_none());
         assert!(matcher.find(" ").is_none());
     }
-    
+
     #[test]
     fn test_complex_pattern() {
-        let (_engine, mut matcher) = create_matcher(r"\d+\.\d*");
-        
+        let engine = create_matcher(r"\d+\.\d*");
+        let mut matcher = Matcher::new(&engine);
+
         let m = matcher.find("3.14").unwrap();
         assert_eq!(m.as_str(), "3.14");
-        
+
         let m2 = matcher.find("42.").unwrap();
         assert_eq!(m2.as_str(), "42.");
-        
+
         assert!(matcher.find("3").is_none());
         assert!(matcher.find(".14").is_none());
     }
-    
-    #[test] 
+
+    #[test]
     fn test_find_positions() {
-        let (_engine, mut matcher) = create_matcher("ab");
-        
+        let engine = create_matcher("ab");
+        let mut matcher = Matcher::new(&engine);
+
         let m = matcher.find("xyzab123").unwrap();
         assert_eq!(m.start, 3);
         assert_eq!(m.end, 5);

@@ -5,13 +5,13 @@
 pub struct OrchestratorConfiguration {
     /// Maximum evaluation steps before timeout
     pub max_evaluation_steps: usize,
-    
+
     /// Whether to enable tracing and debugging
     pub enable_tracing: bool,
-    
+
     /// Whether to enable parallel evaluation
     pub enable_parallel_evaluation: bool,
-    
+
     /// Timeout for individual computations
     pub computation_timeout_ms: u64,
 }

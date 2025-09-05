@@ -1,11 +1,12 @@
+#![allow(missing_docs)]
 //! JIT compilation configuration and settings
 //!
 //! This module provides comprehensive configuration options for the JIT compiler,
 //! allowing fine-tuning of compilation strategies, optimization levels, and
 //! performance trade-offs based on specific use cases.
 
-use crate::jit::hotspot_detector::HotspotConfig;
 use crate::jit::compilation_tiers::TierConfig;
+use crate::jit::hotspot_detector::HotspotConfig;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -30,6 +31,8 @@ pub struct JitConfig {
     pub memory_config: MemoryConfig,
     /// Security configuration
     pub security_config: SecurityConfig,
+    /// Enable continuation-specific optimizations
+    pub enable_continuation_support: bool,
 }
 
 impl Default for JitConfig {
@@ -44,6 +47,7 @@ impl Default for JitConfig {
             target_config: TargetConfig::default(),
             memory_config: MemoryConfig::default(),
             security_config: SecurityConfig::default(),
+            enable_continuation_support: true,
         }
     }
 }
@@ -69,6 +73,7 @@ impl JitConfig {
                 max_compilation_time: HashMap::new(),
                 enable_speculative_compilation: false,
                 enable_deoptimization: true,
+                enable_aggressive_optimizations: false,
             },
             cache_config: CacheConfig {
                 max_entries: 1000,
@@ -82,6 +87,7 @@ impl JitConfig {
             target_config: TargetConfig::default(),
             memory_config: MemoryConfig::default(),
             security_config: SecurityConfig::default(),
+            enable_continuation_support: true,
         }
     }
 
@@ -105,6 +111,7 @@ impl JitConfig {
                 max_compilation_time: HashMap::new(),
                 enable_speculative_compilation: true,
                 enable_deoptimization: true,
+                enable_aggressive_optimizations: true,
             },
             cache_config: CacheConfig {
                 max_entries: 5000,
@@ -118,6 +125,7 @@ impl JitConfig {
             target_config: TargetConfig::default(),
             memory_config: MemoryConfig::default(),
             security_config: SecurityConfig::default(),
+            enable_continuation_support: true,
         }
     }
 
@@ -141,6 +149,7 @@ impl JitConfig {
                 max_compilation_time: HashMap::new(),
                 enable_speculative_compilation: true,
                 enable_deoptimization: false,
+                enable_aggressive_optimizations: true,
             },
             cache_config: CacheConfig {
                 max_entries: 20000,
@@ -154,6 +163,7 @@ impl JitConfig {
             target_config: TargetConfig::default(),
             memory_config: MemoryConfig::default(),
             security_config: SecurityConfig::default(),
+            enable_continuation_support: true,
         }
     }
 
@@ -195,8 +205,8 @@ impl JitConfig {
 
     /// Converts JitConfig to CodegenConfig for code generation
     pub fn to_codegen_config(&self) -> crate::jit::code_generator::CodegenConfig {
-        use crate::jit::code_generator::{CodegenConfig, TargetFeatures, OptimizationLevel};
-        
+        use crate::jit::code_generator::{CodegenConfig, OptimizationLevel, TargetFeatures};
+
         CodegenConfig {
             target_features: TargetFeatures::detect(),
             optimization_level: if self.optimization_config.enable_advanced_optimizations {
@@ -206,8 +216,8 @@ impl JitConfig {
             } else {
                 OptimizationLevel::None
             },
-            debug_info: false, // TODO: could be configurable
-            bounds_checking: true, // TODO: could be configurable
+            debug_info: false,       // TODO: could be configurable
+            bounds_checking: true,   // TODO: could be configurable
             overflow_checking: true, // TODO: could be configurable
             simd_optimizations: self.optimization_config.enable_advanced_optimizations,
         }
@@ -249,7 +259,10 @@ impl CacheConfig {
             max_memory_bytes: self.max_memory_usage,
             max_entries: self.max_entries,
             memory_pressure_threshold: 0.8, // reasonable default
-            enable_lru_eviction: matches!(self.eviction_policy, EvictionPolicy::LRU | EvictionPolicy::AdaptiveLRU),
+            enable_lru_eviction: matches!(
+                self.eviction_policy,
+                EvictionPolicy::LRU | EvictionPolicy::AdaptiveLRU
+            ),
             enable_compaction: true,
             compaction_interval: Duration::from_secs(60),
             execution_based_retention: true,
@@ -486,7 +499,7 @@ pub struct MemoryConfig {
 impl Default for MemoryConfig {
     fn default() -> Self {
         MemoryConfig {
-            initial_code_buffer_size: 64 * 1024, // 64KB
+            initial_code_buffer_size: 64 * 1024,    // 64KB
             max_code_buffer_size: 16 * 1024 * 1024, // 16MB
             enable_memory_pool: true,
             memory_pool_initial_size: 1024 * 1024, // 1MB
@@ -536,7 +549,6 @@ pub enum CompilationStrategy {
     #[default]
     Adaptive,
 }
-
 
 impl std::fmt::Display for CompilationStrategy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

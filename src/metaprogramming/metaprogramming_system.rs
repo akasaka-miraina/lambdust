@@ -1,12 +1,12 @@
 //! Central metaprogramming system that coordinates all subsystems.
 
-use std::rc::Rc;
-use crate::eval::Environment;
-use crate::diagnostics::Result;
 use super::{
-    ReflectionSystem, CodeGenerator, DynamicEvaluator, ProceduralMacro,
-    StaticAnalyzer, EnvironmentManipulator, SecurityManager
+    CodeGenerator, DynamicEvaluator, EnvironmentManipulator, ProceduralMacro, ReflectionSystem,
+    SecurityManager, StaticAnalyzer,
 };
+use crate::diagnostics::Result;
+use crate::eval::Environment;
+use std::rc::Rc;
 
 /// Central metaprogramming system that coordinates all subsystems.
 #[derive(Debug)]
@@ -31,7 +31,7 @@ impl MetaprogrammingSystem {
     /// Creates a new metaprogramming system.
     pub fn new() -> Self {
         let security = SecurityManager::new();
-        
+
         Self {
             reflection: ReflectionSystem::new(),
             code_generation: CodeGenerator::new(),

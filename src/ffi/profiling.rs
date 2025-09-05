@@ -5,12 +5,12 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
-use std::sync::{RwLock, Mutex};
-use std::time::{Duration, Instant};
+use std::sync::{Mutex, RwLock};
 use std::thread;
+use std::time::{Duration, Instant};
 
-use crate::eval::Value;
 use crate::diagnostics::Error;
+use crate::eval::Value;
 
 /// FFI debugging and profiling errors
 #[derive(Debug, Clone)]
@@ -18,20 +18,11 @@ pub enum ProfilingError {
     /// Profiler not initialized
     NotInitialized,
     /// Invalid profiling configuration
-    InvalidConfig {
-        parameter: String,
-        reason: String,
-    },
+    InvalidConfig { parameter: String, reason: String },
     /// Profiling data collection failed
-    CollectionFailed {
-        operation: String,
-        error: String,
-    },
+    CollectionFailed { operation: String, error: String },
     /// Report generation failed
-    ReportGenerationFailed {
-        format: String,
-        error: String,
-    },
+    ReportGenerationFailed { format: String, error: String },
 }
 
 impl fmt::Display for ProfilingError {
@@ -41,10 +32,16 @@ impl fmt::Display for ProfilingError {
                 write!(f, "FFI profiler not initialized")
             }
             ProfilingError::InvalidConfig { parameter, reason } => {
-                write!(f, "Invalid profiling configuration for '{parameter}': {reason}")
+                write!(
+                    f,
+                    "Invalid profiling configuration for '{parameter}': {reason}"
+                )
             }
             ProfilingError::CollectionFailed { operation, error } => {
-                write!(f, "Profiling data collection failed for '{operation}': {error}")
+                write!(
+                    f,
+                    "Profiling data collection failed for '{operation}': {error}"
+                )
             }
             ProfilingError::ReportGenerationFailed { format, error } => {
                 write!(f, "Report generation failed for format '{format}': {error}")
@@ -329,7 +326,7 @@ impl FfiProfiler {
 
     /// Check if profiler is active
     pub fn is_active(&self) -> bool {
-        *self.active.read().unwrap()
+        *self.active.try_read().unwrap()
     }
 
     /// Record the start of an FFI call
@@ -343,7 +340,7 @@ impl FfiProfiler {
             return None;
         }
 
-        let config = self.config.read().unwrap();
+        let config = self.config.try_read().unwrap();
 
         // Check sampling rate
         if config.sampling_rate < 1.0 {
@@ -400,16 +397,12 @@ impl FfiProfiler {
     }
 
     /// Record the completion of an FFI call
-    pub fn record_call_end(
-        &self,
-        event_id: u64,
-        result: &std::result::Result<Value, String>,
-    ) {
+    pub fn record_call_end(&self, event_id: u64, result: &std::result::Result<Value, String>) {
         if !self.is_active() {
             return;
         }
 
-        let config = self.config.read().unwrap();
+        let config = self.config.try_read().unwrap();
         let end_time = Instant::now();
 
         // Find and update the event
@@ -418,7 +411,7 @@ impl FfiProfiler {
             if let Some(event) = events.iter_mut().find(|e| e.id == event_id) {
                 event.end_time = Some(end_time);
                 event.duration = Some(end_time.duration_since(event.start_time));
-                
+
                 match result {
                     Ok(value) => {
                         event.success = true;
@@ -452,7 +445,7 @@ impl FfiProfiler {
             return;
         }
 
-        let config = self.config.read().unwrap();
+        let config = self.config.try_read().unwrap();
         if !config.enable_memory_profiling {
             return;
         }
@@ -496,7 +489,7 @@ impl FfiProfiler {
         if let Some(duration) = event.duration {
             let mut metrics = self.function_metrics.write().unwrap();
             let key = format!("{}::{}", event.library_name, event.function_name);
-            
+
             let func_perf = metrics.entry(key).or_insert_with(|| FunctionPerformance {
                 name: event.function_name.clone(),
                 library: event.library_name.clone(),
@@ -512,7 +505,7 @@ impl FfiProfiler {
             func_perf.call_count += 1;
             func_perf.total_time += duration;
             func_perf.average_time = func_perf.total_time / func_perf.call_count as u32;
-            
+
             if duration < func_perf.min_time {
                 func_perf.min_time = duration;
             }
@@ -522,7 +515,9 @@ impl FfiProfiler {
 
             // Update success rate
             let successful_calls = if event.success { 1 } else { 0 };
-            func_perf.success_rate = (func_perf.success_rate * (func_perf.call_count - 1) as f64 + successful_calls as f64) / func_perf.call_count as f64;
+            func_perf.success_rate = (func_perf.success_rate * (func_perf.call_count - 1) as f64
+                + successful_calls as f64)
+                / func_perf.call_count as f64;
         }
     }
 
@@ -530,7 +525,7 @@ impl FfiProfiler {
     fn update_global_metrics(&self, success: bool, _end_time: Instant) {
         let mut metrics = self.global_metrics.write().unwrap();
         metrics.total_calls += 1;
-        
+
         if success {
             metrics.successful_calls += 1;
         } else {
@@ -545,19 +540,22 @@ impl FfiProfiler {
     /// Update memory statistics
     fn update_memory_stats(&self, size: usize, allocation_type: &AllocationType) {
         let mut metrics = self.global_metrics.write().unwrap();
-        
+
         match allocation_type {
-            AllocationType::FfiAllocation | AllocationType::PoolAllocation | AllocationType::SystemAllocation => {
+            AllocationType::FfiAllocation
+            | AllocationType::PoolAllocation
+            | AllocationType::SystemAllocation => {
                 metrics.memory_stats.total_allocated += size;
                 metrics.memory_stats.current_usage += size;
                 metrics.memory_stats.allocation_count += 1;
-                
+
                 if metrics.memory_stats.current_usage > metrics.memory_stats.peak_usage {
                     metrics.memory_stats.peak_usage = metrics.memory_stats.current_usage;
                 }
             }
             AllocationType::Deallocation => {
-                metrics.memory_stats.current_usage = metrics.memory_stats.current_usage.saturating_sub(size);
+                metrics.memory_stats.current_usage =
+                    metrics.memory_stats.current_usage.saturating_sub(size);
                 metrics.memory_stats.deallocation_count += 1;
             }
         }
@@ -576,33 +574,33 @@ impl FfiProfiler {
 
     /// Get current performance metrics
     pub fn get_metrics(&self) -> PerformanceMetrics {
-        let mut metrics = self.global_metrics.read().unwrap().clone();
-        
+        let mut metrics = self.global_metrics.try_read().unwrap().clone();
+
         // Update top functions lists
-        let function_metrics = self.function_metrics.read().unwrap();
-        
+        let function_metrics = self.function_metrics.try_read().unwrap();
+
         // Sort by call count for most called
         let mut most_called: Vec<_> = function_metrics.values().cloned().collect();
         most_called.sort_by(|a, b| b.call_count.cmp(&a.call_count));
         metrics.most_called_functions = most_called.into_iter().take(10).collect();
-        
+
         // Sort by average time for slowest
         let mut slowest: Vec<_> = function_metrics.values().cloned().collect();
         slowest.sort_by(|a, b| b.average_time.cmp(&a.average_time));
         metrics.slowest_functions = slowest.into_iter().take(10).collect();
-        
+
         metrics
     }
 
     /// Get call events
     pub fn get_call_events(&self) -> Vec<FfiCallEvent> {
-        let events = self.events.read().unwrap();
+        let events = self.events.try_read().unwrap();
         events.iter().cloned().collect()
     }
 
     /// Get memory events
     pub fn get_memory_events(&self) -> Vec<MemoryAllocationEvent> {
-        let events = self.memory_events.read().unwrap();
+        let events = self.memory_events.try_read().unwrap();
         events.iter().cloned().collect()
     }
 
@@ -630,35 +628,73 @@ impl FfiProfiler {
         // Global statistics
         report.push_str("Global Statistics:\n");
         report.push_str(&format!("  Total calls: {}\n", metrics.total_calls));
-        report.push_str(&format!("  Successful calls: {}\n", metrics.successful_calls));
+        report.push_str(&format!(
+            "  Successful calls: {}\n",
+            metrics.successful_calls
+        ));
         report.push_str(&format!("  Failed calls: {}\n", metrics.failed_calls));
-        report.push_str(&format!("  Success rate: {:.2}%\n", 
-            (metrics.successful_calls as f64 / metrics.total_calls as f64) * 100.0));
-        report.push_str(&format!("  Calls per second: {:.2}\n", metrics.calls_per_second));
-        report.push_str(&format!("  Average call time: {:?}\n", metrics.average_time));
+        report.push_str(&format!(
+            "  Success rate: {:.2}%\n",
+            (metrics.successful_calls as f64 / metrics.total_calls as f64) * 100.0
+        ));
+        report.push_str(&format!(
+            "  Calls per second: {:.2}\n",
+            metrics.calls_per_second
+        ));
+        report.push_str(&format!(
+            "  Average call time: {:?}\n",
+            metrics.average_time
+        ));
         report.push('\n');
 
         // Memory statistics
         report.push_str("Memory Statistics:\n");
-        report.push_str(&format!("  Total allocated: {} bytes\n", metrics.memory_stats.total_allocated));
-        report.push_str(&format!("  Peak usage: {} bytes\n", metrics.memory_stats.peak_usage));
-        report.push_str(&format!("  Current usage: {} bytes\n", metrics.memory_stats.current_usage));
-        report.push_str(&format!("  Allocations: {}\n", metrics.memory_stats.allocation_count));
-        report.push_str(&format!("  Deallocations: {}\n", metrics.memory_stats.deallocation_count));
+        report.push_str(&format!(
+            "  Total allocated: {} bytes\n",
+            metrics.memory_stats.total_allocated
+        ));
+        report.push_str(&format!(
+            "  Peak usage: {} bytes\n",
+            metrics.memory_stats.peak_usage
+        ));
+        report.push_str(&format!(
+            "  Current usage: {} bytes\n",
+            metrics.memory_stats.current_usage
+        ));
+        report.push_str(&format!(
+            "  Allocations: {}\n",
+            metrics.memory_stats.allocation_count
+        ));
+        report.push_str(&format!(
+            "  Deallocations: {}\n",
+            metrics.memory_stats.deallocation_count
+        ));
         report.push('\n');
 
         // Top functions
         report.push_str("Most Called Functions:\n");
         for (i, func) in metrics.most_called_functions.iter().take(5).enumerate() {
-            report.push_str(&format!("  {}. {}::{} ({} calls, avg: {:?})\n", 
-                i + 1, func.library, func.name, func.call_count, func.average_time));
+            report.push_str(&format!(
+                "  {}. {}::{} ({} calls, avg: {:?})\n",
+                i + 1,
+                func.library,
+                func.name,
+                func.call_count,
+                func.average_time
+            ));
         }
         report.push('\n');
 
         report.push_str("Slowest Functions:\n");
         for (i, func) in metrics.slowest_functions.iter().take(5).enumerate() {
-            report.push_str(&format!("  {}. {}::{} (avg: {:?}, {} calls)\n", 
-                i + 1, func.library, func.name, func.average_time, func.call_count));
+            report.push_str(&format!(
+                "  {}. {}::{} (avg: {:?}, {} calls)\n",
+                i + 1,
+                func.library,
+                func.name,
+                func.average_time,
+                func.call_count
+            ));
         }
 
         Ok(report)
@@ -667,10 +703,11 @@ impl FfiProfiler {
     /// Generate a JSON report
     fn generate_json_report(&self) -> std::result::Result<String, ProfilingError> {
         let metrics = self.get_metrics();
-        
+
         // This is a simplified JSON generation
         // In practice, you'd use serde_json
-        let json = format!(r#"{{
+        let json = format!(
+            r#"{{
   "total_calls": {},
   "successful_calls": {},
   "failed_calls": {},
@@ -680,9 +717,9 @@ impl FfiProfiler {
     "peak_usage": {},
     "current_usage": {}
   }}
-}}"#, 
+}}"#,
             metrics.total_calls,
-            metrics.successful_calls, 
+            metrics.successful_calls,
             metrics.failed_calls,
             metrics.calls_per_second,
             metrics.memory_stats.total_allocated,
@@ -696,8 +733,9 @@ impl FfiProfiler {
     /// Generate an HTML report
     fn generate_html_report(&self) -> std::result::Result<String, ProfilingError> {
         let metrics = self.get_metrics();
-        
-        let html = format!(r#"<!DOCTYPE html>
+
+        let html = format!(
+            r#"<!DOCTYPE html>
 <html>
 <head>
     <title>FFI Profiling Report</title>
@@ -712,7 +750,7 @@ impl FfiProfiler {
 </head>
 <body>
     <h1>FFI Profiling Report</h1>
-    
+
     <div class="section">
         <h2>Global Statistics</h2>
         <div class="metric">Total calls: {}</div>
@@ -720,7 +758,7 @@ impl FfiProfiler {
         <div class="metric">Failed calls: {}</div>
         <div class="metric">Calls per second: {:.2}</div>
     </div>
-    
+
     <div class="section">
         <h2>Memory Statistics</h2>
         <div class="metric">Total allocated: {} bytes</div>
@@ -747,17 +785,17 @@ impl FfiProfiler {
             let mut events = self.events.write().unwrap();
             events.clear();
         }
-        
+
         {
             let mut memory_events = self.memory_events.write().unwrap();
             memory_events.clear();
         }
-        
+
         {
             let mut function_metrics = self.function_metrics.write().unwrap();
             function_metrics.clear();
         }
-        
+
         {
             let mut global_metrics = self.global_metrics.write().unwrap();
             *global_metrics = PerformanceMetrics {
@@ -828,10 +866,10 @@ mod tests {
     #[test]
     fn test_profiler_start_stop() {
         let profiler = FfiProfiler::new();
-        
+
         profiler.start().unwrap();
         assert!(profiler.is_active());
-        
+
         profiler.stop().unwrap();
         assert!(!profiler.is_active());
     }
@@ -840,14 +878,14 @@ mod tests {
     fn test_call_recording() {
         let profiler = FfiProfiler::new();
         profiler.start().unwrap();
-        
+
         let args = vec![Value::Literal(Literal::Number(42.0))];
         let event_id = profiler.record_call_start("test_func", "test_lib", &args);
         assert!(event_id.is_some());
-        
+
         let result = Ok(Value::Literal(Literal::Number(84.0)));
         profiler.record_call_end(event_id.unwrap(), &result);
-        
+
         let metrics = profiler.get_metrics();
         assert_eq!(metrics.total_calls, 1);
         assert_eq!(metrics.successful_calls, 1);
@@ -857,9 +895,9 @@ mod tests {
     fn test_memory_recording() {
         let profiler = FfiProfiler::new();
         profiler.start().unwrap();
-        
+
         profiler.record_memory_allocation(0x1000, 64, AllocationType::FfiAllocation);
-        
+
         let metrics = profiler.get_metrics();
         assert_eq!(metrics.memory_stats.allocation_count, 1);
         assert_eq!(metrics.memory_stats.total_allocated, 64);
@@ -869,19 +907,21 @@ mod tests {
     fn test_report_generation() {
         let profiler = FfiProfiler::new();
         profiler.start().unwrap();
-        
+
         // Add some test data
         let args = vec![Value::Literal(Literal::Number(42.0))];
-        let event_id = profiler.record_call_start("test_func", "test_lib", &args).unwrap();
+        let event_id = profiler
+            .record_call_start("test_func", "test_lib", &args)
+            .unwrap();
         profiler.record_call_end(event_id, &Ok(Value::Literal(Literal::Number(84.0))));
-        
+
         let text_report = profiler.generate_report("text").unwrap();
         assert!(text_report.contains("FFI Profiling Report"));
         assert!(text_report.contains("Total calls: 1"));
-        
+
         let json_report = profiler.generate_report("json").unwrap();
         assert!(json_report.contains("total_calls"));
-        
+
         let html_report = profiler.generate_report("html").unwrap();
         assert!(html_report.contains("<html>"));
     }
@@ -889,12 +929,12 @@ mod tests {
     #[test]
     fn test_configuration_validation() {
         let profiler = FfiProfiler::new();
-        
+
         let invalid_config = ProfilingConfig {
             sampling_rate: -0.5, // Invalid
             ..Default::default()
         };
-        
+
         let result = profiler.configure(invalid_config);
         assert!(matches!(result, Err(ProfilingError::InvalidConfig { .. })));
     }

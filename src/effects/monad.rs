@@ -2,14 +2,14 @@
 //!
 //! This module implements the core monadic abstractions used in Lambdust:
 //! - IO monad for side effects
-//! - State monad for mutations  
+//! - State monad for mutations
 //! - Error monad for exceptions
 //! - Combined monad transformers
 //! - Monadic composition operations (return, >>=, >>, do-notation)
 
 #![allow(missing_docs)]
 
-use super::{Effect};
+use super::Effect;
 use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::eval::value::{ThreadSafeEnvironment, Value};
 use std::collections::HashMap;
@@ -28,7 +28,7 @@ pub enum MonadicValue {
     IO(IOComputation),
     /// State computation
     State(StateComputation),
-    /// Error computation  
+    /// Error computation
     Error(ErrorComputation),
     /// Combined computation with multiple effects
     Combined(CombinedComputation),
@@ -58,7 +58,7 @@ pub enum IOAction {
     Newline,
     /// Open a file for reading
     OpenRead(String),
-    /// Open a file for writing  
+    /// Open a file for writing
     OpenWrite(String),
     /// Close a file/port
     Close(Value),
@@ -186,7 +186,7 @@ impl MonadicValue {
     pub fn pure(value: Value) -> Self {
         MonadicValue::Pure(value)
     }
-    
+
     /// Creates an IO computation.
     pub fn io(action: IOAction) -> Self {
         MonadicValue::IO(IOComputation {
@@ -194,7 +194,7 @@ impl MonadicValue {
             continuation: None,
         })
     }
-    
+
     /// Creates a state computation.
     pub fn state(action: StateAction, env: Arc<ThreadSafeEnvironment>) -> Self {
         MonadicValue::State(StateComputation {
@@ -203,7 +203,7 @@ impl MonadicValue {
             continuation: None,
         })
     }
-    
+
     /// Creates an error computation.
     pub fn error(action: ErrorAction) -> Self {
         MonadicValue::Error(ErrorComputation {
@@ -212,7 +212,7 @@ impl MonadicValue {
             continuation: None,
         })
     }
-    
+
     /// Returns the effects present in this monadic value.
     pub fn effects(&self) -> Vec<Effect> {
         match self {
@@ -223,12 +223,12 @@ impl MonadicValue {
             MonadicValue::Combined(comp) => comp.effects.clone(),
         }
     }
-    
+
     /// Returns true if this computation is pure.
     pub fn is_pure(&self) -> bool {
         matches!(self, MonadicValue::Pure(_))
     }
-    
+
     /// Extracts the value if this is a pure computation.
     pub fn into_pure(self) -> Option<Value> {
         match self {
@@ -236,13 +236,13 @@ impl MonadicValue {
             _ => None,
         }
     }
-    
+
     /// Lifts this computation into a specific effect.
     pub fn lift_into(self, effect: Effect) -> Self {
         if self.effects().contains(&effect) {
             return self;
         }
-        
+
         match effect {
             Effect::Pure => self,
             Effect::IO => match self {
@@ -254,7 +254,7 @@ impl MonadicValue {
                     // Create a state computation that returns the value with empty env
                     let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
                     MonadicValue::state(StateAction::Return(value), env)
-                },
+                }
                 other => other,
             },
             Effect::Error => match self {
@@ -267,15 +267,19 @@ impl MonadicValue {
                 effects.push(effect);
                 effects.sort();
                 effects.dedup();
-                
+
                 let mut computations = HashMap::new();
                 computations.insert(Effect::Pure, Box::new(self.clone()));
-                
+
                 MonadicValue::Combined(CombinedComputation {
                     effects,
                     computations,
                     primary: Box::new(self),
                 })
+            }
+            Effect::Mutation => {
+                // Handle mutation effect - for now return the value as-is
+                self
             }
         }
     }
@@ -286,10 +290,10 @@ impl Monad {
     pub fn return_value(value: Value) -> MonadicValue {
         MonadicValue::pure(value)
     }
-    
+
     /// Monadic bind operation (>>=) - sequential composition.
-    pub fn bind<F>(mv: MonadicValue, f: F) -> MonadicValue 
-    where 
+    pub fn bind<F>(mv: MonadicValue, f: F) -> MonadicValue
+    where
         F: Fn(Value) -> MonadicValue + 'static,
     {
         match mv {
@@ -297,36 +301,36 @@ impl Monad {
             MonadicValue::IO(mut io_comp) => {
                 // Set the continuation to apply f to the result
                 io_comp.continuation = Some(Box::new(
-                    MonadicValue::Pure(Value::Unspecified) // Placeholder, will be replaced
+                    MonadicValue::Pure(Value::Unspecified), // Placeholder, will be replaced
                 ));
                 MonadicValue::IO(io_comp)
-            },
+            }
             MonadicValue::State(mut state_comp) => {
                 // Set the continuation for state computation
                 state_comp.continuation = Some(Box::new(
-                    MonadicValue::Pure(Value::Unspecified) // Placeholder
+                    MonadicValue::Pure(Value::Unspecified), // Placeholder
                 ));
                 MonadicValue::State(state_comp)
-            },
+            }
             MonadicValue::Error(mut error_comp) => {
                 // Set the continuation for error computation
                 error_comp.continuation = Some(Box::new(
-                    MonadicValue::Pure(Value::Unspecified) // Placeholder
+                    MonadicValue::Pure(Value::Unspecified), // Placeholder
                 ));
                 MonadicValue::Error(error_comp)
-            },
+            }
             MonadicValue::Combined(combined) => {
                 // Handle combined computations
                 MonadicValue::Combined(combined) // Simplified for now
             }
         }
     }
-    
+
     /// Monadic sequence operation (>>) - sequential execution, ignoring first result.
     pub fn sequence(first: MonadicValue, second: MonadicValue) -> MonadicValue {
         Self::bind(first, move |_| second.clone())
     }
-    
+
     /// Monadic join operation - flattens nested monadic values.
     pub fn join(nested: MonadicValue) -> MonadicValue {
         Self::bind(nested, |value| {
@@ -336,15 +340,15 @@ impl Monad {
             MonadicValue::pure(value)
         })
     }
-    
+
     /// Lifts a function into the monadic context (fmap).
-    pub fn fmap<F>(f: F, mv: MonadicValue) -> MonadicValue 
-    where 
+    pub fn fmap<F>(f: F, mv: MonadicValue) -> MonadicValue
+    where
         F: Fn(Value) -> Value + 'static,
     {
         Self::bind(mv, move |value| MonadicValue::pure(f(value)))
     }
-    
+
     /// Applicative apply operation (<*>).
     pub fn apply(mf: MonadicValue, mv: MonadicValue) -> MonadicValue {
         Self::bind(mf, move |_f_val| {
@@ -355,10 +359,10 @@ impl Monad {
             })
         })
     }
-    
+
     /// Lifts two values with a binary function.
-    pub fn lift2<F>(f: F, ma: MonadicValue, mb: MonadicValue) -> MonadicValue 
-    where 
+    pub fn lift2<F>(f: F, ma: MonadicValue, mb: MonadicValue) -> MonadicValue
+    where
         F: FnOnce(Value, Value) -> Value + Clone + 'static,
     {
         let f = f.clone();
@@ -370,7 +374,7 @@ impl Monad {
             })
         })
     }
-    
+
     /// Conditional monadic execution.
     pub fn when(condition: bool, action: MonadicValue) -> MonadicValue {
         if condition {
@@ -379,18 +383,14 @@ impl Monad {
             MonadicValue::pure(Value::Unspecified)
         }
     }
-    
+
     /// Conditional monadic execution with alternative.
     pub fn if_then_else(
-        condition: bool, 
-        then_action: MonadicValue, 
-        else_action: MonadicValue
+        condition: bool,
+        then_action: MonadicValue,
+        else_action: MonadicValue,
     ) -> MonadicValue {
-        if condition {
-            then_action
-        } else {
-            else_action
-        }
+        if condition { then_action } else { else_action }
     }
 }
 
@@ -402,13 +402,13 @@ impl IOComputation {
             continuation: None,
         }
     }
-    
+
     /// Adds a continuation to this IO computation.
     pub fn then(mut self, continuation: MonadicValue) -> Self {
         self.continuation = Some(Box::new(continuation));
         self
     }
-    
+
     /// Executes this IO computation.
     pub fn execute(&self) -> Result<Value> {
         match &self.action {
@@ -416,25 +416,25 @@ impl IOComputation {
             IOAction::Print(value) => {
                 print!("{}", value.display_string());
                 Ok(Value::Unspecified)
-            },
+            }
             IOAction::WriteValue(value) => {
                 print!("{value}");
                 Ok(Value::Unspecified)
-            },
+            }
             IOAction::Newline => {
                 println!();
                 Ok(Value::Unspecified)
-            },
+            }
             IOAction::Write(target, value) => {
                 match target {
                     IOTarget::Stdout => {
                         print!("{value}");
                         Ok(Value::Unspecified)
-                    },
+                    }
                     IOTarget::Stderr => {
                         eprint!("{value}");
                         Ok(Value::Unspecified)
-                    },
+                    }
                     _ => {
                         // TODO: Implement other IO targets
                         Err(Box::new(DiagnosticError::runtime_error(
@@ -443,7 +443,7 @@ impl IOComputation {
                         )))
                     }
                 }
-            },
+            }
             _ => {
                 // TODO: Implement other IO actions
                 Err(Box::new(DiagnosticError::runtime_error(
@@ -464,13 +464,13 @@ impl StateComputation {
             continuation: None,
         }
     }
-    
+
     /// Adds a continuation to this state computation.
     pub fn then(mut self, continuation: MonadicValue) -> Self {
         self.continuation = Some(Box::new(continuation));
         self
     }
-    
+
     /// Executes this state computation, returning the result and new state.
     pub fn execute(&self) -> Result<(Value, Arc<ThreadSafeEnvironment>)> {
         match &self.action {
@@ -478,18 +478,14 @@ impl StateComputation {
             StateAction::Get => {
                 // Return the environment as a value (simplified)
                 Ok((Value::Unspecified, self.initial_env.clone()))
-            },
-            StateAction::Put(new_env) => {
-                Ok((Value::Unspecified, new_env.clone()))
-            },
-            StateAction::GetVar(name) => {
-                match self.initial_env.lookup(name) {
-                    Some(value) => Ok((value, self.initial_env.clone())),
-                    None => Err(Box::new(DiagnosticError::runtime_error(
-                        format!("Unbound variable: {name}"),
-                        None,
-                    ))),
-                }
+            }
+            StateAction::Put(new_env) => Ok((Value::Unspecified, new_env.clone())),
+            StateAction::GetVar(name) => match self.initial_env.lookup(name) {
+                Some(value) => Ok((value, self.initial_env.clone())),
+                None => Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Unbound variable: {name}"),
+                    None,
+                ))),
             },
             StateAction::SetVar(name, value) => {
                 // Create a new environment with the updated variable using COW semantics
@@ -501,11 +497,11 @@ impl StateComputation {
                         None,
                     )))
                 }
-            },
+            }
             StateAction::DefineVar(name, value) => {
                 let new_env = self.initial_env.define_cow(name.clone(), value.clone());
                 Ok((Value::Unspecified, new_env))
-            },
+            }
             _ => {
                 // TODO: Implement other state actions
                 Err(Box::new(DiagnosticError::runtime_error(
@@ -526,21 +522,19 @@ impl ErrorComputation {
             continuation: None,
         }
     }
-    
+
     /// Adds an error handler to this computation.
     pub fn with_handler(mut self, handler_name: String) -> Self {
-        self.handler = Some(ErrorHandler {
-            name: handler_name,
-        });
+        self.handler = Some(ErrorHandler { name: handler_name });
         self
     }
-    
+
     /// Adds a continuation to this error computation.
     pub fn then(mut self, continuation: MonadicValue) -> Self {
         self.continuation = Some(Box::new(continuation));
         self
     }
-    
+
     /// Executes this error computation.
     pub fn execute(&self) -> Result<Value> {
         match &self.action {
@@ -552,7 +546,7 @@ impl ErrorComputation {
                 } else {
                     Err(Box::new(error.clone()))
                 }
-            },
+            }
             ErrorAction::Try(computation) => {
                 // Try to execute the computation, catching any errors
                 match computation.as_ref() {
@@ -563,7 +557,7 @@ impl ErrorComputation {
                         Ok(Value::Unspecified)
                     }
                 }
-            },
+            }
             _ => {
                 // TODO: Implement other error actions
                 Err(Box::new(DiagnosticError::runtime_error(
@@ -584,7 +578,9 @@ impl PartialEq for StateAction {
             (StateAction::Put(a), StateAction::Put(b)) => Arc::ptr_eq(a, b),
             (StateAction::GetVar(a), StateAction::GetVar(b)) => a == b,
             (StateAction::SetVar(a1, v1), StateAction::SetVar(a2, v2)) => a1 == a2 && v1 == v2,
-            (StateAction::DefineVar(a1, v1), StateAction::DefineVar(a2, v2)) => a1 == a2 && v1 == v2,
+            (StateAction::DefineVar(a1, v1), StateAction::DefineVar(a2, v2)) => {
+                a1 == a2 && v1 == v2
+            }
             (StateAction::Return(a), StateAction::Return(b)) => a == b,
             (StateAction::Custom(a1, v1), StateAction::Custom(a2, v2)) => a1 == a2 && v1 == v2,
             _ => false,

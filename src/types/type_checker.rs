@@ -1,6 +1,6 @@
-use super::{TypeLevel, TypeEnv, TypeConstraint};
-use crate::diagnostics::Error;
 use super::substitution::Substitution;
+use super::{TypeConstraint, TypeEnv, TypeLevel};
+use crate::diagnostics::Error;
 
 /// Type checker state.
 #[derive(Debug)]
@@ -30,32 +30,32 @@ impl TypeChecker {
             errors: Vec::new(),
         }
     }
-    
+
     /// Gets the current type level.
     pub fn level(&self) -> TypeLevel {
         self.level
     }
-    
+
     /// Gets the current type environment.
     pub fn env(&self) -> &TypeEnv {
         &self.env
     }
-    
+
     /// Gets a mutable reference to the type environment.
     pub fn env_mut(&mut self) -> &mut TypeEnv {
         &mut self.env
     }
-    
+
     /// Adds a type error.
     pub fn add_error(&mut self, error: Error) {
         self.errors.push(error);
     }
-    
+
     /// Gets all accumulated errors.
     pub fn errors(&self) -> &[Error] {
         &self.errors
     }
-    
+
     /// Clears all errors.
     pub fn clear_errors(&mut self) {
         self.errors.clear();

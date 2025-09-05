@@ -7,47 +7,47 @@
 //! - Efficient module caching and dependency resolution
 //! - Namespace management to prevent symbol collisions
 
-pub mod name;
-pub mod loader;
-pub mod definition;
-pub mod import;
-pub mod export;
-pub mod resolver;
 pub mod cache;
+pub mod definition;
+pub mod export;
+pub mod import;
+pub mod loader;
+pub mod name;
+pub mod resolver;
 pub mod scheme_loader;
 
 // Individual structure modules
-/// Module identification and namespace management
-pub mod module_id;
-/// Module definitions, sources, and compilation units
-pub mod module;
-/// Module metadata including dependencies and exports
-pub mod module_metadata;
-/// Import specifications for module dependency resolution
-pub mod import_spec;
 /// Export specifications for module interface definition
 pub mod export_spec;
+/// Import specifications for module dependency resolution
+pub mod import_spec;
+/// Module definitions, sources, and compilation units
+pub mod module;
+/// Module identification and namespace management
+pub mod module_id;
+/// Module metadata including dependencies and exports
+pub mod module_metadata;
 /// Core module system managing loading, resolution, and caching
 pub mod module_system;
 
 use crate::diagnostics::Result;
 
 // Re-export individual structures
-pub use module_id::*;
-pub use module::*;
-pub use module_metadata::*;
-pub use import_spec::*;
 pub use export_spec::*;
+pub use import_spec::*;
+pub use module::*;
+pub use module_id::*;
+pub use module_metadata::*;
 pub use module_system::*;
 
 /// Trait for objects that can provide module definitions.
 pub trait ModuleProvider: Send + Sync {
     /// Gets a module definition by ID.
     fn get_module(&self, id: &ModuleId) -> Result<Module>;
-    
+
     /// Checks if a module exists.
     fn has_module(&self, id: &ModuleId) -> bool;
-    
+
     /// Lists available modules.
     fn list_modules(&self) -> Vec<ModuleId>;
 }
@@ -69,6 +69,14 @@ pub enum ModuleError {
     ExportError(String),
     /// Module compilation error
     CompilationError(String),
+    /// Runtime instantiation error
+    InstantiationError(String),
+    /// Library binding resolution error
+    BindingResolutionError(String),
+    /// Dynamic loading error
+    DynamicLoadingError(String),
+    /// Hot-reload error
+    HotReloadError(String),
 }
 
 impl std::fmt::Display for ModuleError {
@@ -76,14 +84,31 @@ impl std::fmt::Display for ModuleError {
         match self {
             ModuleError::NotFound(id) => write!(f, "Module not found: {}", format_module_id(id)),
             ModuleError::CircularDependency(cycle) => {
-                write!(f, "Circular dependency detected: {}", 
-                       cycle.iter().map(format_module_id).collect::<Vec<_>>().join(" -> "))
+                write!(
+                    f,
+                    "Circular dependency detected: {}",
+                    cycle
+                        .iter()
+                        .map(format_module_id)
+                        .collect::<Vec<_>>()
+                        .join(" -> ")
+                )
             }
-            ModuleError::ImportConflict(symbol) => write!(f, "Import conflict for symbol: {symbol}"),
+            ModuleError::ImportConflict(symbol) => {
+                write!(f, "Import conflict for symbol: {symbol}")
+            }
             ModuleError::InvalidDefinition(msg) => write!(f, "Invalid module definition: {msg}"),
             ModuleError::ImportError(msg) => write!(f, "Import error: {msg}"),
             ModuleError::ExportError(msg) => write!(f, "Export error: {msg}"),
             ModuleError::CompilationError(msg) => write!(f, "Module compilation error: {msg}"),
+            ModuleError::InstantiationError(msg) => {
+                write!(f, "Library instantiation failed: {msg}")
+            }
+            ModuleError::BindingResolutionError(msg) => {
+                write!(f, "Binding resolution failed: {msg}")
+            }
+            ModuleError::DynamicLoadingError(msg) => write!(f, "Dynamic loading failed: {msg}"),
+            ModuleError::HotReloadError(msg) => write!(f, "Hot-reload failed: {msg}"),
         }
     }
 }
@@ -91,7 +116,7 @@ impl std::fmt::Display for ModuleError {
 impl std::error::Error for ModuleError {}
 
 impl ModuleError {
-    /// Converts this ModuleError into a Box<ModuleError> for use with Result types.
+    /// Converts this `ModuleError` into a `Box<ModuleError>` for use with Result types.
     pub fn boxed(self) -> Box<ModuleError> {
         Box::new(self)
     }
@@ -100,23 +125,20 @@ impl ModuleError {
 impl From<ModuleError> for crate::diagnostics::Error {
     fn from(err: ModuleError) -> Self {
         match err {
-            ModuleError::NotFound(id) => {
-                crate::diagnostics::Error::runtime_error(
-                    format!("Module not found: {}", format_module_id(&id)),
-                    None,
-                )
-            }
+            ModuleError::NotFound(id) => crate::diagnostics::Error::runtime_error(
+                format!("Module not found: {}", format_module_id(&id)),
+                None,
+            ),
             ModuleError::InvalidDefinition(msg) => {
                 crate::diagnostics::Error::parse_error(msg, crate::diagnostics::Span::new(0, 0))
             }
-            ModuleError::ImportConflict(symbol) => {
-                crate::diagnostics::Error::runtime_error(
-                    format!("Import conflict for symbol: {symbol}"),
-                    None,
-                )
-            }
+            ModuleError::ImportConflict(symbol) => crate::diagnostics::Error::runtime_error(
+                format!("Import conflict for symbol: {symbol}"),
+                None,
+            ),
             ModuleError::CircularDependency(cycle) => {
-                let cycle_str = cycle.iter()
+                let cycle_str = cycle
+                    .iter()
                     .map(format_module_id)
                     .collect::<Vec<_>>()
                     .join(" -> ");
@@ -125,14 +147,25 @@ impl From<ModuleError> for crate::diagnostics::Error {
                     None,
                 )
             }
-            ModuleError::ImportError(msg) => {
-                crate::diagnostics::Error::runtime_error(msg, None)
-            }
-            ModuleError::ExportError(msg) => {
-                crate::diagnostics::Error::runtime_error(msg, None)
-            }
+            ModuleError::ImportError(msg) => crate::diagnostics::Error::runtime_error(msg, None),
+            ModuleError::ExportError(msg) => crate::diagnostics::Error::runtime_error(msg, None),
             ModuleError::CompilationError(msg) => {
                 crate::diagnostics::Error::runtime_error(msg, None)
+            }
+            ModuleError::InstantiationError(msg) => crate::diagnostics::Error::runtime_error(
+                format!("Library instantiation failed: {msg}"),
+                None,
+            ),
+            ModuleError::BindingResolutionError(msg) => crate::diagnostics::Error::runtime_error(
+                format!("Binding resolution failed: {msg}"),
+                None,
+            ),
+            ModuleError::DynamicLoadingError(msg) => crate::diagnostics::Error::runtime_error(
+                format!("Dynamic loading failed: {msg}"),
+                None,
+            ),
+            ModuleError::HotReloadError(msg) => {
+                crate::diagnostics::Error::runtime_error(format!("Hot-reload failed: {msg}"), None)
             }
         }
     }
@@ -147,9 +180,60 @@ pub fn parse_module_id(s: &str) -> Result<ModuleId> {
 
 // Re-export key types from scheme_loader for convenience
 pub use scheme_loader::{
-    SchemeLibraryLoader, CompiledSchemeLibrary, SchemeLibraryCache, 
-    BootstrapConfig, CompilationContext, HotReloadManager, CacheStatistics
+    BootstrapConfig, CacheStatistics, CompilationContext, CompiledSchemeLibrary,
+    SchemeLibraryCache, SchemeLibraryLoader,
 };
+
+/// Re-export runtime integration types
+pub use runtime_integration::{
+    ExportResolution, ImportResolution, ImportSpecResolver, InstantiationError, LibraryBinding,
+    LibraryInstance, LibraryInstantiationContext, LibraryInstantiator,
+};
+
+/// Re-export enhanced system types
+pub use enhanced_module_system::{AutoLoadingConfig, EnhancedModuleSystem, SystemValidationReport};
+
+/// Re-export dynamic loading types
+pub use dynamic_loader::{
+    DynamicLibraryInstance, DynamicLibraryLoader, DynamicLoadingStatistics, FileMonitorConfig,
+    HotReloadManager, ReloadEvent,
+};
+
+/// Re-export enhanced dependency resolution types
+pub use enhanced_dependency_resolver::{
+    CycleImpact, CycleType, DependencyCycle, DependencyGraph, EnhancedDependencyResolver,
+    ResolutionStatistics,
+};
+
+/// Re-export R7RS compliance types
+pub use r7rs_compliance::{
+    ComplianceConfig, ComplianceReport, ExportBinding, ExportSpecResolver, ExportType,
+    R7RSLibrarySystem, R7RSVersion, StandardLibraryInfo,
+};
+
+/// Re-export comprehensive system types
+pub use comprehensive_library_system::{
+    ComprehensiveLibrarySystem, LibrarySystemConfig, PerformanceMonitor, PerformanceSummary,
+    SystemStatus,
+};
+
+/// Runtime integration module for library instantiation
+pub mod runtime_integration;
+
+/// Enhanced module system with runtime integration
+pub mod enhanced_module_system;
+
+/// Enhanced dependency resolution with advanced cycle detection
+pub mod enhanced_dependency_resolver;
+
+/// Dynamic library loading and hot-reload support
+pub mod dynamic_loader;
+
+/// R7RS compliance validation and standard library support
+pub mod r7rs_compliance;
+
+/// Comprehensive library system integration
+pub mod comprehensive_library_system;
 
 #[cfg(test)]
 mod tests {
@@ -161,7 +245,7 @@ mod tests {
             components: vec!["string".to_string()],
             namespace: ModuleNamespace::Builtin,
         };
-        
+
         assert_eq!(format_module_id(&id), "(lambdust string)");
     }
 

@@ -3,16 +3,16 @@
 //! This module provides the building blocks for distributed computing
 //! including remote procedure calls, serialization, and network communication.
 
-use crate::eval::Value;
-use crate::diagnostics::{Error, Result};
 use super::ConcurrencyError;
-use std::sync::{Arc, Mutex};
+use crate::diagnostics::{Error, Result};
+use crate::eval::Value;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use serde::{Serialize, Deserialize};
+use tokio::net::{TcpListener, TcpStream};
 use uuid::Uuid;
 
 /// Node identifier in a distributed system.
@@ -115,29 +115,46 @@ impl SerializableValue {
                 crate::ast::Literal::ExactInteger(i) => Ok(SerializableValue::Integer(*i)),
                 crate::ast::Literal::InexactReal(f) => Ok(SerializableValue::Float(*f)),
                 crate::ast::Literal::Number(f) => Ok(SerializableValue::Float(*f)),
-                crate::ast::Literal::Rational { numerator, denominator } => {
+                crate::ast::Literal::Rational(rational) => {
+                    let numerator = &rational.numerator;
+                    let denominator = &rational.denominator;
                     if *denominator == 1 {
                         Ok(SerializableValue::Integer(*numerator))
                     } else {
-                        Ok(SerializableValue::Float(*numerator as f64 / *denominator as f64))
+                        Ok(SerializableValue::Float(
+                            *numerator as f64 / *denominator as f64,
+                        ))
                     }
                 }
-                crate::ast::Literal::Complex { real, imaginary: _ } => 
-                    Ok(SerializableValue::Float(*real)), // Only serialize real part
-                crate::ast::Literal::String(s) => Ok(SerializableValue::String(s.clone())),
+                crate::ast::Literal::Complex(complex) => {
+                    let real = &complex.real;
+                    Ok(SerializableValue::Float(*real))
+                } // Only serialize real part
+                crate::ast::Literal::String(s) => Ok(SerializableValue::String((**s).clone())),
                 crate::ast::Literal::Character(c) => Ok(SerializableValue::String(c.to_string())),
                 // Handle other literal types
-                crate::ast::Literal::Bytevector(bytes) => 
-                    Ok(SerializableValue::String(format!("bytevector-{}", bytes.len()))),
+                crate::ast::Literal::Bytevector(bytes) => Ok(SerializableValue::String(format!(
+                    "bytevector-{}",
+                    bytes.len()
+                ))),
                 crate::ast::Literal::Nil => Ok(SerializableValue::Nil),
-                crate::ast::Literal::Unspecified => Ok(SerializableValue::String("unspecified".to_string())),
+                crate::ast::Literal::Unspecified => {
+                    Ok(SerializableValue::String("unspecified".to_string()))
+                }
+                crate::ast::Literal::InternedString(s) => {
+                    Ok(SerializableValue::String(s.to_string()))
+                }
+                crate::ast::Literal::Integer(i) => Ok(SerializableValue::Integer(*i)),
+                crate::ast::Literal::HomogeneousVector(vec) => Ok(SerializableValue::String(
+                    format!("homogeneous-vector-{}", vec.len()),
+                )),
             },
             Value::Symbol(sym) => Ok(SerializableValue::Symbol(format!("symbol-{}", sym.0))),
             Value::Pair(_car, _cdr) => {
                 // Convert pair to list
                 let mut list = Vec::new();
                 let mut current = value;
-                
+
                 loop {
                     match current {
                         Value::Pair(car, cdr) => {
@@ -152,11 +169,11 @@ impl SerializableValue {
                         }
                     }
                 }
-                
+
                 Ok(SerializableValue::List(list))
             }
             Value::Vector(vec) => {
-                let guard = vec.read().unwrap();
+                let guard = vec.try_borrow().unwrap();
                 let mut serializable_vec = Vec::new();
                 for item in guard.iter() {
                     serializable_vec.push(Self::from_value(item)?);
@@ -177,7 +194,9 @@ impl SerializableValue {
             SerializableValue::Boolean(b) => Ok(Value::Literal(crate::ast::Literal::Boolean(*b))),
             SerializableValue::Integer(i) => Ok(Value::Literal(crate::ast::Literal::integer(*i))),
             SerializableValue::Float(f) => Ok(Value::Literal(crate::ast::Literal::float(*f))),
-            SerializableValue::String(s) => Ok(Value::Literal(crate::ast::Literal::String(s.clone()))),
+            SerializableValue::String(s) => Ok(Value::Literal(crate::ast::Literal::String(
+                Box::new(s.clone()),
+            ))),
             SerializableValue::Symbol(s) => {
                 // Extract symbol ID from the string (simplified)
                 Ok(Value::Symbol(crate::utils::SymbolId(s.len())))
@@ -195,7 +214,9 @@ impl SerializableValue {
                 for item in vec {
                     values.push(item.to_value()?);
                 }
-                Ok(Value::Vector(Arc::new(std::sync::RwLock::new(values))))
+                Ok(Value::Vector(std::rc::Rc::new(std::cell::RefCell::new(
+                    values,
+                ))))
             }
             SerializableValue::Map(_map) => {
                 // Convert to hash table or similar structure
@@ -203,9 +224,9 @@ impl SerializableValue {
             }
             SerializableValue::Bytes(bytes) => {
                 // Convert to bytevector
-                Ok(Value::Literal(crate::ast::Literal::String(
-                    String::from_utf8_lossy(bytes).to_string()
-                )))
+                Ok(Value::Literal(crate::ast::Literal::String(Box::new(
+                    String::from_utf8_lossy(bytes).to_string(),
+                ))))
             }
         }
     }
@@ -216,7 +237,7 @@ impl SerializableValue {
 pub trait RpcService: Send + Sync + std::fmt::Debug {
     /// Handles an RPC request.
     async fn handle_request(&self, request: RpcRequest) -> RpcResponse;
-    
+
     /// Gets the service name.
     fn service_name(&self) -> &str;
 }
@@ -239,16 +260,17 @@ impl RpcClient {
 
     /// Connects to a remote node.
     pub async fn connect(&self, node_id: NodeId, addr: SocketAddr) -> Result<()> {
-        let stream = TcpStream::connect(addr).await
+        let stream = TcpStream::connect(addr)
+            .await
             .map_err(|e| ConcurrencyError::Network(e.to_string()).boxed())?;
-        
+
         let connection = Arc::new(Connection::new(stream));
-        
+
         {
             let mut connections = self.connections.lock().unwrap();
             connections.insert(node_id, connection);
         }
-        
+
         Ok(())
     }
 
@@ -263,15 +285,15 @@ impl RpcClient {
     ) -> Result<Value> {
         let connection = {
             let connections = self.connections.lock().unwrap();
-            connections.get(&target_node)
+            connections
+                .get(&target_node)
                 .ok_or_else(|| ConcurrencyError::Network("Node not connected".to_string()).boxed())?
                 .clone()
         };
 
         let request_id = Uuid::new_v4().to_string();
-        let serializable_args: Result<Vec<_>> = args.iter()
-            .map(SerializableValue::from_value)
-            .collect();
+        let serializable_args: Result<Vec<_>> =
+            args.iter().map(SerializableValue::from_value).collect();
 
         let request = RpcRequest {
             id: request_id.clone(),
@@ -286,11 +308,13 @@ impl RpcClient {
             timeout: timeout.map(|t| t.as_millis() as u64),
         };
 
-        let response = connection.send_request(request, timeout.unwrap_or(Duration::from_secs(30))).await?;
-        
+        let response = connection
+            .send_request(request, timeout.unwrap_or(Duration::from_secs(30)))
+            .await?;
+
         match response.result {
             Ok(value) => value.to_value(),
-            Err(error) => Err(Error::runtime_error(error, None).boxed()),
+            Err(error) => Err(Box::new(Error::runtime_error(error, None))),
         }
     }
 }
@@ -317,9 +341,10 @@ impl RpcServer {
 
     /// Binds the server to an address.
     pub async fn bind(&mut self, addr: SocketAddr) -> Result<()> {
-        let listener = TcpListener::bind(addr).await
+        let listener = TcpListener::bind(addr)
+            .await
             .map_err(|e| ConcurrencyError::Network(e.to_string()).boxed())?;
-        
+
         self.listener = Some(listener);
         Ok(())
     }
@@ -332,16 +357,20 @@ impl RpcServer {
 
     /// Starts the server.
     pub async fn serve(&self) -> Result<()> {
-        let listener = self.listener.as_ref()
+        let listener = self
+            .listener
+            .as_ref()
             .ok_or_else(|| Error::runtime_error("Server not bound to address".to_string(), None))?;
 
         loop {
-            let (stream, _addr) = listener.accept().await
+            let (stream, _addr) = listener
+                .accept()
+                .await
                 .map_err(|e| ConcurrencyError::Network(e.to_string()).boxed())?;
 
             let connection = Arc::new(Connection::new(stream));
             let services = self.services.clone();
-            
+
             tokio::spawn(async move {
                 if let Err(e) = Self::handle_connection(connection, services).await {
                     eprintln!("Connection error: {e}");
@@ -360,7 +389,7 @@ impl RpcServer {
                 Ok(request) => {
                     let services = services.clone();
                     let connection = connection.clone();
-                    
+
                     tokio::spawn(async move {
                         let response = Self::process_request(request, services).await;
                         if let Err(e) = connection.send_response(response).await {
@@ -374,7 +403,7 @@ impl RpcServer {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -384,7 +413,7 @@ impl RpcServer {
         services: Arc<Mutex<HashMap<String, Arc<dyn RpcService>>>>,
     ) -> RpcResponse {
         let start_time = Instant::now();
-        
+
         let service = {
             let services = services.lock().unwrap();
             services.get(&request.service).cloned()
@@ -395,7 +424,10 @@ impl RpcServer {
         } else {
             RpcResponse {
                 request_id: request.id,
-                result: Err(format!("Service '{service}' not found", service = request.service)),
+                result: Err(format!(
+                    "Service '{service}' not found",
+                    service = request.service
+                )),
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
@@ -409,7 +441,8 @@ impl RpcServer {
 /// Network connection wrapper.
 struct Connection {
     stream: Arc<tokio::sync::Mutex<TcpStream>>,
-    pending_requests: Arc<tokio::sync::Mutex<HashMap<String, tokio::sync::oneshot::Sender<RpcResponse>>>>,
+    pending_requests:
+        Arc<tokio::sync::Mutex<HashMap<String, tokio::sync::oneshot::Sender<RpcResponse>>>>,
 }
 
 impl std::fmt::Debug for Connection {
@@ -433,7 +466,7 @@ impl Connection {
     /// Sends an RPC request.
     async fn send_request(&self, request: RpcRequest, timeout: Duration) -> Result<RpcResponse> {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        
+
         {
             let mut pending = self.pending_requests.lock().await;
             pending.insert(request.id.clone(), tx);
@@ -442,11 +475,15 @@ impl Connection {
         // Serialize and send request
         let data = serde_json::to_vec(&request)
             .map_err(|e| ConcurrencyError::Serialization(e.to_string()).boxed())?;
-        
+
         let mut stream = self.stream.lock().await;
-        stream.write_u32(data.len() as u32).await
+        stream
+            .write_u32(data.len() as u32)
+            .await
             .map_err(|e| ConcurrencyError::Network(e.to_string()).boxed())?;
-        stream.write_all(&data).await
+        stream
+            .write_all(&data)
+            .await
             .map_err(|e| ConcurrencyError::Network(e.to_string()).boxed())?;
 
         // Wait for response
@@ -459,12 +496,16 @@ impl Connection {
     /// Receives an RPC request.
     async fn receive_request(&self) -> Result<RpcRequest> {
         let mut stream = self.stream.lock().await;
-        
-        let len = stream.read_u32().await
+
+        let len = stream
+            .read_u32()
+            .await
             .map_err(|e| ConcurrencyError::Network(e.to_string()).boxed())?;
-        
+
         let mut buffer = vec![0u8; len as usize];
-        stream.read_exact(&mut buffer).await
+        stream
+            .read_exact(&mut buffer)
+            .await
             .map_err(|e| ConcurrencyError::Network(e.to_string()).boxed())?;
 
         serde_json::from_slice(&buffer)
@@ -475,11 +516,15 @@ impl Connection {
     async fn send_response(&self, response: RpcResponse) -> Result<()> {
         let data = serde_json::to_vec(&response)
             .map_err(|e| ConcurrencyError::Serialization(e.to_string()).boxed())?;
-        
+
         let mut stream = self.stream.lock().await;
-        stream.write_u32(data.len() as u32).await
+        stream
+            .write_u32(data.len() as u32)
+            .await
             .map_err(|e| ConcurrencyError::Network(e.to_string()).boxed())?;
-        stream.write_all(&data).await
+        stream
+            .write_all(&data)
+            .await
             .map_err(|e| ConcurrencyError::Network(e.to_string()).boxed())?;
 
         Ok(())
@@ -494,7 +539,7 @@ pub struct CalculatorService;
 impl RpcService for CalculatorService {
     async fn handle_request(&self, request: RpcRequest) -> RpcResponse {
         let start_time = Instant::now();
-        
+
         let result = match request.method.as_str() {
             "add" => {
                 if request.args.len() != 2 {
@@ -582,11 +627,11 @@ impl DistributedNode {
     /// Starts the node on the given address.
     pub async fn start(&mut self, addr: SocketAddr) -> Result<()> {
         self.rpc_server.bind(addr).await?;
-        
+
         // Note: Server would be started in background in a real implementation
         // For now, we just bind and return
         println!("RPC server bound to {addr}");
-        
+
         Ok(())
     }
 }
@@ -612,7 +657,10 @@ impl DistributedOps {
         F: Fn(&Value) -> Result<Value> + Send + Sync + 'static,
     {
         if nodes.is_empty() {
-            return Err(Box::new(Error::runtime_error("No nodes available".to_string(), None)))
+            return Err(Box::new(Error::runtime_error(
+                "No nodes available".to_string(),
+                None,
+            )));
         }
 
         let chunk_size = data.len().div_ceil(nodes.len());
@@ -621,7 +669,7 @@ impl DistributedOps {
         for (i, chunk) in data.chunks(chunk_size).enumerate() {
             let node_id = nodes[i % nodes.len()];
             let chunk_data = chunk.to_vec();
-            
+
             // In a real implementation, you'd serialize the function and send it
             // For now, we'll assume a predefined map service exists on remote nodes
             let future = client.call(
@@ -631,7 +679,7 @@ impl DistributedOps {
                 chunk_data,
                 Some(Duration::from_secs(30)),
             );
-            
+
             futures.push(future);
         }
 
@@ -674,7 +722,8 @@ impl DistributedOps {
             client,
             data,
             |_| Ok(Value::Nil), // Placeholder
-        ).await?;
+        )
+        .await?;
 
         // Then, reduce the partial results locally or on a coordinator node
         let mut result = identity;

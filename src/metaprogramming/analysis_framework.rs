@@ -1,17 +1,19 @@
 //! Core analysis framework and coordination structures.
 
+use super::analysis_types::ScopeType;
+use super::analysis_types::*;
+use super::control_flow_analysis::{BasicBlock, ControlFlowGraph};
+use super::dependency_analysis::{
+    DependencyAnalyzer, DependencyEdge, DependencyGraph, DependencyNode,
+};
+use super::profiling_analysis::Profiler;
+use super::quality_metrics::{DuplicationInfo, OptimizationOpportunity, QualityMetrics};
+use super::type_analysis::{FunctionSignature, TypeConstraint, TypeError, TypeInformation};
+use super::variable_scope_analysis::{ScopeInfo, VariableInfo, VariableUsage};
+use super::warning_system::AnalysisWarning;
 use crate::ast::{Expr, Program};
 use crate::diagnostics::{Result, Span, Spanned};
 use crate::eval::Environment;
-use super::analysis_types::*;
-use super::profiling_analysis::Profiler;
-use super::warning_system::AnalysisWarning;
-use super::variable_scope_analysis::{VariableUsage, VariableInfo, ScopeInfo};
-use super::analysis_types::ScopeType;
-use super::control_flow_analysis::{ControlFlowGraph, BasicBlock};
-use super::quality_metrics::{QualityMetrics, DuplicationInfo, OptimizationOpportunity};
-use super::type_analysis::{TypeInformation, FunctionSignature, TypeConstraint, TypeError};
-use super::dependency_analysis::{DependencyGraph, DependencyNode, DependencyEdge, DependencyAnalyzer};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -207,7 +209,11 @@ impl StaticAnalyzer {
     }
 
     /// Detects optimization opportunities.
-    fn detect_optimizations(&self, program: &Program, analysis: &AnalysisResult) -> Result<Vec<OptimizationOpportunity>> {
+    fn detect_optimizations(
+        &self,
+        program: &Program,
+        analysis: &AnalysisResult,
+    ) -> Result<Vec<OptimizationOpportunity>> {
         let mut opportunities = Vec::new();
         let mut detector = OptimizationDetector::new();
 
@@ -292,11 +298,20 @@ impl InternalDependencyAnalyzer {
         }
     }
 
-    fn analyze_expression(&mut self, expr: &Spanned<Expr>, graph: &mut DependencyGraph) -> Result<()> {
+    fn analyze_expression(
+        &mut self,
+        expr: &Spanned<Expr>,
+        graph: &mut DependencyGraph,
+    ) -> Result<()> {
         match &expr.inner {
             Expr::Identifier(name) => {
                 if let Some(current) = self.current_scope.last() {
-                    graph.add_dependency(current.clone(), name.clone(), DependencyType::Reference, Some(expr.span));
+                    graph.add_dependency(
+                        current.clone(),
+                        name.clone(),
+                        DependencyType::Reference,
+                        Some(expr.span),
+                    );
                 }
             }
             Expr::Define { name, value, .. } => {
@@ -325,15 +340,22 @@ impl InternalDependencyAnalyzer {
         // Simplified cycle detection using DFS
         let mut visited = HashSet::new();
         let mut cycles = Vec::new();
-        
+
         for node_name in graph.nodes.keys() {
             if !visited.contains(node_name) {
                 let mut path = Vec::new();
                 let mut path_set = HashSet::new();
-                Self::dfs_cycles(node_name, graph, &mut visited, &mut path, &mut path_set, &mut cycles);
+                Self::dfs_cycles(
+                    node_name,
+                    graph,
+                    &mut visited,
+                    &mut path,
+                    &mut path_set,
+                    &mut cycles,
+                );
             }
         }
-        
+
         cycles
     }
 
@@ -384,7 +406,11 @@ impl VariableAnalyzer {
         }
     }
 
-    fn analyze_expression(&mut self, expr: &Spanned<Expr>, usage: &mut VariableUsage) -> Result<()> {
+    fn analyze_expression(
+        &mut self,
+        expr: &Spanned<Expr>,
+        usage: &mut VariableUsage,
+    ) -> Result<()> {
         match &expr.inner {
             Expr::Identifier(name) => {
                 // Update internal scope tracking
@@ -392,7 +418,7 @@ impl VariableAnalyzer {
                     var_info.read = true;
                     var_info.uses.push(expr.span);
                 }
-                
+
                 // Also update the usage tracking parameter
                 if let Some(usage_var_info) = usage.variables.get_mut(name) {
                     usage_var_info.read = true;
@@ -401,7 +427,7 @@ impl VariableAnalyzer {
             }
             Expr::Define { name, value, .. } => {
                 self.define_variable(name.clone(), Some(expr.span));
-                
+
                 // Add to usage tracking as well
                 usage.variables.entry(name.clone()).or_insert(VariableInfo {
                     name: name.clone(),
@@ -411,12 +437,12 @@ impl VariableAnalyzer {
                     written: true,
                     captured: false,
                     scope: ScopeInfo {
-                        scope_type: ScopeType::Global,  // Could be refined based on context
+                        scope_type: ScopeType::Global, // Could be refined based on context
                         level: self.scopes.len() - 1,
                         scope_id: format!("scope-{}", self.scopes.len() - 1),
                     },
                 });
-                
+
                 self.analyze_expression(value, usage)?;
             }
             _ => {}
@@ -428,19 +454,22 @@ impl VariableAnalyzer {
         let scope_level = self.scopes.len() - 1;
         let scope_id = format!("scope-{scope_level}");
         let scope = self.scopes.last_mut().unwrap();
-        scope.insert(name.clone(), VariableInfo {
-            name,
-            definition: location,
-            uses: Vec::new(),
-            read: false,
-            written: true,
-            captured: false,
-            scope: ScopeInfo {
-                scope_type: ScopeType::Global,
-                level: scope_level,
-                scope_id,
+        scope.insert(
+            name.clone(),
+            VariableInfo {
+                name,
+                definition: location,
+                uses: Vec::new(),
+                read: false,
+                written: true,
+                captured: false,
+                scope: ScopeInfo {
+                    scope_type: ScopeType::Global,
+                    level: scope_level,
+                    scope_id,
+                },
             },
-        });
+        );
     }
 
     fn find_variable_mut(&mut self, name: &str) -> Option<&mut VariableInfo> {
@@ -453,7 +482,9 @@ impl VariableAnalyzer {
     }
 
     fn find_unused_variables(&self, usage: &VariableUsage) -> Vec<String> {
-        usage.variables.iter()
+        usage
+            .variables
+            .iter()
             .filter(|(_, info)| !info.read)
             .map(|(name, _)| name.clone())
             .collect()
@@ -467,25 +498,61 @@ struct QualityAnalyzer;
 struct OptimizationDetector;
 
 impl ControlFlowAnalyzer {
-    fn new() -> Self { Self }
-    fn analyze_expression(&mut self, _expr: &Spanned<Expr>, _cfg: &mut ControlFlowGraph) -> Result<()> { Ok(()) }
-    fn compute_dominators(&self, _cfg: &ControlFlowGraph) -> HashMap<String, String> { HashMap::new() }
+    fn new() -> Self {
+        Self
+    }
+    fn analyze_expression(
+        &mut self,
+        _expr: &Spanned<Expr>,
+        _cfg: &mut ControlFlowGraph,
+    ) -> Result<()> {
+        Ok(())
+    }
+    fn compute_dominators(&self, _cfg: &ControlFlowGraph) -> HashMap<String, String> {
+        HashMap::new()
+    }
 }
 
 impl TypeInferrer {
-    fn new() -> Self { Self }
-    fn infer_expression(&mut self, _expr: &Spanned<Expr>, _type_info: &mut TypeInformation) -> Result<()> { Ok(()) }
-    fn solve_constraints(&mut self, _type_info: &mut TypeInformation) -> Result<()> { Ok(()) }
+    fn new() -> Self {
+        Self
+    }
+    fn infer_expression(
+        &mut self,
+        _expr: &Spanned<Expr>,
+        _type_info: &mut TypeInformation,
+    ) -> Result<()> {
+        Ok(())
+    }
+    fn solve_constraints(&mut self, _type_info: &mut TypeInformation) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl QualityAnalyzer {
-    fn new() -> Self { Self }
-    fn analyze_expression(&mut self, _expr: &Spanned<Expr>, _metrics: &mut QualityMetrics) -> Result<()> { Ok(()) }
+    fn new() -> Self {
+        Self
+    }
+    fn analyze_expression(
+        &mut self,
+        _expr: &Spanned<Expr>,
+        _metrics: &mut QualityMetrics,
+    ) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl OptimizationDetector {
-    fn new() -> Self { Self }
-    fn detect_in_expression(&mut self, _expr: &Spanned<Expr>, _analysis: &AnalysisResult) -> Result<Vec<OptimizationOpportunity>> { Ok(Vec::new()) }
+    fn new() -> Self {
+        Self
+    }
+    fn detect_in_expression(
+        &mut self,
+        _expr: &Spanned<Expr>,
+        _analysis: &AnalysisResult,
+    ) -> Result<Vec<OptimizationOpportunity>> {
+        Ok(Vec::new())
+    }
 }
 
 // Default implementations

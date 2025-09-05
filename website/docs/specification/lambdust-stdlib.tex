@@ -1,0 +1,827 @@
+%% Standard Library
+\chapter{Standard Library}
+\label{ch:stdlib}
+
+The Lambdust standard library extends R7RS-small with additional modules for advanced programming while maintaining complete backward compatibility. All R7RS-small procedures are available unchanged.
+
+\section{Library Organization}
+\label{sec:library-organization}
+
+The standard library is organized into modules:
+
+\begin{itemize}
+\item \textbf{R7RS Core}: Complete R7RS-small implementation
+\item \textbf{Extended Base}: Enhanced versions of core libraries
+\item \textbf{Gradual Types}: Type system integration
+\item \textbf{Effects}: Algebraic effects and handlers
+\item \textbf{Concurrency}: Actor model and parallelism
+\item \textbf{Collections}: Advanced data structures
+\item \textbf{Text}: Unicode and pattern matching
+\item \textbf{I/O}: Enhanced input/output operations
+\item \textbf{FFI}: Foreign function interface
+\item \textbf{Meta}: Reflection and metaprogramming
+\end{itemize}
+
+\section{R7RS-small Compatibility}
+\label{sec:r7rs-compatibility}
+
+\indexentry{R7RS compatibility}
+\indexentry{base library}
+
+All R7RS-small libraries are fully supported:
+
+\begin{example}[R7RS Libraries]
+\begin{lambdustcode}
+;; Import R7RS libraries
+(import (scheme base)
+        (scheme case-lambda)
+        (scheme char)
+        (scheme complex)
+        (scheme cxr)
+        (scheme eval)
+        (scheme file)
+        (scheme inexact)
+        (scheme lazy)
+        (scheme load)
+        (scheme process-context)
+        (scheme read)
+        (scheme repl)
+        (scheme time)
+        (scheme write))
+
+;; All R7RS procedures work unchanged
+(define (r7rs-example)
+  (let* ((numbers '(3 1 4 1 5 9 2 6))
+         (doubled (map (lambda (x) (* x 2)) numbers))
+         (filtered (filter (lambda (x) (> x 5)) doubled)))
+    (fold-left + 0 filtered)))
+
+;; R7RS file operations
+(call-with-output-file "output.txt"
+  (lambda (port)
+    (write '(hello world) port)
+    (newline port)))
+
+;; R7RS parameter objects
+(parameterize ((current-output-port (open-output-string)))
+  (display "Hello")
+  (get-output-string (current-output-port)))
+\end{lambdustcode}
+\end{example}
+
+\section{Extended Base Library}
+\label{sec:extended-base}
+
+\indexentry{extended base}
+
+The \library{lambdust base} library extends R7RS base:
+
+\subsection{Enhanced List Operations}
+\label{subsec:enhanced-lists}
+
+\begin{procspec}{(take lst k)}
+Returns the first \var{k} elements of \var{lst}.
+\end{procspec}
+
+\begin{procspec}{(drop lst k)}
+Returns \var{lst} with the first \var{k} elements removed.
+\end{procspec}
+
+\begin{procspec}{(split-at lst k)}
+Returns two values: \code{(take lst k)} and \code{(drop lst k)}.
+\end{procspec}
+
+\begin{example}[Enhanced List Operations]
+\begin{lambdustcode}
+(import (lambdust base))
+
+;; List utilities
+(take '(1 2 3 4 5) 3)        ; → (1 2 3)
+(drop '(1 2 3 4 5) 2)        ; → (3 4 5)
+(split-at '(1 2 3 4 5) 2)    ; → (1 2) (3 4 5)
+
+;; List comprehensions
+(list-comprehension (x * x) (x in '(1 2 3 4 5)) (x > 2))
+; → (9 16 25)
+
+;; Lazy lists
+(define fibs
+  (lazy-list 0 1 (lazy-map + fibs (lazy-tail fibs))))
+
+(take (lazy-list->list fibs) 10)
+; → (0 1 1 2 3 5 8 13 21 34)
+
+;; List zipping
+(zip '(1 2 3) '(a b c) '(x y z))     ; → ((1 a x) (2 b y) (3 c z))
+(zip-with + '(1 2 3) '(4 5 6))      ; → (5 7 9)
+
+;; Grouping and partitioning  
+(group-by even? '(1 2 3 4 5 6))     ; → ((#f 1 3 5) (#t 2 4 6))
+(partition even? '(1 2 3 4 5 6))    ; → (2 4 6) (1 3 5)
+\end{lambdustcode}
+\end{example}
+
+\subsection{Enhanced String Operations}
+\label{subsec:enhanced-strings}
+
+\begin{procspec}{(string-split str delimiter)}
+Splits \var{str} on \var{delimiter} returning a list of substrings.
+\end{procspec}
+
+\begin{procspec}{(string-join strings separator)}
+Joins \var{strings} with \var{separator}.
+\end{procspec}
+
+\begin{example}[Enhanced String Operations]
+\begin{lambdustcode}
+;; String splitting and joining
+(string-split "hello,world,scheme" ",")  ; → ("hello" "world" "scheme")
+(string-join '("hello" "world") " ")     ; → "hello world"
+
+;; String formatting
+(format "Hello, ~a! You have ~d messages." "Alice" 5)
+; → "Hello, Alice! You have 5 messages."
+
+;; String templates
+(string-template "Hello, {name}!" '((name . "Bob")))
+; → "Hello, Bob!"
+
+;; Case conversion
+(string-titlecase "hello world")         ; → "Hello World"
+(string-capitalize "hello")              ; → "Hello"
+
+;; String predicates
+(string-prefix? "hello" "hello world")   ; → #t
+(string-suffix? "world" "hello world")   ; → #t
+(string-contains? "ell" "hello")         ; → 1
+
+;; Unicode operations
+(string-normalize "café" 'nfc)           ; NFC normalization
+(string-grapheme-count "👨‍👩‍👧‍👦")           ; → 1 (family emoji)
+\end{lambdustcode}
+\end{example}
+
+\section{Type System Integration}
+\label{sec:type-integration}
+
+\indexentry{type library}
+
+The \library{lambdust types} library provides type system integration:
+
+\begin{example}[Type System Library]
+\begin{lambdustcode}
+(import (lambdust types))
+
+;; Type predicates
+(define-predicate natural? (lambda (x) (and (integer? x) (>= x 0))))
+(define-predicate positive? (lambda (x) (and (real? x) (> x 0))))
+
+;; Type assertions
+(assert-type 42 Natural)                 ; Succeeds
+(assert-type -5 Natural)                 ; Error
+
+;; Type conversion
+(cast-type "123" String Number)          ; → 123
+(safe-cast "123" Number)                 ; → (Just 123)
+(safe-cast "abc" Number)                 ; → Nothing
+
+;; Contract checking
+(define/contract factorial
+  (-> Natural Natural)
+  (lambda (n)
+    (if (<= n 1) 1 (* n (factorial (- n 1))))))
+
+;; Higher-order contracts
+(define/contract map-numbers
+  (-> (-> Number Number) (List Number) (List Number))
+  (lambda (f lst) (map f lst)))
+
+;; Refinement types  
+(define NonEmptyList (Refinement (List Any) (lambda (lst) (not (null? lst)))))
+(define/contract safe-car
+  (-> NonEmptyList Any)
+  (lambda (lst) (car lst)))
+
+;; Gradual typing utilities
+(dynamic->typed 42)                      ; Dynamic → typed value
+(typed->dynamic (the Natural 42))        ; Typed → dynamic value
+\end{lambdustcode}
+\end{example}
+
+\section{Effects Library}
+\label{sec:effects-library}
+
+\indexentry{effects library}
+
+The \library{lambdust effects} library provides effect operations:
+
+\begin{example}[Effects Library]
+\begin{lambdustcode}
+(import (lambdust effects))
+
+;; Built-in effects
+(define (stateful-computation)
+  (perform State set 0)
+  (perform State modify +1)
+  (perform State modify +1)
+  (perform State get))
+
+;; Exception effects  
+(define (safe-division x y)
+  (if (= y 0)
+      (perform Exception raise "Division by zero")
+      (/ x y)))
+
+;; I/O effects
+(define (interactive-program)
+  (perform IO write-line "Enter your name:")
+  (let ((name (perform IO read-line)))
+    (perform IO write-line (string-append "Hello, " name "!"))))
+
+;; Custom effects
+(define-effect Logger
+  (log :: (-> String Unit))
+  (set-level :: (-> Symbol Unit)))
+
+(define (logged-computation)
+  (perform Logger set-level 'debug)
+  (perform Logger log "Starting computation")
+  (let ((result (complex-calculation)))
+    (perform Logger log "Computation complete")
+    result))
+
+;; Effect composition
+(define (multi-effect-computation)
+  (perform Logger log "Starting")
+  (perform State set 0)
+  (let ((input (perform IO read-line)))
+    (let ((value (string->number input)))
+      (if value
+          (begin
+            (perform State set value)
+            (perform Logger log "Value set")
+            (perform State get))
+          (perform Exception raise "Invalid input")))))
+
+;; Effect handlers
+(define (run-with-state-and-logging initial computation)
+  (with-state-handler initial
+    (with-logging-handler 'console
+      (with-exception-handler
+        (lambda (e) (display "Error: ") (display e) (newline))
+        computation))))
+\end{lambdustcode}
+\end{example}
+
+\section{Concurrency Library}
+\label{sec:concurrency-library}
+
+\indexentry{concurrency library}
+
+The \library{lambdust concurrent} library provides concurrency primitives:
+
+\begin{example}[Concurrency Library]
+\begin{lambdustcode}
+(import (lambdust concurrent))
+
+;; Actor operations
+(define (worker-actor id)
+  (let loop ()
+    (receive
+      (('work data reply-to)
+       (let ((result (process-data data)))
+         (send reply-to result))
+       (loop))
+      (('shutdown) 'done))))
+
+(define worker (spawn worker-actor 1))
+(send worker `(work ,some-data ,self))
+
+;; Future operations
+(define future-1 (future (expensive-computation-1)))
+(define future-2 (future (expensive-computation-2)))
+
+;; Wait for both
+(let ((result-1 (await future-1))
+      (result-2 (await future-2)))
+  (+ result-1 result-2))
+
+;; Parallel operations
+(define results (parallel-map expensive-function data-list))
+
+;; STM operations
+(define account1 (make-tvar 1000))
+(define account2 (make-tvar 500))
+
+(define (transfer amount from to)
+  (atomic
+    (let ((from-bal (tvar-read from))
+          (to-bal (tvar-read to)))
+      (when (>= from-bal amount)
+        (tvar-write! from (- from-bal amount))
+        (tvar-write! to (+ to-bal amount))))))
+
+;; Channel operations
+(define numbers-channel (make-channel))
+(spawn (lambda () 
+         (do ((i 0 (+ i 1))) ((= i 10))
+           (channel-put! numbers-channel i))))
+
+(let loop ((sum 0) (count 0))
+  (if (= count 10)
+      sum
+      (loop (+ sum (channel-get numbers-channel)) (+ count 1))))
+\end{lambdustcode}
+\end{example}
+
+\section{Collections Library}
+\label{sec:collections-library}
+
+\indexentry{collections}
+\indexentry{data structures}
+
+The \library{lambdust collections} library provides advanced data structures:
+
+\begin{example}[Collections Library]
+\begin{lambdustcode}
+(import (lambdust collections))
+
+;; Sets
+(define s1 (set 1 2 3 4))
+(define s2 (set 3 4 5 6))
+(set-union s1 s2)                        ; → {1 2 3 4 5 6}
+(set-intersection s1 s2)                 ; → {3 4}
+(set-difference s1 s2)                   ; → {1 2}
+
+;; Maps/Dictionaries  
+(define ages (map-from-alist '(("Alice" . 25) ("Bob" . 30))))
+(map-ref ages "Alice")                   ; → 25
+(map-set ages "Charlie" 35)              ; → new map with Charlie
+(map-keys ages)                          ; → ("Alice" "Bob")
+
+;; Bags/Multisets
+(define bag1 (bag 'a 'b 'b 'c))
+(bag-count bag1 'b)                      ; → 2
+(bag-add bag1 'b)                        ; → bag with 3 b's
+
+;; Sequences
+(define seq (sequence 1 2 3 4 5))
+(sequence-ref seq 2)                     ; → 3
+(sequence-append seq (sequence 6 7))     ; → (1 2 3 4 5 6 7)
+
+;; Persistent vectors
+(define v1 (vector-from-list '(1 2 3 4 5)))
+(define v2 (vector-set v1 2 'new))       ; v1 unchanged
+(vector->list v2)                        ; → (1 2 new 4 5)
+
+;; Finger trees
+(define ft (finger-tree 1 2 3 4 5))
+(finger-tree-split-at ft 2)              ; → (1 2) (3 4 5)
+
+;; Priority queues
+(define pq (priority-queue < 5 3 8 1 9))
+(priority-queue-min pq)                  ; → 1
+(priority-queue-remove-min pq)           ; → queue without 1
+
+;; Tries
+(define trie (trie-from-alist '(("cat" . 1) ("car" . 2) ("card" . 3))))
+(trie-keys-with-prefix trie "ca")        ; → ("cat" "car" "card")
+\end{lambdustcode}
+\end{example}
+
+\section{Text Processing}
+\label{sec:text-processing}
+
+\indexentry{text processing}
+\indexentry{regular expressions}
+
+The \library{lambdust text} library provides text processing:
+
+\begin{example}[Text Processing]
+\begin{lambdustcode}
+(import (lambdust text))
+
+;; Regular expressions
+(define email-regex (regex "([\\w.-]+)@([\\w.-]+)\\.(\\w+)"))
+(regex-match email-regex "alice@example.com")  
+; → #<match "alice@example.com" ("alice" "example" "com")>
+
+(regex-replace email-regex "Contact: alice@example.com" 
+                "Email: $1 at $2 dot $3")
+; → "Contact: Email: alice at example dot com"
+
+(regex-find-all (regex "\\b\\w+\\b") "Hello world from Lambdust")
+; → ("Hello" "world" "from" "Lambdust")
+
+;; String patterns
+(define phone-pattern (pattern "({3d})-{3d}-{4d}"))
+(pattern-match phone-pattern "(555)-123-4567")
+; → ((area-code . "555") (exchange . "123") (number . "4567"))
+
+;; Text templates
+(define template (text-template "Dear {{name}},\n\nYour balance is ${{balance}}."))
+(template-render template 
+  '((name . "Alice") (balance . "1,234.56")))
+
+;; Parsing combinators
+(define number-parser 
+  (sequence (optional (char #\-))
+           (one-or-more (char-range #\0 #\9))
+           (optional (sequence (char #\.)
+                              (one-or-more (char-range #\0 #\9))))))
+
+(parse number-parser "-123.45")         ; → -123.45
+
+;; CSV parsing
+(csv-read-string "name,age,city\nAlice,25,Boston\nBob,30,Seattle")
+; → (("name" "age" "city") ("Alice" "25" "Boston") ("Bob" "30" "Seattle"))
+
+;; Markdown parsing
+(markdown->html "# Hello\n\nThis is **bold** text.")
+; → "<h1>Hello</h1>\n<p>This is <strong>bold</strong> text.</p>"
+\end{lambdustcode}
+\end{example}
+
+\section{I/O Library}
+\label{sec:io-library}
+
+\indexentry{I/O library}
+\indexentry{input output}
+
+The \library{lambdust io} library provides enhanced I/O:
+
+\begin{example}[I/O Library]
+\begin{lambdustcode}
+(import (lambdust io))
+
+;; File operations
+(with-input-from-file "data.txt"
+  (lambda ()
+    (let ((lines (read-lines)))
+      (filter (lambda (line) (string-contains? line "important")) lines))))
+
+;; Binary I/O
+(with-binary-input-from-file "image.png"
+  (lambda ()
+    (let ((header (read-bytes 8)))
+      (if (png-header? header)
+          (read-png-data)
+          (error "Not a PNG file")))))
+
+;; Streaming I/O
+(define (process-large-file filename processor)
+  (with-input-stream (file-stream filename)
+    (stream-fold processor (stream-initial-value) 
+                 (stream-lines (current-input-stream)))))
+
+;; Network I/O
+(with-tcp-connection "api.example.com" 80
+  (lambda (socket)
+    (write-line "GET /data HTTP/1.0" socket)
+    (write-line "" socket)
+    (read-http-response socket)))
+
+;; Asynchronous I/O
+(define (async-file-read filename)
+  (async-with-input-from-file filename
+    (lambda ()
+      (read-string (file-size filename)))))
+
+;; Directory operations
+(directory-list "/usr/local/bin")         ; → list of files
+(directory-walk "/home/user" 
+  (lambda (path type) 
+    (when (eq? type 'file)
+      (display path) (newline))))
+
+;; Path manipulation
+(path-join "/home" "user" "documents" "file.txt")
+; → "/home/user/documents/file.txt"
+(path-extension "document.pdf")          ; → "pdf"
+(path-basename "/path/to/file.txt")      ; → "file.txt"
+
+;; Temporary files
+(with-temporary-file "temp-data-"
+  (lambda (temp-path)
+    (with-output-to-file temp-path
+      (lambda () (write large-data)))
+    (process-file temp-path)))
+\end{lambdustcode}
+\end{example}
+
+\section{FFI Library}
+\label{sec:ffi-library}
+
+\indexentry{FFI library}
+
+The \library{lambdust ffi} library provides foreign function interface:
+
+\begin{example}[FFI Library] 
+\begin{lambdustcode}
+(import (lambdust ffi))
+
+;; Basic foreign functions
+(foreign-declare "libm.so"
+  (sin :: (-> Float64 Float64))
+  (cos :: (-> Float64 Float64)))
+
+;; Structure definitions
+(define-c-struct Point
+  (x :: Float64)
+  (y :: Float64))
+
+;; Using foreign functions
+(with-capability 'math-library
+  (lambda ()
+    (let ((angle 1.57))  ; π/2
+      (display "sin(π/2) = ") 
+      (display (foreign-call sin angle))
+      (newline))))
+
+;; Memory management
+(define (process-with-buffer size)
+  (let ((buffer (allocate-buffer size)))
+    (dynamic-wind
+      (lambda () #f)
+      (lambda () (process-buffer buffer))
+      (lambda () (free-buffer buffer)))))
+
+;; Callback functions
+(define compare-function
+  (make-c-callback (-> Pointer Pointer Int32)
+    (lambda (a b)
+      (let ((val-a (pointer->integer a))
+            (val-b (pointer->integer b)))
+        (cond ((< val-a val-b) -1)
+              ((> val-a val-b) 1)
+              (else 0))))))
+
+;; Array marshaling
+(define numbers '(3 1 4 1 5 9))
+(let ((c-array (list->c-array numbers Int32)))
+  (with-capability 'libc
+    (lambda ()
+      (foreign-call qsort c-array 6 4 compare-function)))
+  (c-array->list c-array))
+
+;; Library loading
+(define graphics-lib (load-dynamic-library "libgraphics.so"))
+(define draw-line (get-foreign-procedure graphics-lib "draw_line"
+                    (-> Float64 Float64 Float64 Float64 Void)))
+\end{lambdustcode}
+\end{example}
+
+\section{Metaprogramming Library}
+\label{sec:meta-library}
+
+\indexentry{metaprogramming}
+\indexentry{reflection}
+
+The \library{lambdust meta} library provides reflection and metaprogramming:
+
+\begin{example}[Metaprogramming Library]
+\begin{lambdustcode}
+(import (lambdust meta))
+
+;; Reflection
+(procedure-name +)                       ; → "+"
+(procedure-arity +)                      ; → (0 . #f) ; 0 or more args
+(procedure-source factorial)             ; → source code if available
+
+;; Environment inspection
+(current-environment-variables)          ; → list of bound variables
+(variable-type 'x (current-environment)) ; → type of variable x
+(variable-defined? 'undefined-var)       ; → #f
+
+;; Code generation
+(define-code-generator simple-loop
+  (lambda (var start end body)
+    `(let loop ((,var ,start))
+       (if (>= ,var ,end)
+           'done
+           (begin ,body (loop (+ ,var 1)))))))
+
+(simple-loop i 0 10 (display i))
+
+;; Macro introspection  
+(macro-transformer? when)                ; → #t
+(expand-macro-once '(when (> x 0) (display "positive")))
+; → (if (> x 0) (begin (display "positive")))
+
+;; Runtime compilation
+(define dynamic-procedure 
+  (compile-lambda '(lambda (x y) (+ (* x x) (* y y)))))
+
+(dynamic-procedure 3 4)                  ; → 25
+
+;; Module introspection
+(module-exports '(scheme base))          ; → list of exported names
+(module-imports '(myapp main))           ; → list of imported modules
+
+;; Performance profiling
+(with-profiler
+  (lambda ()
+    (expensive-computation))
+  (lambda (profile)
+    (display-profile-report profile)))
+
+;; Memory introspection
+(gc-stats)                               ; → GC statistics
+(object-size my-large-structure)         ; → approximate size in bytes
+(heap-usage)                             ; → current heap usage
+\end{lambdustcode}
+\end{example}
+
+\section{SRFI Support}
+\label{sec:srfi-support}
+
+\indexentry{SRFI}
+\indexentry{Scheme Requests for Implementation}
+
+Lambdust provides extensive SRFI support:
+
+\begin{example}[SRFI Libraries]
+\begin{lambdustcode}
+;; SRFI-1: List library
+(import (srfi 1))
+(take '(1 2 3 4 5) 3)                   ; → (1 2 3)
+(unfold negative? (lambda (x) x) (lambda (x) (- x 1)) 5)
+; → (5 4 3 2 1 0)
+
+;; SRFI-13: String library  
+(import (srfi 13))
+(string-tokenize "Hello, world!")       ; → ("Hello" "world")
+(string-pad-right "hello" 10)           ; → "hello     "
+
+;; SRFI-41: Streams
+(import (srfi 41))
+(define nats (stream-iterate (lambda (x) (+ x 1)) 0))
+(stream->list (stream-take nats 10))     ; → (0 1 2 3 4 5 6 7 8 9)
+
+;; SRFI-113: Sets and bags
+(import (srfi 113))
+(define s (set number-comparator 1 2 3))
+(set-contains? s 2)                      ; → #t
+
+;; SRFI-121: Generators
+(import (srfi 121))
+(define g (list->generator '(1 2 3 4 5)))
+(generator->list (gtake g 3))            ; → (1 2 3)
+
+;; SRFI-128: Comparators  
+(import (srfi 128))
+(define string-ci-comparator
+  (make-comparator string? string-ci=? string-ci<? string-ci-hash))
+
+;; SRFI-151: Bitwise operations
+(import (srfi 151))
+(bitwise-and 6 10)                       ; → 2
+(arithmetic-shift 1 10)                  ; → 1024
+
+;; SRFI-158: Generators and accumulators
+(import (srfi 158))
+(define acc (list-accumulator))
+(acc 1) (acc 2) (acc 3)
+(acc)                                    ; → (1 2 3)
+\end{lambdustcode}
+\end{example}
+
+\section{Testing Library}
+\label{sec:testing-library}
+
+\indexentry{testing}
+\indexentry{unit tests}
+
+The \library{lambdust test} library provides testing facilities:
+
+\begin{example}[Testing Library]
+\begin{lambdustcode}
+(import (lambdust test))
+
+;; Basic assertions
+(test-assert (> 5 3))
+(test-equal 4 (+ 2 2))
+(test-approximate 3.14159 22/7 0.01)
+
+;; Test groups
+(test-group "arithmetic tests"
+  (test-equal "addition" 7 (+ 3 4))
+  (test-equal "multiplication" 12 (* 3 4))
+  (test-equal "division" 2 (/ 8 4)))
+
+;; Property-based testing
+(test-property "addition is commutative"
+  (lambda (x y) (= (+ x y) (+ y x)))
+  (generate-integers -100 100))
+
+;; Test fixtures
+(define-test-fixture database-tests
+  (setup (lambda () (init-test-database)))
+  (teardown (lambda () (cleanup-test-database)))
+  
+  (test-case "user creation"
+    (let ((user (create-user "testuser")))
+      (test-assert (user? user))
+      (test-equal "testuser" (user-name user))))
+  
+  (test-case "user deletion"
+    (create-user "tempuser")
+    (delete-user "tempuser")
+    (test-equal #f (find-user "tempuser"))))
+
+;; Mock objects
+(define-mock database-connection
+  (query (lambda (sql) '((id 1) (name "Alice"))))
+  (execute (lambda (sql) 'success)))
+
+(with-mock database-connection
+  (test-equal '((id 1) (name "Alice"))
+              (database-query "SELECT * FROM users")))
+
+;; Benchmark tests
+(test-benchmark "list operations"
+  (benchmark "append" (lambda () (append (range 0 1000) (range 1000 2000))))
+  (benchmark "map" (lambda () (map (lambda (x) (* x 2)) (range 0 1000)))))
+
+;; Coverage analysis
+(with-coverage-analysis
+  (run-all-tests)
+  (generate-coverage-report))
+\end{lambdustcode}
+\end{example}
+
+\section{Debugging Library}
+\label{sec:debugging-library}
+
+\indexentry{debugging}
+\indexentry{tracing}
+
+The \library{lambdust debug} library provides debugging tools:
+
+\begin{example}[Debugging Library]
+\begin{lambdustcode}
+(import (lambdust debug))
+
+;; Tracing
+(trace factorial)
+(factorial 5)
+;; Trace output:
+;; |(factorial 5)
+;; | (factorial 4)
+;; | |(factorial 3)
+;; | | (factorial 2)
+;; | | |(factorial 1)
+;; | | |1
+;; | | 1
+;; | |2
+;; | 6
+;; |120
+
+;; Breakpoints
+(define (buggy-function x)
+  (let ((intermediate (complex-calculation x)))
+    (breakpoint "checking intermediate value" intermediate)
+    (final-calculation intermediate)))
+
+;; Step debugging
+(step-debug
+  (lambda ()
+    (let ((x 10))
+      (let ((y (* x 2)))
+        (+ x y)))))
+
+;; Profiling
+(profile fibonacci 30)
+;; Shows time spent in each function call
+
+;; Memory debugging
+(with-memory-debugging
+  (lambda ()
+    (let ((large-list (make-list 100000 'item)))
+      (process-list large-list))))
+;; Reports memory allocations and potential leaks
+
+;; Call stack inspection
+(define (deep-function)
+  (display-call-stack)
+  (display-environment-variables))
+
+;; Assertion debugging
+(assert (> x 0) "x must be positive" x)
+(debug-assert (sorted? lst) "list must be sorted" lst)
+
+;; Interactive debugging
+(debugger-break-on-error #t)
+;; Drops into REPL when error occurs
+
+;; Performance monitoring
+(with-performance-monitor
+  (lambda ()
+    (large-computation))
+  (lambda (stats)
+    (display "Execution time: ") (display (stats 'time)) (newline)
+    (display "Memory used: ") (display (stats 'memory)) (newline)))
+\end{lambdustcode}
+\end{example}
+
+The standard library provides comprehensive functionality while maintaining R7RS compatibility and enabling advanced programming techniques through gradual adoption of Lambdust's extended features.

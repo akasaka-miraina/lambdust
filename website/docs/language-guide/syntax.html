@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syntax & Semantics - Lambdust Documentation</title>
+    <meta name="description" content="Comprehensive guide to Lambdust syntax, from basic S-expressions to advanced type annotations and pattern matching.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Language Guide</a> → 
+                Syntax
+            </div>
+
+            <h1>Syntax & Semantics</h1>
+            
+            <p>Lambdust's syntax is based on Scheme's S-expressions but extended with modern type annotations, pattern matching, and other advanced features while maintaining full R7RS compatibility.</p>
+
+            <div class="type-signature">
+                expr ::= atom | list | type-expr | pattern-match
+            </div>
+
+            <h2>Basic Syntax</h2>
+
+            <h3>S-expressions</h3>
+            <p>Lambdust uses S-expressions (symbolic expressions) as its fundamental syntax:</p>
+
+            <div class="example-box">
+                <h4>Basic S-expressions</h4>
+                <pre><code>;; Atoms (basic values)
+42                    ; Integer
+3.14                  ; Real number
+#t                    ; Boolean true
+#f                    ; Boolean false
+"hello"               ; String
+'symbol               ; Symbol
+#\a                   ; Character
+
+;; Lists (function applications and data)
+(+ 1 2 3)             ; Function application
+'(1 2 3 4)            ; Quoted list (data)
+(define x 42)         ; Definition
+(lambda (x) (* x x))  ; Function definition</code></pre>
+            </div>
+
+            <h3>Comments</h3>
+            <pre><code>;; Single-line comment
+
+#| Multi-line
+   comment spanning
+   multiple lines |#
+
+#;(this entire s-expression is commented out)</code></pre>
+
+            <h2>Data Types</h2>
+
+            <h3>Numbers</h3>
+            <pre><code>;; Integers
+42
+-17
+#b1010      ; Binary: 10
+#o755       ; Octal: 493
+#x1a2b      ; Hexadecimal: 6699
+
+;; Real numbers
+3.14
+-2.5
+1e6         ; Scientific notation: 1000000
+1.5e-3      ; 0.0015
+
+;; Rational numbers
+1/3
+22/7
+
+;; Complex numbers
+3+4i
+1.5-2.7i</code></pre>
+
+            <h3>Strings and Characters</h3>
+            <pre><code>;; Strings
+"Hello, world!"
+"String with \"escaped\" quotes"
+"Unicode: λ α β γ"
+"Multiline string
+spans multiple
+lines"
+
+;; Characters
+#\a          ; Letter 'a'
+#\space      ; Space character
+#\newline    ; Newline character
+#\λ          ; Unicode lambda</code></pre>
+
+            <h3>Collections</h3>
+            <pre><code>;; Lists
+'()                   ; Empty list
+'(1 2 3)              ; List of numbers
+'(a b c)              ; List of symbols
+(list 1 2 3)          ; List constructor
+
+;; Vectors (arrays)
+#()                   ; Empty vector
+#(1 2 3)              ; Vector of numbers
+(vector 'a 'b 'c)     ; Vector constructor
+
+;; Pairs (cons cells)
+'(1 . 2)              ; Pair of 1 and 2
+(cons 'a 'b)          ; Cons constructor</code></pre>
+
+            <h2>Type Annotations</h2>
+
+            <p>Lambdust extends Scheme syntax with optional type annotations:</p>
+
+            <div class="example-box">
+                <h4>Type Annotation Syntax</h4>
+                <pre><code>;; Variable type annotations
+(define x : Integer 42)
+(let ([count : Integer 0]) ...)
+
+;; Function type annotations
+(define add : (Integer → Integer → Integer)
+  (lambda ((x : Integer) (y : Integer))
+    (+ x y)))
+
+;; Polymorphic types
+(define identity : (∀ α. α → α)
+  (lambda (x) x))
+
+;; Dependent types
+(define safe-head : (∀ α. (lst : List α) → (length lst > 0) → α)
+  (lambda (lst proof) (car lst)))</code></pre>
+            </div>
+
+            <h3>Type Expression Syntax</h3>
+            <pre><code>;; Basic types
+Integer               ; Integer type
+Real                  ; Real number type
+String                ; String type
+Boolean               ; Boolean type
+
+;; Function types
+(A → B)               ; Function from A to B
+(A → B → C)           ; Curried function: A → (B → C)
+
+;; Polymorphic types
+(∀ α. α → α)          ; Universal quantification
+(∀ (α : Kind). Type)  ; Bounded quantification
+
+;; Dependent types
+(∀ (n : Nat). Vector n α)     ; Vector of length n
+(x : Integer) → (x > 0) → ... ; Dependent function type
+
+;; Type constructors
+(List α)              ; List of α
+(Maybe α)             ; Optional value
+(Either α β)          ; Sum type</code></pre>
+
+            <h2>Function Definition</h2>
+
+            <h3>Lambda Expressions</h3>
+            <pre><code>;; Basic lambda
+(lambda (x) (* x x))
+
+;; Multiple parameters
+(lambda (x y z) (+ x y z))
+
+;; Typed parameters
+(lambda ((x : Integer) (y : Integer)) (+ x y))
+
+;; Rest parameters
+(lambda (first . rest) (cons first rest))
+
+;; Optional parameters with defaults
+(lambda (x [y 0] [z 1]) (+ x y z))</code></pre>
+
+            <h3>Function Definitions</h3>
+            <pre><code>;; Simple definition
+(define square (lambda (x) (* x x)))
+
+;; Shorthand syntax
+(define (square x) (* x x))
+
+;; With type annotations
+(define square : (Number → Number)
+  (lambda ((x : Number)) (* x x)))
+
+;; Shorthand with types
+(define (square (x : Number)) : Number
+  (* x x))</code></pre>
+
+            <h2>Pattern Matching</h2>
+
+            <p>Lambdust provides powerful pattern matching capabilities:</p>
+
+            <div class="example-box">
+                <h4>Pattern Matching Syntax</h4>
+                <pre><code>;; Basic match expression
+(match value
+  [0 "zero"]
+  [1 "one"]  
+  [n "many"])
+
+;; List patterns
+(match lst
+  ['() "empty"]
+  [(cons h t) (format "head: ~a, tail: ~a" h t)]
+  [other "not a list"])
+
+;; Constructor patterns
+(match option
+  [(Some x) x]
+  [None 0])
+
+;; Guard patterns
+(match n
+  [x (when (> x 0)) "positive"]
+  [x (when (< x 0)) "negative"]
+  [0 "zero"])</code></pre>
+            </div>
+
+            <h3>Pattern Types</h3>
+            <pre><code>;; Literal patterns
+[42 "forty-two"]      ; Match exact number
+["hello" "greeting"]  ; Match exact string
+[#t "true"]           ; Match boolean
+
+;; Variable patterns
+[x (+ x 1)]           ; Bind to variable x
+[_ "ignored"]         ; Wildcard pattern
+
+;; Constructor patterns
+[(Point x y) (+ x y)] ; Destructure Point
+[(cons h t) h]        ; Destructure list
+
+;; List patterns
+[() "empty"]          ; Empty list
+[(list x) x]          ; Single element
+[(list x y z) (+ x y z)] ; Three elements</code></pre>
+
+            <h2>Control Flow</h2>
+
+            <h3>Conditionals</h3>
+            <pre><code>;; if expression
+(if (> x 0) "positive" "non-positive")
+
+;; cond expression
+(cond
+  [(> x 0) "positive"]
+  [(< x 0) "negative"]
+  [else "zero"])
+
+;; when and unless
+(when (> x 0) (display "positive"))
+(unless (zero? x) (display "non-zero"))</code></pre>
+
+            <h3>Loops and Iteration</h3>
+            <pre><code>;; Named let (recursion)
+(let loop ([n 10] [acc 1])
+  (if (zero? n) acc
+      (loop (- n 1) (* acc n))))
+
+;; do loop
+(do ([i 0 (+ i 1)]
+     [sum 0 (+ sum i)])
+    ((>= i 10) sum))
+
+;; for comprehensions
+(for/list ([x (in-range 10)])
+  (* x x))</code></pre>
+
+            <h2>Module System</h2>
+
+            <h3>Library Definition</h3>
+            <pre><code>;; Define a library
+(define-library (example math)
+  (import (scheme base))
+  (export factorial fibonacci)
+  
+  (begin
+    (define (factorial n)
+      (if (<= n 1) 1
+          (* n (factorial (- n 1)))))
+    
+    (define (fibonacci n)
+      (if (< n 2) n
+          (+ (fibonacci (- n 1))
+             (fibonacci (- n 2)))))))</code></pre>
+
+            <h3>Imports and Exports</h3>
+            <pre><code>;; Import library
+(import (example math))
+
+;; Selective import
+(import (only (scheme base) + - * /))
+
+;; Renaming import
+(import (rename (scheme base) (+ plus) (- minus)))
+
+;; Prefix import
+(import (prefix (scheme base) scheme:))</code></pre>
+
+            <h2>Advanced Syntax</h2>
+
+            <h3>Macros</h3>
+            <pre><code>;; Simple macro
+(define-syntax-rule (when condition body ...)
+  (if condition (begin body ...)))
+
+;; Pattern-based macro
+(define-syntax define-getter
+  (syntax-rules ()
+    [(define-getter name field)
+     (define (name obj) (field obj))]))
+
+;; Syntax-case macro
+(define-syntax with-values
+  (lambda (stx)
+    (syntax-case stx ()
+      [(with-values producer consumer)
+       #'(call-with-values (lambda () producer) consumer)])))</code></pre>
+
+            <h3>Quasiquotation</h3>
+            <pre><code>;; Template construction
+(define (make-setter name)
+  `(define (,(string->symbol (string-append "set-" name "!")) obj val)
+     (set! (,name obj) val)))
+
+;; Unquote and unquote-splicing
+(let ([x 42] [lst '(a b c)])
+  `(the value is ,x and the list is ,@lst))
+;; Result: (the value is 42 and the list is a b c)</code></pre>
+
+            <h2>Type System Integration</h2>
+
+            <h3>Gradual Typing Syntax</h3>
+            <pre><code>;; Dynamic type
+(define process-input : (Dynamic → Dynamic)
+  (lambda (input) ...))
+
+;; Blame labels
+(define safe-divide : (Number → Number → Number)
+  (contract (Number → Number → Number)
+            unsafe-divide
+            #:blame-positive "caller"
+            #:blame-negative "safe-divide"))
+
+;; Type ascription
+(: expression Expected-Type)</code></pre>
+
+            <h3>Effect Annotations</h3>
+            <pre><code>;; Pure function (default)
+(define pure-computation : (Integer → Integer)
+  (lambda (x) (* x x)))
+
+;; IO effects
+(define interactive : (String → IO String)
+  (lambda (prompt)
+    (display prompt)
+    (read-line)))
+
+;; State effects
+(define stateful : (Integer → State Counter Integer)
+  (lambda (n)
+    (do [current ← get-counter]
+        [_ ← (set-counter (+ current n))]
+        (return current))))</code></pre>
+
+            <h2>Syntax Rules and Conventions</h2>
+
+            <h3>Naming Conventions</h3>
+            <ul>
+                <li><strong>Predicates</strong>: End with <code>?</code> (e.g., <code>number?</code>, <code>empty?</code>)</li>
+                <li><strong>Mutators</strong>: End with <code>!</code> (e.g., <code>set!</code>, <code>vector-set!</code>)</li>
+                <li><strong>Type constructors</strong>: CamelCase (e.g., <code>Maybe</code>, <code>Either</code>)</li>
+                <li><strong>Functions</strong>: kebab-case (e.g., <code>string-append</code>, <code>list-ref</code>)</li>
+                <li><strong>Constants</strong>: All caps with dashes (e.g., <code>PI</code>, <code>MAX-INT</code>)</li>
+            </ul>
+
+            <h3>Style Guidelines</h3>
+            <pre><code>;; Preferred indentation
+(define (long-function-name parameter-one 
+                            parameter-two
+                            parameter-three)
+  (let ([intermediate-result (complex-computation parameter-one
+                                                  parameter-two)])
+    (final-step intermediate-result parameter-three)))
+
+;; Line breaks for readability
+(cond
+  [(very-long-condition-that-spans-multiple-words? x y z)
+   (correspondingly-long-action x y z)]
+  [(another-condition? a b)
+   (shorter-action a b)]
+  [else
+   (default-action)])</code></pre>
+
+            <h2>Operator Precedence</h2>
+
+            <p>Lambdust uses consistent S-expression syntax with no operator precedence issues:</p>
+
+            <pre><code>;; All operations are explicit function calls
+(+ 1 (* 2 3))         ; 1 + (2 * 3) = 7
+(* (+ 1 2) 3)         ; (1 + 2) * 3 = 9
+
+;; Comparison and logical operations
+(and (> x 0) (< x 10))
+(or (= x 0) (= x 1))
+(not (empty? lst))</code></pre>
+
+            <h2>Error Handling Syntax</h2>
+
+            <pre><code>;; Exception handling
+(with-exception-handler
+  (lambda (condition)
+    (display "Error occurred: ")
+    (display condition))
+  (lambda ()
+    (risky-operation)))
+
+;; Error values with Maybe/Either
+(match (safe-divide x y)
+  [(Right result) result]
+  [(Left error) (handle-error error)])
+
+;; Guard expressions
+(guard (condition
+        [(file-error? condition) 'file-error]
+        [(network-error? condition) 'network-error]
+        [else (raise condition)])
+  (perform-io-operation))</code></pre>
+
+            <h2>Related Topics</h2>
+
+            <ul>
+                <li><a href="../type-system/gradual-typing.html">Gradual Typing</a> - Type annotation syntax</li>
+                <li><a href="monadic-purity.html">Monadic Purity</a> - Effect system syntax</li>
+                <li><a href="../type-system/dependent-types.html">Dependent Types</a> - Advanced type expressions</li>
+                <li><a href="r7rs-compliance.html">R7RS Compliance</a> - Standard Scheme compatibility</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="index.html">← Language Guide Overview</a>
+                <a href="monadic-purity.html">Monadic Purity →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

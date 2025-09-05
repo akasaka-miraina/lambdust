@@ -13,7 +13,7 @@ use crate::diagnostics::{Error, Result};
 /// Parses a module name from a string representation.
 pub fn parse_module_name(input: &str) -> Result<ModuleId> {
     let trimmed = input.trim();
-    
+
     // Must start and end with parentheses
     if !trimmed.starts_with('(') || !trimmed.ends_with(')') {
         return Err(Box::new(Error::syntax_error(
@@ -21,25 +21,28 @@ pub fn parse_module_name(input: &str) -> Result<ModuleId> {
             None,
         )));
     }
-    
+
     // Remove outer parentheses
-    let inner = &trimmed[1..trimmed.len()-1].trim();
+    let inner = &trimmed[1..trimmed.len() - 1].trim();
     let parts: Vec<&str> = inner.split_whitespace().collect();
-    
+
     if parts.is_empty() {
         return Err(Box::new(Error::syntax_error(
             "Empty module name".to_string(),
             None,
         )));
     }
-    
+
     match parts[0] {
         "::" => {
             // Deprecated syntax - emit warning but still support
-            eprintln!("Warning: The '::' module syntax is deprecated. Use '(lambdust {})' instead of '(:: {})'.", 
-                     parts[1..].join(" "), parts[1..].join(" "));
+            eprintln!(
+                "Warning: The '::' module syntax is deprecated. Use '(lambdust {})' instead of '(:: {})'.",
+                parts[1..].join(" "),
+                parts[1..].join(" ")
+            );
             parse_builtin_module(&parts[1..])
-        },
+        }
         "lambdust" => parse_builtin_module(&parts[1..]),
         "scheme" => parse_r7rs_module(&parts[1..]),
         "srfi" => parse_srfi_module(&parts[1..]),
@@ -64,7 +67,7 @@ fn parse_builtin_module(parts: &[&str]) -> Result<ModuleId> {
             None,
         )));
     }
-    
+
     let components = parts.iter().map(|s| s.to_string()).collect();
     Ok(ModuleId {
         components,
@@ -80,7 +83,7 @@ fn parse_r7rs_module(parts: &[&str]) -> Result<ModuleId> {
             None,
         )));
     }
-    
+
     let components = parts.iter().map(|s| s.to_string()).collect();
     Ok(ModuleId {
         components,
@@ -99,7 +102,7 @@ fn parse_srfi_module(parts: &[&str]) -> Result<ModuleId> {
             None,
         )));
     }
-    
+
     // Handle different SRFI syntaxes
     if parts.len() == 1 {
         // Single SRFI number: (srfi 1)
@@ -120,22 +123,22 @@ fn parse_srfi_module(parts: &[&str]) -> Result<ModuleId> {
                 None,
             )));
         }
-        
-        let inner = &list_str[1..list_str.len()-1];
+
+        let inner = &list_str[1..list_str.len() - 1];
         let srfi_numbers: Vec<&str> = inner.split_whitespace().collect();
-        
+
         if srfi_numbers.is_empty() {
             return Err(Box::new(Error::syntax_error(
                 "SRFI list cannot be empty".to_string(),
                 None,
             )));
         }
-        
+
         // Validate all SRFI numbers
         for srfi_num in &srfi_numbers {
             validate_srfi_number(srfi_num)?;
         }
-        
+
         let components = srfi_numbers.iter().map(|s| s.to_string()).collect();
         Ok(ModuleId {
             components,
@@ -169,7 +172,7 @@ fn parse_user_module(parts: &[&str]) -> Result<ModuleId> {
             None,
         )));
     }
-    
+
     let components = parts.iter().map(|s| s.to_string()).collect();
     Ok(ModuleId {
         components,
@@ -185,16 +188,16 @@ fn parse_file_module(parts: &[&str]) -> Result<ModuleId> {
             None,
         )));
     }
-    
+
     let path_str = parts[0];
-    
+
     // Remove quotes if present
     let path = if path_str.starts_with('"') && path_str.ends_with('"') {
-        &path_str[1..path_str.len()-1]
+        &path_str[1..path_str.len() - 1]
     } else {
         path_str
     };
-    
+
     let components = vec![path.to_string()];
     Ok(ModuleId {
         components,
@@ -210,7 +213,7 @@ pub fn validate_module_id(id: &ModuleId) -> Result<()> {
             None,
         )));
     }
-    
+
     // Check for invalid characters in components
     for component in &id.components {
         if component.is_empty() {
@@ -219,11 +222,11 @@ pub fn validate_module_id(id: &ModuleId) -> Result<()> {
                 None,
             )));
         }
-        
+
         // Additional validation rules can be added here
         // For example, checking for valid identifier characters
     }
-    
+
     Ok(())
 }
 

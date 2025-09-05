@@ -3,8 +3,8 @@
 //! This module provides comprehensive benchmarks for all container implementations
 //! to measure and compare performance characteristics.
 
-use crate::eval::value::Value;
 use super::*;
+use crate::eval::value::Value;
 use std::time::{Duration, Instant};
 
 /// Benchmark result for a single operation
@@ -130,7 +130,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("insert", "ThreadSafeHashTable", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "insert",
+                "ThreadSafeHashTable",
+                size,
+                avg_duration,
+            ));
 
             // Benchmark lookups
             let table = ThreadSafeHashTable::new();
@@ -150,7 +155,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("lookup", "ThreadSafeHashTable", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "lookup",
+                "ThreadSafeHashTable",
+                size,
+                avg_duration,
+            ));
         }
 
         // Compare with standard HashMap
@@ -168,7 +178,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("insert", "std::HashMap", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "insert",
+                "std::HashMap",
+                size,
+                avg_duration,
+            ));
         }
 
         results
@@ -193,7 +208,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("cons_front", "PersistentIdeque", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "cons_front",
+                "PersistentIdeque",
+                size,
+                avg_duration,
+            ));
 
             // Benchmark snoc (add to back)
             let mut durations = Vec::new();
@@ -209,7 +229,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("snoc_back", "PersistentIdeque", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "snoc_back",
+                "PersistentIdeque",
+                size,
+                avg_duration,
+            ));
         }
 
         // Compare with VecDeque
@@ -227,7 +252,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("push_front", "std::VecDeque", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "push_front",
+                "std::VecDeque",
+                size,
+                avg_duration,
+            ));
         }
 
         results
@@ -252,7 +282,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("insert", "ThreadSafePriorityQueue", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "insert",
+                "ThreadSafePriorityQueue",
+                size,
+                avg_duration,
+            ));
 
             // Benchmark extraction
             let queue = ThreadSafePriorityQueue::new();
@@ -273,7 +308,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("extract", "ThreadSafePriorityQueue", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "extract",
+                "ThreadSafePriorityQueue",
+                size,
+                avg_duration,
+            ));
         }
 
         // Compare with BinaryHeap
@@ -291,7 +331,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("push", "std::BinaryHeap", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "push",
+                "std::BinaryHeap",
+                size,
+                avg_duration,
+            ));
         }
 
         results
@@ -316,7 +361,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("insert", "ThreadSafeOrderedSet", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "insert",
+                "ThreadSafeOrderedSet",
+                size,
+                avg_duration,
+            ));
 
             // Benchmark contains
             let set = ThreadSafeOrderedSet::new();
@@ -336,7 +386,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("contains", "ThreadSafeOrderedSet", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "contains",
+                "ThreadSafeOrderedSet",
+                size,
+                avg_duration,
+            ));
         }
 
         // Compare with BTreeSet
@@ -354,7 +409,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("insert", "std::BTreeSet", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "insert",
+                "std::BTreeSet",
+                size,
+                avg_duration,
+            ));
         }
 
         results
@@ -379,7 +439,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("enqueue", "ThreadSafeListQueue", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "enqueue",
+                "ThreadSafeListQueue",
+                size,
+                avg_duration,
+            ));
 
             // Benchmark dequeue
             let queue = ThreadSafeListQueue::new();
@@ -400,7 +465,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("dequeue", "ThreadSafeListQueue", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "dequeue",
+                "ThreadSafeListQueue",
+                size,
+                avg_duration,
+            ));
         }
 
         results
@@ -425,7 +495,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("push_front", "ThreadSafeRandomAccessList", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "push_front",
+                "ThreadSafeRandomAccessList",
+                size,
+                avg_duration,
+            ));
 
             // Benchmark random access
             let list = ThreadSafeRandomAccessList::new();
@@ -445,7 +520,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("random_access", "ThreadSafeRandomAccessList", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "random_access",
+                "ThreadSafeRandomAccessList",
+                size,
+                avg_duration,
+            ));
         }
 
         // Compare with Vec
@@ -463,7 +543,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("insert_front", "std::Vec", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "insert_front",
+                "std::Vec",
+                size,
+                avg_duration,
+            ));
 
             // Benchmark random access for Vec
             let vec: Vec<usize> = (0..size).collect();
@@ -479,7 +564,12 @@ impl ContainerBenchmarks {
             }
 
             let avg_duration = durations.iter().sum::<Duration>() / durations.len() as u32;
-            results.push(BenchmarkResult::new("random_access", "std::Vec", size, avg_duration));
+            results.push(BenchmarkResult::new(
+                "random_access",
+                "std::Vec",
+                size,
+                avg_duration,
+            ));
         }
 
         results
@@ -501,7 +591,7 @@ impl ContainerBenchmarks {
         let estimated_memory = size * (std::mem::size_of::<Value>() * 2 + 64); // Key + Value + overhead
         results.push(
             BenchmarkResult::new("memory", "ThreadSafeHashTable", size, Duration::ZERO)
-                .with_memory_usage(estimated_memory)
+                .with_memory_usage(estimated_memory),
         );
 
         // Ideque memory usage
@@ -512,7 +602,7 @@ impl ContainerBenchmarks {
         let estimated_memory = size * (std::mem::size_of::<Value>() + 32); // Value + tree node overhead
         results.push(
             BenchmarkResult::new("memory", "PersistentIdeque", size, Duration::ZERO)
-                .with_memory_usage(estimated_memory)
+                .with_memory_usage(estimated_memory),
         );
 
         results
@@ -525,7 +615,7 @@ impl ContainerBenchmarks {
         println!("{:=<100}", "");
 
         // Group results by container type
-        let mut by_container: std::collections::HashMap<String, Vec<&BenchmarkResult>> = 
+        let mut by_container: std::collections::HashMap<String, Vec<&BenchmarkResult>> =
             std::collections::HashMap::new();
 
         for result in results {
@@ -554,31 +644,46 @@ impl ContainerBenchmarks {
         match operation {
             "insert" => {
                 // Compare insertion performance across container types
-                results.extend(self.benchmark_hash_tables(size)
-                    .into_iter()
-                    .filter(|r| r.operation == "insert"));
-                results.extend(self.benchmark_ordered_sets(size)
-                    .into_iter()
-                    .filter(|r| r.operation == "insert"));
-                results.extend(self.benchmark_priority_queues(size)
-                    .into_iter()
-                    .filter(|r| r.operation == "insert"));
+                results.extend(
+                    self.benchmark_hash_tables(size)
+                        .into_iter()
+                        .filter(|r| r.operation == "insert"),
+                );
+                results.extend(
+                    self.benchmark_ordered_sets(size)
+                        .into_iter()
+                        .filter(|r| r.operation == "insert"),
+                );
+                results.extend(
+                    self.benchmark_priority_queues(size)
+                        .into_iter()
+                        .filter(|r| r.operation == "insert"),
+                );
             }
             "lookup" => {
                 // Compare lookup performance
-                results.extend(self.benchmark_hash_tables(size)
-                    .into_iter()
-                    .filter(|r| r.operation == "lookup"));
-                results.extend(self.benchmark_ordered_sets(size)
-                    .into_iter()
-                    .filter(|r| r.operation == "contains"));
+                results.extend(
+                    self.benchmark_hash_tables(size)
+                        .into_iter()
+                        .filter(|r| r.operation == "lookup"),
+                );
+                results.extend(
+                    self.benchmark_ordered_sets(size)
+                        .into_iter()
+                        .filter(|r| r.operation == "contains"),
+                );
             }
             _ => {
                 eprintln!("Unknown operation: {operation}");
             }
         }
 
-        results.sort_by(|a, b| a.operations_per_second.partial_cmp(&b.operations_per_second).unwrap().reverse());
+        results.sort_by(|a, b| {
+            a.operations_per_second
+                .partial_cmp(&b.operations_per_second)
+                .unwrap()
+                .reverse()
+        });
         results
     }
 }
@@ -592,17 +697,22 @@ impl Default for ContainerBenchmarks {
 /// Runs a quick benchmark suite for demonstration
 pub fn run_quick_benchmark() {
     println!("Running container benchmarks...");
-    
+
     let benchmarks = ContainerBenchmarks::with_params(vec![1000, 10000], 2);
     let results = benchmarks.run_all();
-    
+
     benchmarks.print_results(&results);
-    
+
     // Print top performers
     println!("\nTop performers for insertion (10000 items):");
     let insertion_results = benchmarks.compare_performance("insert", 10000);
     for (i, result) in insertion_results.iter().take(5).enumerate() {
-        println!("  {}. {} - {:.2} ops/sec", i + 1, result.container_type, result.operations_per_second);
+        println!(
+            "  {}. {} - {:.2} ops/sec",
+            i + 1,
+            result.container_type,
+            result.operations_per_second
+        );
     }
 }
 
@@ -619,12 +729,8 @@ mod tests {
 
     #[test]
     fn test_benchmark_result() {
-        let result = BenchmarkResult::new(
-            "test_op",
-            "TestContainer",
-            1000,
-            Duration::from_millis(100),
-        );
+        let result =
+            BenchmarkResult::new("test_op", "TestContainer", 1000, Duration::from_millis(100));
 
         assert_eq!(result.operation, "test_op");
         assert_eq!(result.container_type, "TestContainer");
@@ -636,17 +742,17 @@ mod tests {
     fn test_hash_table_benchmark() {
         let benchmarks = ContainerBenchmarks::with_params(vec![100], 1);
         let results = benchmarks.benchmark_hash_tables(100);
-        
+
         assert!(!results.is_empty());
         assert!(results.iter().any(|r| r.operation == "insert"));
         assert!(results.iter().any(|r| r.operation == "lookup"));
     }
 
-    #[test] 
+    #[test]
     fn test_performance_comparison() {
         let benchmarks = ContainerBenchmarks::with_params(vec![100], 1);
         let results = benchmarks.compare_performance("insert", 100);
-        
+
         assert!(!results.is_empty());
         // Results should be sorted by performance (descending)
         if results.len() > 1 {

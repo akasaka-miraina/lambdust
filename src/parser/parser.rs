@@ -1,11 +1,11 @@
 use crate::ast::{Expr, Formals, KeywordParam, Program};
 use crate::diagnostics::{Error, Result, Span, Spanned};
 use crate::lexer::{Token, TokenKind};
-use super::ParserConfig;
+use crate::parser::parser_config::ParserConfig;
 use std::collections::HashMap;
 
 /// The main parser for Lambdust.
-/// 
+///
 /// This parser implements recursive descent parsing with robust error recovery.
 /// It supports the full R7RS grammar plus Lambdust extensions.
 #[derive(Debug)]
@@ -33,8 +33,8 @@ pub struct Parser {
 impl Parser {
     /// Creates a new parser with the given tokens.
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { 
-            tokens, 
+        Self {
+            tokens,
             position: 0,
             errors: Vec::new(),
             nesting_depth: 0,
@@ -45,7 +45,7 @@ impl Parser {
             eof_token: Token::eof(Span::new(0, 0)),
         }
     }
-    
+
     /// Creates a new parser with custom error handling settings.
     pub fn with_settings(tokens: Vec<Token>, max_errors: usize, aggressive_recovery: bool) -> Self {
         Self {
@@ -60,69 +60,69 @@ impl Parser {
             eof_token: Token::eof(Span::new(0, 0)),
         }
     }
-    
+
     /// Creates a new parser from configuration.
     pub fn from_config(tokens: Vec<Token>, config: &ParserConfig) -> Self {
         Self::with_settings(tokens, config.max_errors, config.aggressive_recovery)
     }
-    
+
     /// Returns all collected errors.
     pub fn errors(&self) -> &[Error] {
         &self.errors
     }
-    
+
     /// Returns whether the parser has encountered errors.
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
-    
+
     /// Gets the current position in the token stream.
     pub fn position(&self) -> usize {
         self.position
     }
-    
+
     /// Gets the current nesting depth.
     pub fn nesting_depth(&self) -> usize {
         self.nesting_depth
     }
-    
+
     /// Returns whether the parser is in panic mode.
     pub fn is_panic_mode(&self) -> bool {
         self.panic_mode
     }
-    
+
     /// Adds an error to the error list.
     pub fn add_error(&mut self, error: Error) {
         self.errors.push(error);
     }
-    
+
     /// Sets panic mode.
     pub fn set_panic_mode(&mut self, panic: bool) {
         self.panic_mode = panic;
     }
-    
+
     /// Increments nesting depth.
     pub fn increment_nesting(&mut self) {
         self.nesting_depth += 1;
     }
-    
+
     /// Decrements nesting depth.
     pub fn decrement_nesting(&mut self) {
         if self.nesting_depth > 0 {
             self.nesting_depth -= 1;
         }
     }
-    
+
     /// Pushes a context onto the context stack.
     pub fn push_context(&mut self, context: String) {
         self.context_stack.push(context);
     }
-    
+
     /// Pops a context from the context stack.
     pub fn pop_context(&mut self) -> Option<String> {
         self.context_stack.pop()
     }
-    
+
     /// Gets the current context stack.
     pub fn context_stack(&self) -> &[String] {
         &self.context_stack
@@ -136,7 +136,7 @@ impl Parser {
     /// Attempts to parse a program from the token stream.
     pub fn try_parse_program(&mut self) -> Result<Program> {
         let mut expressions = Vec::new();
-        
+
         while !self.is_at_end() {
             self.skip_whitespace();
             if !self.is_at_end() {
@@ -154,39 +154,41 @@ impl Parser {
                 }
             }
         }
-        
+
         Ok(Program { expressions })
     }
 
     /// Parses a single expression from the token stream.
     pub fn parse_single_expression(&mut self) -> Result<Spanned<Expr>> {
         if self.is_at_end() {
-            return Err(Error::unexpected_eof(self.current_span()).boxed())
+            return Err(Box::new(Error::unexpected_eof(self.current_span())));
         }
 
         let start_pos = self.position();
         let token = &self.tokens[start_pos];
-        
+
         match &token.kind {
             TokenKind::LeftParen => self.parse_parenthesized_expression(),
-            TokenKind::IntegerNumber | TokenKind::RealNumber | 
-            TokenKind::RationalNumber | TokenKind::ComplexNumber => self.parse_number(),
+            TokenKind::IntegerNumber
+            | TokenKind::RealNumber
+            | TokenKind::RationalNumber
+            | TokenKind::ComplexNumber => self.parse_number(),
             TokenKind::String => self.parse_string(),
             TokenKind::Character => self.parse_character(),
             TokenKind::Boolean => self.parse_boolean(),
             TokenKind::Identifier => {
-                let name = self.current_token().text.clone();
+                let name = self.current_token().text().to_string();
                 let span = self.current_span();
                 self.advance();
                 self.make_identifier(name, span)
-            },
+            }
             TokenKind::Quote => {
                 let start_span = self.current_span();
                 self.advance(); // consume quote
                 let expr = self.parse_expression()?;
                 let span = start_span.combine(expr.span);
                 Ok(Spanned::new(Expr::Quote(Box::new(expr)), span))
-            },
+            }
             TokenKind::Quasiquote => self.parse_quasiquote_expression(),
             TokenKind::Unquote => self.parse_unquote_expression(),
             TokenKind::UnquoteSplicing => self.parse_unquote_splicing_expression(),
@@ -195,7 +197,7 @@ impl Parser {
                 let span = self.current_span();
                 self.advance();
                 self.make_identifier(".".to_string(), span)
-            },
+            }
             _ => Err(Box::new(Error::unexpected_token(token, "expression"))),
         }
     }
@@ -216,8 +218,7 @@ impl Parser {
 
     /// Checks if we're at the end of the token stream.
     pub fn is_at_end(&self) -> bool {
-        self.position >= self.tokens.len() || 
-        matches!(self.current_token().kind, TokenKind::Eof)
+        self.position >= self.tokens.len() || matches!(self.current_token().kind, TokenKind::Eof)
     }
 
     /// Advances to the next token and returns the consumed token.
@@ -233,7 +234,11 @@ impl Parser {
         if self.check(kind) {
             Ok(self.advance())
         } else {
-            Err(Box::new(Error::expected_token(self.current_token(), kind, message)))
+            Err(Box::new(Error::expected_token(
+                self.current_token(),
+                kind,
+                message,
+            )))
         }
     }
 
@@ -268,8 +273,12 @@ impl Parser {
     /// Skips whitespace and comment tokens.
     /// Note: Newlines are now handled as whitespace at lexer level (R7RS compliant).
     pub fn skip_whitespace(&mut self) {
-        while !self.is_at_end() && matches!(self.current_token().kind, 
-            TokenKind::LineComment | TokenKind::BlockComment) {
+        while !self.is_at_end()
+            && matches!(
+                self.current_token().kind,
+                TokenKind::LineComment | TokenKind::BlockComment
+            )
+        {
             self.advance();
         }
     }
@@ -288,7 +297,7 @@ impl Parser {
     /// Synchronizes parser state by finding the next closing parenthesis.
     pub fn synchronize_to_closing_paren(&mut self) {
         let mut paren_count = 1;
-        
+
         while !self.is_at_end() && paren_count > 0 {
             match self.current_token().kind {
                 TokenKind::LeftParen => paren_count += 1,
@@ -298,7 +307,6 @@ impl Parser {
             self.advance();
         }
     }
-
 
     // Note: Literal parsing methods (parse_number, parse_string, parse_character, parse_boolean)
     // are implemented in literals.rs as extensions to the Parser impl.
@@ -320,14 +328,20 @@ impl Parser {
     /// Validates that an identifier name is valid.
     pub fn validate_identifier(name: &str, span: Span) -> Result<()> {
         if name.is_empty() {
-            return Err(Box::new(Error::parse_error("Identifier cannot be empty", span)))
+            return Err(Box::new(Error::parse_error(
+                "Identifier cannot be empty",
+                span,
+            )));
         }
-        
+
         // Basic validation - could be expanded with more Scheme identifier rules
         if name.starts_with(|c: char| c.is_numeric()) {
-            return Err(Box::new(Error::parse_error("Identifier cannot start with a number", span)))
+            return Err(Box::new(Error::parse_error(
+                "Identifier cannot start with a number",
+                span,
+            )));
         }
-        
+
         Ok(())
     }
 
@@ -336,7 +350,7 @@ impl Parser {
         if self.is_at_end() {
             return false;
         }
-        
+
         // Can recover at common recovery points like parentheses, etc.
         matches!(
             self.current_token().kind,
@@ -346,7 +360,7 @@ impl Parser {
 
     /// Gets the text of the current token.
     pub fn current_token_text(&self) -> String {
-        self.current_token().text.clone()
+        self.current_token().text().to_string()
     }
 
     /// Validates formals for correctness.
@@ -354,7 +368,7 @@ impl Parser {
         // Basic validation - check for duplicate parameter names
         use std::collections::HashSet;
         let mut seen_names = HashSet::new();
-        
+
         match formals {
             Formals::Fixed(params) => {
                 for param in params {
@@ -362,7 +376,7 @@ impl Parser {
                         return Err(Box::new(Error::parse_error(
                             format!("Duplicate parameter name: {param}"),
                             span,
-                        )))
+                        )));
                     }
                 }
             }
@@ -370,9 +384,9 @@ impl Parser {
                 // Just one parameter, no duplicates possible
                 if param.is_empty() {
                     return Err(Box::new(Error::parse_error(
-                        "Parameter name cannot be empty", 
-                        span
-                    )))
+                        "Parameter name cannot be empty",
+                        span,
+                    )));
                 }
             }
             Formals::Mixed { fixed, rest } => {
@@ -382,76 +396,117 @@ impl Parser {
                         return Err(Box::new(Error::parse_error(
                             format!("Duplicate parameter name: {param}"),
                             span,
-                        )))
+                        )));
                     }
                 }
-                
+
                 // Check rest parameter
                 if !seen_names.insert(rest) {
                     return Err(Box::new(Error::parse_error(
                         format!("Duplicate parameter name: {rest}"),
                         span,
-                    )))
+                    )));
                 }
             }
-            Formals::Keyword { fixed, rest, keywords } => {
+            Formals::Keyword {
+                fixed,
+                rest,
+                keywords,
+            } => {
                 // Check fixed parameters
                 for param in fixed {
                     if !seen_names.insert(param) {
                         return Err(Box::new(Error::parse_error(
                             format!("Duplicate parameter name: {param}"),
                             span,
-                        )))
+                        )));
                     }
                 }
-                
+
                 // Check rest parameter
                 if let Some(rest) = rest {
                     if !seen_names.insert(rest) {
                         return Err(Box::new(Error::parse_error(
                             format!("Duplicate parameter name: {rest}"),
                             span,
-                        )))
+                        )));
                     }
                 }
-                
+
                 // Check keyword parameters
                 for keyword in keywords {
                     if !seen_names.insert(&keyword.name) {
                         return Err(Box::new(Error::parse_error(
                             format!("Duplicate parameter name: {}", keyword.name),
                             span,
-                        )))
+                        )));
                     }
                 }
             }
+            Formals::Typed(typed_params) => {
+                for typed_param in typed_params {
+                    if !seen_names.insert(&typed_param.name) {
+                        return Err(Box::new(Error::parse_error(
+                            format!("Duplicate parameter name: {}", typed_param.name),
+                            span,
+                        )));
+                    }
+                }
+            }
+            Formals::TypedVariable(typed_param) => {
+                if typed_param.name.is_empty() {
+                    return Err(Box::new(Error::parse_error(
+                        "Parameter name cannot be empty",
+                        span,
+                    )));
+                }
+            }
+            Formals::TypedMixed { fixed, rest } => {
+                // Check fixed typed parameters
+                for typed_param in fixed {
+                    if !seen_names.insert(&typed_param.name) {
+                        return Err(Box::new(Error::parse_error(
+                            format!("Duplicate parameter name: {}", typed_param.name),
+                            span,
+                        )));
+                    }
+                }
+
+                // Check typed rest parameter
+                if !seen_names.insert(&rest.name) {
+                    return Err(Box::new(Error::parse_error(
+                        format!("Duplicate parameter name: {}", rest.name),
+                        span,
+                    )));
+                }
+            }
         }
-        
+
         Ok(())
     }
 
     /// Parses a parenthesized expression (list, call, or special form).
     pub fn parse_parenthesized_expression(&mut self) -> Result<Spanned<Expr>> {
         let start_span = self.current_span();
-        
+
         // Consume the opening parenthesis
         self.consume(&TokenKind::LeftParen, "Expected opening parenthesis")?;
         self.increment_nesting();
         self.skip_whitespace();
-        
+
         // Handle empty list
         if self.check(&TokenKind::RightParen) {
             let end_span = self.current_span();
             self.advance(); // consume ')'
             self.decrement_nesting();
             let span = start_span.combine(end_span);
-            return Ok(Spanned::new(Expr::List(Vec::new()), span))
+            return Ok(Spanned::new(Expr::List(Vec::new()), span));
         }
-        
+
         // Parse the first element to determine what kind of expression this is
         let first_element = self.parse_expression()?;
         self.skip_whitespace();
-        
+
         // Check if this is a special form by examining the first element
         if let Expr::Identifier(ref name) = first_element.inner {
             let result = match name.as_str() {
@@ -469,7 +524,7 @@ impl Parser {
                 "parameterize" => self.parse_parameterize_form(start_span),
                 "import" => self.parse_import_form(start_span),
                 "define-library" => self.parse_define_library_form(start_span),
-                
+
                 // Derived forms
                 "begin" => self.parse_begin_form(start_span),
                 "let" => self.parse_let_form(start_span),
@@ -483,7 +538,14 @@ impl Parser {
                 "unless" => self.parse_unless_form(start_span),
                 "guard" => self.parse_guard_form(start_span),
                 "case-lambda" => self.parse_case_lambda_form(start_span),
-                
+
+                // SRFI-26: Notation for Specializing Parameters
+                "cut" => self.parse_cut_form(start_span),
+                "cute" => self.parse_cute_form(start_span),
+
+                // SRFI-31: A special form `rec` for recursive evaluation
+                "rec" => self.parse_rec_form(start_span),
+
                 // Not a special form - parse as application
                 _ => {
                     // Parse remaining operands
@@ -492,19 +554,22 @@ impl Parser {
                         operands.push(self.parse_expression()?);
                         self.skip_whitespace();
                     }
-                    
+
                     let end_span = self.current_span();
                     self.consume(&TokenKind::RightParen, "Expected closing parenthesis")?;
                     self.decrement_nesting();
                     let span = start_span.combine(end_span);
-                    
-                    Ok(Spanned::new(Expr::Application {
-                        operator: Box::new(first_element),
-                        operands,
-                    }, span))
+
+                    Ok(Spanned::new(
+                        Expr::Application {
+                            operator: Box::new(first_element),
+                            operands,
+                        },
+                        span,
+                    ))
                 }
             };
-            
+
             // Decrement nesting depth for special forms (they handle their own closing paren)
             match result {
                 Ok(_) => {
@@ -523,28 +588,31 @@ impl Parser {
         } else {
             // Not an identifier - treat as regular application or list
             let mut elements = vec![first_element];
-            
+
             // Parse remaining elements
             while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
                 elements.push(self.parse_expression()?);
                 self.skip_whitespace();
             }
-            
+
             let end_span = self.current_span();
             self.consume(&TokenKind::RightParen, "Expected closing parenthesis")?;
             self.decrement_nesting();
             let span = start_span.combine(end_span);
-            
+
             // If first element is not a procedure, treat as a list
             // Otherwise, treat as application
             if elements.len() == 1 {
                 Ok(Spanned::new(Expr::List(elements), span))
             } else {
                 let operator = Box::new(elements.remove(0));
-                Ok(Spanned::new(Expr::Application {
-                    operator,
-                    operands: elements,
-                }, span))
+                Ok(Spanned::new(
+                    Expr::Application {
+                        operator,
+                        operands: elements,
+                    },
+                    span,
+                ))
             }
         }
     }
@@ -553,10 +621,10 @@ impl Parser {
     pub fn parse_quasiquote_expression(&mut self) -> Result<Spanned<Expr>> {
         let start_span = self.current_span();
         self.advance(); // consume '`'
-        
+
         let expr = self.parse_expression()?;
         let span = start_span.combine(expr.span);
-        
+
         Ok(Spanned::new(Expr::Quasiquote(Box::new(expr)), span))
     }
 
@@ -564,10 +632,10 @@ impl Parser {
     pub fn parse_unquote_expression(&mut self) -> Result<Spanned<Expr>> {
         let start_span = self.current_span();
         self.advance(); // consume ','
-        
+
         let expr = self.parse_expression()?;
         let span = start_span.combine(expr.span);
-        
+
         Ok(Spanned::new(Expr::Unquote(Box::new(expr)), span))
     }
 
@@ -575,10 +643,10 @@ impl Parser {
     pub fn parse_unquote_splicing_expression(&mut self) -> Result<Spanned<Expr>> {
         let start_span = self.current_span();
         self.advance(); // consume ',@'
-        
+
         let expr = self.parse_expression()?;
         let span = start_span.combine(expr.span);
-        
+
         Ok(Spanned::new(Expr::UnquoteSplicing(Box::new(expr)), span))
     }
 }

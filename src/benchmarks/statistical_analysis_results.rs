@@ -4,8 +4,8 @@
 //! statistical significance testing, performance rankings, and correlation analysis
 //! to enable comprehensive benchmark result interpretation and insights.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Comparison between implementations
 #[derive(Debug, Clone, Serialize, Deserialize)]

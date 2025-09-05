@@ -1,7 +1,7 @@
 //! Statistics about effect isolation across the system.
 
-use std::collections::HashMap;
 use super::effect_isolation_level::EffectIsolationLevel;
+use std::collections::HashMap;
 
 /// Statistics about effect isolation.
 #[derive(Debug, Clone)]

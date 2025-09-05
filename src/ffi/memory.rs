@@ -4,7 +4,7 @@
 //! including allocation tracking, leak prevention, garbage collection integration,
 //! and proper memory alignment handling.
 
-use std::alloc::{alloc, dealloc, Layout};
+use std::alloc::{Layout, alloc, dealloc};
 use std::collections::HashMap;
 use std::fmt;
 use std::ptr::NonNull;
@@ -18,10 +18,7 @@ use crate::ffi::c_types::CType;
 #[derive(Debug, Clone)]
 pub enum MemoryError {
     /// Allocation failed
-    AllocationFailed {
-        size: usize,
-        alignment: usize,
-    },
+    AllocationFailed { size: usize, alignment: usize },
     /// Invalid pointer or null pointer access
     InvalidPointer(*const u8),
     /// Double free detected
@@ -55,7 +52,10 @@ impl fmt::Display for MemoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MemoryError::AllocationFailed { size, alignment } => {
-                write!(f, "Memory allocation failed: {size} bytes with {alignment} alignment")
+                write!(
+                    f,
+                    "Memory allocation failed: {size} bytes with {alignment} alignment"
+                )
             }
             MemoryError::InvalidPointer(ptr) => {
                 write!(f, "Invalid pointer: {ptr:p}")
@@ -63,17 +63,44 @@ impl fmt::Display for MemoryError {
             MemoryError::DoubleFree(ptr) => {
                 write!(f, "Double free detected for pointer: {ptr:p}")
             }
-            MemoryError::LeakDetected { ptr, size, allocated_at } => {
-                write!(f, "Memory leak detected: {ptr:p} ({size} bytes, allocated at {allocated_at:?})")
+            MemoryError::LeakDetected {
+                ptr,
+                size,
+                allocated_at,
+            } => {
+                write!(
+                    f,
+                    "Memory leak detected: {ptr:p} ({size} bytes, allocated at {allocated_at:?})"
+                )
             }
-            MemoryError::BufferOverflow { ptr, size, accessed_size } => {
-                write!(f, "Buffer overflow: pointer {ptr:p}, buffer size {size}, accessed size {accessed_size}")
+            MemoryError::BufferOverflow {
+                ptr,
+                size,
+                accessed_size,
+            } => {
+                write!(
+                    f,
+                    "Buffer overflow: pointer {ptr:p}, buffer size {size}, accessed size {accessed_size}"
+                )
             }
-            MemoryError::AlignmentError { ptr, required_alignment, actual_alignment } => {
-                write!(f, "Memory alignment error: pointer {ptr:p}, required {required_alignment}, actual {actual_alignment}")
+            MemoryError::AlignmentError {
+                ptr,
+                required_alignment,
+                actual_alignment,
+            } => {
+                write!(
+                    f,
+                    "Memory alignment error: pointer {ptr:p}, required {required_alignment}, actual {actual_alignment}"
+                )
             }
-            MemoryError::PoolExhausted { pool_name, requested_size } => {
-                write!(f, "Memory pool '{pool_name}' exhausted, requested {requested_size} bytes")
+            MemoryError::PoolExhausted {
+                pool_name,
+                requested_size,
+            } => {
+                write!(
+                    f,
+                    "Memory pool '{pool_name}' exhausted, requested {requested_size} bytes"
+                )
             }
         }
     }
@@ -234,7 +261,7 @@ impl FfiMemoryManager {
     pub fn configure(&self, config: MemoryConfig) {
         let mut current_config = self.config.write().unwrap();
         *current_config = config.clone();
-        
+
         // Initialize memory pools if enabled
         if config.use_memory_pools {
             let mut pools = self.pools.write().unwrap();
@@ -246,12 +273,16 @@ impl FfiMemoryManager {
     }
 
     /// Allocate memory with FFI-safe alignment
-    pub fn allocate(&self, size: usize, c_type: Option<CType>) -> std::result::Result<NonNull<u8>, MemoryError> {
-        let config = self.config.read().unwrap();
-        
+    pub fn allocate(
+        &self,
+        size: usize,
+        c_type: Option<CType>,
+    ) -> std::result::Result<NonNull<u8>, MemoryError> {
+        let config = self.config.try_read().unwrap();
+
         // Check memory limit
         if config.max_memory_usage > 0 {
-            let stats = self.stats.read().unwrap();
+            let stats = self.stats.try_read().unwrap();
             if stats.current_usage + size > config.max_memory_usage {
                 return Err(MemoryError::AllocationFailed { size, alignment: 1 });
             }
@@ -291,11 +322,11 @@ impl FfiMemoryManager {
 
     /// Free allocated memory
     pub fn deallocate(&self, ptr: NonNull<u8>) -> std::result::Result<(), MemoryError> {
-        let config = self.config.read().unwrap();
-        
+        let config = self.config.try_read().unwrap();
+
         // Check for double free
         if config.double_free_protection {
-            let allocations = self.allocations.read().unwrap();
+            let allocations = self.allocations.try_read().unwrap();
             if !allocations.contains_key(&(ptr.as_ptr() as *const u8)) {
                 let mut stats = self.stats.write().unwrap();
                 stats.double_frees_prevented += 1;
@@ -311,11 +342,10 @@ impl FfiMemoryManager {
 
         if let Some(info) = allocation_info {
             // Check if this should go back to a pool
-            if config.use_memory_pools
-                && self.try_return_to_pool(ptr, info.size) {
-                    self.update_deallocation_stats(info.size);
-                    return Ok(());
-                }
+            if config.use_memory_pools && self.try_return_to_pool(ptr, info.size) {
+                self.update_deallocation_stats(info.size);
+                return Ok(());
+            }
 
             // System deallocation
             unsafe {
@@ -330,14 +360,18 @@ impl FfiMemoryManager {
     }
 
     /// Track an allocation
-    fn track_allocation(&self, ptr: NonNull<u8>, size: usize, alignment: usize, c_type: Option<CType>) 
-        -> std::result::Result<(), MemoryError> {
-        
+    fn track_allocation(
+        &self,
+        ptr: NonNull<u8>,
+        size: usize,
+        alignment: usize,
+        c_type: Option<CType>,
+    ) -> std::result::Result<(), MemoryError> {
         let layout = Layout::from_size_align(size, alignment)
             .map_err(|_| MemoryError::AllocationFailed { size, alignment })?;
-        
+
         let info = AllocationInfo::new(ptr, layout, c_type);
-        
+
         // Check alignment
         if !info.is_aligned() {
             return Err(MemoryError::AlignmentError {
@@ -360,7 +394,7 @@ impl FfiMemoryManager {
             stats.current_usage += size;
             stats.active_allocations += 1;
             stats.allocation_count += 1;
-            
+
             if stats.current_usage > stats.peak_usage {
                 stats.peak_usage = stats.current_usage;
             }
@@ -380,8 +414,8 @@ impl FfiMemoryManager {
 
     /// Try to allocate from a memory pool
     fn try_allocate_from_pool(&self, size: usize) -> Option<NonNull<u8>> {
-        let pools = self.pools.read().unwrap();
-        
+        let pools = self.pools.try_read().unwrap();
+
         // Find the smallest pool that can accommodate the request
         for &pool_size in [32, 64, 128, 256, 512, 1024, 2048, 4096].iter() {
             if size <= pool_size {
@@ -393,14 +427,14 @@ impl FfiMemoryManager {
                 }
             }
         }
-        
+
         None
     }
 
     /// Try to return memory to a pool
     fn try_return_to_pool(&self, ptr: NonNull<u8>, size: usize) -> bool {
-        let pools = self.pools.read().unwrap();
-        
+        let pools = self.pools.try_read().unwrap();
+
         // Find the appropriate pool
         for &pool_size in [32, 64, 128, 256, 512, 1024, 2048, 4096].iter() {
             if size <= pool_size {
@@ -410,18 +444,18 @@ impl FfiMemoryManager {
                 }
             }
         }
-        
+
         false
     }
 
     /// Check for memory leaks
     pub fn check_leaks(&self) -> Vec<MemoryError> {
-        let config = self.config.read().unwrap();
+        let config = self.config.try_read().unwrap();
         if !config.leak_detection {
             return vec![];
         }
 
-        let allocations = self.allocations.read().unwrap();
+        let allocations = self.allocations.try_read().unwrap();
         let now = SystemTime::now();
         let mut leaks = Vec::new();
 
@@ -430,7 +464,8 @@ impl FfiMemoryManager {
             // and has no references
             if info.ref_count() == 0 {
                 if let Ok(duration) = now.duration_since(info.allocated_at) {
-                    if duration > Duration::from_secs(300) { // 5 minutes
+                    if duration > Duration::from_secs(300) {
+                        // 5 minutes
                         leaks.push(MemoryError::LeakDetected {
                             ptr: *ptr,
                             size: info.size,
@@ -452,25 +487,28 @@ impl FfiMemoryManager {
 
     /// Get memory statistics
     pub fn stats(&self) -> MemoryStats {
-        self.stats.read().unwrap().clone()
+        self.stats.try_read().unwrap().clone()
     }
 
     /// Get allocation info for a pointer
     pub fn get_allocation_info(&self, ptr: *const u8) -> Option<AllocationInfo> {
-        let allocations = self.allocations.read().unwrap();
+        let allocations = self.allocations.try_read().unwrap();
         allocations.get(&ptr).cloned()
     }
 
     /// List all active allocations
     pub fn list_allocations(&self) -> Vec<(*const u8, AllocationInfo)> {
-        let allocations = self.allocations.read().unwrap();
-        allocations.iter().map(|(&ptr, info)| (ptr, info.clone())).collect()
+        let allocations = self.allocations.try_read().unwrap();
+        allocations
+            .iter()
+            .map(|(&ptr, info)| (ptr, info.clone()))
+            .collect()
     }
 
     /// Force cleanup of all allocations
     pub fn cleanup_all(&self) -> std::result::Result<(), Vec<MemoryError>> {
         let allocation_ptrs: Vec<*const u8> = {
-            let allocations = self.allocations.read().unwrap();
+            let allocations = self.allocations.try_read().unwrap();
             allocations.keys().cloned().collect()
         };
 
@@ -603,7 +641,10 @@ lazy_static::lazy_static! {
 }
 
 /// Convenience functions for global memory manager
-pub fn ffi_allocate(size: usize, c_type: Option<CType>) -> std::result::Result<NonNull<u8>, MemoryError> {
+pub fn ffi_allocate(
+    size: usize,
+    c_type: Option<CType>,
+) -> std::result::Result<NonNull<u8>, MemoryError> {
     GLOBAL_FFI_MEMORY_MANAGER.allocate(size, c_type)
 }
 
@@ -618,6 +659,10 @@ pub fn ffi_check_leaks() -> Vec<MemoryError> {
 pub fn ffi_memory_stats() -> MemoryStats {
     GLOBAL_FFI_MEMORY_MANAGER.stats()
 }
+
+// Safety: FfiMemoryManager uses appropriate synchronization primitives for thread safety
+unsafe impl Send for FfiMemoryManager {}
+unsafe impl Sync for FfiMemoryManager {}
 
 #[cfg(test)]
 mod tests {
@@ -635,14 +680,18 @@ mod tests {
     fn test_basic_allocation() {
         let manager = FfiMemoryManager::new();
         let ptr = manager.allocate(64, None).unwrap();
-        assert!(!ptr.as_ptr().is_null());
-        
+        // Check that allocation succeeded by verifying we have a valid allocation
+        #[allow(useless_ptr_null_checks)]
+        {
+            assert!(!ptr.as_ptr().is_null(), "Allocation should not be null");
+        }
+
         let stats = manager.stats();
         assert_eq!(stats.active_allocations, 1);
         assert!(stats.current_usage >= 64);
-        
+
         manager.deallocate(ptr).unwrap();
-        
+
         let stats = manager.stats();
         assert_eq!(stats.active_allocations, 0);
     }
@@ -651,10 +700,10 @@ mod tests {
     fn test_double_free_protection() {
         let manager = FfiMemoryManager::new();
         let ptr = manager.allocate(64, None).unwrap();
-        
+
         // First free should succeed
         manager.deallocate(ptr).unwrap();
-        
+
         // Second free should fail
         let result = manager.deallocate(ptr);
         assert!(matches!(result, Err(MemoryError::DoubleFree(_))));
@@ -663,17 +712,17 @@ mod tests {
     #[test]
     fn test_memory_pool() {
         let pool = MemoryPool::new("test_pool".to_string(), 64, 4);
-        
+
         let ptr1 = pool.allocate().unwrap();
         let ptr2 = pool.allocate().unwrap();
-        
+
         let stats = pool.stats();
         assert_eq!(stats.used_blocks, 2);
         assert_eq!(stats.free_blocks, 2);
-        
+
         assert!(pool.deallocate(ptr1));
         assert!(pool.deallocate(ptr2));
-        
+
         let stats = pool.stats();
         assert_eq!(stats.used_blocks, 0);
         assert_eq!(stats.free_blocks, 4);
@@ -683,12 +732,12 @@ mod tests {
     fn test_allocation_info() {
         let manager = FfiMemoryManager::new();
         let ptr = manager.allocate(128, Some(CType::Int32)).unwrap();
-        
+
         let info = manager.get_allocation_info(ptr.as_ptr()).unwrap();
         assert_eq!(info.size, 128);
         assert_eq!(info.c_type, Some(CType::Int32));
         assert!(info.is_aligned());
-        
+
         manager.deallocate(ptr).unwrap();
     }
 
@@ -700,20 +749,16 @@ mod tests {
             use_memory_pools: false,
             ..Default::default()
         };
-        
+
         manager.configure(config);
-        
+
         // Should be able to allocate within limit
         let ptr1 = manager.allocate(512, None).unwrap();
-        
+
         // Should fail to allocate beyond limit
         let result = manager.allocate(600, None);
         assert!(matches!(result, Err(MemoryError::AllocationFailed { .. })));
-        
+
         manager.deallocate(ptr1).unwrap();
     }
 }
-
-// Safety: FfiMemoryManager uses appropriate synchronization primitives for thread safety
-unsafe impl Send for FfiMemoryManager {}
-unsafe impl Sync for FfiMemoryManager {}

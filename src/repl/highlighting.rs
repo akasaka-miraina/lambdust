@@ -6,8 +6,8 @@ use crate::{Result, eval::Value};
 
 #[cfg(feature = "enhanced-repl")]
 use {
+    crossterm::style::{ContentStyle, Stylize},
     nu_ansi_term::{Color, Style},
-    crossterm::style::{Stylize, ContentStyle},
 };
 
 /// Color scheme for syntax highlighting
@@ -134,12 +134,37 @@ impl SyntaxHighlighter {
 
     fn initialize_keywords(&mut self) {
         let keywords = vec![
-            "define", "lambda", "if", "cond", "case", "and", "or", "not",
-            "let", "let*", "letrec", "begin", "quote", "quasiquote", 
-            "unquote", "unquote-splicing", "set!", "else", "=>",
-            "call/cc", "call-with-current-continuation", "values", 
-            "call-with-values", "dynamic-wind", "eval", "apply",
-            "import", "export", "library", "include", "include-ci",
+            "define",
+            "lambda",
+            "if",
+            "cond",
+            "case",
+            "and",
+            "or",
+            "not",
+            "let",
+            "let*",
+            "letrec",
+            "begin",
+            "quote",
+            "quasiquote",
+            "unquote",
+            "unquote-splicing",
+            "set!",
+            "else",
+            "=>",
+            "call/cc",
+            "call-with-current-continuation",
+            "values",
+            "call-with-values",
+            "dynamic-wind",
+            "eval",
+            "apply",
+            "import",
+            "export",
+            "library",
+            "include",
+            "include-ci",
         ];
 
         for keyword in keywords {
@@ -149,18 +174,66 @@ impl SyntaxHighlighter {
 
     fn initialize_builtin_functions(&mut self) {
         let functions = vec![
-            "+", "-", "*", "/", "=", "<", ">", "<=", ">=",
-            "car", "cdr", "cons", "list", "length", "append", "reverse",
-            "map", "filter", "fold-left", "fold-right", "for-each",
-            "null?", "pair?", "list?", "number?", "string?", "symbol?", 
-            "boolean?", "procedure?", "vector?", "bytevector?",
-            "display", "write", "newline", "read", "open-input-file",
-            "open-output-file", "close-input-port", "close-output-port",
-            "string-length", "string-append", "substring", "string=?",
-            "string<?", "string>?", "string<=?", "string>=?",
-            "char=?", "char<?", "char>?", "char<=?", "char>=?",
-            "vector-length", "vector-ref", "vector-set!", "make-vector",
-            "error", "raise", "with-exception-handler", "guard",
+            "+",
+            "-",
+            "*",
+            "/",
+            "=",
+            "<",
+            ">",
+            "<=",
+            ">=",
+            "car",
+            "cdr",
+            "cons",
+            "list",
+            "length",
+            "append",
+            "reverse",
+            "map",
+            "filter",
+            "fold-left",
+            "fold-right",
+            "for-each",
+            "null?",
+            "pair?",
+            "list?",
+            "number?",
+            "string?",
+            "symbol?",
+            "boolean?",
+            "procedure?",
+            "vector?",
+            "bytevector?",
+            "display",
+            "write",
+            "newline",
+            "read",
+            "open-input-file",
+            "open-output-file",
+            "close-input-port",
+            "close-output-port",
+            "string-length",
+            "string-append",
+            "substring",
+            "string=?",
+            "string<?",
+            "string>?",
+            "string<=?",
+            "string>=?",
+            "char=?",
+            "char<?",
+            "char>?",
+            "char<=?",
+            "char>=?",
+            "vector-length",
+            "vector-ref",
+            "vector-set!",
+            "make-vector",
+            "error",
+            "raise",
+            "with-exception-handler",
+            "guard",
         ];
 
         for function in functions {
@@ -170,9 +243,20 @@ impl SyntaxHighlighter {
 
     fn initialize_macros(&mut self) {
         let macros = vec![
-            "syntax-rules", "define-syntax", "let-syntax", "letrec-syntax",
-            "syntax-case", "syntax", "quasisyntax", "unsyntax", "unsyntax-splicing",
-            "with-syntax", "parameterize", "unless", "when", "do",
+            "syntax-rules",
+            "define-syntax",
+            "let-syntax",
+            "letrec-syntax",
+            "syntax-case",
+            "syntax",
+            "quasisyntax",
+            "unsyntax",
+            "unsyntax-splicing",
+            "with-syntax",
+            "parameterize",
+            "unless",
+            "when",
+            "do",
         ];
 
         for macro_name in macros {
@@ -188,7 +272,7 @@ impl SyntaxHighlighter {
 
         while i < chars.len() {
             let start = i;
-            
+
             match chars[i] {
                 // Whitespace
                 c if c.is_whitespace() => {
@@ -202,7 +286,7 @@ impl SyntaxHighlighter {
                         end: i,
                     });
                 }
-                
+
                 // Comments
                 ';' => {
                     while i < chars.len() && chars[i] != '\n' {
@@ -215,7 +299,7 @@ impl SyntaxHighlighter {
                         end: i,
                     });
                 }
-                
+
                 // Strings
                 '"' => {
                     i += 1; // Skip opening quote
@@ -236,7 +320,7 @@ impl SyntaxHighlighter {
                         end: i,
                     });
                 }
-                
+
                 // Parentheses and brackets
                 '(' => {
                     i += 1;
@@ -274,7 +358,7 @@ impl SyntaxHighlighter {
                         end: i,
                     });
                 }
-                
+
                 // Quote forms
                 '\'' => {
                     i += 1;
@@ -313,12 +397,12 @@ impl SyntaxHighlighter {
                         });
                     }
                 }
-                
+
                 // Numbers and symbols
                 _ => {
                     let token_text = self.read_atom(&chars, &mut i);
                     let token_type = self.classify_atom(&token_text);
-                    
+
                     tokens.push(SyntaxToken {
                         text: token_text,
                         token_type,
@@ -334,7 +418,7 @@ impl SyntaxHighlighter {
 
     fn read_atom(&self, chars: &[char], i: &mut usize) -> String {
         let start = *i;
-        
+
         while *i < chars.len() {
             match chars[*i] {
                 c if c.is_whitespace() => break,
@@ -342,7 +426,7 @@ impl SyntaxHighlighter {
                 _ => *i += 1,
             }
         }
-        
+
         chars[start..*i].iter().collect()
     }
 
@@ -382,7 +466,8 @@ impl SyntaxHighlighter {
         }
 
         // Simple number detection - could be more sophisticated
-        s.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '-' || c == '+' || c == 'e' || c == 'E')
+        s.chars()
+            .all(|c| c.is_ascii_digit() || c == '.' || c == '-' || c == '+' || c == 'e' || c == 'E')
             && s.chars().any(|c| c.is_ascii_digit())
     }
 
@@ -396,7 +481,9 @@ impl SyntaxHighlighter {
             for token in tokens {
                 let styled_text = match token.token_type {
                     TokenType::Keyword => self.color_scheme.keyword.paint(&token.text).to_string(),
-                    TokenType::Function => self.color_scheme.function.paint(&token.text).to_string(),
+                    TokenType::Function => {
+                        self.color_scheme.function.paint(&token.text).to_string()
+                    }
                     TokenType::Macro => self.color_scheme.macro_name.paint(&token.text).to_string(),
                     TokenType::String => self.color_scheme.string.paint(&token.text).to_string(),
                     TokenType::Number => self.color_scheme.number.paint(&token.text).to_string(),
@@ -404,13 +491,16 @@ impl SyntaxHighlighter {
                     TokenType::Comment => self.color_scheme.comment.paint(&token.text).to_string(),
                     TokenType::LeftParen | TokenType::RightParen => {
                         self.color_scheme.paren.paint(&token.text).to_string()
-                    },
+                    }
                     TokenType::LeftBracket | TokenType::RightBracket => {
                         self.color_scheme.bracket.paint(&token.text).to_string()
-                    },
-                    TokenType::Quote | TokenType::QuasiQuote | TokenType::Unquote | TokenType::UnquoteSplicing => {
+                    }
+                    TokenType::Quote
+                    | TokenType::QuasiQuote
+                    | TokenType::Unquote
+                    | TokenType::UnquoteSplicing => {
                         self.color_scheme.quote.paint(&token.text).to_string()
-                    },
+                    }
                     _ => token.text,
                 };
                 result.push_str(&styled_text);
@@ -431,15 +521,19 @@ impl SyntaxHighlighter {
         {
             let value_str = value.to_string();
             match value {
-                Value::Literal(crate::ast::Literal::Number(_)) => 
-                    self.color_scheme.number.paint(&value_str).to_string(),
-                Value::Literal(crate::ast::Literal::String(_)) => 
-                    self.color_scheme.string.paint(&format!("\"{value_str}\"")).to_string(),
-                Value::Literal(crate::ast::Literal::Boolean(_)) => 
-                    self.color_scheme.boolean.paint(&value_str).to_string(),
+                Value::Literal(crate::ast::Literal::Number(_)) => {
+                    self.color_scheme.number.paint(&value_str).to_string()
+                }
+                Value::Literal(crate::ast::Literal::String(_)) => self
+                    .color_scheme
+                    .string
+                    .paint(&format!("\"{value_str}\""))
+                    .to_string(),
+                Value::Literal(crate::ast::Literal::Boolean(_)) => {
+                    self.color_scheme.boolean.paint(&value_str).to_string()
+                }
                 Value::Symbol(_) => value_str,
-                Value::Pair(_, _) | Value::MutablePair(_, _) => 
-                    self.highlight(&value_str),
+                Value::Pair(_, _) | Value::MutablePair(_, _) => self.highlight(&value_str),
                 _ => value_str,
             }
         }
@@ -562,11 +656,21 @@ pub struct Style;
 
 #[cfg(not(feature = "enhanced-repl"))]
 impl Style {
-    pub fn new() -> Self { Self }
-    pub fn fg(self, _color: ()) -> Self { self }
-    pub fn bold(self) -> Self { self }
-    pub fn italic(self) -> Self { self }
-    pub fn paint(&self, text: &str) -> String { text.to_string() }
+    pub fn new() -> Self {
+        Self
+    }
+    pub fn fg(self, _color: ()) -> Self {
+        self
+    }
+    pub fn bold(self) -> Self {
+        self
+    }
+    pub fn italic(self) -> Self {
+        self
+    }
+    pub fn paint(&self, text: &str) -> String {
+        text.to_string()
+    }
 }
 
 #[cfg(test)]
@@ -576,19 +680,24 @@ mod tests {
     #[test]
     fn test_tokenization() {
         let highlighter = SyntaxHighlighter::new().unwrap();
-        let tokens = highlighter.tokenize("(define (factorial n) (if (= n 0) 1 (* n (factorial (- n 1)))))");
-        
+        let tokens =
+            highlighter.tokenize("(define (factorial n) (if (= n 0) 1 (* n (factorial (- n 1)))))");
+
         // Should tokenize into various types
         assert!(!tokens.is_empty());
-        
+
         // Check that we have some parentheses
-        let paren_tokens: Vec<_> = tokens.iter()
-            .filter(|t| t.token_type == TokenType::LeftParen || t.token_type == TokenType::RightParen)
+        let paren_tokens: Vec<_> = tokens
+            .iter()
+            .filter(|t| {
+                t.token_type == TokenType::LeftParen || t.token_type == TokenType::RightParen
+            })
             .collect();
         assert!(!paren_tokens.is_empty());
-        
+
         // Check that we have keywords
-        let keyword_tokens: Vec<_> = tokens.iter()
+        let keyword_tokens: Vec<_> = tokens
+            .iter()
             .filter(|t| t.token_type == TokenType::Keyword)
             .collect();
         assert!(!keyword_tokens.is_empty());
@@ -597,7 +706,7 @@ mod tests {
     #[test]
     fn test_atom_classification() {
         let highlighter = SyntaxHighlighter::new().unwrap();
-        
+
         assert_eq!(highlighter.classify_atom("define"), TokenType::Keyword);
         assert_eq!(highlighter.classify_atom("+"), TokenType::Function);
         assert_eq!(highlighter.classify_atom("#t"), TokenType::Boolean);
@@ -611,11 +720,11 @@ mod tests {
     fn test_bracket_matching() {
         let highlighter = SyntaxHighlighter::new().unwrap();
         let input = "(+ 1 (- 3 2))";
-        
+
         // Find matching bracket for opening paren at position 0
         let matching = highlighter.find_matching_bracket(input, 0);
         assert_eq!(matching, Some(12)); // Should match the last closing paren
-        
+
         // Find matching bracket for opening paren at position 5
         let matching = highlighter.find_matching_bracket(input, 5);
         assert_eq!(matching, Some(11)); // Should match the corresponding closing paren
@@ -624,14 +733,14 @@ mod tests {
     #[test]
     fn test_number_detection() {
         let highlighter = SyntaxHighlighter::new().unwrap();
-        
+
         assert!(highlighter.is_number("42"));
         assert!(highlighter.is_number("3.14"));
         assert!(highlighter.is_number("-17"));
         assert!(highlighter.is_number("+23"));
         assert!(highlighter.is_number("1e10"));
         assert!(highlighter.is_number("2.5e-3"));
-        
+
         assert!(!highlighter.is_number(""));
         assert!(!highlighter.is_number("abc"));
         assert!(!highlighter.is_number("12abc"));

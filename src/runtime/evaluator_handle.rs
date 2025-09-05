@@ -33,17 +33,17 @@ impl EvaluatorHandle {
             id,
         }
     }
-    
+
     /// Gets the thread ID.
     pub fn thread_id(&self) -> ThreadId {
         self.thread_id
     }
-    
+
     /// Gets the handle ID.
     pub fn id(&self) -> u64 {
         self.id
     }
-    
+
     /// Sends a message to the evaluator.
     pub fn send(&self, message: EvaluatorMessage) -> std::result::Result<(), SendError> {
         self.sender.send(message).map_err(Box::new)
@@ -52,20 +52,20 @@ impl EvaluatorHandle {
     /// Sends an evaluation request to this evaluator.
     pub async fn eval(&self, expr: Expr, span: Option<Span>) -> Result<Value> {
         let (sender, receiver) = channel::bounded(1);
-        
+
         let message = EvaluatorMessage::Evaluate {
-            expr,
+            expr: Box::new(expr),
             span,
             sender,
         };
-        
+
         self.sender.send(message).map_err(|e| {
             crate::diagnostics::Error::runtime_error(
                 format!("Failed to send evaluation message: {e}"),
                 span,
             )
         })?;
-        
+
         receiver.recv().map_err(|e| {
             crate::diagnostics::Error::runtime_error(
                 format!("Failed to receive evaluation result: {e}"),
@@ -77,31 +77,32 @@ impl EvaluatorHandle {
     /// Defines a global variable on this evaluator.
     pub fn define_global(&self, name: String, value: Value) -> Result<()> {
         let message = EvaluatorMessage::DefineGlobal { name, value };
-        
+
         self.sender.send(message).map_err(|e| {
             crate::diagnostics::Error::runtime_error(
                 format!("Failed to send define message: {e}"),
                 None,
-            ).boxed()
+            )
+            .boxed()
         })
     }
 
     /// Imports a module on this evaluator.
     pub async fn import_module(&self, import_spec: ImportSpec) -> Result<HashMap<String, Value>> {
         let (sender, receiver) = channel::bounded(1);
-        
+
         let message = EvaluatorMessage::ImportModule {
-            import_spec,
-            sender,
+            import_spec: Box::new(import_spec),
+            sender: Box::new(sender),
         };
-        
+
         self.sender.send(message).map_err(|e| {
             crate::diagnostics::Error::runtime_error(
                 format!("Failed to send import message: {e}"),
                 None,
             )
         })?;
-        
+
         receiver.recv().map_err(|e| {
             crate::diagnostics::Error::runtime_error(
                 format!("Failed to receive import result: {e}"),
@@ -116,7 +117,8 @@ impl EvaluatorHandle {
             crate::diagnostics::Error::runtime_error(
                 format!("Failed to send shutdown message: {e}"),
                 None,
-            ).boxed()
+            )
+            .boxed()
         })
     }
 }

@@ -3,10 +3,10 @@
 //! This module provides async RwLock functionality that allows multiple
 //! concurrent readers or a single writer, with optional naming for debugging.
 
-use crate::eval::Value;
 use crate::diagnostics::{Error, Result};
+use crate::eval::Value;
 use std::sync::Arc;
-use tokio::sync::{RwLock as AsyncRwLock};
+use tokio::sync::RwLock as AsyncRwLock;
 
 /// Reader-writer lock for shared data with concurrent reads.
 #[derive(Debug, Clone)]
@@ -48,7 +48,10 @@ impl RwLock {
     pub fn try_read(&self) -> Result<ReadGuard<'_>> {
         match self.inner.try_read() {
             Ok(guard) => Ok(ReadGuard { guard }),
-            Err(_) => Err(Box::new(Error::runtime_error("RwLock is write-locked".to_string(), None))),
+            Err(_) => Err(Box::new(Error::runtime_error(
+                "RwLock is write-locked".to_string(),
+                None,
+            ))),
         }
     }
 
@@ -56,7 +59,10 @@ impl RwLock {
     pub fn try_write(&self) -> Result<WriteGuard<'_>> {
         match self.inner.try_write() {
             Ok(guard) => Ok(WriteGuard { guard }),
-            Err(_) => Err(Box::new(Error::runtime_error("RwLock is locked".to_string(), None))),
+            Err(_) => Err(Box::new(Error::runtime_error(
+                "RwLock is locked".to_string(),
+                None,
+            ))),
         }
     }
 

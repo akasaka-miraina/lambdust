@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 //! Profile-guided optimization for adaptive JIT compilation
 //!
 //! This module implements a sophisticated profile-guided optimization system that
@@ -5,7 +6,7 @@
 //! adapts to changing execution patterns and optimizes code based on actual usage.
 
 use crate::ast::Expr;
-use crate::diagnostics::{Result, Error};
+use crate::diagnostics::{Error, Result};
 use crate::jit::ExecutionProfile;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -15,19 +16,19 @@ use std::time::Duration;
 pub struct PgoConfig {
     /// Enable adaptive optimization based on runtime profiles
     pub adaptive_optimization: bool,
-    
+
     /// Minimum profile data required before optimization
     pub min_profile_samples: u64,
-    
+
     /// Profile data retention period
     pub profile_retention_period: Duration,
-    
+
     /// Enable type feedback collection
     pub type_feedback: bool,
-    
+
     /// Enable branch profiling
     pub branch_profiling: bool,
-    
+
     /// Enable memory access pattern analysis
     pub memory_access_profiling: bool,
 }
@@ -63,13 +64,13 @@ impl Default for PgoConfig {
 pub struct RuntimeProfile {
     /// Type feedback data
     pub type_feedback: TypeFeedback,
-    
+
     /// Branch prediction data
     pub branch_data: BranchProfile,
-    
+
     /// Memory access patterns
     pub memory_access: MemoryAccessProfile,
-    
+
     /// Performance counters
     pub performance_counters: PerformanceCounters,
 }
@@ -97,10 +98,10 @@ impl RuntimeProfile {
 pub struct TypeFeedback {
     /// Observed types for variable accesses
     pub variable_types: HashMap<String, Vec<TypeObservation>>,
-    
+
     /// Observed types for function arguments
     pub argument_types: HashMap<String, Vec<Vec<TypeObservation>>>,
-    
+
     /// Observed return types
     pub return_types: HashMap<String, Vec<TypeObservation>>,
 }
@@ -120,10 +121,10 @@ impl TypeFeedback {
 pub struct TypeObservation {
     /// The observed type
     pub type_info: crate::jit::code_generator::SchemeType,
-    
+
     /// Number of times this type was observed
     pub frequency: u64,
-    
+
     /// Percentage of total observations
     pub percentage: f64,
 }
@@ -133,10 +134,10 @@ pub struct TypeObservation {
 pub struct BranchProfile {
     /// Branch taken/not-taken statistics
     pub branch_stats: HashMap<String, BranchStatistics>,
-    
+
     /// Most frequently taken branches
     pub hot_branches: Vec<String>,
-    
+
     /// Branch prediction accuracy
     pub prediction_accuracy: f64,
 }
@@ -156,10 +157,10 @@ impl BranchProfile {
 pub struct BranchStatistics {
     /// Number of times branch was taken
     pub taken_count: u64,
-    
+
     /// Number of times branch was not taken
     pub not_taken_count: u64,
-    
+
     /// Branch taken percentage
     pub taken_percentage: f64,
 }
@@ -169,10 +170,10 @@ pub struct BranchStatistics {
 pub struct MemoryAccessProfile {
     /// Frequently accessed memory regions
     pub hot_memory_regions: Vec<MemoryRegion>,
-    
+
     /// Cache miss statistics
     pub cache_miss_data: CacheMissData,
-    
+
     /// Memory allocation patterns
     pub allocation_patterns: AllocationPatterns,
 }
@@ -192,13 +193,13 @@ impl MemoryAccessProfile {
 pub struct MemoryRegion {
     /// Start address of the region
     pub start_address: usize,
-    
+
     /// Size of the region
     pub size: usize,
-    
+
     /// Access frequency
     pub access_count: u64,
-    
+
     /// Access pattern (sequential, random, etc.)
     pub access_pattern: AccessPattern,
 }
@@ -211,9 +212,9 @@ pub enum AccessPattern {
     /// Random memory access pattern
     Random,
     /// Strided memory access pattern with fixed stride
-    Strided { 
+    Strided {
         /// The stride size in bytes
-        stride: usize 
+        stride: usize,
     },
     /// Clustered memory access pattern
     Clustered,
@@ -224,10 +225,10 @@ pub enum AccessPattern {
 pub struct CacheMissData {
     /// L1 cache miss rate
     pub l1_miss_rate: f64,
-    
+
     /// L2 cache miss rate
     pub l2_miss_rate: f64,
-    
+
     /// TLB miss rate
     pub tlb_miss_rate: f64,
 }
@@ -247,10 +248,10 @@ impl CacheMissData {
 pub struct AllocationPatterns {
     /// Frequently allocated object sizes
     pub common_sizes: Vec<(usize, u64)>,
-    
+
     /// Allocation frequency
     pub allocation_rate: f64,
-    
+
     /// Average object lifetime
     pub avg_object_lifetime: Duration,
 }
@@ -270,13 +271,13 @@ impl AllocationPatterns {
 pub struct PerformanceCounters {
     /// Instructions per cycle
     pub ipc: f64,
-    
+
     /// Branch misprediction rate
     pub branch_misprediction_rate: f64,
-    
+
     /// Cache miss rates
     pub cache_miss_rates: HashMap<String, f64>,
-    
+
     /// CPU utilization
     pub cpu_utilization: f64,
 }
@@ -297,10 +298,10 @@ impl PerformanceCounters {
 pub struct AdaptiveOptimization {
     /// Optimizations to apply
     pub optimizations: Vec<OptimizationDecision>,
-    
+
     /// Confidence level in these decisions
     pub confidence: f64,
-    
+
     /// Expected performance improvement
     pub expected_improvement: f64,
 }
@@ -310,13 +311,13 @@ pub struct AdaptiveOptimization {
 pub struct OptimizationDecision {
     /// Type of optimization
     pub optimization_type: OptimizationType,
-    
+
     /// Target code location
     pub target: String,
-    
+
     /// Optimization parameters
     pub parameters: HashMap<String, OptimizationParameter>,
-    
+
     /// Expected benefit
     pub expected_benefit: f64,
 }
@@ -326,19 +327,19 @@ pub struct OptimizationDecision {
 pub enum OptimizationType {
     /// Type specialization based on feedback
     TypeSpecialization,
-    
+
     /// Branch layout optimization
     BranchOptimization,
-    
+
     /// Memory prefetching
     MemoryPrefetching,
-    
+
     /// Loop optimization
     LoopOptimization,
-    
+
     /// Function inlining
     FunctionInlining,
-    
+
     /// SIMD vectorization
     SIMDVectorization,
 }
@@ -360,13 +361,13 @@ pub enum OptimizationParameter {
 pub struct ProfileGuidedOptimizer {
     /// Configuration
     config: PgoConfig,
-    
+
     /// Runtime profiles by expression
     profiles: HashMap<String, RuntimeProfile>,
-    
+
     /// Optimization history
     optimization_history: Vec<OptimizationHistory>,
-    
+
     /// Statistics
     stats: PgoStats,
 }
@@ -381,89 +382,106 @@ impl ProfileGuidedOptimizer {
             stats: PgoStats::default(),
         })
     }
-    
+
     /// Optimizes an expression based on runtime profile
     pub fn optimize_expression(&mut self, expr: &Expr, profile: &ExecutionProfile) -> Result<Expr> {
         if !self.config.adaptive_optimization {
             return Ok(expr.clone());
         }
-        
+
         // Check if we have sufficient profile data
         if profile.execution_count < self.config.min_profile_samples {
             return Ok(expr.clone());
         }
-        
+
         let expr_key = self.expression_key(expr);
-        
+
         // Get or create runtime profile
-        let runtime_profile = self.profiles.entry(expr_key.clone())
-            .or_default();
-        
+        let runtime_profile = self.profiles.entry(expr_key.clone()).or_default();
+
         // Clone the runtime profile to avoid borrow issues
         let runtime_profile_clone = runtime_profile.clone();
-        
+
         // Analyze profile and make optimization decisions
         let optimization_decisions = self.analyze_profile(expr, profile, &runtime_profile_clone)?;
-        
+
         // Apply optimizations
         let optimized_expr = self.apply_optimizations(expr, &optimization_decisions)?;
-        
+
         // Record optimization history
         self.record_optimization_history(expr_key, optimization_decisions);
-        
+
         self.stats.expressions_optimized += 1;
-        
+
         Ok(optimized_expr)
     }
-    
+
     /// Analyzes runtime profile to make optimization decisions
-    fn analyze_profile(&self, expr: &Expr, execution_profile: &ExecutionProfile, 
-                      runtime_profile: &RuntimeProfile) -> Result<Vec<OptimizationDecision>> {
+    fn analyze_profile(
+        &self,
+        expr: &Expr,
+        execution_profile: &ExecutionProfile,
+        runtime_profile: &RuntimeProfile,
+    ) -> Result<Vec<OptimizationDecision>> {
         let mut decisions = Vec::new();
-        
+
         // Type specialization analysis
         if self.config.type_feedback {
             if let Some(type_decision) = self.analyze_type_feedback(expr, runtime_profile)? {
                 decisions.push(type_decision);
             }
         }
-        
+
         // Branch optimization analysis
         if self.config.branch_profiling {
-            if let Some(branch_decision) = self.analyze_branch_profile(expr, &runtime_profile.branch_data)? {
+            if let Some(branch_decision) =
+                self.analyze_branch_profile(expr, &runtime_profile.branch_data)?
+            {
                 decisions.push(branch_decision);
             }
         }
-        
+
         // Memory access optimization analysis
         if self.config.memory_access_profiling {
-            if let Some(memory_decision) = self.analyze_memory_access(expr, &runtime_profile.memory_access)? {
+            if let Some(memory_decision) =
+                self.analyze_memory_access(expr, &runtime_profile.memory_access)?
+            {
                 decisions.push(memory_decision);
             }
         }
-        
+
         // Performance counter analysis
-        if let Some(perf_decision) = self.analyze_performance_counters(expr, &runtime_profile.performance_counters)? {
+        if let Some(perf_decision) =
+            self.analyze_performance_counters(expr, &runtime_profile.performance_counters)?
+        {
             decisions.push(perf_decision);
         }
-        
+
         Ok(decisions)
     }
-    
+
     /// Analyzes type feedback for specialization opportunities
-    fn analyze_type_feedback(&self, expr: &Expr, runtime_profile: &RuntimeProfile) -> Result<Option<OptimizationDecision>> {
+    fn analyze_type_feedback(
+        &self,
+        expr: &Expr,
+        runtime_profile: &RuntimeProfile,
+    ) -> Result<Option<OptimizationDecision>> {
         // Look for opportunities to specialize based on observed types
         // For example, if a variable is always an integer, generate specialized integer code
-        
+
         if let Expr::Symbol(var_name) = expr {
-            if let Some(type_observations) = runtime_profile.type_feedback.variable_types.get(var_name) {
+            if let Some(type_observations) =
+                runtime_profile.type_feedback.variable_types.get(var_name)
+            {
                 // Check if we have a dominant type (>80% of observations)
                 for observation in type_observations {
                     if observation.percentage > 0.8 {
                         let mut parameters = HashMap::new();
-                        parameters.insert("target_type".to_string(), 
-                                        OptimizationParameter::String(format!("{:?}", observation.type_info)));
-                        
+                        parameters.insert(
+                            "target_type".to_string(),
+                            OptimizationParameter::String(format!("{:?}", observation.type_info)),
+                        );
+
                         return Ok(Some(OptimizationDecision {
                             optimization_type: OptimizationType::TypeSpecialization,
                             target: var_name.clone(),
@@ -474,21 +492,27 @@ impl ProfileGuidedOptimizer {
                 }
             }
         }
-        
+
         Ok(None)
     }
-    
+
     /// Analyzes branch profile for layout optimization
-    fn analyze_branch_profile(&self, expr: &Expr, branch_profile: &BranchProfile) -> Result<Option<OptimizationDecision>> {
+    fn analyze_branch_profile(
+        &self,
+        expr: &Expr,
+        branch_profile: &BranchProfile,
+    ) -> Result<Option<OptimizationDecision>> {
         let expr_key = self.expression_key(expr);
-        
+
         if let Some(branch_stats) = branch_profile.branch_stats.get(&expr_key) {
             // If branch is heavily biased, optimize for the common case
             if branch_stats.taken_percentage > 0.9 || branch_stats.taken_percentage < 0.1 {
                 let mut parameters = HashMap::new();
-                parameters.insert("likely_taken".to_string(), 
-                                OptimizationParameter::Boolean(branch_stats.taken_percentage > 0.5));
-                
+                parameters.insert(
+                    "likely_taken".to_string(),
+                    OptimizationParameter::Boolean(branch_stats.taken_percentage > 0.5),
+                );
+
                 return Ok(Some(OptimizationDecision {
                     optimization_type: OptimizationType::BranchOptimization,
                     target: expr_key,
@@ -497,18 +521,27 @@ impl ProfileGuidedOptimizer {
                 }));
             }
         }
-        
+
         Ok(None)
     }
-    
+
     /// Analyzes memory access patterns for prefetching opportunities
-    fn analyze_memory_access(&self, expr: &Expr, memory_profile: &MemoryAccessProfile) -> Result<Option<OptimizationDecision>> {
+    fn analyze_memory_access(
+        &self,
+        expr: &Expr,
+        memory_profile: &MemoryAccessProfile,
+    ) -> Result<Option<OptimizationDecision>> {
         // Look for sequential access patterns that would benefit from prefetching
         for region in &memory_profile.hot_memory_regions {
-            if matches!(region.access_pattern, AccessPattern::Sequential) && region.access_count > 100 {
+            if matches!(region.access_pattern, AccessPattern::Sequential)
+                && region.access_count > 100
+            {
                 let mut parameters = HashMap::new();
-                parameters.insert("prefetch_distance".to_string(), OptimizationParameter::Integer(64));
-                
+                parameters.insert(
+                    "prefetch_distance".to_string(),
+                    OptimizationParameter::Integer(64),
+                );
+
                 return Ok(Some(OptimizationDecision {
                     optimization_type: OptimizationType::MemoryPrefetching,
                     target: format!("memory_region_{}", region.start_address),
@@ -517,12 +550,16 @@ impl ProfileGuidedOptimizer {
                 }));
             }
         }
-        
+
         Ok(None)
     }
-    
+
     /// Analyzes performance counters for optimization opportunities
-    fn analyze_performance_counters(&self, expr: &Expr, perf_counters: &PerformanceCounters) -> Result<Option<OptimizationDecision>> {
+    fn analyze_performance_counters(
+        &self,
+        expr: &Expr,
+        perf_counters: &PerformanceCounters,
+    ) -> Result<Option<OptimizationDecision>> {
         // Low IPC might indicate opportunities for better instruction scheduling or SIMD
         if perf_counters.ipc < 1.5 {
             // Consider SIMD vectorization if we're not saturating execution units
@@ -533,23 +570,27 @@ impl ProfileGuidedOptimizer {
                 expected_benefit: 2.5, // Expected benefit from vectorization
             }));
         }
-        
+
         Ok(None)
     }
-    
+
     /// Applies optimization decisions to an expression
     fn apply_optimizations(&self, expr: &Expr, decisions: &[OptimizationDecision]) -> Result<Expr> {
         let mut optimized_expr = expr.clone();
-        
+
         for decision in decisions {
             optimized_expr = self.apply_single_optimization(optimized_expr, decision)?;
         }
-        
+
         Ok(optimized_expr)
     }
-    
+
     /// Applies a single optimization decision
-    fn apply_single_optimization(&self, expr: Expr, decision: &OptimizationDecision) -> Result<Expr> {
+    fn apply_single_optimization(
+        &self,
+        expr: Expr,
+        decision: &OptimizationDecision,
+    ) -> Result<Expr> {
         match decision.optimization_type {
             OptimizationType::TypeSpecialization => {
                 // In a real implementation, this would transform the expression
@@ -571,9 +612,13 @@ impl ProfileGuidedOptimizer {
             _ => Ok(expr),
         }
     }
-    
+
     /// Records optimization history for analysis
-    fn record_optimization_history(&mut self, expr_key: String, decisions: Vec<OptimizationDecision>) {
+    fn record_optimization_history(
+        &mut self,
+        expr_key: String,
+        decisions: Vec<OptimizationDecision>,
+    ) {
         let history = OptimizationHistory {
             expr_key,
             decisions,
@@ -581,20 +626,20 @@ impl ProfileGuidedOptimizer {
             performance_before: 0.0, // Would be measured
             performance_after: 0.0,  // Would be measured
         };
-        
+
         self.optimization_history.push(history);
-        
+
         // Keep bounded history
         if self.optimization_history.len() > 1000 {
             self.optimization_history.remove(0);
         }
     }
-    
+
     /// Generates expression key for profiling
     fn expression_key(&self, expr: &Expr) -> String {
         format!("{expr:?}")
     }
-    
+
     /// Returns optimization statistics
     pub fn stats(&self) -> &PgoStats {
         &self.stats
@@ -606,16 +651,16 @@ impl ProfileGuidedOptimizer {
 pub struct OptimizationHistory {
     /// Expression key
     expr_key: String,
-    
+
     /// Optimization decisions applied
     decisions: Vec<OptimizationDecision>,
-    
+
     /// When the optimization was applied
     timestamp: std::time::Instant,
-    
+
     /// Performance before optimization
     performance_before: f64,
-    
+
     /// Performance after optimization
     performance_after: f64,
 }
@@ -625,22 +670,22 @@ pub struct OptimizationHistory {
 pub struct PgoStats {
     /// Total expressions optimized
     pub expressions_optimized: u64,
-    
+
     /// Total optimizations applied
     pub optimizations_applied: u64,
-    
+
     /// Type specializations performed
     pub type_specializations: u64,
-    
+
     /// Branch optimizations performed
     pub branch_optimizations: u64,
-    
+
     /// Memory optimizations performed
     pub memory_optimizations: u64,
-    
+
     /// SIMD optimizations performed
     pub simd_optimizations: u64,
-    
+
     /// Average performance improvement
     pub avg_performance_improvement: f64,
 }
@@ -651,28 +696,28 @@ mod tests {
     use crate::ast::Literal;
     use crate::jit::ExecutionProfile;
     use crate::jit::code_generator::SchemeType;
-    
+
     #[test]
     fn test_pgo_config_default() {
         let config = PgoConfig::default();
         assert!(config.adaptive_optimization);
         assert_eq!(config.min_profile_samples, 50);
     }
-    
+
     #[test]
     fn test_runtime_profile_creation() {
         let profile = RuntimeProfile::new();
         assert!(profile.type_feedback.variable_types.is_empty());
         assert!(profile.branch_data.branch_stats.is_empty());
     }
-    
+
     #[test]
     fn test_optimizer_creation() {
         let config = PgoConfig::default();
         let optimizer = ProfileGuidedOptimizer::new(config);
         assert!(optimizer.is_ok());
     }
-    
+
     #[test]
     fn test_type_observation() {
         let observation = TypeObservation {
@@ -680,7 +725,7 @@ mod tests {
             frequency: 100,
             percentage: 0.85,
         };
-        
+
         assert_eq!(observation.frequency, 100);
         assert_eq!(observation.percentage, 0.85);
     }

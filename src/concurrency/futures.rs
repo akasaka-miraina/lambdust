@@ -4,13 +4,13 @@
 //! that integrates with Rust's async ecosystem while providing
 //! Scheme-friendly APIs.
 
-use crate::eval::Value;
-use crate::diagnostics::{Error, Result};
 use super::ConcurrencyError;
+use crate::diagnostics::{Error, Result};
+use crate::eval::Value;
+use futures::future::{BoxFuture, FutureExt};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
-use futures::future::{BoxFuture, FutureExt};
 
 /// A Future represents a computation that will complete in the future.
 ///
@@ -106,13 +106,16 @@ impl Future {
             let mut state = self.inner.lock().unwrap();
             if let FutureState::Pending(future) = &mut *state {
                 // Take ownership of the future
-                future_opt = Some(std::mem::replace(future, futures::future::pending().boxed()));
+                future_opt = Some(std::mem::replace(
+                    future,
+                    futures::future::pending().boxed(),
+                ));
             }
         }
 
         if let Some(future) = future_opt {
             let result = future.await;
-            
+
             // Update state with result
             {
                 let mut state = self.inner.lock().unwrap();
@@ -121,7 +124,7 @@ impl Future {
                     Err(error) => FutureState::Rejected(error.clone()),
                 };
             }
-            
+
             result
         } else {
             // Future was completed while we were waiting
@@ -206,7 +209,7 @@ impl Promise {
     /// Creates a new promise/future pair.
     pub fn new() -> Self {
         let (sender, receiver) = tokio::sync::oneshot::channel();
-        
+
         let future = Future::new(async move {
             match receiver.await {
                 Ok(result) => result,
@@ -228,18 +231,28 @@ impl Promise {
     /// Resolves the promise with a value.
     pub fn resolve(mut self, value: Value) -> Result<()> {
         if let Some(sender) = self.sender.take() {
-            sender.send(Ok(value)).map_err(|_| ConcurrencyError::Cancelled.into())
+            sender
+                .send(Ok(value))
+                .map_err(|_| ConcurrencyError::Cancelled.into())
         } else {
-            Err(Error::runtime_error("Promise already completed".to_string(), None).into())
+            Err(Box::new(Error::runtime_error(
+                "Promise already completed".to_string(),
+                None,
+            )))
         }
     }
 
     /// Rejects the promise with an error.
     pub fn reject(mut self, error: Error) -> Result<()> {
         if let Some(sender) = self.sender.take() {
-            sender.send(Err(error.into())).map_err(|_| ConcurrencyError::Cancelled.into())
+            sender
+                .send(Err(error.into()))
+                .map_err(|_| ConcurrencyError::Cancelled.into())
         } else {
-            Err(Error::runtime_error("Promise already completed".to_string(), None).into())
+            Err(Box::new(Error::runtime_error(
+                "Promise already completed".to_string(),
+                None,
+            )))
         }
     }
 
@@ -282,10 +295,11 @@ impl FutureOps {
         }
 
         Future::new(async move {
-            let futures: Vec<_> = futures.into_iter()
+            let futures: Vec<_> = futures
+                .into_iter()
                 .map(|f| Box::pin(async move { f.await_result().await }))
                 .collect();
-            
+
             futures::future::select_all(futures).await.0
         })
     }
@@ -294,17 +308,17 @@ impl FutureOps {
     pub fn all(futures: Vec<Future>) -> Future {
         Future::new(async move {
             let mut results = Vec::new();
-            
+
             for future in futures {
                 results.push(future.await_result().await?);
             }
-            
+
             // Convert to Scheme list
             let mut list = Value::Nil;
             for value in results.into_iter().rev() {
                 list = Value::pair(value, list);
             }
-            
+
             Ok(list)
         })
     }
@@ -313,32 +327,29 @@ impl FutureOps {
     pub fn all_settled(futures: Vec<Future>) -> Future {
         Future::new(async move {
             let mut results = Vec::new();
-            
+
             for future in futures {
                 match future.await_result().await {
                     Ok(value) => {
-                        let result = vec![
-                            Value::symbol_from_str("fulfilled"),
-                            value,
-                        ];
-                        results.push(Value::from_vec(result));
+                        let result = vec![Value::symbol_from_str("fulfilled"), value];
+                        results.push(Value::from_vec(result))
                     }
                     Err(error) => {
                         let result = vec![
                             Value::symbol_from_str("rejected"),
                             Value::string(error.to_string()),
                         ];
-                        results.push(Value::from_vec(result));
+                        results.push(Value::from_vec(result))
                     }
                 }
             }
-            
+
             // Convert to Scheme list
             let mut list = Value::Nil;
             for value in results.into_iter().rev() {
                 list = Value::pair(value, list);
             }
-            
+
             Ok(list)
         })
     }
@@ -352,17 +363,17 @@ impl FutureOps {
         Future::new(async move {
             let mut attempt = 0;
             let mut delay = initial_delay;
-            
+
             loop {
                 attempt += 1;
-                
+
                 match f().await {
                     Ok(value) => return Ok(value),
                     Err(error) => {
                         if attempt >= max_attempts {
                             return Err(error);
                         }
-                        
+
                         sleep(delay).await;
                         delay *= 2; // Exponential backoff
                     }
@@ -408,4 +419,3 @@ where
         Future::new(self())
     }
 }
-

@@ -1,7 +1,7 @@
 //! Use case: Evaluate a monadic expression
 
-use std::sync::Arc;
 use super::monadic_evaluation_orchestrator::MonadicEvaluationOrchestrator;
+use std::sync::Arc;
 
 /// Use case: Evaluate a monadic expression
 #[derive(Debug)]

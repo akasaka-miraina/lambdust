@@ -4,11 +4,11 @@
 //! the colored crate, achieving significant binary size reduction compared
 //! to the full-featured REPL implementations.
 
-use crate::{Lambdust, Error, Result};
-use std::io::{self, Write, BufRead};
+use crate::{Error, Lambdust, Result};
+use std::io::{self, BufRead, Write};
 
 #[cfg(feature = "minimal-repl")]
-use colored::{Colorize};
+use colored::Colorize;
 
 /// Minimal REPL configuration.
 #[derive(Debug, Clone)]
@@ -45,7 +45,7 @@ impl MinimalRepl {
             history: Vec::new(),
         }
     }
-    
+
     /// Creates a new minimal REPL with custom configuration.
     pub fn with_config(config: MinimalReplConfig) -> Self {
         Self {
@@ -53,37 +53,37 @@ impl MinimalRepl {
             history: Vec::new(),
         }
     }
-    
+
     /// Starts the REPL loop.
     pub fn run(&mut self, lambdust: &mut Lambdust) -> Result<()> {
         self.print_welcome();
-        
+
         let stdin = io::stdin();
         let mut stdout = io::stdout();
-        
+
         loop {
             // Print prompt
             self.print_prompt(&mut stdout)?;
-            
+
             // Read input
             let mut input = String::new();
             match stdin.lock().read_line(&mut input) {
                 Ok(0) => break, // EOF
                 Ok(_) => {
                     let input = input.trim();
-                    
+
                     // Handle special commands
                     if input.is_empty() {
                         continue;
                     }
-                    
+
                     if self.handle_meta_command(input, lambdust)? {
                         continue;
                     }
-                    
+
                     // Add to history
                     self.history.push(input.to_string());
-                    
+
                     // Evaluate expression
                     self.evaluate_and_print(input, lambdust);
                 }
@@ -93,17 +93,22 @@ impl MinimalRepl {
                 }
             }
         }
-        
+
         self.print_goodbye();
         Ok(())
     }
-    
+
     /// Prints welcome message.
     fn print_welcome(&self) {
         #[cfg(feature = "minimal-repl")]
         {
             if self.config.use_colors {
-                println!("{}", "Welcome to Lambdust (λust) - Minimal REPL".bright_green().bold());
+                println!(
+                    "{}",
+                    "Welcome to Lambdust (λust) - Minimal REPL"
+                        .bright_green()
+                        .bold()
+                );
                 println!("Type :help for available commands, :quit to exit");
             } else {
                 println!("Welcome to Lambdust (λust) - Minimal REPL");
@@ -117,7 +122,7 @@ impl MinimalRepl {
         }
         println!();
     }
-    
+
     /// Prints goodbye message.
     fn print_goodbye(&self) {
         #[cfg(feature = "minimal-repl")]
@@ -133,7 +138,7 @@ impl MinimalRepl {
             println!("\nGoodbye!");
         }
     }
-    
+
     /// Prints the prompt.
     fn print_prompt(&self, stdout: &mut io::Stdout) -> io::Result<()> {
         #[cfg(feature = "minimal-repl")]
@@ -148,16 +153,16 @@ impl MinimalRepl {
         {
             print!("{}", self.config.prompt);
         }
-        
+
         stdout.flush()
     }
-    
+
     /// Handles meta commands (starting with :).
     fn handle_meta_command(&self, input: &str, _lambdust: &mut Lambdust) -> Result<bool> {
         if !input.starts_with(':') {
             return Ok(false);
         }
-        
+
         let command = &input[1..];
         match command {
             "quit" | "q" | "exit" => std::process::exit(0),
@@ -193,7 +198,7 @@ impl MinimalRepl {
             }
         }
     }
-    
+
     /// Prints help information.
     fn print_help(&self) {
         #[cfg(feature = "minimal-repl")]
@@ -236,14 +241,14 @@ impl MinimalRepl {
             println!("  (lambda (x) (* x x))");
         }
     }
-    
+
     /// Prints command history.
     fn print_history(&self) {
         if self.history.is_empty() {
             println!("No history available.");
             return;
         }
-        
+
         #[cfg(feature = "minimal-repl")]
         {
             if self.config.use_colors {
@@ -266,7 +271,7 @@ impl MinimalRepl {
             }
         }
     }
-    
+
     /// Evaluates expression and prints result.
     fn evaluate_and_print(&self, input: &str, lambdust: &mut Lambdust) {
         let start_time = if self.config.show_timing {
@@ -274,7 +279,7 @@ impl MinimalRepl {
         } else {
             None
         };
-        
+
         match lambdust.eval(input, Some("<repl>")) {
             Ok(value) => {
                 #[cfg(feature = "minimal-repl")]
@@ -289,7 +294,7 @@ impl MinimalRepl {
                 {
                     println!("=> {}", value);
                 }
-                
+
                 if let Some(start) = start_time {
                     let elapsed = start.elapsed();
                     #[cfg(feature = "minimal-repl")]
@@ -333,8 +338,8 @@ pub fn start_minimal_repl(lambdust: &mut Lambdust) -> Result<()> {
 
 /// Starts a minimal REPL session with custom configuration.
 pub fn start_minimal_repl_with_config(
-    lambdust: &mut Lambdust, 
-    config: MinimalReplConfig
+    lambdust: &mut Lambdust,
+    config: MinimalReplConfig,
 ) -> Result<()> {
     MinimalRepl::with_config(config).run(lambdust)
 }

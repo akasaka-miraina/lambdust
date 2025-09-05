@@ -9,21 +9,19 @@
 //! - Future-based I/O operations
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
-use crate::eval::value::{
-    Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment
-};
 use crate::effects::Effect;
+use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure, ThreadSafeEnvironment, Value};
 use std::sync::Arc;
 use std::sync::OnceLock;
 
 #[cfg(feature = "async")]
-use tokio::io::{AsyncReadExt, AsyncWriteExt, AsyncBufReadExt};
+use std::future::Future;
 #[cfg(feature = "async")]
 use tokio::fs::File as AsyncFile;
 #[cfg(feature = "async")]
-use tokio::runtime::{Runtime, Handle};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 #[cfg(feature = "async")]
-use std::future::Future;
+use tokio::runtime::{Handle, Runtime};
 // Unused async utilities - commented out
 // #[cfg(feature = "async")]
 // use std::pin::Pin;
@@ -44,11 +42,11 @@ impl AsyncIoRuntime {
             runtime: Some(runtime),
         })
     }
-    
+
     pub fn get_handle(&self) -> Option<Handle> {
         self.runtime.as_ref().map(|rt| rt.handle().clone())
     }
-    
+
     pub fn block_on<F>(&self, future: F) -> F::Output
     where
         F: Future,
@@ -76,22 +74,20 @@ impl AsyncIoRuntime {
 static ASYNC_RUNTIME: OnceLock<AsyncIoRuntime> = OnceLock::new();
 
 pub fn get_async_runtime() -> &'static AsyncIoRuntime {
-    ASYNC_RUNTIME.get_or_init(|| {
-        AsyncIoRuntime::new().expect("Failed to create async runtime")
-    })
+    ASYNC_RUNTIME.get_or_init(|| AsyncIoRuntime::new().expect("Failed to create async runtime"))
 }
 
 /// Creates async I/O operation bindings.
 pub fn create_async_io_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // Async file operations
     bind_async_file_operations(env);
-    
+
     // Async buffered I/O
     bind_async_buffered_operations(env);
-    
+
     // High-performance I/O operations
     bind_high_performance_operations(env);
-    
+
     // Future combinators
     bind_future_operations(env);
 }
@@ -100,127 +96,166 @@ pub fn create_async_io_bindings(env: &Arc<ThreadSafeEnvironment>) {
 
 fn bind_async_file_operations(env: &Arc<ThreadSafeEnvironment>) {
     // async-read-file
-    env.define("async-read-file".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "async-read-file".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_async_read_file),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "async-read-file".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "async-read-file".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_async_read_file),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // async-write-file
-    env.define("async-write-file".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "async-write-file".to_string(),
-        arity_min: 2,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_async_write_file),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "async-write-file".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "async-write-file".to_string(),
+            arity_min: 2,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_async_write_file),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // async-append-file
-    env.define("async-append-file".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "async-append-file".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_async_append_file),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "async-append-file".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "async-append-file".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_async_append_file),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // async-copy-file
-    env.define("async-copy-file".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "async-copy-file".to_string(),
-        arity_min: 2,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_async_copy_file),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "async-copy-file".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "async-copy-file".to_string(),
+            arity_min: 2,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_async_copy_file),
+            effects: vec![Effect::IO],
+        })),
+    );
 }
 
 fn bind_async_buffered_operations(env: &Arc<ThreadSafeEnvironment>) {
     // async-read-lines
-    env.define("async-read-lines".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "async-read-lines".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_async_read_lines),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "async-read-lines".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "async-read-lines".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_async_read_lines),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // async-read-chunks
-    env.define("async-read-chunks".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "async-read-chunks".to_string(),
-        arity_min: 2,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_async_read_chunks),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "async-read-chunks".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "async-read-chunks".to_string(),
+            arity_min: 2,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_async_read_chunks),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // async-write-chunks
-    env.define("async-write-chunks".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "async-write-chunks".to_string(),
-        arity_min: 2,
-        arity_max: Some(3),
-        implementation: PrimitiveImpl::RustFn(primitive_async_write_chunks),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "async-write-chunks".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "async-write-chunks".to_string(),
+            arity_min: 2,
+            arity_max: Some(3),
+            implementation: PrimitiveImpl::RustFn(primitive_async_write_chunks),
+            effects: vec![Effect::IO],
+        })),
+    );
 }
 
 fn bind_high_performance_operations(env: &Arc<ThreadSafeEnvironment>) {
     // io-uring-read (Linux-specific)
-    env.define("io-uring-read".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "io-uring-read".to_string(),
-        arity_min: 2,
-        arity_max: Some(4),
-        implementation: PrimitiveImpl::RustFn(primitive_io_uring_read),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "io-uring-read".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "io-uring-read".to_string(),
+            arity_min: 2,
+            arity_max: Some(4),
+            implementation: PrimitiveImpl::RustFn(primitive_io_uring_read),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // io-uring-write (Linux-specific)
-    env.define("io-uring-write".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "io-uring-write".to_string(),
-        arity_min: 2,
-        arity_max: Some(4),
-        implementation: PrimitiveImpl::RustFn(primitive_io_uring_write),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "io-uring-write".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "io-uring-write".to_string(),
+            arity_min: 2,
+            arity_max: Some(4),
+            implementation: PrimitiveImpl::RustFn(primitive_io_uring_write),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // batch-io-operations
-    env.define("batch-io-operations".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "batch-io-operations".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_batch_io_operations),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "batch-io-operations".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "batch-io-operations".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_batch_io_operations),
+            effects: vec![Effect::IO],
+        })),
+    );
 }
 
 fn bind_future_operations(env: &Arc<ThreadSafeEnvironment>) {
     // await-future
-    env.define("await-future".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "await-future".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_await_future),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "await-future".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "await-future".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_await_future),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // spawn-task
-    env.define("spawn-task".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "spawn-task".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_spawn_task),
-        effects: vec![Effect::IO],
-    })));
-    
+    env.define(
+        "spawn-task".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "spawn-task".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_spawn_task),
+            effects: vec![Effect::IO],
+        })),
+    );
+
     // join-tasks
-    env.define("join-tasks".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "join-tasks".to_string(),
-        arity_min: 1,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_join_tasks),
-        effects: vec![Effect::IO],
-    })));
+    env.define(
+        "join-tasks".to_string(),
+        Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "join-tasks".to_string(),
+            arity_min: 1,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_join_tasks),
+            effects: vec![Effect::IO],
+        })),
+    );
 }
 
 // ============= IMPLEMENTATION FUNCTIONS =============
@@ -231,20 +266,23 @@ fn bind_future_operations(env: &Arc<ThreadSafeEnvironment>) {
 pub fn primitive_async_read_file(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("async-read-file expects 1 or 2 arguments, got {}", args.len()),
+            format!(
+                "async-read-file expects 1 or 2 arguments, got {}",
+                args.len()
+            ),
             None,
         )));
     }
-    
+
     let path = extract_string(&args[0], "async-read-file")?;
     let as_binary = if args.len() > 1 {
         extract_boolean(&args[1], "async-read-file")?
     } else {
         false
     };
-    
+
     let runtime = get_async_runtime();
-    
+
     runtime.block_on(async move {
         if as_binary {
             match AsyncFile::open(&path).await {
@@ -294,16 +332,16 @@ pub fn primitive_async_write_file(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let path = extract_string(&args[0], "async-write-file")?;
     let create_dirs = if args.len() > 2 {
         extract_boolean(&args[2], "async-write-file")?
     } else {
         false
     };
-    
+
     let runtime = get_async_runtime();
-    
+
     runtime.block_on(async move {
         if create_dirs {
             if let Some(parent) = std::path::Path::new(&path).parent() {
@@ -315,10 +353,10 @@ pub fn primitive_async_write_file(args: &[Value]) -> Result<Value> {
                 }
             }
         }
-        
+
         match &args[1] {
             Value::Literal(crate::ast::Literal::String(content)) => {
-                match tokio::fs::write(&path, content).await {
+                match tokio::fs::write(&path, content.as_str().as_bytes()).await {
                     Ok(()) => Ok(Value::Unspecified),
                     Err(e) => Err(Box::new(DiagnosticError::runtime_error(
                         format!("Error writing to file '{path}': {e}"),
@@ -327,7 +365,7 @@ pub fn primitive_async_write_file(args: &[Value]) -> Result<Value> {
                 }
             }
             Value::Literal(crate::ast::Literal::Bytevector(content)) => {
-                match tokio::fs::write(&path, content).await {
+                match tokio::fs::write(&path, content.as_slice()).await {
                     Ok(()) => Ok(Value::Unspecified),
                     Err(e) => Err(Box::new(DiagnosticError::runtime_error(
                         format!("Error writing to file '{path}': {e}"),
@@ -362,13 +400,11 @@ pub fn primitive_async_append_file(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let path = extract_string(&args[0], "async-append-file")?;
-    
+
     let runtime = get_async_runtime();
-    
-    
-    
+
     runtime.block_on(async move {
         let mut file = match tokio::fs::OpenOptions::new()
             .create(true)
@@ -384,19 +420,17 @@ pub fn primitive_async_append_file(args: &[Value]) -> Result<Value> {
                 )));
             }
         };
-        
+
         match &args[1] {
             Value::Literal(crate::ast::Literal::String(content)) => {
                 match file.write_all(content.as_bytes()).await {
-                    Ok(()) => {
-                        match file.flush().await {
-                            Ok(()) => Ok(Value::Unspecified),
-                            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
-                                format!("Error flushing file '{path}': {e}"),
-                                None,
-                            ))),
-                        }
-                    }
+                    Ok(()) => match file.flush().await {
+                        Ok(()) => Ok(Value::Unspecified),
+                        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                            format!("Error flushing file '{path}': {e}"),
+                            None,
+                        ))),
+                    },
                     Err(e) => Err(Box::new(DiagnosticError::runtime_error(
                         format!("Error appending to file '{path}': {e}"),
                         None,
@@ -405,15 +439,13 @@ pub fn primitive_async_append_file(args: &[Value]) -> Result<Value> {
             }
             Value::Literal(crate::ast::Literal::Bytevector(content)) => {
                 match file.write_all(content).await {
-                    Ok(()) => {
-                        match file.flush().await {
-                            Ok(()) => Ok(Value::Unspecified),
-                            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
-                                format!("Error flushing file '{path}': {e}"),
-                                None,
-                            ))),
-                        }
-                    }
+                    Ok(()) => match file.flush().await {
+                        Ok(()) => Ok(Value::Unspecified),
+                        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                            format!("Error flushing file '{path}': {e}"),
+                            None,
+                        ))),
+                    },
                     Err(e) => Err(Box::new(DiagnosticError::runtime_error(
                         format!("Error appending to file '{path}': {e}"),
                         None,
@@ -447,7 +479,7 @@ pub fn primitive_async_copy_file(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let src = extract_string(&args[0], "async-copy-file")?;
     let dst = extract_string(&args[1], "async-copy-file")?;
     let overwrite = if args.len() > 2 {
@@ -455,11 +487,9 @@ pub fn primitive_async_copy_file(args: &[Value]) -> Result<Value> {
     } else {
         false
     };
-    
+
     let runtime = get_async_runtime();
-    
-    
-    
+
     runtime.block_on(async move {
         if !overwrite && tokio::fs::try_exists(&dst).await.unwrap_or(true) {
             return Err(Box::new(DiagnosticError::runtime_error(
@@ -467,7 +497,7 @@ pub fn primitive_async_copy_file(args: &[Value]) -> Result<Value> {
                 None,
             )));
         }
-        
+
         match tokio::fs::copy(&src, &dst).await {
             Ok(bytes_copied) => Ok(Value::integer(bytes_copied as i64)),
             Err(e) => Err(Box::new(DiagnosticError::runtime_error(
@@ -499,18 +529,16 @@ pub fn primitive_async_read_lines(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let path = extract_string(&args[0], "async-read-lines")?;
     let max_lines = if args.len() > 1 {
         Some(extract_integer(&args[1], "async-read-lines")? as usize)
     } else {
         None
     };
-    
+
     let runtime = get_async_runtime();
-    
-    
-    
+
     runtime.block_on(async move {
         let file = match AsyncFile::open(&path).await {
             Ok(file) => file,
@@ -521,12 +549,12 @@ pub fn primitive_async_read_lines(args: &[Value]) -> Result<Value> {
                 )));
             }
         };
-        
+
         let reader = tokio::io::BufReader::new(file);
         let mut lines = reader.lines();
         let mut result = Vec::new();
         let mut count = 0;
-        
+
         while let Some(line) = lines.next_line().await.map_err(|e| {
             Box::new(DiagnosticError::runtime_error(
                 format!("Error reading line from file '{path}': {e}"),
@@ -535,14 +563,14 @@ pub fn primitive_async_read_lines(args: &[Value]) -> Result<Value> {
         })? {
             result.push(Value::string(line));
             count += 1;
-            
+
             if let Some(max) = max_lines {
                 if count >= max {
                     break;
                 }
             }
         }
-        
+
         Ok(list_to_value(result))
     })
 }
@@ -566,7 +594,7 @@ pub fn primitive_async_read_chunks(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let path = extract_string(&args[0], "async-read-chunks")?;
     let chunk_size = extract_integer(&args[1], "async-read-chunks")? as usize;
     let max_chunks = if args.len() > 2 {
@@ -574,11 +602,9 @@ pub fn primitive_async_read_chunks(args: &[Value]) -> Result<Value> {
     } else {
         None
     };
-    
+
     let runtime = get_async_runtime();
-    
-    
-    
+
     runtime.block_on(async move {
         let mut file = match AsyncFile::open(&path).await {
             Ok(file) => file,
@@ -589,10 +615,10 @@ pub fn primitive_async_read_chunks(args: &[Value]) -> Result<Value> {
                 )));
             }
         };
-        
+
         let mut result = Vec::new();
         let mut count = 0;
-        
+
         loop {
             let mut buffer = vec![0u8; chunk_size];
             match file.read(&mut buffer).await {
@@ -601,7 +627,7 @@ pub fn primitive_async_read_chunks(args: &[Value]) -> Result<Value> {
                     buffer.truncate(n);
                     result.push(Value::bytevector(buffer));
                     count += 1;
-                    
+
                     if let Some(max) = max_chunks {
                         if count >= max {
                             break;
@@ -616,7 +642,7 @@ pub fn primitive_async_read_chunks(args: &[Value]) -> Result<Value> {
                 }
             }
         }
-        
+
         Ok(list_to_value(result))
     })
 }
@@ -640,7 +666,7 @@ pub fn primitive_async_write_chunks(args: &[Value]) -> Result<Value> {
             None,
         )));
     }
-    
+
     let path = extract_string(&args[0], "async-write-chunks")?;
     let chunks = extract_list(&args[1], "async-write-chunks")?;
     let append = if args.len() > 2 {
@@ -648,11 +674,9 @@ pub fn primitive_async_write_chunks(args: &[Value]) -> Result<Value> {
     } else {
         false
     };
-    
+
     let runtime = get_async_runtime();
-    
-    
-    
+
     runtime.block_on(async move {
         let file = if append {
             tokio::fs::OpenOptions::new()
@@ -668,7 +692,7 @@ pub fn primitive_async_write_chunks(args: &[Value]) -> Result<Value> {
                 .open(&path)
                 .await
         };
-        
+
         let mut file = match file {
             Ok(file) => file,
             Err(e) => {
@@ -678,9 +702,9 @@ pub fn primitive_async_write_chunks(args: &[Value]) -> Result<Value> {
                 )));
             }
         };
-        
+
         let mut total_written = 0u64;
-        
+
         for chunk in chunks {
             match chunk {
                 Value::Literal(crate::ast::Literal::Bytevector(bytes)) => {
@@ -713,7 +737,7 @@ pub fn primitive_async_write_chunks(args: &[Value]) -> Result<Value> {
                 }
             }
         }
-        
+
         match file.flush().await {
             Ok(()) => Ok(Value::integer(total_written as i64)),
             Err(e) => Err(Box::new(DiagnosticError::runtime_error(
@@ -743,7 +767,7 @@ pub fn primitive_io_uring_read(_args: &[Value]) -> Result<Value> {
             None,
         )))
     }
-    
+
     #[cfg(not(target_os = "linux"))]
     {
         Err(Box::new(DiagnosticError::runtime_error(
@@ -762,7 +786,7 @@ pub fn primitive_io_uring_write(_args: &[Value]) -> Result<Value> {
             None,
         )))
     }
-    
+
     #[cfg(not(target_os = "linux"))]
     {
         Err(Box::new(DiagnosticError::runtime_error(
@@ -811,7 +835,7 @@ pub fn primitive_join_tasks(_args: &[Value]) -> Result<Value> {
 /// Extracts a string from a Value.
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
-        Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
+        Value::Literal(crate::ast::Literal::String(s)) => Ok((**s).clone()),
         _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires string arguments"),
             None,
@@ -865,7 +889,7 @@ fn extract_list(value: &Value, operation: &str) -> Result<Vec<Value>> {
             ))),
         }
     }
-    
+
     let mut result = Vec::new();
     list_to_vec(value, &mut result)?;
     Ok(result)
@@ -874,7 +898,7 @@ fn extract_list(value: &Value, operation: &str) -> Result<Vec<Value>> {
 /// Converts a vector of values to a Scheme list.
 fn list_to_value(values: Vec<Value>) -> Value {
     values.into_iter().rev().fold(Value::Nil, |acc, val| {
-        Value::Pair(Arc::new(val), Arc::new(acc))
+        Value::Pair(Box::new(val), Box::new(acc))
     })
 }
 
@@ -882,14 +906,14 @@ fn list_to_value(values: Vec<Value>) -> Value {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    
+
     #[cfg(feature = "async")]
     #[tokio::test]
     async fn test_async_file_operations() {
         let temp_dir = TempDir::new().unwrap();
         let test_file = temp_dir.path().join("async_test.txt");
         let file_path = test_file.to_string_lossy().to_string();
-        
+
         // Test async write
         let args = vec![
             Value::string(file_path.clone()),
@@ -897,19 +921,19 @@ mod tests {
         ];
         let result = primitive_async_write_file(&args);
         assert!(result.is_ok());
-        
+
         // Test async read
         let args = vec![Value::string(file_path)];
         let result = primitive_async_read_file(&args);
         assert!(result.is_ok());
-        
+
         if let Ok(Value::Literal(crate::ast::Literal::String(content))) = result {
-            assert_eq!(content, "Hello, async world!");
+            assert_eq!(content.as_str(), "Hello, async world!");
         } else {
             panic!("Expected string result");
         }
     }
-    
+
     #[test]
     fn test_runtime_creation() {
         let runtime = get_async_runtime();

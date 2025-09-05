@@ -1,0 +1,289 @@
+%% Introduction and Overview
+\chapter{Introduction}
+\label{ch:introduction}
+
+Lambdust is a programming language that extends R7RS-small Scheme with advanced features for modern software development while maintaining complete backward compatibility. The language addresses three critical challenges in contemporary programming: \textbf{correctness} through dependent types and formal verification, \textbf{composability} through algebraic effects that eliminate callback hell and provide structured error handling, and \textbf{scalability} through fault-tolerant actor-based concurrency.
+
+Rather than forcing developers to choose between simplicity and power, Lambdust enables gradual adoption of advanced features. A program can start as pure R7RS Scheme and incrementally adopt type annotations, effect tracking, and formal proofs where they provide the most value. This design philosophy ensures that existing Scheme code continues to work unchanged while providing a clear upgrade path to more sophisticated programming techniques.
+
+The language integrates gradual dependent typing, algebraic effects with handlers, actor-based concurrency, memory-safe foreign function interface, and proof-carrying code capabilities into a unified, theoretically sound framework. Each feature is designed to work seamlessly with the others: types can track effects, actors can be statically verified, and proofs can constrain concurrent behavior.
+
+\section{Design Philosophy}
+\label{sec:philosophy}
+
+Lambdust follows several key design principles:
+
+\begin{itemize}
+\item \textbf{Conservative Extension}: Every valid R7RS-small program is a valid Lambdust program with identical semantics.
+\item \textbf{Gradual Enhancement}: Advanced features can be adopted incrementally without breaking existing code.
+\item \textbf{Mathematical Foundation}: All language features have precise mathematical semantics suitable for formal verification.
+\item \textbf{Practical Power}: Advanced type systems and effect tracking enable catching more errors at compile time while maintaining expressiveness.
+\item \textbf{Implementation Flexibility}: The specification supports multiple implementation strategies from interpreters to native code compilation.
+\end{itemize}
+
+\section{Language Features Overview}
+\label{sec:features}
+
+\subsection{R7RS-small Compatibility}
+\label{subsec:r7rs}
+
+Lambdust provides complete R7RS-small compatibility:
+\begin{itemize}
+\item All standard special forms: \code{lambda}, \code{if}, \code{set!}, \code{quote}
+\item All derived expressions: \code{cond}, \code{case}, \code{and}, \code{or}, \code{let}, \code{letrec}
+\item Complete numeric tower with exact and inexact arithmetic
+\item Full string and character support with Unicode
+\item Standard I/O procedures and file operations
+\item Proper tail recursion and continuation semantics via \code{call/cc}
+\item Hygenic macro system with \code{syntax-rules}
+\end{itemize}
+
+\begin{compatibility}[R7RS Compatibility]
+Any program that runs correctly under R7RS-small will run identically under Lambdust when operated in Dynamic mode. The formal semantics guarantee this compatibility through conservative extension properties.
+\end{compatibility}
+
+\subsection{Gradual Dependent Typing}
+\label{subsec:typing}
+
+The type system operates at four levels of sophistication, allowing developers to choose the right balance between flexibility and safety for each part of their program:
+
+\begin{enumerate}
+\item \textbf{Dynamic Mode}: No static type checking (identical to R7RS-small). This mode provides maximum flexibility for rapid prototyping, interactive development, and interfacing with untyped code. All type checking happens at runtime through Scheme's built-in predicates.
+
+\item \textbf{Gradual Mode}: Optional type annotations with runtime contract checking. When type annotations are provided, the system inserts runtime checks that verify contracts are satisfied. This catches type errors immediately rather than letting them propagate, making debugging much easier. The system can also optimize code paths where types are known.
+
+\item \textbf{Static Mode}: Hindley-Milner style type inference with extensions. The type checker attempts to infer types for all expressions and reports conflicts at compile time. This provides strong correctness guarantees with minimal annotation burden. Extensions include row polymorphism for records and higher-kinded types for advanced abstractions.
+
+\item \textbf{Dependent Mode}: Full dependent types with compile-time proof obligations. Types can depend on values, enabling precise specifications like "a sorted list of length n" or "a function that preserves array bounds". The type checker becomes a theorem prover, ensuring that programs meet their specifications.
+\end{enumerate}
+
+Programs can mix modes freely—a single codebase might use dynamic typing for scripting code, gradual typing for application logic, static typing for core algorithms, and dependent typing for security-critical components.
+
+\begin{example}[Gradual Type Enhancement]
+\begin{lambdustcode}
+;; Level 1: Pure R7RS (Dynamic)
+(define (factorial n)
+  (if (<= n 1) 1 (* n (factorial (- n 1)))))
+
+;; Level 2: Gradual typing with contracts
+(define (factorial n)
+  #:type (-> Natural Natural)
+  (if (<= n 1) 1 (* n (factorial (- n 1)))))
+
+;; Level 3: Static typing with inference
+(define (factorial :: (-> Natural Natural))
+  (lambda (n)
+    (if (<= n 1) 1 (* n (factorial (- n 1))))))
+
+;; Level 4: Dependent types with proofs
+(define (factorial :: (Pi (n : Natural) 
+                          (Refinement Natural (lambda (r) (>= r 1)))))
+  (lambda (n)
+    (if (<= n 1) 
+        (the (Refinement Natural (lambda (r) (= r 1))) 1)
+        (* n (factorial (- n 1))))))
+\end{lambdustcode}
+\end{example}
+
+\subsection{Algebraic Effects and Handlers}
+\label{subsec:effects}
+
+Lambdust provides a structured approach to side effects through algebraic effects, solving many problems that plague traditional approaches to I/O, exceptions, and stateful computation:
+
+\begin{itemize}
+\item \textbf{Effect Declaration}: Effects are declared with their operation signatures, making all side effects explicit in the type system. This eliminates hidden dependencies and makes code more predictable and testable.
+
+\item \textbf{Effect Performance}: Code can perform effects using the \code{perform} form, which suspends computation and transfers control to the nearest handler. This is more composable than exceptions because it allows resumption with multiple values.
+
+\item \textbf{Effect Handling}: Effects are handled using the \code{handle} form with resumption capabilities. Handlers can inspect the operation, its arguments, and the continuation, then decide whether to resume normally, provide an alternative value, or propagate the effect further.
+
+\item \textbf{Effect Tracking}: The type system tracks which effects a computation may perform, preventing effect leakage and enabling local reasoning about code. Functions that don't declare any effects are guaranteed to be pure.
+\end{itemize}
+
+This approach eliminates callback hell, provides structured error handling that composes properly, and enables powerful abstractions like cooperative threading, backtracking, and probabilistic programming. Unlike monads, algebraic effects compose naturally without monad transformer complexity.
+
+\begin{example}[Effects and Handlers]
+\begin{lambdustcode}
+;; Declare a State effect
+(define-effect State
+  (get :: (-> Unit Natural))
+  (set :: (-> Natural Unit)))
+
+;; Use the effect
+(define (increment)
+  (let ((current (perform State get)))
+    (perform State set (+ current 1))))
+
+;; Handle the effect
+(handle
+  (begin (increment) (increment) (perform State get))
+  (State
+    ((get k) (k state))
+    ((set new-state k) (k 'unit))))
+\end{lambdustcode}
+\end{example}
+
+\subsection{Actor-Based Concurrency}
+\label{subsec:concurrency}
+
+Lambdust provides lightweight, fault-tolerant concurrency through the actor model, addressing the complexity and fragility of shared-memory concurrency:
+
+\begin{itemize}
+\item \textbf{Actor Spawning}: Create new concurrent actors with \code{spawn}. Actors are cheap to create (thousands can run simultaneously) and completely isolated from each other, eliminating race conditions and making concurrent code much easier to reason about.
+
+\item \textbf{Message Passing}: Actors communicate via asynchronous message passing with automatic serialization. This eliminates shared mutable state and data races while providing natural back-pressure and flow control mechanisms.
+
+\item \textbf{Pattern Matching}: Receive messages using pattern-based selection with priority queues and timeout handling. This provides structured concurrency where actors can handle different types of requests appropriately without complex dispatch logic.
+
+\item \textbf{Supervision}: Actors can supervise others for fault tolerance, implementing "let it crash" philosophy where failures are contained and recovery is automatic. Supervision trees provide hierarchical error handling that scales to large distributed systems.
+
+\item \textbf{Location Transparency}: Actors can be distributed across networks without code changes. The same message-passing interface works whether actors are on the same thread, different processes, or remote machines, enabling seamless scaling.
+\end{itemize}
+
+This model has been proven in production systems handling millions of concurrent connections (Erlang/OTP) and provides natural solutions to distributed systems problems like partial failures, network partitions, and service discovery.
+
+\begin{example}[Actor Concurrency]
+\begin{lambdustcode}
+;; Define a counter actor
+(define (counter-actor initial-count)
+  (letrec ((loop (lambda (count)
+                   (receive
+                     (('increment sender)
+                      (send sender (+ count 1))
+                      (loop (+ count 1)))
+                     (('get sender)
+                      (send sender count)
+                      (loop count))))))
+    (loop initial-count)))
+
+;; Spawn and use the actor
+(let ((counter (spawn (counter-actor 0))))
+  (send counter '(increment self))
+  (send counter '(get self))
+  (receive
+    ((value) (display value))))  ; Prints: 1
+\end{lambdustcode}
+\end{example}
+
+\subsection{Memory-Safe Foreign Function Interface}
+\label{subsec:ffi}
+
+Lambdust provides safe interoperation with C libraries through a capability-based FFI:
+
+\begin{itemize}
+\item \textbf{Type Safety}: Foreign function signatures are statically checked
+\item \textbf{Memory Safety}: Automatic marshaling prevents buffer overflows and dangling pointers
+\item \textbf{Capability Security}: Access to foreign functions requires explicit capabilities
+\item \textbf{Error Handling}: Foreign function errors are converted to Scheme exceptions
+\end{itemize}
+
+\begin{example}[Foreign Function Interface]
+\begin{lambdustcode}
+;; Declare foreign function binding
+(foreign-declare "math.h" 
+  (sqrt :: (-> Float64 Float64)))
+
+;; Use with capability
+(with-capability 'math-library
+  (lambda ()
+    (let ((result (foreign-call sqrt 16.0)))
+      (display result))))  ; Prints: 4.0
+\end{lambdustcode}
+\end{example}
+
+\subsection{Proof-Carrying Code}
+\label{subsec:proofs}
+
+Through the Curry-Howard correspondence, Lambdust enables extracting verified programs from constructive proofs:
+
+\begin{itemize}
+\item \textbf{Propositions as Types}: Logical propositions correspond to types
+\item \textbf{Proofs as Programs}: Constructive proofs correspond to programs
+\item \textbf{Proof Checking}: The type checker verifies proof correctness
+\item \textbf{Program Extraction}: Verified programs are extracted from proofs
+\end{itemize}
+
+\begin{example}[Proof-Carrying Code]
+\begin{lambdustcode}
+;; Prove a property and extract the implementation
+(define sorted-insert-proof
+  (prove (Pi (x : Natural) (Pi (xs : SortedList) 
+           (SortedList-property (insert x xs))))
+    (lambda (x xs)
+      ;; Constructive proof by induction...
+      (proof-by-induction xs
+        (base-case (list x))
+        (inductive-step ...)))))
+
+;; Extract the verified implementation
+(define sorted-insert (extract sorted-insert-proof))
+\end{lambdustcode}
+\end{example}
+
+\section{Implementation Status}
+\label{subsec:status}
+
+This specification describes Lambdust version 0.2.0. The current implementation includes:
+
+\begin{itemize}
+\item \textbf{Complete}: R7RS-small compatibility, lexer, parser, evaluator
+\item \textbf{Complete}: Basic gradual typing with type inference
+\item \textbf{Complete}: Algebraic effects with handler implementation
+\item \textbf{Experimental}: Actor-based concurrency system
+\item \textbf{Experimental}: Foreign function interface
+\item \textbf{Research}: Dependent types and proof system
+\end{itemize}
+
+\section{Relationship to Other Languages}
+\label{subsec:related}
+
+Lambdust draws inspiration from several language communities:
+
+\begin{itemize}
+\item \textbf{Scheme Family}: Maintains the elegance and simplicity of Scheme while adding modern features
+\item \textbf{ML Family}: Adopts sophisticated type systems from languages like OCaml and Haskell  
+\item \textbf{Effect Systems}: Incorporates algebraic effects from languages like Koka and Effekt
+\item \textbf{Dependent Types}: Integrates dependent typing from Agda, Coq, and Lean
+\item \textbf{Actor Systems}: Uses proven concurrency models from Erlang and Akka
+\end{itemize}
+
+\section{Specification Structure}
+\label{subsec:structure}
+
+This specification is organized as follows:
+
+\begin{itemize}
+\item \chapref{ch:lexical}: Lexical structure and tokenization rules
+\item \chapref{ch:syntax}: Basic syntax and core language forms  
+\item \chapref{ch:gradual-types}: Gradual typing system and type inference
+\item \chapref{ch:dependent-types}: Dependent types and proof obligations
+\item \chapref{ch:effects}: Algebraic effects and handler semantics
+\item \chapref{ch:concurrency}: Actor-based concurrency and message passing
+\item \chapref{ch:ffi}: Foreign function interface and capability system
+\item \chapref{ch:macros}: Macro system extensions beyond R7RS
+\item \chapref{ch:stdlib}: Standard library and built-in procedures
+\item \chapref{ch:examples}: Comprehensive programming examples
+\item \chapref{ch:formal-semantics}: Formal denotational semantics
+\end{itemize}
+
+The appendices provide R7RS compatibility information, SRFI support matrices, migration guides, and implementation notes for language developers.
+
+\section{Conventions}
+\label{subsec:conventions}
+
+This specification uses the following conventions:
+
+\begin{itemize}
+\item \textbf{Syntax}: Grammar productions use extended BNF notation
+\item \textbf{Semantics}: Denotational semantics follow standard mathematical notation
+\item \textbf{Examples}: Code examples use syntax highlighting for clarity
+\item \textbf{Types}: Type expressions use mathematical notation where appropriate
+\item \textbf{Cross-references}: All major concepts are cross-referenced and indexed
+\end{itemize}
+
+Compatibility notes highlight differences from R7RS-small, and implementation notes provide guidance for language implementers.
+
+\section{Acknowledgments}
+\label{subsec:acknowledgments}
+
+Lambdust builds upon decades of programming language research and the dedicated work of the Scheme community. We particularly acknowledge the R7RS-small working group for providing an excellent foundation, the authors of the many SRFIs that inform our design, and the researchers who developed the theoretical foundations for dependent types, algebraic effects, and gradual typing that make Lambdust possible.

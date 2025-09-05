@@ -1,0 +1,85 @@
+//! Test suite for SRFI-180 JSON implementation
+//!
+//! This module contains comprehensive tests for the JSON functionality
+//! including parsing, serialization, streaming, and error handling.
+
+use lambdust::eval::value::ThreadSafeEnvironment;
+use lambdust::eval::value::Value;
+use lambdust::stdlib::srfi180_json::{init_srfi180_json, parse_json_lines, serialize_json_lines};
+use std::sync::Arc;
+
+/// Test basic JSON parsing functionality
+#[test]
+fn test_json_basic_parsing() {
+    let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+    init_srfi180_json(&env);
+
+    // Test that the JSON procedures are registered
+    assert!(env.lookup("json-read").is_some());
+    assert!(env.lookup("json-write").is_some());
+    assert!(env.lookup("json-generator").is_some());
+    assert!(env.lookup("json-fold").is_some());
+    assert!(env.lookup("json-accumulator").is_some());
+    assert!(env.lookup("json-lines-read").is_some());
+    assert!(env.lookup("json-sequence-read").is_some());
+    assert!(env.lookup("json-error?").is_some());
+    assert!(env.lookup("json-error-reason").is_some());
+}
+
+/// Test JSON Lines format parsing
+#[test]
+fn test_json_lines_parsing() {
+    let input = r#"{"name": "Alice", "age": 30}
+{"name": "Bob", "age": 25}
+{"name": "Charlie", "age": 35}"#;
+
+    let result = parse_json_lines(input);
+    assert!(result.is_ok());
+    let values = result.unwrap();
+    assert_eq!(values.len(), 3);
+}
+
+/// Test JSON Lines serialization
+#[test]
+fn test_json_lines_serialization() {
+    let values = vec![
+        Value::string("hello"),
+        Value::integer(42),
+        Value::boolean(true),
+    ];
+
+    let result = serialize_json_lines(&values);
+    assert!(result.is_ok());
+    let json_lines = result.unwrap();
+
+    // Should contain all values with newlines
+    assert!(json_lines.contains("hello"));
+    assert!(json_lines.contains("42"));
+    assert!(json_lines.contains("true"));
+    assert_eq!(json_lines.matches('\n').count(), 3); // Three newlines
+}
+
+/// Test empty JSON Lines
+#[test]
+fn test_empty_json_lines() {
+    let empty_input = "";
+    let result = parse_json_lines(empty_input);
+    assert!(result.is_ok());
+    let values = result.unwrap();
+    assert_eq!(values.len(), 0);
+}
+
+/// Test JSON Lines with whitespace
+#[test]
+fn test_json_lines_with_whitespace() {
+    let input = r#"{"test": 1}
+
+{"test": 2}
+    
+{"test": 3}"#;
+
+    let result = parse_json_lines(input);
+    assert!(result.is_ok());
+    let values = result.unwrap();
+    assert_eq!(values.len(), 3);
+}

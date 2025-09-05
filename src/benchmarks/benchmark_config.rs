@@ -4,9 +4,9 @@
 //! and customize the behavior of the comprehensive benchmark suite, including
 //! test parameters, statistical analysis settings, and output configurations.
 
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 use super::external_integration::ExternalReporting;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Configuration for the comprehensive benchmark suite
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,7 +110,7 @@ pub struct TestCase {
 }
 
 /// Defines a parameter for a test case with values and scaling behavior.
-/// 
+///
 /// Test parameters allow for parameterized benchmarks where the same test
 /// can be run with different input values to analyze performance characteristics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -124,7 +124,7 @@ pub struct TestParameter {
 }
 
 /// Represents different types of values that can be used as test parameters.
-/// 
+///
 /// Supports various data types and ranges for comprehensive test coverage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -132,22 +132,22 @@ pub enum ParameterValue {
     /// Integer parameter value
     Integer {
         /// The integer value
-        value: i64
+        value: i64,
     },
     /// Float parameter value
     Float {
         /// The floating-point value
-        value: f64
+        value: f64,
     },
     /// String parameter value
     String {
         /// The string value
-        value: String
+        value: String,
     },
     /// Boolean parameter value
     Boolean {
         /// The boolean value
-        value: bool
+        value: bool,
     },
     /// Range of integer values
     Range {
@@ -156,32 +156,32 @@ pub enum ParameterValue {
         /// End of range (inclusive)
         end: i64,
         /// Step size for iteration
-        step: i64
+        step: i64,
     },
 }
 
 /// Describes the expected algorithmic complexity and scaling behavior of operations.
-/// 
+///
 /// Used for performance analysis and identifying performance regressions
 /// by comparing actual scaling behavior against expectations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ScalingBehavior {
     /// Constant time complexity O(1)
-    Constant,      // O(1)
+    Constant, // O(1)
     /// Linear time complexity O(n)
-    Linear,        // O(n)
+    Linear, // O(n)
     /// Logarithmic time complexity O(log n)
-    Logarithmic,   // O(log n)
+    Logarithmic, // O(log n)
     /// Quadratic time complexity O(n²)
-    Quadratic,     // O(n²)
+    Quadratic, // O(n²)
     /// Exponential time complexity O(2^n)
-    Exponential,   // O(2^n)
+    Exponential, // O(2^n)
     /// Custom complexity description
     Custom(String), // Custom complexity description
 }
 
 /// Specifies the expected type of result from a test execution.
-/// 
+///
 /// Used for result validation to ensure tests are executing correctly
 /// and producing expected output types.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,7 +201,7 @@ pub enum ResultType {
 }
 
 /// Defines resource constraints for individual test executions.
-/// 
+///
 /// Prevents runaway tests from consuming excessive system resources
 /// and ensures fair comparison between implementations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -215,7 +215,7 @@ pub struct TestResourceLimits {
 }
 
 /// Provides metadata about expected performance characteristics of a test.
-/// 
+///
 /// Used by optimization analysis to identify critical operations
 /// and expected performance patterns for targeted improvements.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -231,7 +231,7 @@ pub struct PerformanceHints {
 }
 
 /// Configuration parameters for statistical analysis of benchmark results.
-/// 
+///
 /// Controls the rigor and accuracy of performance measurements,
 /// including iteration counts, confidence intervals, and outlier detection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -251,7 +251,7 @@ pub struct StatisticalConfig {
 }
 
 /// Statistical methods for detecting and handling outlier measurements.
-/// 
+///
 /// Different outlier detection algorithms provide varying levels of
 /// sensitivity and statistical rigor for performance measurement cleanup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -261,27 +261,27 @@ pub enum OutlierDetection {
     /// Interquartile Range outlier detection
     IQR {
         /// IQR multiplier for outlier threshold
-        multiplier: f64
+        multiplier: f64,
     },
     /// Z-Score outlier detection
     ZScore {
         /// Z-score threshold for outlier detection
-        threshold: f64
+        threshold: f64,
     },
     /// Modified Z-Score outlier detection
     ModifiedZScore {
         /// Modified Z-score threshold
-        threshold: f64
+        threshold: f64,
     },
     /// Grubbs test outlier detection
     Grubbs {
         /// Alpha level for Grubbs test
-        alpha: f64
+        alpha: f64,
     },
 }
 
 /// Configuration for benchmark result output and reporting.
-/// 
+///
 /// Controls how benchmark results are formatted, stored, and shared
 /// with various output formats and external integrations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -299,7 +299,7 @@ pub struct OutputConfig {
 }
 
 /// Available formats for benchmark result output.
-/// 
+///
 /// Each format serves different purposes from machine processing
 /// to human-readable reports and academic publications.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -319,7 +319,7 @@ pub enum OutputFormat {
 }
 
 /// Types of visualization charts for performance analysis.
-/// 
+///
 /// Different chart types highlight various aspects of performance data
 /// from comparative analysis to scaling behavior and resource usage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -341,7 +341,7 @@ pub enum ChartType {
 }
 
 /// Configuration for system resource monitoring during benchmarks.
-/// 
+///
 /// Controls what system resources are tracked and their sampling
 /// frequency to understand resource usage patterns and constraints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -361,7 +361,7 @@ pub struct ResourceConfig {
 }
 
 /// Global resource limits for the entire benchmark suite execution.
-/// 
+///
 /// Prevents the benchmark suite from overwhelming the system
 /// and ensures reproducible testing conditions.
 #[derive(Debug, Clone, Serialize, Deserialize)]

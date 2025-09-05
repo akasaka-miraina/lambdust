@@ -1,0 +1,723 @@
+%% Concurrency System
+\chapter{Concurrency System}
+\label{ch:concurrency}
+
+Lambdust provides lightweight, fault-tolerant concurrency through an actor model with message passing, futures for asynchronous computation, and software transactional memory for shared state management.
+
+\section{Concurrency Overview}
+\label{sec:concurrency-overview}
+
+The concurrency system is built on several key abstractions:
+
+\begin{itemize}
+\item \textbf{Actors}: Lightweight concurrent entities that communicate via messages
+\item \textbf{Futures}: Asynchronous computations with eventual values
+\item \textbf{Channels}: Typed communication channels for CSP-style concurrency  
+\item \textbf{STM}: Software Transactional Memory for composable shared state
+\item \textbf{Parallelism}: Data parallel operations and work-stealing
+\end{itemize}
+
+\section{Actor Model}
+\label{sec:actors}
+
+\indexentry{actor}
+\indexentry{spawn}
+\indexentry{send}
+\indexentry{receive}
+
+Actors are the fundamental unit of concurrency in Lambdust:
+
+\section{Actor Creation}
+\label{sec:actor-creation}
+
+\begin{syntaxspec}{(spawn computation)}
+Creates a new actor running \var{computation} and returns its process identifier (PID).
+\end{syntaxspec}
+
+\begin{example}[Actor Creation]
+\begin{lambdustcode}
+;; Simple counter actor
+(define (counter-actor initial-count)
+  (letrec ((loop (lambda (count)
+                   (receive  
+                     (('get sender)
+                      (send sender count)
+                      (loop count))
+                     (('increment sender)
+                      (send sender (+ count 1)) 
+                      (loop (+ count 1)))
+                     (('set value sender)
+                      (send sender 'ok)
+                      (loop value))))))
+    (loop initial-count)))
+
+;; Spawn the actor
+(define counter-pid (spawn (counter-actor 0)))
+
+;; Echo actor that reflects messages
+(define echo-pid 
+  (spawn 
+    (letrec ((loop (lambda ()
+                     (receive
+                       ((msg sender)
+                        (send sender msg) 
+                        (loop))))))
+      (loop))))
+\end{lambdustcode}
+\end{example}
+
+\section{Message Passing}
+\label{sec:message-passing}
+
+\begin{syntaxspec}{(send pid message)}
+Sends \var{message} asynchronously to the actor identified by \var{pid}.
+\end{syntaxspec}
+
+\begin{syntaxspec}{(receive \arbno{(pattern body)})}
+Receives messages matching patterns, blocking until a match is found.
+\end{syntaxspec}
+
+\begin{example}[Message Passing]
+\begin{lambdustcode}
+;; Send messages to counter actor
+(send counter-pid `(get ,self))
+(send counter-pid `(increment ,self))
+(send counter-pid `(set 42 ,self))
+
+;; Receive responses  
+(receive
+  ((count) (display "Current count: ") (display count) (newline)))
+
+;; Pattern matching in receive
+(define (server-loop)
+  (receive
+    ;; Handle different request types
+    (('add x y client)
+     (send client (+ x y))
+     (server-loop))
+    
+    (('multiply x y client) 
+     (send client (* x y))
+     (server-loop))
+    
+    (('ping client)
+     (send client 'pong)
+     (server-loop))
+    
+    (('shutdown)
+     (display "Server shutting down") (newline))
+    
+    ;; Catch-all for unknown messages
+    ((unknown-msg)
+     (display "Unknown message: ") (display unknown-msg) (newline)
+     (server-loop))))
+
+;; Request-response pattern
+(define (call pid request timeout)
+  (send pid `(,request ,self))
+  (receive
+    ((response) response))
+  timeout)    ; Handle timeout
+\end{lambdustcode}
+\end{example}
+
+\section{Actor Hierarchies and Supervision}
+\label{sec:supervision}
+
+\indexentry{supervision}
+\indexentry{fault tolerance}
+
+Actors can supervise other actors for fault tolerance:
+
+\begin{example}[Actor Supervision]
+\begin{lambdustcode}
+;; Supervisor that manages worker actors
+(define (supervisor-actor worker-count worker-fn)
+  (let ((workers (map (lambda (i) (spawn (worker-fn i))) 
+                      (range 0 worker-count))))
+    (letrec ((loop (lambda (active-workers)
+                     (receive
+                       ;; Worker crashed, restart it
+                       (('EXIT pid reason)
+                        (display "Worker crashed: ") (display reason) (newline)
+                        (let ((new-worker (spawn (worker-fn (length active-workers)))))
+                          (loop (cons new-worker (remove pid active-workers)))))
+                       
+                       ;; Distribute work to workers  
+                       (('work task client)
+                        (if (null? active-workers)
+                            (send client 'no-workers-available)
+                            (begin 
+                              (send (car active-workers) `(,task ,client))
+                              (loop (append (cdr active-workers) (list (car active-workers)))))))
+                       
+                       ;; Shutdown all workers
+                       (('shutdown)
+                        (for-each (lambda (worker) (send worker 'shutdown)) active-workers)
+                        'supervisor-shutdown)))))
+      (loop workers))))
+
+;; Worker actor that can fail
+(define (worker-actor id)
+  (letrec ((loop (lambda ()
+                   (receive  
+                     (('heavy-computation x client)
+                      ;; Simulate potential failure
+                      (if (= (random 10) 0)
+                          (error "Worker failure") 
+                          (send client (* x x)))
+                      (loop))
+                     (('shutdown) 
+                      'worker-shutdown)))))
+    (loop)))
+
+;; Create supervised worker pool
+(define supervisor (spawn (supervisor-actor 3 worker-actor)))
+\end{lambdustcode}
+\end{example}
+
+\section{Futures and Promises}
+\label{sec:futures}
+
+\indexentry{future}
+\indexentry{promise}
+\indexentry{async}
+\indexentry{await}
+
+Futures provide asynchronous computation with eventual values:
+
+\section{Future Creation}
+\label{sec:future-creation}
+
+\begin{syntaxspec}{(future computation)}
+Creates a future that will eventually contain the result of \var{computation}.
+\end{syntaxspec}
+
+\begin{syntaxspec}{(promise)}
+Creates a promise/future pair for manual completion.
+\end{syntaxspec}
+
+\begin{example}[Futures]
+\begin{lambdustcode}
+;; Asynchronous computation
+(define future-result 
+  (future 
+    (begin 
+      (sleep 1000)    ; Simulate long computation
+      (+ 20 22))))
+
+;; Continue with other work
+(display "Doing other work...") (newline)
+
+;; Wait for result when needed
+(define result (await future-result))
+(display "Result: ") (display result) (newline)
+
+;; Multiple futures
+(define f1 (future (expensive-computation-1)))
+(define f2 (future (expensive-computation-2)))  
+(define f3 (future (expensive-computation-3)))
+
+;; Wait for all to complete
+(define results (map await (list f1 f2 f3)))
+
+;; Promise for manual completion
+(define-values (promise resolver) (make-promise))
+
+;; In another thread/actor
+(spawn 
+  (lambda () 
+    (let ((data (fetch-from-network)))
+      (resolve! resolver data))))
+
+;; Wait for the promise
+(define network-data (await promise))
+\end{lambdustcode}
+\end{example}
+
+\section{Future Composition}
+\label{sec:future-composition}
+
+\begin{example}[Future Composition]
+\begin{lambdustcode}
+;; Future chaining with then
+(define chained-future
+  (future-then 
+    (future (read-file "input.txt"))
+    (lambda (content) 
+      (future (process-content content)))
+    (lambda (processed)
+      (future (write-file "output.txt" processed)))))
+
+;; Future combination  
+(define combined-future
+  (future-combine
+    (list (future (computation-1))
+          (future (computation-2))
+          (future (computation-3)))
+    (lambda (results) 
+      (apply + results))))
+
+;; Racing futures (first to complete wins)
+(define fastest-result
+  (future-race 
+    (list (future (slow-network-request))
+          (future (cache-lookup))
+          (future (backup-computation)))))
+
+;; Timeout handling
+(define result-with-timeout
+  (future-timeout 
+    (future (potentially-slow-operation))
+    5000    ; 5 second timeout
+    'timeout-value))
+
+;; Error handling in futures
+(define safe-future
+  (future-catch
+    (future (risky-computation))
+    (lambda (error)
+      (begin 
+        (log-error error)
+        'default-value))))
+\end{lambdustcode}
+\end{example}
+
+\section{Channels}
+\label{sec:channels}
+
+\indexentry{channel}
+\indexentry{CSP}
+
+Channels provide CSP-style communication:
+
+\begin{example}[Channels]
+\begin{lambdustcode}
+;; Create typed channels
+(define numbers-channel :: (Channel Natural))
+(define numbers-channel (make-channel))
+
+;; Producer process
+(spawn 
+  (lambda ()
+    (do ((i 0 (+ i 1)))
+        ((>= i 10))
+      (channel-put! numbers-channel i)
+      (sleep 100))))
+
+;; Consumer process  
+(spawn
+  (lambda () 
+    (let loop ()
+      (let ((value (channel-get numbers-channel)))
+        (display "Received: ") (display value) (newline)
+        (loop)))))
+
+;; Buffered channels
+(define buffered-channel (make-channel 100))  ; Buffer size 100
+
+;; Select on multiple channels  
+(define (multi-channel-select ch1 ch2 ch3)
+  (select  
+    ((ch1 value) 
+     (begin (display "From ch1: ") (display value) (newline)))
+    ((ch2 value)
+     (begin (display "From ch2: ") (display value) (newline))) 
+    ((ch3 value)
+     (begin (display "From ch3: ") (display value) (newline)))
+    (timeout 1000
+     (display "Timeout occurred") (newline))))
+
+;; Channel transformations
+(define (channel-map f input-ch)
+  (let ((output-ch (make-channel)))
+    (spawn 
+      (lambda ()
+        (let loop ()
+          (let ((value (channel-get input-ch)))
+            (channel-put! output-ch (f value))
+            (loop)))))
+    output-ch))
+
+;; Pipeline processing
+(define (pipeline input-ch . transforms)
+  (fold-left channel-map input-ch transforms))
+\end{lambdustcode}
+\end{example}
+
+\section{Software Transactional Memory}
+\label{sec:stm}
+
+\indexentry{STM}
+\indexentry{transaction}
+\indexentry{atomic}
+
+STM provides composable shared state management:
+
+\section{Transactional Variables}
+\label{sec:tvars}
+
+\begin{example}[Transactional Variables]
+\begin{lambdustcode}
+;; Create transactional variables
+(define account1 (make-tvar 1000))    ; Account with $1000
+(define account2 (make-tvar 500))     ; Account with $500
+
+;; Atomic transaction  
+(define (transfer amount from-account to-account)
+  (atomic
+    (let ((from-balance (tvar-read from-account))
+          (to-balance (tvar-read to-account)))
+      (if (>= from-balance amount)
+          (begin 
+            (tvar-write! from-account (- from-balance amount))
+            (tvar-write! to-account (+ to-balance amount))
+            #t)    ; Success
+          #f))))   ; Insufficient funds
+
+;; Transfer money atomically
+(if (transfer 200 account1 account2)
+    (display "Transfer successful")
+    (display "Transfer failed"))
+
+;; Compose transactions
+(define (multi-transfer transfers)
+  (atomic 
+    (and-map (lambda (transfer-spec)
+               (apply transfer transfer-spec))
+             transfers)))
+
+;; Retry on failure
+(define (wait-for-funds account minimum)
+  (atomic
+    (let ((balance (tvar-read account)))
+      (if (>= balance minimum)
+          balance
+          (retry)))))    ; Retry when condition met
+\end{lambdustcode}
+\end{example}
+
+\section{Transaction Composition}
+\label{sec:transaction-composition}
+
+\begin{example}[Transaction Composition]
+\begin{lambdustcode}
+;; Composable transactions
+(define (deposit amount account)
+  (atomic 
+    (let ((balance (tvar-read account)))
+      (tvar-write! account (+ balance amount)))))
+
+(define (withdraw amount account)
+  (atomic
+    (let ((balance (tvar-read account)))
+      (if (>= balance amount)
+          (begin 
+            (tvar-write! account (- balance amount))
+            amount)
+          (error "Insufficient funds")))))
+
+;; Compose into larger transaction
+(define (compound-transaction)
+  (atomic
+    ;; All or nothing - if any part fails, entire transaction aborts
+    (deposit 100 account1)
+    (withdraw 50 account1)  
+    (deposit 50 account2)
+    (let ((total (+ (tvar-read account1) (tvar-read account2))))
+      (if (< total 1000)
+          (error "Total too low")
+          total))))
+
+;; Alternative transactions (OrElse)  
+(define (try-withdraw-from-either amount acc1 acc2)
+  (or-else 
+    (withdraw amount acc1)     ; Try first account
+    (withdraw amount acc2)))   ; Fallback to second account
+
+;; Conditional transactions
+(define (conditional-transfer condition from to amount)
+  (atomic
+    (if (condition)
+        (transfer amount from to)
+        (retry))))    ; Wait for condition
+\end{lambdustcode}
+\end{example}
+
+\section{Parallel Processing}
+\label{sec:parallel}
+
+\indexentry{parallel}
+\indexentry{work stealing}
+
+Lambdust provides data parallelism and work-stealing:
+
+\begin{example}[Parallel Processing]
+\begin{lambdustcode}
+;; Parallel map
+(define (parallel-map f lst)
+  (let ((chunks (partition lst (processor-count))))
+    (let ((futures (map (lambda (chunk) (future (map f chunk))) chunks)))
+      (apply append (map await futures)))))
+
+;; Parallel fold  
+(define (parallel-fold f identity lst)
+  (if (<= (length lst) 100)   ; Sequential threshold
+      (fold-left f identity lst)
+      (let ((mid (quotient (length lst) 2)))
+        (let ((left (take lst mid))
+              (right (drop lst mid)))
+          (let ((left-future (future (parallel-fold f identity left)))
+                (right-future (future (parallel-fold f identity right))))
+            (f (await left-future) (await right-future)))))))
+
+;; Work-stealing pool
+(define (work-stealing-map f lst)
+  (let ((work-queue (make-work-queue lst))
+        (result-queue (make-channel))
+        (worker-count (processor-count)))
+    
+    ;; Spawn worker threads
+    (do ((i 0 (+ i 1)))
+        ((>= i worker-count))
+      (spawn 
+        (lambda ()
+          (let loop ()
+            (let ((work (work-queue-steal! work-queue)))
+              (if work
+                  (begin 
+                    (channel-put! result-queue (f work))
+                    (loop))
+                  'worker-done))))))
+    
+    ;; Collect results
+    (let ((results '()))
+      (do ((i 0 (+ i 1)))
+          ((>= i (length lst)) (reverse results))
+        (set! results (cons (channel-get result-queue) results))))))
+
+;; GPU parallel computation (when available)
+(define (gpu-parallel-map f lst)
+  (if (gpu-available?)
+      (gpu-compute (gpu-compile-function f) (list->gpu-array lst))
+      (parallel-map f lst)))   ; Fallback to CPU parallelism
+\end{lambdustcode}
+\end{example}
+
+\section{Distributed Computing}
+\label{sec:distributed}
+
+\indexentry{distributed}
+\indexentry{location transparency}
+
+Actors support location transparency for distributed computing:
+
+\begin{example}[Distributed Computing]
+\begin{lambdustcode}
+;; Remote actor spawning
+(define remote-node "worker-node-1.cluster.local")
+(define remote-actor (spawn-remote remote-node (worker-computation)))
+
+;; Location-transparent message passing
+(send remote-actor `(process-data ,large-dataset ,self))
+
+;; Distributed supervision  
+(define (distributed-supervisor nodes worker-fn)
+  (let ((workers (map (lambda (node) 
+                        (spawn-remote node (worker-fn))) 
+                      nodes)))
+    (letrec ((supervise (lambda (active-workers)
+                          (receive
+                            ;; Handle node failures
+                            (('NODE-DOWN node)
+                             (display "Node failed: ") (display node) (newline)
+                             (let ((replacement (spawn-remote (backup-node) (worker-fn))))
+                               (supervise (cons replacement 
+                                               (filter (lambda (w) (not (on-node? w node)))
+                                                      active-workers)))))
+                            
+                            ;; Distribute work across cluster
+                            (('work task client)
+                             (let ((worker (least-loaded active-workers)))
+                               (send worker `(,task ,client)))
+                             (supervise active-workers))))))
+      (supervise workers))))
+
+;; Fault-tolerant distributed computation
+(define (distributed-map-reduce map-fn reduce-fn data)
+  (let ((nodes (available-nodes)))
+    ;; Distribute data across nodes
+    (let ((chunks (distribute-data data nodes)))
+      ;; Spawn mappers on each node
+      (let ((map-futures 
+              (map (lambda (node-chunk)
+                     (let ((node (car node-chunk))
+                           (chunk (cdr node-chunk)))
+                       (future-remote node (map map-fn chunk))))
+                   chunks)))
+        ;; Collect and reduce results
+        (let ((map-results (map await map-futures)))
+          (fold-left reduce-fn (car map-results) (cdr map-results)))))))
+
+;; Network partition handling
+(define (partition-tolerant-operation data)
+  (with-network-timeout 5000
+    (lambda ()
+      (distributed-computation data))
+    (lambda ()
+      ;; Fallback to local computation during partition
+      (local-computation data))))
+\end{lambdustcode}
+\end{example}
+
+\section{Concurrency Types}
+\label{sec:concurrency-types}
+
+\indexentry{concurrency types}
+\indexentry{actor type}
+
+The type system tracks concurrency-related properties:
+
+\begin{example}[Concurrency Types]
+\begin{lambdustcode}
+;; Actor types
+(define counter-actor :: (Actor (U ('get ActorId) ('increment ActorId) ('set Natural ActorId))))
+
+;; Future types  
+(define computation :: (Future Natural))
+(define async-string :: (Future String))
+
+;; Channel types
+(define numbers :: (Channel Natural))
+(define messages :: (Channel String)) 
+
+;; STM types
+(define account :: (TVar Natural))
+(define shared-counter :: (TVar Natural))
+
+;; Effect tracking for concurrency
+(define concurrent-computation :: (-> Unit ~> {Async, STM} Natural))
+(define (concurrent-computation)
+  (let ((counter (make-tvar 0)))
+    (let ((f1 (future (atomic (tvar-modify! counter (lambda (x) (+ x 1))))))
+          (f2 (future (atomic (tvar-modify! counter (lambda (x) (+ x 1)))))))
+      (await f1)
+      (await f2)
+      (atomic (tvar-read counter)))))
+
+;; Actor behavior types
+(define (typed-server :: (-> (Channel (Request Natural String)) Unit ~> {Actor} Unit))
+  (lambda (request-channel)
+    (let loop ()
+      (let ((request (channel-get request-channel)))
+        (send (request-client request) (process-request request))
+        (loop)))))
+
+;; Deadlock detection in types
+(define (potential-deadlock :: (-> (TVar Natural) (TVar Natural) ~> {STM, Deadlock} Unit))
+  (lambda (tvar1 tvar2)
+    ;; Type system can warn about potential circular dependencies
+    (atomic 
+      (let ((val1 (tvar-read tvar1)))
+        (let ((val2 (tvar-read tvar2)))
+          (tvar-write! tvar1 val2)
+          (tvar-write! tvar2 val1))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Performance and Optimization}
+\label{sec:concurrency-performance}
+
+\indexentry{concurrency performance}
+\indexentry{green threads}
+
+The concurrency implementation is optimized for performance:
+
+\begin{example}[Concurrency Performance]
+\begin{lambdustcode}
+;; Lightweight actors (green threads)
+(define actors (map (lambda (i) (spawn (simple-actor i))) (range 0 10000)))
+;; Can spawn thousands of actors with minimal overhead
+
+;; Work-stealing scheduler
+(define (cpu-intensive-work data)
+  ;; Automatically distributed across available cores
+  (parallel-map expensive-function data))
+
+;; Lock-free data structures  
+(define lock-free-counter (make-atomic-counter 0))
+(define (increment-counter!)
+  (atomic-increment! lock-free-counter))  ; No locks, CAS operations
+
+;; Actor batching for high throughput
+(define (batch-actor batch-size)
+  (let ((batch '()))
+    (letrec ((loop (lambda ()
+                     (receive
+                       ((msg)
+                        (set! batch (cons msg batch))
+                        (if (>= (length batch) batch-size)
+                            (begin 
+                              (process-batch batch)
+                              (set! batch '())
+                              (loop))
+                            (loop)))))))
+      (loop))))
+
+;; Memory-efficient message passing
+(define (zero-copy-send pid large-data)
+  ;; Large data shared between actors without copying
+  (send-shared pid large-data))
+
+;; NUMA-aware scheduling  
+(define (numa-spawn computation)
+  ;; Spawn on local NUMA node for better memory locality
+  (spawn-local computation))
+\end{lambdustcode}
+\end{example}
+
+\section{Debugging and Monitoring}
+\label{sec:concurrency-debugging}
+
+\indexentry{concurrency debugging}
+\indexentry{deadlock detection}
+
+Tools for debugging concurrent programs:
+
+\begin{example}[Concurrency Debugging]
+\begin{lambdustcode}
+;; Actor monitoring
+(define (monitored-actor computation)
+  (spawn-monitored computation
+    (lambda (pid state)
+      (display "Actor ") (display pid) 
+      (display " state: ") (display state) (newline))))
+
+;; Deadlock detection
+(enable-deadlock-detection!)
+(define (potential-deadlock)
+  (atomic 
+    (let ((val1 (tvar-read tvar1)))
+      ;; System detects potential circular wait
+      (let ((val2 (tvar-read tvar2)))   ; May warn or abort
+        (do-something val1 val2)))))
+
+;; Message tracing
+(enable-message-tracing!)
+(send traced-actor message)   ; Logged for debugging
+
+;; Performance profiling
+(with-concurrency-profiler
+  (lambda ()
+    (distributed-computation large-dataset)))
+;; Produces report on actor communication, load distribution, etc.
+
+;; Race condition detection  
+(define shared-data (make-atomic-box 0))
+(spawn (lambda () (atomic-update! shared-data (lambda (x) (+ x 1)))))
+(spawn (lambda () (atomic-update! shared-data (lambda (x) (* x 2)))))
+;; Runtime can detect data races and report them
+\end{lambdustcode}
+\end{example}
+
+The concurrency system provides powerful abstractions for parallel and distributed computing while maintaining safety through the type system and runtime checks.

@@ -6,7 +6,7 @@
 //! - Version compatibility checking
 //! - Efficient dependency loading order
 
-use super::{Module, ModuleId, ModuleError};
+use super::{Module, ModuleError, ModuleId};
 use crate::diagnostics::{Error, Result};
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -29,45 +29,60 @@ impl DependencyResolver {
     pub fn resolve_dependencies(&mut self, module: Module) -> Result<Module> {
         // Get the dependency order
         let dependency_order = self.resolve_dependency_order(&module.id, &module.dependencies)?;
-        
+
         // Validate that we don't have circular dependencies
         self.detect_circular_dependencies(&module.id, &module.dependencies)?;
-        
+
         // Cache the resolved order
-        self.dependency_cache.insert(module.id.clone(), dependency_order);
-        
+        self.dependency_cache
+            .insert(module.id.clone(), dependency_order);
+
         // Return the module (dependencies would be loaded by the module loader)
         Ok(module)
     }
 
     /// Resolves the loading order for a set of dependencies.
-    pub fn resolve_dependency_order(&self, _root_id: &ModuleId, dependencies: &[ModuleId]) -> Result<Vec<ModuleId>> {
+    pub fn resolve_dependency_order(
+        &self,
+        _root_id: &ModuleId,
+        dependencies: &[ModuleId],
+    ) -> Result<Vec<ModuleId>> {
         // For linear dependencies (no actual dependency graph information available),
         // we simply return the dependencies in the order they were provided.
         // In a real implementation, we would have actual dependency information
         // to perform proper topological sorting.
-        
+
         // Check for duplicates and self-references
         let mut seen = HashSet::new();
         let mut result = Vec::new();
-        
+
         for dep_id in dependencies {
             if !seen.contains(dep_id) {
                 seen.insert(dep_id.clone());
                 result.push(dep_id.clone());
             }
         }
-        
+
         Ok(result)
     }
 
     /// Detects circular dependencies in the module graph.
-    pub fn detect_circular_dependencies(&self, root_id: &ModuleId, dependencies: &[ModuleId]) -> Result<()> {
+    pub fn detect_circular_dependencies(
+        &self,
+        root_id: &ModuleId,
+        dependencies: &[ModuleId],
+    ) -> Result<()> {
         let mut visited = HashSet::new();
         let mut recursion_stack = HashSet::new();
         let mut path = Vec::new();
 
-        self.dfs_cycle_detection(root_id, dependencies, &mut visited, &mut recursion_stack, &mut path)
+        self.dfs_cycle_detection(
+            root_id,
+            dependencies,
+            &mut visited,
+            &mut recursion_stack,
+            &mut path,
+        )
     }
 
     /// Performs depth-first search for cycle detection.
@@ -96,11 +111,15 @@ impl DependencyResolver {
             } else if recursion_stack.contains(dep_id) {
                 // Found a cycle - create error with cycle path
                 let cycle_start = path.iter().position(|id| id == dep_id).unwrap_or(0);
-                let cycle: Vec<ModuleId> = path[cycle_start..].iter().cloned()
+                let cycle: Vec<ModuleId> = path[cycle_start..]
+                    .iter()
+                    .cloned()
                     .chain(std::iter::once(dep_id.clone()))
                     .collect();
-                
-                return Err(Box::new(Error::from(ModuleError::CircularDependency(cycle))));
+
+                return Err(Box::new(Error::from(ModuleError::CircularDependency(
+                    cycle,
+                ))));
             }
         }
 
@@ -108,7 +127,6 @@ impl DependencyResolver {
         path.pop();
         Ok(())
     }
-
 
     /// Gets the cached dependency order for a module.
     pub fn get_cached_dependencies(&self, id: &ModuleId) -> Option<&Vec<ModuleId>> {
@@ -121,7 +139,10 @@ impl DependencyResolver {
     }
 
     /// Validates a dependency graph for consistency.
-    pub fn validate_dependency_graph(&self, modules: &HashMap<ModuleId, Module>) -> Vec<DependencyValidationError> {
+    pub fn validate_dependency_graph(
+        &self,
+        modules: &HashMap<ModuleId, Module>,
+    ) -> Vec<DependencyValidationError> {
         let mut errors = Vec::new();
 
         for (module_id, module) in modules {
@@ -152,7 +173,10 @@ impl DependencyResolver {
     }
 
     /// Detects circular dependencies in a complete module graph.
-    fn detect_circular_dependencies_in_graph(&self, modules: &HashMap<ModuleId, Module>) -> Result<()> {
+    fn detect_circular_dependencies_in_graph(
+        &self,
+        modules: &HashMap<ModuleId, Module>,
+    ) -> Result<()> {
         let mut visited = HashSet::new();
         let mut recursion_stack = HashSet::new();
 
@@ -188,15 +212,25 @@ impl DependencyResolver {
         if let Some(current_module) = modules.get(current_id) {
             for dep_id in &current_module.dependencies {
                 if !visited.contains(dep_id) {
-                    self.dfs_cycle_detection_graph(dep_id, modules, visited, recursion_stack, path)?;
+                    self.dfs_cycle_detection_graph(
+                        dep_id,
+                        modules,
+                        visited,
+                        recursion_stack,
+                        path,
+                    )?;
                 } else if recursion_stack.contains(dep_id) {
                     // Found cycle
                     let cycle_start = path.iter().position(|id| id == dep_id).unwrap_or(0);
-                    let cycle: Vec<ModuleId> = path[cycle_start..].iter().cloned()
+                    let cycle: Vec<ModuleId> = path[cycle_start..]
+                        .iter()
+                        .cloned()
                         .chain(std::iter::once(dep_id.clone()))
                         .collect();
-                    
-                    return Err(Box::new(Error::from(ModuleError::CircularDependency(cycle))));
+
+                    return Err(Box::new(Error::from(ModuleError::CircularDependency(
+                        cycle,
+                    ))));
                 }
             }
         }
@@ -207,10 +241,14 @@ impl DependencyResolver {
     }
 
     /// Computes the transitive closure of dependencies for a module.
-    pub fn compute_transitive_dependencies(&self, root_id: &ModuleId, modules: &HashMap<ModuleId, Module>) -> HashSet<ModuleId> {
+    pub fn compute_transitive_dependencies(
+        &self,
+        root_id: &ModuleId,
+        modules: &HashMap<ModuleId, Module>,
+    ) -> HashSet<ModuleId> {
         let mut transitive_deps = HashSet::new();
         let mut queue = VecDeque::new();
-        
+
         // Start with direct dependencies
         if let Some(root_module) = modules.get(root_id) {
             for dep_id in &root_module.dependencies {
@@ -256,15 +294,23 @@ impl std::fmt::Display for DependencyValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DependencyValidationError::MissingDependency { module, dependency } => {
-                write!(f, "Module {} depends on missing module {}", 
-                       super::format_module_id(module), 
-                       super::format_module_id(dependency))
+                write!(
+                    f,
+                    "Module {} depends on missing module {}",
+                    super::format_module_id(module),
+                    super::format_module_id(dependency)
+                )
             }
             DependencyValidationError::SelfDependency(module) => {
-                write!(f, "Module {} depends on itself", super::format_module_id(module))
+                write!(
+                    f,
+                    "Module {} depends on itself",
+                    super::format_module_id(module)
+                )
             }
             DependencyValidationError::CircularDependency(cycle) => {
-                let cycle_str = cycle.iter()
+                let cycle_str = cycle
+                    .iter()
                     .map(super::format_module_id)
                     .collect::<Vec<_>>()
                     .join(" -> ");
@@ -282,8 +328,8 @@ impl Default for DependencyResolver {
 
 #[cfg(test)]
 mod tests {
+    use super::super::{ModuleMetadata, ModuleNamespace, ModuleSource};
     use super::*;
-    use super::super::{ModuleNamespace, ModuleSource, ModuleMetadata};
     use std::collections::HashMap;
 
     fn create_test_module(name: &str, deps: Vec<&str>) -> Module {
@@ -293,10 +339,13 @@ mod tests {
                 namespace: ModuleNamespace::Builtin,
             },
             exports: HashMap::new(),
-            dependencies: deps.into_iter().map(|dep| ModuleId {
-                components: vec![dep.to_string()],
-                namespace: ModuleNamespace::Builtin,
-            }).collect(),
+            dependencies: deps
+                .into_iter()
+                .map(|dep| ModuleId {
+                    components: vec![dep.to_string()],
+                    namespace: ModuleNamespace::Builtin,
+                })
+                .collect(),
             source: Some(ModuleSource::Builtin),
             metadata: ModuleMetadata::default(),
         }
@@ -306,7 +355,7 @@ mod tests {
     fn test_no_dependencies() {
         let mut resolver = DependencyResolver::new();
         let module = create_test_module("test", vec![]);
-        
+
         let result = resolver.resolve_dependencies(module);
         assert!(result.is_ok());
     }
@@ -314,7 +363,7 @@ mod tests {
     #[test]
     fn test_linear_dependencies() {
         let resolver = DependencyResolver::new();
-        
+
         // Module A depends on B, B depends on C
         let module_a = create_test_module("a", vec!["b"]);
         let deps = vec![
@@ -327,7 +376,7 @@ mod tests {
                 namespace: ModuleNamespace::Builtin,
             },
         ];
-        
+
         let order = resolver.resolve_dependency_order(&module_a.id, &deps);
         assert!(order.is_ok());
     }
@@ -335,7 +384,7 @@ mod tests {
     #[test]
     fn test_circular_dependency_detection() {
         let resolver = DependencyResolver::new();
-        
+
         // Create modules with circular dependency: A -> B -> A
         let mut modules = HashMap::new();
         modules.insert(
@@ -355,7 +404,7 @@ mod tests {
 
         let errors = resolver.validate_dependency_graph(&modules);
         assert!(!errors.is_empty());
-        
+
         // Should detect circular dependency
         assert!(matches!(
             errors[0],
@@ -366,7 +415,7 @@ mod tests {
     #[test]
     fn test_missing_dependency_detection() {
         let resolver = DependencyResolver::new();
-        
+
         let mut modules = HashMap::new();
         modules.insert(
             ModuleId {
@@ -378,7 +427,7 @@ mod tests {
 
         let errors = resolver.validate_dependency_graph(&modules);
         assert!(!errors.is_empty());
-        
+
         // Should detect missing dependency
         assert!(matches!(
             errors[0],
@@ -389,7 +438,7 @@ mod tests {
     #[test]
     fn test_transitive_dependencies() {
         let resolver = DependencyResolver::new();
-        
+
         let mut modules = HashMap::new();
         modules.insert(
             ModuleId {
@@ -417,9 +466,9 @@ mod tests {
             components: vec!["a".to_string()],
             namespace: ModuleNamespace::Builtin,
         };
-        
+
         let transitive = resolver.compute_transitive_dependencies(&root_id, &modules);
-        
+
         // Should include both b and c
         assert_eq!(transitive.len(), 2);
         assert!(transitive.contains(&ModuleId {

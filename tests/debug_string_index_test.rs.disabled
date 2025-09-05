@@ -1,0 +1,60 @@
+//! Debug test for string-index function
+
+use lambdust::Lambdust;
+
+#[test]
+fn debug_string_index_registration() {
+    let mut lambdust = Lambdust::new();
+
+    // Test if string-index is registered
+    let source = r#"string-index"#;
+    let result = lambdust.eval(source, Some("test"));
+
+    match result {
+        Ok(value) => {
+            println!("string-index value: {value:?}");
+        }
+        Err(e) => {
+            println!("string-index lookup failed: {e:?}");
+        }
+    }
+
+    // Test basic call (found)
+    let source = r#"(string-index "hello" #\e)"#;
+    let result = lambdust.eval(source, Some("test"));
+
+    match result {
+        Ok(value) => {
+            println!("string-index call (found) result: {value:?}");
+            println!("as_integer(): {:?}", value.as_integer());
+        }
+        Err(e) => {
+            println!("string-index call failed: {e:?}");
+        }
+    }
+
+    // Test call (not found)
+    let source = r#"(string-index "hello" #\x)"#;
+    let result = lambdust.eval(source, Some("test"));
+
+    match result {
+        Ok(value) => {
+            println!("string-index call (not found) result: {value:?}");
+            println!("as_boolean(): {:?}", value.as_boolean());
+            println!(
+                "is Literal(Boolean(false))? {:?}",
+                matches!(
+                    value,
+                    lambdust::eval::value::Value::Literal(
+                        lambdust::ast::literal::Literal::Boolean(false)
+                    )
+                )
+            );
+        }
+        Err(e) => {
+            println!("string-index call (not found) failed: {e:?}");
+        }
+    }
+}
+
+// Direct primitive test removed due to privacy

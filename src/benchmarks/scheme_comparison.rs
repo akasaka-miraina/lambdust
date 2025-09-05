@@ -6,10 +6,10 @@
 //! The benchmarks are designed to be language-agnostic and focus on core Scheme operations
 //! that are common across implementations.
 
-use std::time::Instant;
-use std::process::Command;
+use serde::{Deserialize, Serialize};
 use std::fs;
-use serde::{Serialize, Deserialize};
+use std::process::Command;
+use std::time::Instant;
 
 /// Configuration for comparison benchmarks
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,12 +171,10 @@ impl SchemeBenchmarkSuite {
             }
 
             // Try to run the implementation with --version or similar
-            let result = Command::new(&impl_config.command)
-                .arg("--version")
-                .output();
+            let result = Command::new(&impl_config.command).arg("--version").output();
 
             impl_config.available = result.is_ok();
-            
+
             if let Ok(output) = result {
                 if let Ok(version_str) = String::from_utf8(output.stdout) {
                     impl_config.version = Some(version_str.trim().to_string());
@@ -188,14 +186,26 @@ impl SchemeBenchmarkSuite {
     /// Run all comparison benchmarks
     pub fn run_comparison(&self) -> ComparisonReport {
         let mut results = Vec::new();
-        let available_impls: Vec<_> = self.config.implementations.iter()
+        let available_impls: Vec<_> = self
+            .config
+            .implementations
+            .iter()
             .filter(|impl_config| impl_config.available)
             .collect();
 
-        println!("Running benchmarks on {} implementations:", available_impls.len());
+        println!(
+            "Running benchmarks on {} implementations:",
+            available_impls.len()
+        );
         for impl_config in &available_impls {
-            println!("  - {} ({})", impl_config.name, 
-                impl_config.version.as_ref().unwrap_or(&"unknown version".to_string()));
+            println!(
+                "  - {} ({})",
+                impl_config.name,
+                impl_config
+                    .version
+                    .as_ref()
+                    .unwrap_or(&"unknown version".to_string())
+            );
         }
 
         // Core arithmetic benchmarks
@@ -217,7 +227,10 @@ impl SchemeBenchmarkSuite {
     }
 
     /// Run arithmetic operation benchmarks
-    fn run_arithmetic_benchmarks(&self, impl_config: &SchemeImplementation) -> Vec<BenchmarkResult> {
+    fn run_arithmetic_benchmarks(
+        &self,
+        impl_config: &SchemeImplementation,
+    ) -> Vec<BenchmarkResult> {
         let mut results = Vec::new();
 
         // Integer arithmetic benchmark
@@ -231,7 +244,9 @@ impl SchemeBenchmarkSuite {
 (time (arithmetic-test 100000))
 "#;
 
-        if let Some(result) = self.run_single_benchmark(impl_config, "arithmetic_intensive", arithmetic_code) {
+        if let Some(result) =
+            self.run_single_benchmark(impl_config, "arithmetic_intensive", arithmetic_code)
+        {
             results.push(result);
         }
 
@@ -305,7 +320,9 @@ impl SchemeBenchmarkSuite {
 (time (fib 35))
 "#;
 
-        if let Some(result) = self.run_single_benchmark(impl_config, "fibonacci_recursive", fib_code) {
+        if let Some(result) =
+            self.run_single_benchmark(impl_config, "fibonacci_recursive", fib_code)
+        {
             results.push(result);
         }
 
@@ -321,7 +338,9 @@ impl SchemeBenchmarkSuite {
 (time (factorial 100000))
 "#;
 
-        if let Some(result) = self.run_single_benchmark(impl_config, "tail_recursion", tail_rec_code) {
+        if let Some(result) =
+            self.run_single_benchmark(impl_config, "tail_recursion", tail_rec_code)
+        {
             results.push(result);
         }
 
@@ -329,7 +348,10 @@ impl SchemeBenchmarkSuite {
     }
 
     /// Run allocation-intensive benchmarks
-    fn run_allocation_benchmarks(&self, impl_config: &SchemeImplementation) -> Vec<BenchmarkResult> {
+    fn run_allocation_benchmarks(
+        &self,
+        impl_config: &SchemeImplementation,
+    ) -> Vec<BenchmarkResult> {
         let mut results = Vec::new();
 
         // Vector allocation and access
@@ -346,7 +368,9 @@ impl SchemeBenchmarkSuite {
 (time (vector-test 100000))
 "#;
 
-        if let Some(result) = self.run_single_benchmark(impl_config, "vector_allocation", vector_code) {
+        if let Some(result) =
+            self.run_single_benchmark(impl_config, "vector_allocation", vector_code)
+        {
             results.push(result);
         }
 
@@ -354,7 +378,12 @@ impl SchemeBenchmarkSuite {
     }
 
     /// Run a single benchmark against an implementation
-    fn run_single_benchmark(&self, impl_config: &SchemeImplementation, benchmark_name: &str, code: &str) -> Option<BenchmarkResult> {
+    fn run_single_benchmark(
+        &self,
+        impl_config: &SchemeImplementation,
+        benchmark_name: &str,
+        code: &str,
+    ) -> Option<BenchmarkResult> {
         let start = Instant::now();
 
         // Create temporary file with the code
@@ -383,8 +412,7 @@ impl SchemeBenchmarkSuite {
             }
         }
 
-        let result = cmd
-            .output();
+        let result = cmd.output();
 
         let duration = start.elapsed();
 
@@ -409,16 +437,14 @@ impl SchemeBenchmarkSuite {
                     error,
                 })
             }
-            Err(e) => {
-                Some(BenchmarkResult {
-                    implementation: impl_config.name.clone(),
-                    benchmark: benchmark_name.to_string(),
-                    execution_time_ns: 0,
-                    memory_usage_bytes: None,
-                    success: false,
-                    error: Some(format!("Failed to execute: {e}")),
-                })
-            }
+            Err(e) => Some(BenchmarkResult {
+                implementation: impl_config.name.clone(),
+                benchmark: benchmark_name.to_string(),
+                execution_time_ns: 0,
+                memory_usage_bytes: None,
+                success: false,
+                error: Some(format!("Failed to execute: {e}")),
+            }),
         }
     }
 
@@ -428,22 +454,25 @@ impl SchemeBenchmarkSuite {
         let successful_benchmarks = results.iter().filter(|r| r.success).count();
 
         // Calculate performance ranking
-        let mut impl_stats: std::collections::HashMap<String, Vec<u64>> = std::collections::HashMap::new();
-        
+        let mut impl_stats: std::collections::HashMap<String, Vec<u64>> =
+            std::collections::HashMap::new();
+
         for result in results.iter().filter(|r| r.success) {
-            impl_stats.entry(result.implementation.clone())
+            impl_stats
+                .entry(result.implementation.clone())
                 .or_default()
                 .push(result.execution_time_ns);
         }
 
-        let mut performance_ranking: Vec<PerformanceRank> = impl_stats.into_iter()
+        let mut performance_ranking: Vec<PerformanceRank> = impl_stats
+            .into_iter()
             .map(|(impl_name, times)| {
                 let avg_time = times.iter().sum::<u64>() / times.len() as u64;
                 PerformanceRank {
                     implementation: impl_name,
                     avg_execution_time_ns: avg_time,
                     relative_performance: 1.0, // Will be calculated below
-                    fastest_count: 0, // Will be calculated below
+                    fastest_count: 0,          // Will be calculated below
                 }
             })
             .collect();
@@ -459,16 +488,17 @@ impl SchemeBenchmarkSuite {
         }
 
         // Count fastest implementations per benchmark
-        let unique_benchmarks: std::collections::HashSet<_> = results.iter()
-            .map(|r| r.benchmark.clone())
-            .collect();
+        let unique_benchmarks: std::collections::HashSet<_> =
+            results.iter().map(|r| r.benchmark.clone()).collect();
 
         for benchmark in unique_benchmarks {
-            if let Some(fastest_result) = results.iter()
+            if let Some(fastest_result) = results
+                .iter()
                 .filter(|r| r.benchmark == benchmark && r.success)
                 .min_by_key(|r| r.execution_time_ns)
             {
-                if let Some(rank) = performance_ranking.iter_mut()
+                if let Some(rank) = performance_ranking
+                    .iter_mut()
                     .find(|r| r.implementation == fastest_result.implementation)
                 {
                     rank.fastest_count += 1;
@@ -486,21 +516,34 @@ impl SchemeBenchmarkSuite {
     /// Generate a detailed report
     pub fn generate_report(&self, report: &ComparisonReport) -> String {
         let mut output = String::new();
-        
+
         output.push_str("# Scheme Implementation Performance Comparison Report\n\n");
         output.push_str(&format!("Generated: {}\n\n", report.timestamp));
 
         // Summary section
         output.push_str("## Summary\n\n");
-        output.push_str(&format!("- Total benchmarks: {}\n", report.summary.total_benchmarks));
-        output.push_str(&format!("- Successful benchmarks: {}\n", report.summary.successful_benchmarks));
-        output.push_str(&format!("- Success rate: {:.1}%\n\n", 
-            (report.summary.successful_benchmarks as f64 / report.summary.total_benchmarks as f64) * 100.0));
+        output.push_str(&format!(
+            "- Total benchmarks: {}\n",
+            report.summary.total_benchmarks
+        ));
+        output.push_str(&format!(
+            "- Successful benchmarks: {}\n",
+            report.summary.successful_benchmarks
+        ));
+        output.push_str(&format!(
+            "- Success rate: {:.1}%\n\n",
+            (report.summary.successful_benchmarks as f64 / report.summary.total_benchmarks as f64)
+                * 100.0
+        ));
 
         // Performance ranking
         output.push_str("## Performance Ranking\n\n");
-        output.push_str("| Rank | Implementation | Avg Time (ms) | Relative Performance | Fastest Count |\n");
-        output.push_str("|------|----------------|---------------|---------------------|---------------|\n");
+        output.push_str(
+            "| Rank | Implementation | Avg Time (ms) | Relative Performance | Fastest Count |\n",
+        );
+        output.push_str(
+            "|------|----------------|---------------|---------------------|---------------|\n",
+        );
 
         for (i, rank) in report.summary.performance_ranking.iter().enumerate() {
             output.push_str(&format!(
@@ -517,17 +560,18 @@ impl SchemeBenchmarkSuite {
 
         // Detailed results by benchmark
         output.push_str("## Detailed Results\n\n");
-        
-        let unique_benchmarks: std::collections::HashSet<_> = report.results.iter()
-            .map(|r| r.benchmark.clone())
-            .collect();
+
+        let unique_benchmarks: std::collections::HashSet<_> =
+            report.results.iter().map(|r| r.benchmark.clone()).collect();
 
         for benchmark in unique_benchmarks {
             output.push_str(&format!("### {benchmark}\n\n"));
             output.push_str("| Implementation | Time (ms) | Status |\n");
             output.push_str("|----------------|-----------|--------|\n");
 
-            let mut benchmark_results: Vec<_> = report.results.iter()
+            let mut benchmark_results: Vec<_> = report
+                .results
+                .iter()
                 .filter(|r| r.benchmark == benchmark)
                 .collect();
             benchmark_results.sort_by_key(|r| r.execution_time_ns);
@@ -539,7 +583,10 @@ impl SchemeBenchmarkSuite {
                 } else {
                     "N/A".to_string()
                 };
-                output.push_str(&format!("| {} | {} | {} |\n", result.implementation, time_ms, status));
+                output.push_str(&format!(
+                    "| {} | {} | {} |\n",
+                    result.implementation, time_ms, status
+                ));
             }
             output.push('\n');
         }
@@ -552,33 +599,33 @@ impl SchemeBenchmarkSuite {
 pub fn run_scheme_comparison() -> Result<ComparisonReport, Box<dyn std::error::Error>> {
     let mut config = ComparisonConfig::default();
     let mut suite = SchemeBenchmarkSuite::new(config.clone());
-    
+
     println!("Detecting available Scheme implementations...");
     suite.detect_implementations();
-    
+
     // Update config with detected implementations
     config = suite.config.clone();
-    
+
     println!("Running performance comparison...");
     let report = suite.run_comparison();
-    
+
     // Create output directory
     fs::create_dir_all(&config.output_dir)?;
-    
+
     // Save JSON report
     let json_path = format!("{}/scheme_comparison.json", config.output_dir);
     let json_content = serde_json::to_string_pretty(&report)?;
     fs::write(&json_path, json_content)?;
-    
+
     // Save markdown report
     let md_path = format!("{}/scheme_comparison.md", config.output_dir);
     let md_content = suite.generate_report(&report);
     fs::write(&md_path, md_content)?;
-    
+
     println!("Results saved to:");
     println!("  - JSON: {json_path}");
     println!("  - Markdown: {md_path}");
-    
+
     Ok(report)
 }
 

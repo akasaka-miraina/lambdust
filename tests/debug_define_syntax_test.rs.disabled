@@ -1,0 +1,39 @@
+//! Simple debug test for define-syntax parsing issue
+
+#[test]
+fn debug_minimal_define_syntax() {
+    let test_code = "(define-syntax test-macro (syntax-rules () ((_ x) (list x))))";
+
+    println!("=== SIMPLE DEBUG TEST ===");
+    println!("Code: {}", test_code);
+
+    // Just try basic parsing
+    let mut lexer = lambdust::lexer::Lexer::new(test_code, Some("test"));
+    let tokens = lexer.tokenize().expect("Should tokenize");
+
+    println!("Tokens: {} total", tokens.len());
+    for (i, token) in tokens.iter().take(10).enumerate() {
+        println!("  [{}] {:?} = '{}'", i, token.kind, token.text());
+    }
+
+    // Parse to AST
+    let mut parser = lambdust::parser::Parser::new(tokens);
+    let program = parser.parse().expect("Should parse");
+
+    println!("Program has {} expressions", program.expressions.len());
+
+    for (i, expr) in program.expressions.iter().enumerate() {
+        println!("Expr {}: {:#?}", i, expr.inner);
+    }
+
+    // Should have exactly one define-syntax
+    assert_eq!(program.expressions.len(), 1, "Should have one expression");
+    match &program.expressions[0].inner {
+        lambdust::ast::Expr::DefineSyntax { name, .. } => {
+            println!("SUCCESS: Found DefineSyntax with name '{}'", name);
+        }
+        other => {
+            panic!("Expected DefineSyntax, got: {:#?}", other);
+        }
+    }
+}

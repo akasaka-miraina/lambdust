@@ -3,24 +3,29 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{MetaprogrammingSystem, ReflectionSystem, DynamicEvaluator, SecurityManager, CodeGenerator, ProceduralMacro};
-    use crate::metaprogramming::reflection::{TypeInfo, EnvironmentType as ReflectionEnvironmentType};
-    use crate::metaprogramming::program_analysis::StaticAnalyzer;
-    use crate::metaprogramming::environment_manipulation::{
-        EnvironmentManipulator, ModuleManager, MemoryManager, EnvironmentType, 
-        EnvironmentHierarchy, ChangeTracker, EnvironmentChange, ChangeType,
-        MemoryUsageTracker, GcPolicy, GcFrequency, GcStrategy
-    };
-    use crate::metaprogramming::code_generation::{AstTransformer, TemplateSystem};
-    use crate::metaprogramming::dynamic_evaluation::{SandboxEnvironment, ResourceMonitor};
-    use crate::metaprogramming::advanced_macros::{MacroDebugger, StepMode, EnhancedHygiene};
-    use crate::metaprogramming::program_analysis::{DependencyAnalyzer, Profiler, CodeAnalyzer};
-    use crate::metaprogramming::security::{
-        SecurityPolicy, PermissionSystem, Permission, AccessControl
-    };
-    use crate::eval::{Value, Environment};
     use crate::ast::{Expr, Literal};
     use crate::diagnostics::Span;
+    use crate::eval::{Environment, Value};
+    use crate::metaprogramming::advanced_macros::{EnhancedHygiene, MacroDebugger, StepMode};
+    use crate::metaprogramming::code_generation::{AstTransformer, TemplateSystem};
+    use crate::metaprogramming::dynamic_evaluation::{ResourceMonitor, SandboxEnvironment};
+    use crate::metaprogramming::environment_manipulation::{
+        ChangeTracker, ChangeType, EnvironmentChange, EnvironmentHierarchy, EnvironmentManipulator,
+        EnvironmentType, GcFrequency, GcPolicy, GcStrategy, MemoryManager, MemoryUsageTracker,
+        ModuleManager,
+    };
+    use crate::metaprogramming::program_analysis::StaticAnalyzer;
+    use crate::metaprogramming::program_analysis::{CodeAnalyzer, DependencyAnalyzer, Profiler};
+    use crate::metaprogramming::reflection::{
+        EnvironmentType as ReflectionEnvironmentType, TypeInfo,
+    };
+    use crate::metaprogramming::security::{
+        AccessControl, Permission, PermissionSystem, SecurityPolicy,
+    };
+    use crate::{
+        CodeGenerator, DynamicEvaluator, MetaprogrammingSystem, ProceduralMacro, ReflectionSystem,
+        SecurityManager,
+    };
     use std::rc::Rc;
 
     #[test]
@@ -33,7 +38,7 @@ mod tests {
     fn test_reflection_type_inspection() {
         let mut system = ReflectionSystem::new();
         let value = Value::Literal(Literal::Number(42.0));
-        
+
         let type_info = system.object_inspector().get_type_info(&value);
         assert_eq!(type_info, TypeInfo::Number);
     }
@@ -42,8 +47,10 @@ mod tests {
     fn test_security_manager() {
         let mut security = SecurityManager::new();
         security.install_default_policies();
-        
-        let context = security.create_context("test".to_string(), "sandbox").unwrap();
+
+        let context = security
+            .create_context("test".to_string(), "sandbox")
+            .unwrap();
         assert_eq!(context.principal, "test");
     }
 
@@ -51,7 +58,7 @@ mod tests {
     fn test_dynamic_evaluator() {
         let mut evaluator = DynamicEvaluator::new();
         let result = evaluator.eval_string("(+ 1 2)", "test", Some("restrictive"));
-        
+
         // Would succeed in a complete implementation
         assert!(result.is_ok() || result.is_err()); // Just test it doesn't panic
     }
@@ -61,7 +68,7 @@ mod tests {
         let mut generator = CodeGenerator::new();
         let env = Rc::new(Environment::new(None, 0));
         generator.set_context(env);
-        
+
         let code = "(define x 42)";
         let result = generator.compile_string(code);
         assert!(result.is_ok() || result.is_err()); // Just test it doesn't panic
@@ -83,12 +90,9 @@ mod tests {
     fn test_environment_manipulator() {
         let mut manipulator = EnvironmentManipulator::new();
         let env = Rc::new(Environment::new(None, 0));
-        
-        let result = manipulator.register_environment(
-            "test".to_string(),
-            env,
-            EnvironmentType::Global
-        );
+
+        let result =
+            manipulator.register_environment("test".to_string(), env, EnvironmentType::Global);
         assert!(result.is_ok());
     }
 
@@ -160,7 +164,7 @@ mod tests {
     fn test_security_policies() {
         let restrictive = SecurityPolicy::restrictive();
         assert_eq!(restrictive.name, "restrictive");
-        
+
         let permissive = SecurityPolicy::permissive();
         assert_eq!(permissive.name, "permissive");
     }
@@ -208,7 +212,7 @@ mod tests {
         let mut hierarchy = EnvironmentHierarchy::new();
         hierarchy.add_root("global".to_string());
         hierarchy.add_child("global".to_string(), "local".to_string());
-        
+
         assert!(hierarchy.roots.contains(&"global".to_string()));
     }
 
@@ -222,7 +226,7 @@ mod tests {
             new_value: Some(Value::Literal(Literal::Number(42.0))),
             timestamp: std::time::SystemTime::now(),
         };
-        
+
         tracker.track_change("test-env".to_string(), change);
         assert!(tracker.changes.contains_key("test-env"));
     }

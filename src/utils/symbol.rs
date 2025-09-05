@@ -1,8 +1,8 @@
 //! Symbol interning for efficient string handling.
 
+use super::SymbolId;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use super::SymbolId;
 
 /// A symbol interner for efficient string handling.
 #[derive(Debug)]
@@ -23,7 +23,7 @@ impl SymbolTable {
     /// Interns a symbol and returns its ID.
     pub fn intern(&mut self, name: impl Into<String>) -> SymbolId {
         let name = name.into();
-        
+
         if let Some(&id) = self.symbol_map.get(&name) {
             return id;
         }
@@ -62,5 +62,9 @@ pub fn intern_symbol(name: impl Into<String>) -> SymbolId {
 
 /// Gets the name of a symbol from the global symbol table.
 pub fn symbol_name(id: SymbolId) -> Option<String> {
-    GLOBAL_SYMBOLS.lock().unwrap().name(id).map(|s| s.to_string())
+    GLOBAL_SYMBOLS
+        .lock()
+        .unwrap()
+        .name(id)
+        .map(|s| s.to_string())
 }

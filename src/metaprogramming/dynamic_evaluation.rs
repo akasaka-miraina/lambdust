@@ -3,15 +3,15 @@
 //! This module provides safe dynamic evaluation of code strings with
 //! comprehensive security controls, resource limits, and execution contexts.
 
-use super::security::{SecurityManager, SecurityContext, Permission, ResourceUsage};
-use crate::eval::{Value, Environment, Evaluator};
+use super::security::{Permission, ResourceUsage, SecurityContext, SecurityManager};
+use crate::ast::Program;
+use crate::diagnostics::{Error, Result};
+use crate::eval::{Environment, Evaluator, Value};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::diagnostics::{Error, Result};
-use crate::ast::Program;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 /// Execution context for dynamic evaluation.
@@ -136,13 +136,11 @@ impl SandboxEnvironment {
     /// Creates a new sandbox environment.
     pub fn new() -> Self {
         let base_env = Rc::new(Environment::new(None, 0));
-        
+
         // Install only safe primitives
         let safe_primitives = vec![
-            "+", "-", "*", "/", "=", "<", ">", "<=", ">=",
-            "cons", "car", "cdr", "list", "length",
-            "null?", "pair?", "number?", "string?", "symbol?",
-            "not", "and", "or",
+            "+", "-", "*", "/", "=", "<", ">", "<=", ">=", "cons", "car", "cdr", "list", "length",
+            "null?", "pair?", "number?", "string?", "symbol?", "not", "and", "or",
         ];
 
         for _primitive in &safe_primitives {
@@ -161,7 +159,9 @@ impl SandboxEnvironment {
     /// Creates a sandbox with custom security policy.
     pub fn with_policy(policy_name: &str) -> Result<Self> {
         let sandbox = Self::new();
-        let _context = sandbox.security_manager.create_context("sandbox".to_string(), policy_name)?;
+        let _context = sandbox
+            .security_manager
+            .create_context("sandbox".to_string(), policy_name)?;
         Ok(sandbox)
     }
 
@@ -235,7 +235,7 @@ impl SecurityPolicy {
         Self {
             name: "permissive".to_string(),
             max_execution_time: Some(Duration::from_secs(30)),
-            max_memory: Some(1024 * 1024), // 1MB  
+            max_memory: Some(1024 * 1024),             // 1MB
             allowed_operations: vec!["*".to_string()], // Allow all
             forbidden_operations: vec![],
             resource_limits: {
@@ -300,9 +300,12 @@ impl DynamicEvaluator {
 
         // Create or get execution context
         let context = self.get_or_create_context(principal, policy_name)?;
-        
+
         // Check permission to evaluate
-        if !self.security_manager.check_permission(principal, &Permission::Eval)? {
+        if !self
+            .security_manager
+            .check_permission(principal, &Permission::Eval)?
+        {
             return Err(Box::new(Error::runtime_error(
                 "Permission denied: eval not allowed".to_string(),
                 None,
@@ -316,7 +319,13 @@ impl DynamicEvaluator {
         let mut evaluator = self.create_sandboxed_evaluator(&context)?;
 
         // Evaluate with limits
-        let value = self.evaluate_with_limits(&mut evaluator, &program, &context.limits, &mut stats, principal)?;
+        let value = self.evaluate_with_limits(
+            &mut evaluator,
+            &program,
+            &context.limits,
+            &mut stats,
+            principal,
+        )?;
 
         stats.execution_time = start_time.elapsed();
 
@@ -336,10 +345,9 @@ impl DynamicEvaluator {
         principal: &str,
     ) -> Result<EvaluationResult> {
         // Create temporary context with custom environment
-        let security_context = self.security_manager.create_context(
-            principal.to_string(),
-            "restrictive"
-        )?;
+        let security_context = self
+            .security_manager
+            .create_context(principal.to_string(), "restrictive")?;
 
         let context = ExecutionContext {
             principal: principal.to_string(),
@@ -365,7 +373,13 @@ impl DynamicEvaluator {
 
         let program = self.parse_code(code)?;
         let mut evaluator = Evaluator::with_environment(context.environment.clone());
-        let value = self.evaluate_with_limits(&mut evaluator, &program, &context.limits, &mut stats, principal)?;
+        let value = self.evaluate_with_limits(
+            &mut evaluator,
+            &program,
+            &context.limits,
+            &mut stats,
+            principal,
+        )?;
 
         stats.execution_time = start_time.elapsed();
 
@@ -388,17 +402,16 @@ impl DynamicEvaluator {
     fn get_or_create_context(
         &mut self,
         principal: &str,
-        policy_name: Option<&str>
+        policy_name: Option<&str>,
     ) -> Result<ExecutionContext> {
         if let Some(context) = self.contexts.get(principal) {
             return Ok(context.clone());
         }
 
         let policy_name = policy_name.unwrap_or("restrictive");
-        let security_context = self.security_manager.create_context(
-            principal.to_string(),
-            policy_name
-        )?;
+        let security_context = self
+            .security_manager
+            .create_context(principal.to_string(), policy_name)?;
 
         // Create or get sandbox
         if !self.sandboxes.contains_key(principal) {
@@ -471,7 +484,9 @@ impl DynamicEvaluator {
 
             // Evaluate expression
             // Get the context environment
-            let env = self.contexts.get(principal)
+            let env = self
+                .contexts
+                .get(principal)
                 .map(|ctx| ctx.environment.clone())
                 .unwrap_or_else(|| Rc::new(Environment::new(None, 0)));
             let result = evaluator.eval(expr, env)?;

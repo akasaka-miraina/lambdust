@@ -1,8 +1,8 @@
 //! Macro transformer for pattern-based macro expansion.
 
+use super::{Pattern, Template};
 use crate::diagnostics::Span;
 use crate::eval::Environment;
-use super::{Pattern, Template};
 use std::rc::Rc;
 
 /// A macro transformer that defines how to expand a macro.

@@ -17,30 +17,28 @@
 
 use std::fmt;
 
+pub mod internal_lexer;
+pub mod lexer;
+pub mod numeric;
+pub mod optimized;
+pub mod string_utils;
 pub mod token;
 pub mod token_struct;
-pub mod numeric;
-pub mod string_utils;
-pub mod optimized;
-pub mod lexer;
-pub mod internal_lexer;
 
+pub use internal_lexer::*;
+pub use lexer::*;
+pub use numeric::*;
+pub use optimized::*;
+pub use string_utils::*;
 pub use token::*;
 pub use token_struct::*;
-pub use numeric::*;
-pub use string_utils::*;
-pub use optimized::*;
-pub use lexer::*;
-pub use internal_lexer::*;
-
-
 
 /// Token kinds recognized by the Lambdust lexer.
-/// 
+///
 /// This enum covers all R7RS Scheme tokens plus Lambdust extensions.
 /// Previously used logos for regex-based tokenization, now uses internal
 /// lexer implementation for better performance and control.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TokenKind {
     // === Delimiters ===
     LeftParen,
@@ -58,7 +56,13 @@ pub enum TokenKind {
     Dot,
 
     // === Lambdust Extensions ===
-    TypeAnnotation,
+    TypeAnnotation, // ::
+    Colon,          // : (for parameter type annotations)
+    Arrow,          // -> (for function types)
+    FatArrow,       // => (for constraints)
+    Pipe,           // | (for variant types and row rest)
+    Tilde,          // ~ (for effects)
+    TildeArrow,     // ~> (for effectful function types)
 
     // === Numbers ===
     ComplexNumber,
@@ -120,9 +124,18 @@ impl fmt::Display for TokenKind {
             TokenKind::UnquoteSplicing => ",@",
             TokenKind::Dot => ".",
             TokenKind::TypeAnnotation => "::",
+            TokenKind::Colon => ":",
+            TokenKind::Arrow => "->",
+            TokenKind::FatArrow => "=>",
+            TokenKind::Pipe => "|",
+            TokenKind::Tilde => "~",
+            TokenKind::TildeArrow => "~>",
             TokenKind::Keyword => "keyword",
             TokenKind::Identifier => "identifier",
-            TokenKind::IntegerNumber | TokenKind::RealNumber | TokenKind::RationalNumber | TokenKind::ComplexNumber => "number",
+            TokenKind::IntegerNumber
+            | TokenKind::RealNumber
+            | TokenKind::RationalNumber
+            | TokenKind::ComplexNumber => "number",
             TokenKind::String => "string",
             TokenKind::Character => "character",
             TokenKind::Boolean => "boolean",
@@ -147,11 +160,11 @@ mod tests {
         assert_eq!(tokens.len(), 6); // (, +, 1, 2, ), EOF
         assert_eq!(tokens[0].kind, TokenKind::LeftParen);
         assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[1].text, "+");
+        assert_eq!(tokens[1].text(), "+");
         assert_eq!(tokens[2].kind, TokenKind::IntegerNumber);
-        assert_eq!(tokens[2].text, "1");
+        assert_eq!(tokens[2].text(), "1");
         assert_eq!(tokens[3].kind, TokenKind::IntegerNumber);
-        assert_eq!(tokens[3].text, "2");
+        assert_eq!(tokens[3].text(), "2");
         assert_eq!(tokens[4].kind, TokenKind::RightParen);
         assert_eq!(tokens[5].kind, TokenKind::Eof);
     }
@@ -163,19 +176,22 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF
-        let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != TokenKind::Eof).collect();
-        
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .collect();
+
         assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].kind, TokenKind::IntegerNumber);
-        assert_eq!(tokens[0].text, "42");
+        assert_eq!(tokens[0].text(), "42");
         assert_eq!(tokens[1].kind, TokenKind::RealNumber);
-        assert_eq!(tokens[1].text, "3.14");
+        assert_eq!(tokens[1].text(), "3.14");
         assert_eq!(tokens[2].kind, TokenKind::RationalNumber);
-        assert_eq!(tokens[2].text, "22/7");
+        assert_eq!(tokens[2].text(), "22/7");
         assert_eq!(tokens[3].kind, TokenKind::ComplexNumber);
-        assert_eq!(tokens[3].text, "3+4i");
+        assert_eq!(tokens[3].text(), "3+4i");
         assert_eq!(tokens[4].kind, TokenKind::RealNumber);
-        assert_eq!(tokens[4].text, "-5.2e-10");
+        assert_eq!(tokens[4].text(), "-5.2e-10");
     }
 
     #[test]
@@ -185,15 +201,18 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF
-        let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != TokenKind::Eof).collect();
-        
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .collect();
+
         assert_eq!(tokens.len(), 3);
         assert_eq!(tokens[0].kind, TokenKind::Keyword);
-        assert_eq!(tokens[0].text, "#:key");
+        assert_eq!(tokens[0].text(), "#:key");
         assert_eq!(tokens[1].kind, TokenKind::Keyword);
-        assert_eq!(tokens[1].text, "#:type");
+        assert_eq!(tokens[1].text(), "#:type");
         assert_eq!(tokens[2].kind, TokenKind::Keyword);
-        assert_eq!(tokens[2].text, "#:inline");
+        assert_eq!(tokens[2].text(), "#:inline");
     }
 
     #[test]
@@ -203,17 +222,20 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF
-        let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != TokenKind::Eof).collect();
-        
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .collect();
+
         assert_eq!(tokens.len(), 3);
         assert_eq!(tokens[0].kind, TokenKind::String);
-        assert_eq!(tokens[0].text, r#""hello world""#);
+        assert_eq!(tokens[0].text(), r#""hello world""#);
         assert_eq!(tokens[1].kind, TokenKind::String);
-        assert_eq!(tokens[1].text, r#""with\nescapes""#);
+        assert_eq!(tokens[1].text(), r#""with\nescapes""#);
         assert_eq!(tokens[2].kind, TokenKind::String);
-        assert_eq!(tokens[2].text, r#""unicode: \x41;""#);
+        assert_eq!(tokens[2].text(), r#""unicode: \x41;""#);
     }
-    
+
     #[test]
     fn test_character_tokenization() {
         let source = r"#\a #\space #\newline #\tab #\x41";
@@ -221,17 +243,20 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF
-        let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != TokenKind::Eof).collect();
-        
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .collect();
+
         assert_eq!(tokens.len(), 5);
         assert!(tokens.iter().all(|t| t.kind == TokenKind::Character));
-        assert_eq!(tokens[0].text, r"#\a");
-        assert_eq!(tokens[1].text, r"#\space");
-        assert_eq!(tokens[2].text, r"#\newline");
-        assert_eq!(tokens[3].text, r"#\tab");
-        assert_eq!(tokens[4].text, r"#\x41");
+        assert_eq!(tokens[0].text(), r"#\a");
+        assert_eq!(tokens[1].text(), r"#\space");
+        assert_eq!(tokens[2].text(), r"#\newline");
+        assert_eq!(tokens[3].text(), r"#\tab");
+        assert_eq!(tokens[4].text(), r"#\x41");
     }
-    
+
     #[test]
     fn test_boolean_tokenization() {
         let source = "#t #f #true #false";
@@ -239,14 +264,17 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF
-        let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != TokenKind::Eof).collect();
-        
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .collect();
+
         assert_eq!(tokens.len(), 4);
         assert!(tokens.iter().all(|t| t.kind == TokenKind::Boolean));
-        assert_eq!(tokens[0].text, "#t");
-        assert_eq!(tokens[1].text, "#f");
-        assert_eq!(tokens[2].text, "#true");
-        assert_eq!(tokens[3].text, "#false");
+        assert_eq!(tokens[0].text(), "#t");
+        assert_eq!(tokens[1].text(), "#f");
+        assert_eq!(tokens[2].text(), "#true");
+        assert_eq!(tokens[3].text(), "#false");
     }
 
     #[test]
@@ -258,9 +286,9 @@ mod tests {
         // Comments and newlines should be skipped (R7RS compliant)
         assert_eq!(tokens[0].kind, TokenKind::LeftParen);
         assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[1].text, "+");
+        assert_eq!(tokens[1].text(), "+");
     }
-    
+
     #[test]
     fn test_block_comment_tokenization() {
         let source = "#| simple comment |# (+ 1 #| nested #| comment |# here |# 2)";
@@ -268,24 +296,32 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF and comments, and tokens that are part of nested comment parsing issue
-        let tokens: Vec<_> = tokens.into_iter()
-            .filter(|t| !matches!(t.kind, TokenKind::Eof | TokenKind::BlockComment | TokenKind::Error))
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| {
+                !matches!(
+                    t.kind,
+                    TokenKind::Eof | TokenKind::BlockComment | TokenKind::Error
+                )
+            })
             .collect();
-        
+
         // Temporarily adjust expectations due to nested comment parsing limitation
         // TODO: Implement proper nested comment handling
         assert!(tokens.len() >= 5); // We expect at least (, +, 1, 2, ) but may have more due to nested comment issue
         assert_eq!(tokens[0].kind, TokenKind::LeftParen);
         assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[1].text, "+");
+        assert_eq!(tokens[1].text(), "+");
         assert_eq!(tokens[2].kind, TokenKind::IntegerNumber);
-        assert_eq!(tokens[2].text, "1");
-        
+        assert_eq!(tokens[2].text(), "1");
+
         // Due to nested comment parsing issue, "here" may appear as a separate token
         // Find "2" and ")" tokens in the remaining tokens
-        let two_pos = tokens.iter().position(|t| t.text == "2" && t.kind == TokenKind::IntegerNumber);
+        let two_pos = tokens
+            .iter()
+            .position(|t| t.text() == "2" && t.kind == TokenKind::IntegerNumber);
         let rparen_pos = tokens.iter().position(|t| t.kind == TokenKind::RightParen);
-        
+
         assert!(two_pos.is_some(), "Should find number '2' token");
         assert!(rparen_pos.is_some(), "Should find right paren token");
     }
@@ -297,21 +333,24 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF
-        let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != TokenKind::Eof).collect();
-        
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .collect();
+
         // Correct expected token count
         assert_eq!(tokens.len(), 9); // ', x, `, (, ,, a, ,@, b, )
         assert_eq!(tokens[0].kind, TokenKind::Quote);
         assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[1].text, "x");
+        assert_eq!(tokens[1].text(), "x");
         assert_eq!(tokens[2].kind, TokenKind::Quasiquote);
         assert_eq!(tokens[3].kind, TokenKind::LeftParen);
         assert_eq!(tokens[4].kind, TokenKind::Unquote);
         assert_eq!(tokens[5].kind, TokenKind::Identifier);
-        assert_eq!(tokens[5].text, "a");
+        assert_eq!(tokens[5].text(), "a");
         assert_eq!(tokens[6].kind, TokenKind::UnquoteSplicing);
         assert_eq!(tokens[7].kind, TokenKind::Identifier);
-        assert_eq!(tokens[7].text, "b");
+        assert_eq!(tokens[7].text(), "b");
         assert_eq!(tokens[8].kind, TokenKind::RightParen);
     }
 
@@ -322,9 +361,9 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         assert_eq!(tokens[1].kind, TokenKind::TypeAnnotation);
-        assert_eq!(tokens[1].text, "::");
+        assert_eq!(tokens[1].text(), "::");
     }
-    
+
     #[test]
     fn test_delimiters() {
         let source = "()[]{}.";
@@ -332,8 +371,11 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF
-        let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != TokenKind::Eof).collect();
-        
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .collect();
+
         assert_eq!(tokens.len(), 7);
         assert_eq!(tokens[0].kind, TokenKind::LeftParen);
         assert_eq!(tokens[1].kind, TokenKind::RightParen);
@@ -343,7 +385,7 @@ mod tests {
         assert_eq!(tokens[5].kind, TokenKind::RightBrace);
         assert_eq!(tokens[6].kind, TokenKind::Dot);
     }
-    
+
     #[test]
     fn test_whitespace_and_newlines() {
         let source = "a\n  b\r\nc\td";
@@ -351,18 +393,21 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF
-        let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != TokenKind::Eof).collect();
-        
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .collect();
+
         // Should have: a, b, c, d (all whitespace including newlines skipped)
         assert_eq!(tokens.len(), 4);
         assert_eq!(tokens[0].kind, TokenKind::Identifier);
-        assert_eq!(tokens[0].text, "a");
+        assert_eq!(tokens[0].text(), "a");
         assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[1].text, "b");
+        assert_eq!(tokens[1].text(), "b");
         assert_eq!(tokens[2].kind, TokenKind::Identifier);
-        assert_eq!(tokens[2].text, "c");
+        assert_eq!(tokens[2].text(), "c");
         assert_eq!(tokens[3].kind, TokenKind::Identifier);
-        assert_eq!(tokens[3].text, "d");
+        assert_eq!(tokens[3].text(), "d");
     }
 
     #[test]
@@ -378,13 +423,13 @@ mod tests {
         // Should parse without errors
         assert!(!tokens.is_empty());
         assert_eq!(tokens.last().unwrap().kind, TokenKind::Eof);
-        
+
         // Check that we have the expected keywords and identifiers
-        let define_token = tokens.iter().find(|t| t.text == "define");
+        let define_token = tokens.iter().find(|t| t.text() == "define");
         assert!(define_token.is_some());
         assert_eq!(define_token.unwrap().kind, TokenKind::Identifier);
-        
-        let type_keyword = tokens.iter().find(|t| t.text == "#:type");
+
+        let type_keyword = tokens.iter().find(|t| t.text() == "#:type");
         assert!(type_keyword.is_some());
         assert_eq!(type_keyword.unwrap().kind, TokenKind::Keyword);
     }
@@ -394,13 +439,13 @@ mod tests {
         let source = "@";
         let mut lexer = Lexer::new(source, Some("test"));
         let tokens = lexer.tokenize().unwrap();
-        
+
         // The @ character should be tokenized as Error
         assert_eq!(tokens.len(), 2); // Error token + EOF
         assert_eq!(tokens[0].kind, TokenKind::Error);
-        assert_eq!(tokens[0].text, "@");
+        assert_eq!(tokens[0].text(), "@");
     }
-    
+
     #[test]
     fn test_edge_cases() {
         // Test empty input
@@ -409,14 +454,14 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0].kind, TokenKind::Eof);
-        
+
         // Test only whitespace
         let source = "   \t   ";
         let mut lexer = Lexer::new(source, Some("test"));
         let tokens = lexer.tokenize().unwrap();
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0].kind, TokenKind::Eof);
-        
+
         // Test only comments
         let source = "; just a comment";
         let mut lexer = Lexer::new(source, Some("test"));
@@ -424,7 +469,7 @@ mod tests {
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0].kind, TokenKind::Eof);
     }
-    
+
     #[test]
     fn test_number_edge_cases() {
         let source = "+1 -2 +3.14 -4.56 1e10 -2E-5 +i -i 0+0i";
@@ -432,20 +477,22 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF
-        let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != TokenKind::Eof).collect();
-        
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .collect();
+
         assert!(tokens.len() >= 8);
-        
+
         // All should be numbers of various types
         for token in &tokens {
-            assert!(matches!(token.kind, 
-                TokenKind::IntegerNumber | 
-                TokenKind::RealNumber | 
-                TokenKind::ComplexNumber
+            assert!(matches!(
+                token.kind,
+                TokenKind::IntegerNumber | TokenKind::RealNumber | TokenKind::ComplexNumber
             ));
         }
     }
-    
+
     #[test]
     fn test_identifier_edge_cases() {
         let source = "+ - * / < <= > >= = eq? list->vector string-length";
@@ -453,12 +500,14 @@ mod tests {
         let tokens = lexer.tokenize().unwrap();
 
         // Filter out EOF
-        let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != TokenKind::Eof).collect();
-        
+        let tokens: Vec<_> = tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .collect();
+
         // All should be identifiers
         for token in &tokens {
             assert_eq!(token.kind, TokenKind::Identifier);
         }
     }
 }
-

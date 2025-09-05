@@ -1,0 +1,27 @@
+=== PLATFORM-SPECIFIC TEST REPORT ===
+
+Platform: macos aarch64
+CI Environment: false
+Pointer Size: 8 bytes
+Page Size: 16384 bytes
+Overall Status: AllPassed
+
+=== MEMORY ALIGNMENT TESTS ===
+Basic alignment: true
+SIMD alignment: true
+Cross-platform alignment: true
+
+=== VALUE SYSTEM TESTS ===
+Creation: true
+Dereferencing: true
+Equality: true
+
+=== CONTAINER TESTS ===
+Tree insertion: true
+Tree search: true
+Arc creation: true
+
+=== SIMD TESTS ===
+SIMD available: true
+SIMD alignment OK: true
+Detected features: ["NEON"]

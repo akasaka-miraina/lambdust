@@ -10,7 +10,10 @@ pub struct ModuleId {
 impl ModuleId {
     /// Creates a new ModuleId with the given namespace and components.
     pub fn new(namespace: ModuleNamespace, components: Vec<String>) -> Self {
-        Self { namespace, components }
+        Self {
+            namespace,
+            components,
+        }
     }
 }
 

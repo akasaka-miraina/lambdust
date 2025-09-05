@@ -1,0 +1,370 @@
+# # Temporarily disabled until sigsegv-debug-test binary is properly configured
+# # name: SIGSEGV Debug Analysis
+# 
+# # on:
+# #   push:
+# #     branches: [ main, develop, "0.*" ]
+# #   pull_request:
+# #     branches: [ main, develop ]
+# #   workflow_dispatch:
+#     inputs:
+#       debug_level:
+#         description: 'Debug level (basic/full/crash-simulation)'
+#         required: false
+#         default: 'full'
+#         type: choice
+#         options:
+#         - basic
+#         - full
+#         - crash-simulation
+# 
+# env:
+#   CARGO_TERM_COLOR: always
+#   RUST_BACKTRACE: full
+#   RUST_LOG: debug
+# 
+# jobs:
+#   sigsegv-debug-macos:
+#     name: SIGSEGV Debug (macOS Apple Silicon)
+#     runs-on: macos-latest
+#     
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+#       
+#     - name: Install Rust toolchain
+#       uses: actions-rust-lang/setup-rust-toolchain@v1
+#       with:
+#         toolchain: 1.82.0
+#         components: clippy, rustfmt
+#         
+#     - name: Cache dependencies
+#       uses: actions/cache@v4
+#       with:
+#         path: |
+#           ~/.cargo/registry
+#           ~/.cargo/git
+#           target
+#         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+#         
+#     - name: Build with debug symbols
+#       run: |
+#         cargo build --all-features --bin sigsegv-debug-test
+#         
+#     - name: Initialize SIGSEGV debugging
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- init
+#         
+#     - name: Test platform detection
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- platform
+#         
+#     - name: Test memory tracking
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- memory
+#         
+#     - name: Test safe harness
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- harness
+#         
+#     - name: Test crash analyzer
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- analyzer
+#         
+#     - name: Test CI reporter
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- ci
+#         
+#     - name: Run full integration test
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- integration
+#         
+#     - name: Run Lambdust tests with crash monitoring
+#       run: |
+#         # Initialize crash monitoring
+#         mkdir -p crash_logs test_crash_logs
+#         
+#         # Run tests with timeout and crash detection
+#         timeout 300 cargo test --all-features -- --test-threads=1 || true
+#         
+#         # Check for crash logs
+#         find crash_logs test_crash_logs -name "*.log" -type f | head -10
+#         
+#     - name: Generate crash analysis report
+#       if: always()
+#       run: |
+#         # Generate comprehensive crash analysis
+#         cargo run --bin sigsegv-debug-test -- ci || true
+#         
+#         # List generated artifacts
+#         find test_ci_output integration_test_output -type f 2>/dev/null || true
+#         
+#     - name: Upload crash artifacts (macOS)
+#       if: always()
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: macos-crash-artifacts
+#         path: |
+#           crash_logs/
+#           test_crash_logs/
+#           test_ci_output/
+#           integration_test_output/
+#         retention-days: 30
+#         
+#   sigsegv-debug-linux:
+#     name: SIGSEGV Debug (Linux x86_64)
+#     runs-on: ubuntu-latest
+#     
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+#       
+#     - name: Install system dependencies
+#       run: |
+#         sudo apt-get update
+#         sudo apt-get install -y build-essential gdb valgrind
+#         
+#     - name: Install Rust toolchain
+#       uses: actions-rust-lang/setup-rust-toolchain@v1
+#       with:
+#         toolchain: 1.82.0
+#         components: clippy, rustfmt
+#         
+#     - name: Cache dependencies
+#       uses: actions/cache@v4
+#       with:
+#         path: |
+#           ~/.cargo/registry
+#           ~/.cargo/git
+#           target
+#         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+#         
+#     - name: Enable core dumps
+#       run: |
+#         ulimit -c unlimited
+#         echo '/tmp/core.%p.%t' | sudo tee /proc/sys/kernel/core_pattern
+#         
+#     - name: Build with debug symbols and AddressSanitizer
+#       run: |
+#         export RUSTFLAGS="-Z sanitizer=address"
+#         cargo build --all-features --bin sigsegv-debug-test -Z build-std --target x86_64-unknown-linux-gnu || \
+#         cargo build --all-features --bin sigsegv-debug-test
+#         
+#     - name: Initialize SIGSEGV debugging
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- init
+#         
+#     - name: Test platform detection
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- platform
+#         
+#     - name: Test memory tracking
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- memory
+#         
+#     - name: Test safe harness
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- harness
+#         
+#     - name: Test crash analyzer
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- analyzer
+#         
+#     - name: Test CI reporter
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- ci
+#         
+#     - name: Run full integration test
+#       run: |
+#         cargo run --bin sigsegv-debug-test -- integration
+#         
+#     - name: Run Lambdust tests with crash monitoring (Valgrind)
+#       run: |
+#         # Initialize crash monitoring
+#         mkdir -p crash_logs test_crash_logs
+#         
+#         # Run tests with Valgrind for memory error detection
+#         timeout 600 valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all \
+#           --track-origins=yes --verbose --log-file=valgrind_output.log \
+#           cargo test --all-features -- --test-threads=1 || true
+#           
+#         # Check Valgrind output for issues
+#         if [ -f valgrind_output.log ]; then
+#           echo "=== Valgrind Results ==="
+#           cat valgrind_output.log
+#         fi
+#         
+#         # Check for crash logs and core dumps
+#         find crash_logs test_crash_logs /tmp -name "*.log" -o -name "core.*" -type f | head -20
+#         
+#     - name: Generate crash analysis report
+#       if: always()
+#       run: |
+#         # Generate comprehensive crash analysis
+#         cargo run --bin sigsegv-debug-test -- ci || true
+#         
+#         # List generated artifacts
+#         find test_ci_output integration_test_output -type f 2>/dev/null || true
+#         
+#     - name: Upload crash artifacts (Linux)
+#       if: always()
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: linux-crash-artifacts
+#         path: |
+#           crash_logs/
+#           test_crash_logs/
+#           test_ci_output/
+#           integration_test_output/
+#           valgrind_output.log
+#           /tmp/core.*
+#         retention-days: 30
+#         
+#   cross-platform-analysis:
+#     name: Cross-Platform Crash Analysis
+#     needs: [sigsegv-debug-macos, sigsegv-debug-linux]
+#     runs-on: ubuntu-latest
+#     if: always()
+#     
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+#       
+#     - name: Download macOS artifacts
+#       uses: actions/download-artifact@v4
+#       with:
+#         name: macos-crash-artifacts
+#         path: macos-artifacts/
+#       continue-on-error: true
+#         
+#     - name: Download Linux artifacts  
+#       uses: actions/download-artifact@v4
+#       with:
+#         name: linux-crash-artifacts
+#         path: linux-artifacts/
+#       continue-on-error: true
+#         
+#     - name: Install Rust toolchain
+#       uses: actions-rust-lang/setup-rust-toolchain@v1
+#       with:
+#         toolchain: 1.82.0
+#         
+#     - name: Build analysis tools
+#       run: |
+#         cargo build --all-features --bin sigsegv-debug-test
+#         
+#     - name: Analyze cross-platform differences
+#       run: |
+#         echo "=== Cross-Platform Crash Analysis ==="
+#         
+#         # Count crashes by platform
+#         MACOS_CRASHES=$(find macos-artifacts -name "*.log" 2>/dev/null | wc -l || echo 0)
+#         LINUX_CRASHES=$(find linux-artifacts -name "*.log" 2>/dev/null | wc -l || echo 0)
+#         
+#         echo "macOS crashes: $MACOS_CRASHES"
+#         echo "Linux crashes: $LINUX_CRASHES"
+#         
+#         # Analyze differences
+#         if [ $MACOS_CRASHES -ne $LINUX_CRASHES ]; then
+#           echo "⚠️ Platform-specific crash differences detected!"
+#           echo "This indicates potential platform-specific memory safety issues."
+#         else
+#           echo "✅ Consistent behavior across platforms"
+#         fi
+#         
+#         # Show artifact summaries
+#         echo ""
+#         echo "=== macOS Artifacts ==="
+#         find macos-artifacts -type f -exec ls -la {} \; 2>/dev/null | head -20 || echo "No macOS artifacts"
+#         
+#         echo ""
+#         echo "=== Linux Artifacts ==="
+#         find linux-artifacts -type f -exec ls -la {} \; 2>/dev/null | head -20 || echo "No Linux artifacts"
+#         
+#     - name: Generate final report
+#       run: |
+#         mkdir -p final_report
+#         
+#         # Create comprehensive analysis
+#         cat > final_report/cross_platform_analysis.md << 'EOF'
+#         # Cross-Platform SIGSEGV Analysis Report
+#         
+#         ## Summary
+#         
+#         This report analyzes SIGSEGV and memory safety issues across different platforms:
+#         - macOS Apple Silicon (ARM64)
+#         - Linux x86_64 (GitHub Actions)
+#         
+#         ## Platform Differences
+#         
+#         Key areas of investigation:
+#         1. **Memory Alignment**: ARM64 vs x86_64 alignment requirements
+#         2. **SIMD Instructions**: Different instruction sets and capabilities  
+#         3. **Memory Management**: Platform-specific memory layouts
+#         4. **Unsafe Code**: Platform-dependent behavior in unsafe blocks
+#         
+#         ## Identified Issues
+#         
+#         (Analysis results would be populated here by the actual crash data)
+#         
+#         ## Recommendations
+#         
+#         1. Add platform-specific conditional compilation
+#         2. Implement runtime CPU feature detection
+#         3. Add comprehensive memory alignment checks
+#         4. Use AddressSanitizer in CI for Linux builds
+#         5. Regular cross-platform testing with the debug harness
+#         
+#         EOF
+#         
+#     - name: Upload final analysis
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: cross-platform-analysis
+#         path: final_report/
+#         retention-days: 60
+#         
+#   crash-simulation-test:
+#     name: Controlled Crash Simulation
+#     runs-on: ubuntu-latest
+#     if: github.event.inputs.debug_level == 'crash-simulation'
+#     
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+#       
+#     - name: Install Rust toolchain
+#       uses: actions-rust-lang/setup-rust-toolchain@v1
+#       with:
+#         toolchain: 1.82.0
+#         
+#     - name: Build debug test binary
+#       run: |
+#         cargo build --all-features --bin sigsegv-debug-test
+#         
+#     - name: Run controlled crash simulation
+#       run: |
+#         echo "⚠️ Running controlled crash simulation for testing"
+#         echo "This should be caught by our signal handler and generate crash logs"
+#         
+#         # This will intentionally crash to test our debugging system
+#         timeout 30 cargo run --bin sigsegv-debug-test -- crash || true
+#         
+#         # Check that crash was captured
+#         if [ -d crash_logs ]; then
+#           echo "✅ Crash logs generated:"
+#           find crash_logs -name "*.log" -exec ls -la {} \;
+#           echo "✅ Signal handler working correctly"
+#         else
+#           echo "❌ No crash logs found - signal handler may not be working"
+#         fi
+#         
+#     - name: Upload crash simulation results
+#       if: always()
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: crash-simulation-results
+#         path: |
+#           crash_logs/
+#           test_crash_logs/
+#         retention-days: 7

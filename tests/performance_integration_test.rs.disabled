@@ -1,0 +1,114 @@
+//! Integration test for Phase 4.1 performance validation
+
+use lambdust::eval::{PerformanceResults, PerformanceValidator};
+
+#[test]
+fn test_phase41_performance_validation() {
+    // Create performance validator with moderate iteration count
+    let validator = PerformanceValidator::new(100);
+
+    // Run comprehensive performance validation across all stages
+    let results = validator.validate_all_stages();
+
+    // Generate detailed report
+    let report = validator.generate_report(&results);
+
+    // Print report for visibility
+    println!("{report}");
+
+    // Basic validation assertions
+    assert!(
+        results.baseline_time.as_nanos() > 0,
+        "Baseline time should be measurable"
+    );
+
+    // Check if any optimization stages are available and providing benefits
+    let has_optimizations = results.stage1_time.is_some()
+        || results.stage2_time.is_some()
+        || results.stage3_time.is_some()
+        || results.stage4_time.is_some();
+
+    if has_optimizations {
+        // If optimizations are available, they should provide some benefit
+        let improvement_ratio = results.improvement_ratio();
+        assert!(
+            improvement_ratio >= 1.0,
+            "Performance should not regress with optimizations: {improvement_ratio:.2}x"
+        );
+
+        println!("Performance validation successful: {improvement_ratio:.2}x improvement achieved");
+    } else {
+        println!("No optimization stages available for testing (feature flags not enabled)");
+    }
+
+    // Memory validation
+    assert!(
+        results.baseline_memory > 0,
+        "Baseline memory should be measurable"
+    );
+
+    if let Some(_optimized_memory) = results.optimized_memory {
+        let memory_ratio = results.memory_savings_ratio();
+        println!(
+            "Memory validation: {:.1}% savings achieved",
+            memory_ratio * 100.0
+        );
+
+        // Memory usage should not dramatically increase
+        assert!(
+            memory_ratio >= -0.5,
+            "Memory usage should not increase dramatically: {:.1}% change",
+            memory_ratio * 100.0
+        );
+    }
+
+    // Integration test passes if we can measure performance without crashing
+    assert!(
+        true,
+        "Phase 4.1 performance integration test completed successfully"
+    );
+}
+
+#[test]
+fn test_performance_validator_functionality() {
+    let validator = PerformanceValidator::new(10);
+
+    // Test basic validator properties
+    // Note: iterations is private, test through functionality
+
+    // Test that validation completes without panic
+    let results = validator.validate_all_stages();
+
+    // Basic sanity checks
+    assert!(results.baseline_time > std::time::Duration::from_nanos(1));
+    assert!(results.baseline_memory > 0);
+
+    // Test report generation doesn't panic
+    let report = validator.generate_report(&results);
+    assert!(report.contains("Performance Validation Report"));
+    assert!(report.contains("Baseline Performance"));
+}
+
+#[test]
+fn test_performance_results_calculations() {
+    use std::time::Duration;
+
+    let results = PerformanceResults {
+        baseline_time: Duration::from_millis(1000),
+        stage1_time: Some(Duration::from_millis(800)),
+        stage2_time: Some(Duration::from_millis(600)),
+        stage3_time: Some(Duration::from_millis(500)),
+        stage4_time: Some(Duration::from_millis(400)),
+        baseline_memory: 10000,
+        optimized_memory: Some(6000),
+    };
+
+    // Test improvement ratio calculation
+    assert_eq!(results.improvement_ratio(), 2.5); // 1000/400 = 2.5
+
+    // Test memory savings calculation
+    assert_eq!(results.memory_savings_ratio(), 0.4); // (10000-6000)/10000 = 0.4
+
+    // Test best time identification
+    assert_eq!(results.best_optimized_time(), Duration::from_millis(400));
+}

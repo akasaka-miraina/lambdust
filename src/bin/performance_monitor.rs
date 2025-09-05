@@ -4,14 +4,14 @@
 //! for Lambdust, including memory usage tracking, execution profiling, and
 //! performance regression detection.
 
-use lambdust::benchmarks::{PerformanceTester, SchemeBenchmarkSuite, PerformanceTestConfig};
-use lambdust::cli::{LightweightCli, ArgDef, ArgType, CliError};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use lambdust::benchmarks::{AnalysisConfig, PerformanceAnalyzer, SchemeBenchmarkSuite};
+use lambdust::cli::{ArgDef, ArgType, CliError, LightweightCli};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use serde::{Serialize, Deserialize};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Point-in-time performance measurement snapshot.
-/// 
+///
 /// Captures comprehensive performance data including system state,
 /// metrics, memory usage, and execution profile at a specific moment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,7 +29,7 @@ pub struct PerformanceSnapshot {
 }
 
 /// System hardware and runtime environment information.
-/// 
+///
 /// Provides context about the execution environment that may
 /// influence performance measurements and analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +45,7 @@ pub struct SystemInfo {
 }
 
 /// Core performance metrics for different operation categories.
-/// 
+///
 /// Measures throughput and efficiency across key performance
 /// dimensions including arithmetic, memory, and function calls.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +63,7 @@ pub struct PerformanceMetrics {
 }
 
 /// Memory usage statistics and garbage collection metrics.
-/// 
+///
 /// Tracks memory consumption patterns, allocation behavior,
 /// and garbage collection impact on performance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,7 +79,7 @@ pub struct MemoryUsage {
 }
 
 /// Execution profiling results with hotspots and bottlenecks.
-/// 
+///
 /// Identifies performance-critical functions, execution bottlenecks,
 /// and optimization opportunities through runtime profiling.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,7 +93,7 @@ pub struct ExecutionProfile {
 }
 
 /// Performance statistics for frequently executed functions.
-/// 
+///
 /// Tracks call frequency and timing information for functions
 /// that contribute significantly to overall execution time.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,7 +109,7 @@ pub struct HotFunction {
 }
 
 /// Historical performance trend analysis for a specific metric.
-/// 
+///
 /// Tracks metric evolution over time with trend detection
 /// and regression identification capabilities.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,7 +117,7 @@ pub struct PerformanceTrend {
     /// Name of the performance metric
     pub metric_name: String,
     /// Historical snapshots (timestamp, value)
-    pub snapshots: Vec<(u64, f64)>,  // timestamp, value
+    pub snapshots: Vec<(u64, f64)>, // timestamp, value
     /// Overall trend direction
     pub trend_direction: TrendDirection,
     /// Whether performance regression was detected
@@ -127,7 +127,7 @@ pub struct PerformanceTrend {
 }
 
 /// Classification of performance trend directions.
-/// 
+///
 /// Categorizes the overall direction of performance changes
 /// for trend analysis and regression detection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,15 +143,15 @@ pub enum TrendDirection {
 }
 
 /// Real-time performance monitoring and analysis system.
-/// 
+///
 /// Provides continuous performance monitoring with historical
 /// tracking, trend analysis, and regression detection.
 pub struct PerformanceMonitor {
     /// Historical performance snapshots
     snapshot_history: Vec<PerformanceSnapshot>,
-    /// Performance testing utility
+    /// Performance analysis utility
     #[allow(dead_code)]
-    performance_tester: PerformanceTester,
+    performance_analyzer: PerformanceAnalyzer,
     /// Benchmark suite for performance testing
     #[allow(dead_code)]
     benchmark_suite: SchemeBenchmarkSuite,
@@ -160,7 +160,7 @@ pub struct PerformanceMonitor {
 }
 
 /// Configuration parameters for performance monitoring system.
-/// 
+///
 /// Controls monitoring behavior including snapshot frequency,
 /// data retention, alerting thresholds, and output settings.
 #[derive(Debug, Clone)]
@@ -182,7 +182,7 @@ impl PerformanceMonitor {
     pub fn new(config: MonitoringConfig) -> Self {
         Self {
             snapshot_history: Vec::new(),
-            performance_tester: PerformanceTester::new(PerformanceTestConfig::default()),
+            performance_analyzer: PerformanceAnalyzer::new(AnalysisConfig::default()),
             benchmark_suite: SchemeBenchmarkSuite::new(),
             monitoring_config: config,
         }
@@ -231,24 +231,43 @@ impl PerformanceMonitor {
     fn collect_performance_metrics(&mut self) -> PerformanceMetrics {
         println!("  🔢 Collecting performance metrics...");
 
-        // Run quick micro-benchmarks
-        let test_config = lambdust::benchmarks::PerformanceTestConfig {
-            micro_bench_iterations: 1000,
-            macro_bench_iterations: 100,
-            test_duration: Duration::from_millis(500),
-            warmup_duration: Duration::from_millis(100),
-            ..Default::default()
-        };
+        // Run performance analysis
+        let analysis = self.performance_analyzer.analyze();
 
-        let tester = lambdust::benchmarks::PerformanceTester::new(test_config);
-        let results = tester.run_comprehensive_tests();
+        // Extract relevant metrics from the analysis
+        let arithmetic_ops_per_sec = analysis
+            .category_analysis
+            .get(&lambdust::benchmarks::AnalysisCategory::Arithmetic)
+            .map(|a| a.ops_per_second)
+            .unwrap_or(1_000_000.0); // Default fallback
+
+        let list_ops_per_sec = analysis
+            .category_analysis
+            .get(&lambdust::benchmarks::AnalysisCategory::ListOperations)
+            .map(|a| a.ops_per_second)
+            .unwrap_or(500_000.0); // Default fallback
+
+        let memory_allocation_ops_per_sec = analysis
+            .category_analysis
+            .get(&lambdust::benchmarks::AnalysisCategory::MemoryAllocation)
+            .map(|a| a.ops_per_second)
+            .unwrap_or(100_000.0); // Default fallback
+
+        let function_call_overhead_ns = analysis
+            .category_analysis
+            .get(&lambdust::benchmarks::AnalysisCategory::EnvironmentAccess)
+            .map(|a| a.avg_operation_time_ns as f64)
+            .unwrap_or(50.0); // Default fallback
+
+        // Calculate GC frequency based on memory analysis
+        let gc_collections_per_sec = analysis.memory_analysis.gc_frequency;
 
         PerformanceMetrics {
-            arithmetic_ops_per_sec: results.micro_benchmark_results.arithmetic_ops_per_sec,
-            list_ops_per_sec: results.micro_benchmark_results.list_ops_per_sec,
-            memory_allocation_ops_per_sec: results.macro_benchmark_results.allocation_ops_per_sec,
-            function_call_overhead_ns: 1_000_000.0 / results.micro_benchmark_results.env_lookup_ops_per_sec * 1000.0,
-            gc_collections_per_sec: 0.0, // Would need actual GC metrics
+            arithmetic_ops_per_sec,
+            list_ops_per_sec,
+            memory_allocation_ops_per_sec,
+            function_call_overhead_ns,
+            gc_collections_per_sec,
         }
     }
 
@@ -310,34 +329,32 @@ impl PerformanceMonitor {
         }
 
         // Analyze arithmetic performance trend
-        let arithmetic_values: Vec<_> = self.snapshot_history.iter()
+        let arithmetic_values: Vec<_> = self
+            .snapshot_history
+            .iter()
             .map(|s| (s.timestamp, s.performance_metrics.arithmetic_ops_per_sec))
             .collect();
 
-        trends.push(self.calculate_trend(
-            "Arithmetic Operations/sec".to_string(),
-            arithmetic_values,
-        ));
+        trends
+            .push(self.calculate_trend("Arithmetic Operations/sec".to_string(), arithmetic_values));
 
         // Analyze memory usage trend
-        let memory_values: Vec<_> = self.snapshot_history.iter()
+        let memory_values: Vec<_> = self
+            .snapshot_history
+            .iter()
             .map(|s| (s.timestamp, s.memory_usage.heap_size_mb))
             .collect();
 
-        trends.push(self.calculate_trend(
-            "Heap Size (MB)".to_string(),
-            memory_values,
-        ));
+        trends.push(self.calculate_trend("Heap Size (MB)".to_string(), memory_values));
 
         // Analyze list operations trend
-        let list_values: Vec<_> = self.snapshot_history.iter()
+        let list_values: Vec<_> = self
+            .snapshot_history
+            .iter()
             .map(|s| (s.timestamp, s.performance_metrics.list_ops_per_sec))
             .collect();
 
-        trends.push(self.calculate_trend(
-            "List Operations/sec".to_string(),
-            list_values,
-        ));
+        trends.push(self.calculate_trend("List Operations/sec".to_string(), list_values));
 
         trends
     }
@@ -367,7 +384,9 @@ impl PerformanceMonitor {
         };
 
         let regression_detected = match trend_direction {
-            TrendDirection::Degrading => percentage_change.abs() > self.monitoring_config.regression_threshold,
+            TrendDirection::Degrading => {
+                percentage_change.abs() > self.monitoring_config.regression_threshold
+            }
             _ => false,
         };
 
@@ -407,14 +426,22 @@ impl PerformanceMonitor {
         if let Some(latest) = self.snapshot_history.last() {
             report.push_str("📊 Latest Performance Snapshot:\n");
             report.push_str(&format!("  • Timestamp: {}\n", latest.timestamp));
-            report.push_str(&format!("  • Arithmetic Operations: {:.0} ops/sec\n", 
-                latest.performance_metrics.arithmetic_ops_per_sec));
-            report.push_str(&format!("  • List Operations: {:.0} ops/sec\n", 
-                latest.performance_metrics.list_ops_per_sec));
-            report.push_str(&format!("  • Memory Usage: {:.1} MB\n", 
-                latest.memory_usage.heap_size_mb));
-            report.push_str(&format!("  • GC Pressure: {:.2}\n", 
-                latest.memory_usage.gc_pressure));
+            report.push_str(&format!(
+                "  • Arithmetic Operations: {:.0} ops/sec\n",
+                latest.performance_metrics.arithmetic_ops_per_sec
+            ));
+            report.push_str(&format!(
+                "  • List Operations: {:.0} ops/sec\n",
+                latest.performance_metrics.list_ops_per_sec
+            ));
+            report.push_str(&format!(
+                "  • Memory Usage: {:.1} MB\n",
+                latest.memory_usage.heap_size_mb
+            ));
+            report.push_str(&format!(
+                "  • GC Pressure: {:.2}\n",
+                latest.memory_usage.gc_pressure
+            ));
             report.push('\n');
         }
 
@@ -430,8 +457,10 @@ impl PerformanceMonitor {
                     TrendDirection::Unknown => "❓",
                 };
 
-                report.push_str(&format!("  {} {}: {:.1}% change\n",
-                    trend_symbol, trend.metric_name, trend.improvement_percentage));
+                report.push_str(&format!(
+                    "  {} {}: {:.1}% change\n",
+                    trend_symbol, trend.metric_name, trend.improvement_percentage
+                ));
 
                 if trend.regression_detected {
                     report.push_str("    ⚠️  REGRESSION DETECTED!\n");
@@ -453,10 +482,19 @@ impl PerformanceMonitor {
         // System information
         if let Some(latest) = self.snapshot_history.last() {
             report.push_str("💻 System Information:\n");
-            report.push_str(&format!("  • CPU Cores: {}\n", latest.system_info.cpu_cores));
-            report.push_str(&format!("  • Memory: {} MB\n", latest.system_info.memory_total_mb));
+            report.push_str(&format!(
+                "  • CPU Cores: {}\n",
+                latest.system_info.cpu_cores
+            ));
+            report.push_str(&format!(
+                "  • Memory: {} MB\n",
+                latest.system_info.memory_total_mb
+            ));
             report.push_str(&format!("  • Platform: {}\n", latest.system_info.platform));
-            report.push_str(&format!("  • Load Average: {:.2}\n", latest.system_info.load_average));
+            report.push_str(&format!(
+                "  • Load Average: {:.2}\n",
+                latest.system_info.load_average
+            ));
             report.push('\n');
         }
 
@@ -493,9 +531,11 @@ impl PerformanceMonitor {
         let cutoff_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() - retention_seconds;
+            .as_secs()
+            - retention_seconds;
 
-        self.snapshot_history.retain(|snapshot| snapshot.timestamp >= cutoff_time);
+        self.snapshot_history
+            .retain(|snapshot| snapshot.timestamp >= cutoff_time);
     }
 
     // Helper methods for system metrics (simplified implementations)
@@ -646,24 +686,32 @@ fn main() {
         }
     };
 
-    let interval_secs: u64 = parsed_args.values.get("interval")
+    let interval_secs: u64 = parsed_args
+        .values
+        .get("interval")
         .unwrap_or(&"60".to_string())
         .parse()
         .expect("Invalid interval value");
 
-    let retention_days: u32 = parsed_args.values.get("retention")
+    let retention_days: u32 = parsed_args
+        .values
+        .get("retention")
         .unwrap_or(&"30".to_string())
         .parse()
         .expect("Invalid retention value");
 
-    let threshold: f64 = parsed_args.values.get("threshold")
+    let threshold: f64 = parsed_args
+        .values
+        .get("threshold")
         .unwrap_or(&"10.0".to_string())
         .parse()
         .expect("Invalid threshold value");
 
     let output_file = PathBuf::from(
-        parsed_args.values.get("output")
-            .unwrap_or(&"performance_monitoring.json".to_string())
+        parsed_args
+            .values
+            .get("output")
+            .unwrap_or(&"performance_monitoring.json".to_string()),
     );
 
     let config = MonitoringConfig {
@@ -691,7 +739,7 @@ fn main() {
         // Single snapshot mode
         let _snapshot = monitor.take_snapshot();
         println!("{}", monitor.generate_monitoring_report());
-        
+
         if let Err(e) = monitor.save_monitoring_data() {
             eprintln!("⚠️  Failed to save monitoring data: {e}");
         } else {

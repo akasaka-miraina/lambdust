@@ -6,7 +6,7 @@ use crate::diagnostics::{Result, Spanned};
 
 impl Parser {
     /// Parses a number literal with comprehensive error handling.
-    /// 
+    ///
     /// Supports all R7RS number formats:
     /// - Integers: 42, -17, +123
     /// - Reals: 3.14, -2.5, 1e10
@@ -15,8 +15,8 @@ impl Parser {
     pub fn parse_number(&mut self) -> Result<Spanned<Expr>> {
         let token = self.current_token();
         let span = token.span;
-        let text = &token.text;
-        
+        let text = &token.text();
+
         // Use the token's built-in number parsing capability with enhanced error handling
         let parsed_number = token.parse_number().ok_or_else(|| {
             // Provide more specific error messages based on the token content
@@ -35,20 +35,21 @@ impl Parser {
             } else {
                 format!("Invalid number format: {text}")
             };
-            
+
             crate::diagnostics::Error::parse_error(error_msg, span)
         })?;
-        
+
         self.advance();
-        
+
         let literal = match parsed_number {
             crate::lexer::NumericValue::Integer(i) => {
                 // Check for integer overflow in extreme cases
-                if i == i64::MIN { // Handle the special case where abs() would overflow
+                if i == i64::MIN {
+                    // Handle the special case where abs() would overflow
                     return Err(Box::new(crate::diagnostics::Error::parse_error(
-                        "Integer too large", 
-                        span
-                    )))
+                        "Integer too large",
+                        span,
+                    )));
                 }
                 // Integer literals are exact integers in R7RS
                 Literal::integer(i)
@@ -67,9 +68,9 @@ impl Parser {
                 // Validate rational number
                 if rat.denominator == 0 {
                     return Err(Box::new(crate::diagnostics::Error::parse_error(
-                        "Division by zero in rational number", 
-                        span
-                    )))
+                        "Division by zero in rational number",
+                        span,
+                    )));
                 }
                 Literal::rational(rat.numerator, rat.denominator as i64)
             }
@@ -77,35 +78,35 @@ impl Parser {
                 // Validate complex number components
                 if complex.real.is_nan() || complex.imag.is_nan() {
                     return Err(Box::new(crate::diagnostics::Error::parse_error(
-                        "NaN components not allowed in complex numbers", 
-                        span
-                    )))
+                        "NaN components not allowed in complex numbers",
+                        span,
+                    )));
                 }
                 if complex.real.is_infinite() || complex.imag.is_infinite() {
                     return Err(Box::new(crate::diagnostics::Error::parse_error(
-                        "Infinite components not allowed in complex numbers", 
-                        span
-                    )))
+                        "Infinite components not allowed in complex numbers",
+                        span,
+                    )));
                 }
                 Literal::complex(complex.real, complex.imag)
             }
         };
-        
+
         Ok(Spanned::new(Expr::Literal(literal), span))
     }
 
     /// Parses a string literal with comprehensive escape sequence handling.
-    /// 
+    ///
     /// Supports all R7RS string escape sequences:
     /// - \a (alarm), \b (backspace), \t (tab), \n (newline), \r (return)
     /// - \" (quote), \\ (backslash), \| (vertical bar)
-    /// - \x<hex>; (Unicode escape)
-    /// - \<octal> (octal escape)
+    /// - \xHEX; (Unicode escape)
+    /// - \OCTAL (octal escape)
     pub fn parse_string(&mut self) -> Result<Spanned<Expr>> {
         let token = self.current_token();
         let span = token.span;
-        let text = &token.text;
-        
+        let text = &token.text();
+
         // Enhanced string parsing with better error messages
         let content = token.parse_string().map_err(|e| {
             // Provide more specific error messages
@@ -118,29 +119,29 @@ impl Parser {
             } else {
                 "Invalid string literal"
             };
-            
-            crate::diagnostics::Error::parse_error(
-                format!("{error_msg}: {e}"), 
-                span
-            )
+
+            crate::diagnostics::Error::parse_error(format!("{error_msg}: {e}"), span)
         })?;
-        
+
         self.advance();
-        
-        Ok(Spanned::new(Expr::Literal(Literal::String(content)), span))
+
+        Ok(Spanned::new(
+            Expr::Literal(Literal::String(Box::new(content))),
+            span,
+        ))
     }
 
     /// Parses a character literal.
-    /// 
+    ///
     /// Supports all R7RS character formats:
     /// - Named characters: #\space, #\newline, #\tab, etc.
-    /// - Unicode escapes: #\x<hex>
+    /// - Unicode escapes: #\xHEX
     /// - Single characters: #\a, #\A, #\1, etc.
     pub fn parse_character(&mut self) -> Result<Spanned<Expr>> {
         let token = self.current_token();
         let span = token.span;
-        let text = &token.text;
-        
+        let text = &token.text();
+
         // Enhanced character parsing with better error messages
         let ch = token.parse_character().map_err(|e| {
             let error_msg = if !text.starts_with("#\\") {
@@ -152,30 +153,27 @@ impl Parser {
             } else {
                 "Invalid character literal"
             };
-            
-            crate::diagnostics::Error::parse_error(
-                format!("{error_msg}: {e}"), 
-                span
-            )
+
+            crate::diagnostics::Error::parse_error(format!("{error_msg}: {e}"), span)
         })?;
-        
+
         self.advance();
-        
+
         Ok(Spanned::new(Expr::Literal(Literal::Character(ch)), span))
     }
 
     /// Parses a boolean literal.
-    /// 
+    ///
     /// Supports both short and long forms:
     /// - #t, #f (short form)
     /// - #true, #false (long form)
     pub fn parse_boolean(&mut self) -> Result<Spanned<Expr>> {
         let token = self.current_token();
         let span = token.span;
-        let text = token.text.clone();
-        
+        let text = token.text().to_string();
+
         self.advance();
-        
+
         let value = match text.as_str() {
             "#t" | "#true" => true,
             "#f" | "#false" => false,
@@ -183,36 +181,36 @@ impl Parser {
                 return Err(Box::new(crate::diagnostics::Error::parse_error(
                     format!(
                         "Invalid boolean literal '{text}'. Use #t/#true for true or #f/#false for false"
-                    ), 
-                    span
-                )))
+                    ),
+                    span,
+                )));
             }
         };
-        
+
         Ok(Spanned::new(Expr::Literal(Literal::Boolean(value)), span))
     }
-    
+
     /// Parses any literal value with appropriate error handling.
-    /// 
+    ///
     /// This is a convenience method that dispatches to the appropriate
     /// specific literal parsing method based on the token type.
     pub fn parse_any_literal(&mut self) -> Result<Spanned<Expr>> {
-        let token_kind = self.current_token().kind.clone();
-        
+        let token_kind = self.current_token().kind;
+
         match token_kind {
-            crate::lexer::TokenKind::IntegerNumber | 
-            crate::lexer::TokenKind::RealNumber | 
-            crate::lexer::TokenKind::RationalNumber | 
-            crate::lexer::TokenKind::ComplexNumber => self.parse_number(),
-            
+            crate::lexer::TokenKind::IntegerNumber
+            | crate::lexer::TokenKind::RealNumber
+            | crate::lexer::TokenKind::RationalNumber
+            | crate::lexer::TokenKind::ComplexNumber => self.parse_number(),
+
             crate::lexer::TokenKind::String => self.parse_string(),
             crate::lexer::TokenKind::Character => self.parse_character(),
             crate::lexer::TokenKind::Boolean => self.parse_boolean(),
-            
+
             _ => Err(Box::new(crate::diagnostics::Error::parse_error(
                 format!("Expected literal, found {}", self.current_token_text()),
                 self.current_span(),
-            )))
+            ))),
         }
     }
 }

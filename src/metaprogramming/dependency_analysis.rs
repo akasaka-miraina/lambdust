@@ -1,8 +1,8 @@
 //! Dependency analysis components for program structure analysis.
 
+use super::analysis_types::{DefinitionType, DependencyType};
 use crate::ast::Program;
 use crate::diagnostics::{Result, Span};
-use super::analysis_types::{DefinitionType, DependencyType};
 use std::collections::{HashMap, HashSet};
 
 /// Dependency graph representing relationships between definitions.
@@ -74,7 +74,13 @@ impl DependencyGraph {
     }
 
     /// Adds a dependency edge to the graph.
-    pub fn add_dependency(&mut self, from: String, to: String, dep_type: DependencyType, location: Option<Span>) {
+    pub fn add_dependency(
+        &mut self,
+        from: String,
+        to: String,
+        dep_type: DependencyType,
+        location: Option<Span>,
+    ) {
         // Add edge
         self.edges.push(DependencyEdge {
             from: from.clone(),
@@ -102,9 +108,7 @@ impl Default for DependencyGraph {
 impl DependencyAnalyzer {
     /// Creates a new dependency analyzer.
     pub fn new() -> Self {
-        Self {
-            _internal: (),
-        }
+        Self { _internal: () }
     }
 
     /// Analyzes dependencies in a program.

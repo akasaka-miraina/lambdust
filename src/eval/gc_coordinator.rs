@@ -4,14 +4,16 @@
 //! and the evaluator, ensuring that all runtime objects are properly managed
 //! while maintaining transparent R7RS semantics.
 
-use crate::utils::{GcIntegration, GcIntegrationConfig, GcEnvironment, scan_value_for_gc_integration};
-use crate::utils::gc::{gc_collect, gc_stats, gc_debug_info, GcStats, GcDebugInfo};
-use crate::eval::{Value, ThreadSafeEnvironment, Evaluator, Continuation, StackTrace};
 use crate::diagnostics::{Error, Result, Span};
-use std::sync::{Arc, RwLock, Mutex};
+use crate::eval::{Continuation, Evaluator, StackTrace, ThreadSafeEnvironment, Value};
+use crate::utils::gc::{GcDebugInfo, GcStats, gc_collect, gc_debug_info, gc_stats};
+use crate::utils::{
+    GcEnvironment, GcIntegration, GcIntegrationConfig, scan_value_for_gc_integration,
+};
 use std::collections::HashMap;
-use std::time::{Instant, Duration};
-use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
 
 /// Coordinator that manages GC integration with the evaluation engine.
 /// This provides the main interface for GC-aware evaluation.
@@ -75,18 +77,18 @@ pub enum GlobalRoot {
     /// Important value that must be preserved
     Value(Value),
     /// Standard library binding
-    StdlibBinding { 
+    StdlibBinding {
         /// Name of the standard library binding
-        name: String, 
+        name: String,
         /// Value associated with the binding
-        value: Value 
+        value: Value,
     },
     /// Module system root
-    ModuleRoot { 
+    ModuleRoot {
         /// Unique identifier for the module
-        module_id: String, 
+        module_id: String,
         /// Module's environment containing bindings
-        environment: Arc<ThreadSafeEnvironment> 
+        environment: Arc<ThreadSafeEnvironment>,
     },
 }
 
@@ -148,7 +150,7 @@ impl GcCoordinator {
     /// Starts a new evaluation session with GC tracking.
     pub fn start_session(&self, initial_environment: Arc<ThreadSafeEnvironment>) -> SessionId {
         let session_id = SessionId(self.next_session_id.fetch_add(1, Ordering::SeqCst));
-        
+
         let session = EvaluationSession {
             id: session_id,
             environment_stack: vec![initial_environment.clone()],
@@ -160,9 +162,8 @@ impl GcCoordinator {
 
         // Register the initial environment as a root if auto-detection is enabled
         if self.config.auto_root_detection {
-            self.integration.register_continuation_root(
-                crate::utils::gc::ObjectId::new(session_id.0)
-            );
+            self.integration
+                .register_continuation_root(crate::utils::gc::ObjectId::new(session_id.0));
         }
 
         if let Ok(mut sessions) = self.active_sessions.write() {
@@ -177,12 +178,13 @@ impl GcCoordinator {
         if let Ok(mut sessions) = self.active_sessions.write() {
             if let Some(session) = sessions.remove(&session_id) {
                 session.active.store(false, Ordering::SeqCst);
-                
+
                 // Unregister from GC if auto-detection was used
                 if self.config.auto_root_detection {
-                    self.integration.unregister_continuation_root(
-                        crate::utils::gc::ObjectId::new(session_id.0)
-                    );
+                    self.integration
+                        .unregister_continuation_root(crate::utils::gc::ObjectId::new(
+                            session_id.0,
+                        ));
                 }
             }
         }
@@ -239,8 +241,8 @@ impl GcCoordinator {
     pub fn comprehensive_root_scan(&self) -> ComprehensiveRootScanResult {
         let mut session_roots = Vec::new();
         let mut continuation_roots = Vec::new();
-        
-        if let Ok(sessions) = self.active_sessions.read() {
+
+        if let Ok(sessions) = self.active_sessions.try_read() {
             for session in sessions.values() {
                 if session.active.load(Ordering::SeqCst) {
                     // Scan environment stack
@@ -248,16 +250,14 @@ impl GcCoordinator {
                         let gc_env = GcEnvironment::new(env.clone());
                         session_roots.extend(gc_env.scan_for_gc_roots());
                     }
-                    
+
                     // Add continuation count
-                    continuation_roots.extend(
-                        session.continuations.iter().map(|c| c.id)
-                    );
+                    continuation_roots.extend(session.continuations.iter().map(|c| c.id));
                 }
             }
         }
 
-        let global_roots = if let Ok(roots) = self.global_roots.read() {
+        let global_roots = if let Ok(roots) = self.global_roots.try_read() {
             roots.clone()
         } else {
             Vec::new()
@@ -278,7 +278,7 @@ impl GcCoordinator {
         }
 
         // Check if enough time has passed since last collection
-        if let Ok(stats) = self.stats_collector.read() {
+        if let Ok(stats) = self.stats_collector.try_read() {
             if let Some(last_event) = stats.collection_history.last() {
                 let elapsed = last_event.timestamp.elapsed();
                 if elapsed.as_millis() < self.config.max_gc_interval_ms as u128 {
@@ -293,17 +293,17 @@ impl GcCoordinator {
     /// Forces garbage collection regardless of conditions.
     pub fn force_collect(&self) -> GcCollectionResult {
         let start_time = Instant::now();
-        
+
         // Perform comprehensive root scan
         let root_scan = self.comprehensive_root_scan();
-        
+
         // Trigger GC
         gc_collect();
-        
+
         // Collect statistics
         let gc_stats = gc_stats();
         let debug_info = gc_debug_info();
-        
+
         let collection_time = start_time.elapsed();
         let result = GcCollectionResult {
             collection_time,
@@ -325,8 +325,9 @@ impl GcCoordinator {
 
     /// Gets the number of currently active evaluation sessions.
     pub fn active_session_count(&self) -> usize {
-        if let Ok(sessions) = self.active_sessions.read() {
-            sessions.values()
+        if let Ok(sessions) = self.active_sessions.try_read() {
+            sessions
+                .values()
                 .filter(|s| s.active.load(Ordering::SeqCst))
                 .count()
         } else {
@@ -340,7 +341,7 @@ impl GcCoordinator {
             return None;
         }
 
-        if let Ok(collector) = self.stats_collector.read() {
+        if let Ok(collector) = self.stats_collector.try_read() {
             Some(collector.summarize())
         } else {
             None
@@ -356,8 +357,7 @@ impl GcCoordinator {
     pub fn debug_info(&self) -> GcCoordinatorDebugInfo {
         GcCoordinatorDebugInfo {
             active_sessions: self.active_session_count(),
-            global_roots: self.global_roots.read()
-                .map(|r| r.len()).unwrap_or(0),
+            global_roots: self.global_roots.try_read().map(|r| r.len()).unwrap_or(0),
             gc_debug_info: gc_debug_info(),
             statistics: self.get_statistics(),
         }
@@ -454,11 +454,9 @@ impl GcStatsCollector {
         self.collection_history.push(event);
         self.total_collections += 1;
         self.total_gc_time += result.collection_time;
-        
+
         // Update peak memory usage
-        self.peak_memory_usage = self.peak_memory_usage.max(
-            result.debug_info.total_memory
-        );
+        self.peak_memory_usage = self.peak_memory_usage.max(result.debug_info.total_memory);
 
         // Calculate new average
         self.average_collection_time = self.total_gc_time / self.total_collections.max(1) as u32;
@@ -471,7 +469,8 @@ impl GcStatsCollector {
 
     /// Creates a summary of statistics.
     pub fn summarize(&self) -> GcStatsSummary {
-        let recent_events = self.collection_history
+        let recent_events = self
+            .collection_history
             .iter()
             .rev()
             .take(10)
@@ -500,18 +499,17 @@ impl Default for GcCoordinatorConfig {
     }
 }
 
-
 /// Extension trait for Evaluator to support GC coordination.
 pub trait EvaluatorGcExt {
     /// Gets the GC coordinator for this evaluator.
     fn gc_coordinator(&self) -> Option<&GcCoordinator>;
-    
+
     /// Enables GC coordination for this evaluator.
     fn with_gc_coordination(&mut self, coordinator: GcCoordinator);
-    
+
     /// Starts a GC-tracked evaluation session.
     fn start_gc_session(&self, env: Arc<ThreadSafeEnvironment>) -> Option<SessionId>;
-    
+
     /// Ends a GC-tracked evaluation session.
     fn end_gc_session(&self, session_id: SessionId);
 }
@@ -534,10 +532,10 @@ mod tests {
     fn test_session_lifecycle() {
         let coordinator = GcCoordinator::with_default_config().unwrap();
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-        
+
         let session_id = coordinator.start_session(env.clone());
         assert_eq!(coordinator.active_session_count(), 1);
-        
+
         coordinator.end_session(session_id);
         assert_eq!(coordinator.active_session_count(), 0);
     }
@@ -547,13 +545,13 @@ mod tests {
         let coordinator = GcCoordinator::with_default_config().unwrap();
         let env1 = Arc::new(ThreadSafeEnvironment::new(None, 0));
         let env2 = Arc::new(ThreadSafeEnvironment::new(None, 1));
-        
+
         let session_id = coordinator.start_session(env1);
         coordinator.push_environment(session_id, env2.clone());
-        
+
         let popped = coordinator.pop_environment(session_id);
         assert!(Arc::ptr_eq(&popped.unwrap(), &env2));
-        
+
         coordinator.end_session(session_id);
     }
 
@@ -561,10 +559,10 @@ mod tests {
     fn test_global_roots() {
         let coordinator = GcCoordinator::with_default_config().unwrap();
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-        
+
         let root = GlobalRoot::Environment(env);
         coordinator.add_global_root(root);
-        
+
         let scan_result = coordinator.comprehensive_root_scan();
         assert_eq!(scan_result.global_roots.len(), 1);
     }
@@ -572,13 +570,13 @@ mod tests {
     #[test]
     fn test_statistics_collection() {
         let coordinator = GcCoordinator::with_default_config().unwrap();
-        
+
         // Force a collection to generate statistics
         let _result = coordinator.force_collect();
-        
+
         let stats = coordinator.get_statistics();
         assert!(stats.is_some());
-        
+
         let stats = stats.unwrap();
         assert!(stats.total_collections > 0);
     }

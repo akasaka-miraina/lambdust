@@ -42,7 +42,13 @@ impl<T> AtomicRef<T> {
     {
         let guard = epoch::pin();
         let new_owned = Owned::new(new.clone());
-        match self.inner.compare_exchange(current, new_owned, Ordering::SeqCst, Ordering::SeqCst, &guard) {
+        match self.inner.compare_exchange(
+            current,
+            new_owned,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+            &guard,
+        ) {
             Ok(_) => unsafe { Ok((*current.as_raw()).clone()) },
             Err(_) => Err(new),
         }

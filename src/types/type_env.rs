@@ -1,5 +1,6 @@
-use super::{TypeScheme, TypeConstructor};
 use super::type_classes::TypeClassInstance;
+use crate::types::type_constructor::TypeConstructor;
+use crate::types::type_scheme::TypeScheme;
 use std::collections::HashMap;
 
 /// Type environment for type inference.
@@ -22,17 +23,17 @@ impl TypeEnv {
             constructors: HashMap::new(),
         }
     }
-    
+
     /// Looks up a variable in the environment.
     pub fn lookup(&self, name: &str) -> Option<&TypeScheme> {
         self.bindings.get(name)
     }
-    
+
     /// Adds a binding to the environment.
     pub fn bind(&mut self, name: String, scheme: TypeScheme) {
         self.bindings.insert(name, scheme);
     }
-    
+
     /// Extends the environment with new bindings.
     pub fn extend(&self, bindings: HashMap<String, TypeScheme>) -> Self {
         let mut new_env = self.clone();

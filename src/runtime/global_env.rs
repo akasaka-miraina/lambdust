@@ -4,13 +4,13 @@
 //! across all evaluator threads, while also managing thread-local environment
 //! extensions.
 
-use crate::eval::{Value, ThreadSafeEnvironment, Generation};
 use crate::diagnostics::Result;
+use crate::eval::{Generation, ThreadSafeEnvironment, Value};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::ThreadId;
-use std::collections::HashMap;
-use std::time::{SystemTime, Duration};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, SystemTime};
 
 /// Manages global environment state across multiple evaluator threads.
 ///
@@ -170,7 +170,7 @@ impl GlobalEnvironmentManager {
     /// Creates a new global environment manager.
     pub fn new() -> Self {
         let root_environment = Self::create_root_environment();
-        
+
         Self {
             root_environment,
             thread_local_envs: Arc::new(RwLock::new(HashMap::new())),
@@ -185,7 +185,7 @@ impl GlobalEnvironmentManager {
     fn create_root_environment() -> Arc<ThreadSafeEnvironment> {
         // Start with an empty environment
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
-        
+
         // Add basic values
         env.define("true".to_string(), Value::t());
         env.define("false".to_string(), Value::f());
@@ -194,7 +194,7 @@ impl GlobalEnvironmentManager {
         // Populate with standard library (includes system functions)
         let stdlib = crate::stdlib::StandardLibrary::new();
         stdlib.populate_environment(&env);
-        
+
         env
     }
 
@@ -205,19 +205,19 @@ impl GlobalEnvironmentManager {
     pub fn create_thread_local_env(&self, thread_id: ThreadId) -> Arc<ThreadSafeEnvironment> {
         let generation = self.next_generation();
         let local_env = self.root_environment.extend(generation);
-        
+
         // Store the thread-local environment
         {
             let mut thread_envs = self.thread_local_envs.write().unwrap();
             thread_envs.insert(thread_id, local_env.clone());
         }
-        
+
         local_env
     }
 
     /// Gets the thread-local environment for the given thread.
     pub fn get_thread_local_env(&self, thread_id: ThreadId) -> Option<Arc<ThreadSafeEnvironment>> {
-        let thread_envs = self.thread_local_envs.read().unwrap();
+        let thread_envs = self.thread_local_envs.try_read().unwrap();
         thread_envs.get(&thread_id).cloned()
     }
 
@@ -227,46 +227,53 @@ impl GlobalEnvironmentManager {
         let thread_id = std::thread::current().id();
         self.define_global_transactional(name, value, thread_id)
     }
-    
+
     /// Defines a global variable within a transaction context.
     pub fn define_global_transactional(
-        &self, 
-        name: String, 
-        value: Value, 
-        thread_id: ThreadId
+        &self,
+        name: String,
+        value: Value,
+        thread_id: ThreadId,
     ) -> Result<()> {
         // Start a transaction if none is active for this thread
-        let transaction_id = self.transaction_manager.get_or_start_transaction(thread_id)?;
-        
+        let transaction_id = self
+            .transaction_manager
+            .get_or_start_transaction(thread_id)?;
+
         // Create snapshot if needed
         if self.snapshot_manager.should_create_snapshot() {
             self.create_environment_snapshot()?;
         }
-        
+
         // Record the old value for potential rollback
         let old_value = {
-            let globals = self.global_definitions.read().unwrap();
+            let globals = self.global_definitions.try_read().unwrap();
             globals.get(&name).cloned()
         };
-        
+
         // Make the change
         {
             let mut globals = self.global_definitions.write().unwrap();
             globals.insert(name.clone(), value.clone());
         }
-        
+
         // Record the change in the transaction
         let change = StateChange {
-            change_type: if old_value.is_some() { ChangeType::Update } else { ChangeType::Define },
+            change_type: if old_value.is_some() {
+                ChangeType::Update
+            } else {
+                ChangeType::Define
+            },
             variable_name: name,
             old_value,
             new_value: Some(value),
             generation: self.current_generation(),
             thread_id,
         };
-        
-        self.transaction_manager.add_change(transaction_id, change)?;
-        
+
+        self.transaction_manager
+            .add_change(transaction_id, change)?;
+
         Ok(())
     }
 
@@ -274,12 +281,12 @@ impl GlobalEnvironmentManager {
     pub fn lookup_global(&self, name: &str) -> Option<Value> {
         // First check global definitions
         {
-            let globals = self.global_definitions.read().unwrap();
+            let globals = self.global_definitions.try_read().unwrap();
             if let Some(value) = globals.get(name) {
                 return Some(value.clone());
             }
         }
-        
+
         // Then check root environment
         self.root_environment.lookup(name)
     }
@@ -297,12 +304,15 @@ impl GlobalEnvironmentManager {
     /// Increments and returns the next global generation.
     pub fn next_generation(&self) -> Generation {
         let new_gen = self.global_generation.fetch_add(1, Ordering::SeqCst) + 1;
-        
+
         // Check if we should create a snapshot
-        if self.snapshot_manager.should_create_snapshot_for_generation(new_gen) {
+        if self
+            .snapshot_manager
+            .should_create_snapshot_for_generation(new_gen)
+        {
             let _ = self.create_environment_snapshot();
         }
-        
+
         new_gen
     }
 
@@ -314,19 +324,19 @@ impl GlobalEnvironmentManager {
 
     /// Gets the number of active thread-local environments.
     pub fn active_thread_count(&self) -> usize {
-        let thread_envs = self.thread_local_envs.read().unwrap();
+        let thread_envs = self.thread_local_envs.try_read().unwrap();
         thread_envs.len()
     }
 
     /// Lists all global variable names.
     pub fn global_variable_names(&self) -> Vec<String> {
-        let globals = self.global_definitions.read().unwrap();
+        let globals = self.global_definitions.try_read().unwrap();
         globals.keys().cloned().collect()
     }
 
     /// Gets a snapshot of all global variables.
     pub fn global_variables_snapshot(&self) -> HashMap<String, Value> {
-        let globals = self.global_definitions.read().unwrap();
+        let globals = self.global_definitions.try_read().unwrap();
         globals.clone()
     }
 
@@ -334,73 +344,75 @@ impl GlobalEnvironmentManager {
     pub fn clear_global_definitions(&self) {
         let mut globals = self.global_definitions.write().unwrap();
         globals.clear();
-        
+
         // Create a snapshot after clearing
         let _ = self.create_environment_snapshot();
     }
-    
+
     /// Starts a new transaction for coordinated state changes.
     pub fn start_transaction(&self, thread_id: ThreadId) -> Result<u64> {
-        self.transaction_manager.start_transaction(thread_id, Vec::new())
+        self.transaction_manager
+            .start_transaction(thread_id, Vec::new())
     }
-    
+
     /// Commits a transaction, making all changes permanent.
     pub fn commit_transaction(&self, transaction_id: u64) -> Result<()> {
         self.transaction_manager.commit_transaction(transaction_id)
     }
-    
+
     /// Aborts a transaction, rolling back all changes.
     pub fn abort_transaction(&self, transaction_id: u64) -> Result<()> {
         // Get the transaction to find rollback information
         let transaction = self.transaction_manager.get_transaction(transaction_id)?;
-        
+
         // Rollback all changes in reverse order
         for change in transaction.changes.iter().rev() {
             self.rollback_change(change)?;
         }
-        
+
         self.transaction_manager.abort_transaction(transaction_id)
     }
-    
+
     /// Rolls back to a specific generation.
     pub fn rollback_to_generation(&self, target_generation: Generation) -> Result<()> {
-        self.snapshot_manager.rollback_to_generation(target_generation, self)
+        self.snapshot_manager
+            .rollback_to_generation(target_generation, self)
     }
-    
+
     /// Creates a snapshot of the current environment state.
     pub fn create_environment_snapshot(&self) -> Result<Generation> {
         let generation = self.current_generation();
-        
+
         let global_definitions = {
-            let globals = self.global_definitions.read().unwrap();
+            let globals = self.global_definitions.try_read().unwrap();
             globals.clone()
         };
-        
+
         let thread_local_envs = {
-            let envs = self.thread_local_envs.read().unwrap();
+            let envs = self.thread_local_envs.try_read().unwrap();
             let mut snapshot_envs = HashMap::new();
-            
+
             for (thread_id, _env) in envs.iter() {
                 // For simplicity, we'll store an empty HashMap for thread-local envs
                 // In a full implementation, you'd extract the actual bindings
                 snapshot_envs.insert(*thread_id, HashMap::new());
             }
-            
+
             snapshot_envs
         };
-        
+
         let snapshot = EnvironmentSnapshot {
             generation,
             global_definitions,
             thread_local_envs,
             created_at: SystemTime::now(),
         };
-        
+
         self.snapshot_manager.store_snapshot(snapshot);
-        
+
         Ok(generation)
     }
-    
+
     /// Rolls back a single state change.
     fn rollback_change(&self, change: &StateChange) -> Result<()> {
         match change.change_type {
@@ -428,7 +440,7 @@ impl GlobalEnvironmentManager {
                 }
             }
         }
-        
+
         Ok(())
     }
 }
@@ -463,7 +475,7 @@ impl TransactionManager {
             default_timeout: Duration::from_secs(30),
         }
     }
-    
+
     /// Starts a new transaction.
     pub fn start_transaction(
         &self,
@@ -471,7 +483,7 @@ impl TransactionManager {
         participants: Vec<ThreadId>,
     ) -> Result<u64> {
         let id = self.transaction_sequence.fetch_add(1, Ordering::SeqCst);
-        
+
         let transaction = StateTransaction {
             id,
             initiator_thread: initiator,
@@ -482,45 +494,47 @@ impl TransactionManager {
             created_at: SystemTime::now(),
             timeout: self.default_timeout,
         };
-        
+
         let mut transactions = self.active_transactions.write().unwrap();
         transactions.insert(id, transaction);
-        
+
         Ok(id)
     }
-    
+
     /// Gets or starts a transaction for a thread.
     pub fn get_or_start_transaction(&self, thread_id: ThreadId) -> Result<u64> {
         // Check if thread already has an active transaction
         {
-            let transactions = self.active_transactions.read().unwrap();
+            let transactions = self.active_transactions.try_read().unwrap();
             for (id, transaction) in transactions.iter() {
-                if transaction.initiator_thread == thread_id 
-                    && matches!(transaction.state, TransactionState::Active) {
+                if transaction.initiator_thread == thread_id
+                    && matches!(transaction.state, TransactionState::Active)
+                {
                     return Ok(*id);
                 }
             }
         }
-        
+
         // Start a new transaction
         self.start_transaction(thread_id, Vec::new())
     }
-    
+
     /// Gets a transaction by ID.
     pub fn get_transaction(&self, transaction_id: u64) -> Result<StateTransaction> {
-        let transactions = self.active_transactions.read().unwrap();
-        transactions.get(&transaction_id)
-            .cloned()
-            .ok_or_else(|| crate::diagnostics::Error::runtime_error(
+        let transactions = self.active_transactions.try_read().unwrap();
+        transactions.get(&transaction_id).cloned().ok_or_else(|| {
+            crate::diagnostics::Error::runtime_error(
                 format!("Transaction {transaction_id} not found"),
-                None
-            ).boxed())
+                None,
+            )
+            .boxed()
+        })
     }
-    
+
     /// Adds a change to a transaction.
     pub fn add_change(&self, transaction_id: u64, change: StateChange) -> Result<()> {
         let mut transactions = self.active_transactions.write().unwrap();
-        
+
         if let Some(transaction) = transactions.get_mut(&transaction_id) {
             if transaction.changes.is_empty() {
                 // Set snapshot generation on first change
@@ -531,47 +545,53 @@ impl TransactionManager {
         } else {
             Err(crate::diagnostics::Error::runtime_error(
                 format!("Transaction {transaction_id} not found"),
-                None
-            ).boxed())
+                None,
+            )
+            .boxed())
         }
     }
-    
+
     /// Commits a transaction.
     pub fn commit_transaction(&self, transaction_id: u64) -> Result<()> {
         let mut transactions = self.active_transactions.write().unwrap();
-        
+
         if let Some(transaction) = transactions.get_mut(&transaction_id) {
             transaction.state = TransactionState::Committed;
             Ok(())
         } else {
             Err(crate::diagnostics::Error::runtime_error(
                 format!("Transaction {transaction_id} not found"),
-                None
-            ).boxed())
+                None,
+            )
+            .boxed())
         }
     }
-    
+
     /// Aborts a transaction.
     pub fn abort_transaction(&self, transaction_id: u64) -> Result<()> {
         let mut transactions = self.active_transactions.write().unwrap();
-        
+
         if let Some(transaction) = transactions.get_mut(&transaction_id) {
             transaction.state = TransactionState::Aborted;
             Ok(())
         } else {
             Err(crate::diagnostics::Error::runtime_error(
                 format!("Transaction {transaction_id} not found"),
-                None
-            ).boxed())
+                None,
+            )
+            .boxed())
         }
     }
-    
+
     /// Cleans up completed transactions.
     #[allow(dead_code)] // Part of Stage 3 transaction infrastructure
     pub fn cleanup_completed_transactions(&self) {
         let mut transactions = self.active_transactions.write().unwrap();
         transactions.retain(|_, transaction| {
-            !matches!(transaction.state, TransactionState::Committed | TransactionState::Aborted)
+            !matches!(
+                transaction.state,
+                TransactionState::Committed | TransactionState::Aborted
+            )
         });
     }
 }
@@ -587,7 +607,7 @@ impl StateSnapshotManager {
             snapshot_policy: SnapshotPolicy::EveryNGenerations(10),
         }
     }
-    
+
     /// Creates a snapshot manager with custom policy.
     #[allow(dead_code)] // Part of Stage 3 snapshot infrastructure
     pub fn with_policy(policy: SnapshotPolicy, max_snapshots: usize) -> Self {
@@ -597,12 +617,12 @@ impl StateSnapshotManager {
             snapshot_policy: policy,
         }
     }
-    
+
     /// Checks if a snapshot should be created.
     pub fn should_create_snapshot(&self) -> bool {
         matches!(self.snapshot_policy, SnapshotPolicy::BeforeTransaction)
     }
-    
+
     /// Checks if a snapshot should be created for a specific generation.
     pub fn should_create_snapshot_for_generation(&self, generation: Generation) -> bool {
         match self.snapshot_policy {
@@ -612,47 +632,52 @@ impl StateSnapshotManager {
             SnapshotPolicy::BeforeTransaction => false,
         }
     }
-    
+
     /// Stores a snapshot.
     pub fn store_snapshot(&self, snapshot: EnvironmentSnapshot) {
         let mut snapshots = self.environment_snapshots.write().unwrap();
         snapshots.insert(snapshot.generation, snapshot);
-        
+
         // Clean up old snapshots if we exceed the limit
         if snapshots.len() > self.max_snapshots {
             let oldest_generations: Vec<_> = {
                 let mut generations: Vec<_> = snapshots.keys().copied().collect();
                 generations.sort();
-                generations.into_iter().take(snapshots.len() - self.max_snapshots).collect()
+                generations
+                    .into_iter()
+                    .take(snapshots.len() - self.max_snapshots)
+                    .collect()
             };
-            
+
             for generation in oldest_generations {
                 snapshots.remove(&generation);
             }
         }
     }
-    
+
     /// Gets a snapshot by generation.
     #[allow(dead_code)] // Part of Stage 3 snapshot infrastructure
     pub fn get_snapshot(&self, generation: Generation) -> Option<EnvironmentSnapshot> {
-        let snapshots = self.environment_snapshots.read().unwrap();
+        let snapshots = self.environment_snapshots.try_read().unwrap();
         snapshots.get(&generation).cloned()
     }
-    
+
     /// Finds the latest snapshot at or before the given generation.
     pub fn find_snapshot_before(&self, generation: Generation) -> Option<EnvironmentSnapshot> {
-        let snapshots = self.environment_snapshots.read().unwrap();
+        let snapshots = self.environment_snapshots.try_read().unwrap();
         let mut best_generation = None;
-        
+
         for &snap_generation in snapshots.keys() {
-            if snap_generation <= generation && (best_generation.is_none() || snap_generation > best_generation.unwrap()) {
+            if snap_generation <= generation
+                && (best_generation.is_none() || snap_generation > best_generation.unwrap())
+            {
                 best_generation = Some(snap_generation);
             }
         }
-        
+
         best_generation.and_then(|generation| snapshots.get(&generation).cloned())
     }
-    
+
     /// Rolls back to a specific generation.
     pub fn rollback_to_generation(
         &self,
@@ -660,12 +685,15 @@ impl StateSnapshotManager {
         env_manager: &GlobalEnvironmentManager,
     ) -> Result<()> {
         // Find the appropriate snapshot
-        let snapshot = self.find_snapshot_before(target_generation)
-            .ok_or_else(|| crate::diagnostics::Error::runtime_error(
-                format!("No snapshot found for generation {target_generation}"),
-                None
-            ))?;
-        
+        let snapshot = self
+            .find_snapshot_before(target_generation)
+            .ok_or_else(|| {
+                crate::diagnostics::Error::runtime_error(
+                    format!("No snapshot found for generation {target_generation}"),
+                    None,
+                )
+            })?;
+
         // Restore global definitions
         {
             let mut globals = env_manager.global_definitions.write().unwrap();
@@ -674,22 +702,24 @@ impl StateSnapshotManager {
                 globals.insert(name, value);
             }
         }
-        
+
         // Restore generation counter
-        env_manager.global_generation.store(target_generation, Ordering::SeqCst);
-        
+        env_manager
+            .global_generation
+            .store(target_generation, Ordering::SeqCst);
+
         Ok(())
     }
-    
+
     /// Lists all available snapshots.
     #[allow(dead_code)] // Part of Stage 3 snapshot infrastructure
     pub fn list_snapshots(&self) -> Vec<Generation> {
-        let snapshots = self.environment_snapshots.read().unwrap();
+        let snapshots = self.environment_snapshots.try_read().unwrap();
         let mut generations: Vec<_> = snapshots.keys().copied().collect();
         generations.sort();
         generations
     }
-    
+
     /// Clears all snapshots.
     #[allow(dead_code)] // Part of Stage 3 snapshot infrastructure
     pub fn clear_snapshots(&self) {

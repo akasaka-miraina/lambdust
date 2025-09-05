@@ -1,8 +1,13 @@
+//! Legacy single-threaded runtime implementation.
+//!
+//! This module provides the original single-threaded runtime system for Lambdust.
+//! For new projects, consider using the parallel runtime system instead.
+
+use super::{BootstrapIntegration, BootstrapIntegrationConfig, BootstrapMode};
 use crate::ast::Program;
 use crate::diagnostics::Result;
 use crate::eval::{Evaluator, Value};
-use crate::module_system::{ModuleSystem, ImportSpec};
-use super::{BootstrapIntegration, BootstrapIntegrationConfig, BootstrapMode};
+use crate::module_system::{ImportSpec, ModuleSystem};
 use std::collections::HashMap;
 
 /// Legacy single-threaded runtime for the Lambdust language.
@@ -23,22 +28,22 @@ impl Runtime {
     pub fn with_bootstrap_config(config: BootstrapIntegrationConfig) -> Result<Self> {
         // Create bootstrap integration
         let mut bootstrap = BootstrapIntegration::with_config(config)?;
-        
+
         // Run bootstrap process and get the bootstrapped global environment
         let global_env_manager = bootstrap.bootstrap()?;
-        
+
         // Create evaluator with default global environment
         let mut evaluator = Evaluator::new();
-        
+
         // Copy all bindings from bootstrap environment to evaluator's environment
         Self::merge_bootstrap_environment(&mut evaluator, &global_env_manager)?;
-        
+
         // Force populate essential primitives one more time after evaluator creation
         // to ensure they are not overridden during the evaluator initialization
         use crate::eval::environment::global_environment;
         let final_env = global_environment();
         Self::populate_essential_primitives(&final_env)?;
-        
+
         // Create module system
         let module_system = ModuleSystem::new().map_err(|e| {
             crate::diagnostics::Error::runtime_error(
@@ -46,7 +51,7 @@ impl Runtime {
                 None,
             )
         })?;
-        
+
         Ok(Self {
             evaluator,
             module_system,
@@ -84,22 +89,22 @@ impl Runtime {
     pub fn import_module(&mut self, import_spec: ImportSpec) -> Result<HashMap<String, Value>> {
         self.module_system.resolve_import(&import_spec)
     }
-    
+
     /// Gets a reference to the evaluator.
     pub fn evaluator(&self) -> &Evaluator {
         &self.evaluator
     }
-    
+
     /// Gets a mutable reference to the evaluator.
     pub fn evaluator_mut(&mut self) -> &mut Evaluator {
         &mut self.evaluator
     }
-    
+
     /// Gets a reference to the module system.
     pub fn module_system(&self) -> &ModuleSystem {
         &self.module_system
     }
-    
+
     /// Gets a mutable reference to the module system.
     pub fn module_system_mut(&mut self) -> &mut ModuleSystem {
         &mut self.module_system
@@ -107,63 +112,178 @@ impl Runtime {
 
     /// Merges the bootstrap environment into the evaluator's global environment.
     fn merge_bootstrap_environment(
-        evaluator: &mut Evaluator, 
-        global_env_manager: &super::GlobalEnvironmentManager
+        evaluator: &mut Evaluator,
+        global_env_manager: &super::GlobalEnvironmentManager,
     ) -> Result<()> {
         use crate::eval::environment::global_environment;
-        
+
         // Get the evaluator's global environment
         let evaluator_env = global_environment();
-        
+
         // Get the bootstrap environment
         let bootstrap_env = global_env_manager.root_environment();
-        
+
         // Force populate essential primitives after stdlib has been loaded
         // This ensures our correct implementations override any problematic stdlib versions
         Self::populate_essential_primitives(&evaluator_env)?;
-        
+
         Ok(())
     }
-    
+
+    /// Evaluates a string containing Scheme code.
+    pub fn eval_string(&mut self, code: &str) -> Result<Value> {
+        // Parse the code into AST
+        use crate::parser::Parser;
+        use crate::lexer::Lexer;
+        
+        let mut lexer = Lexer::new(code, None);
+        let tokens = lexer.tokenize()?;
+        
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse()?;
+        
+        // Evaluate the program
+        if program.expressions.is_empty() {
+            return Ok(Value::Nil);
+        }
+        
+        // Evaluate each expression and return the last result
+        let mut result = Value::Nil;
+        use crate::eval::environment::global_environment;
+        let env = global_environment();
+        
+        for expr in &program.expressions {
+            result = self.evaluator.eval(expr, env.clone())?;
+        }
+        
+        Ok(result)
+    }
+
     /// Populates essential primitives that might be missing from the default environment.
     fn populate_essential_primitives(env: &std::rc::Rc<crate::eval::Environment>) -> Result<()> {
-        use crate::eval::Value;
-        use crate::eval::value::{PrimitiveProcedure, PrimitiveImpl};
         use crate::effects::Effect;
+        use crate::eval::Value;
+        use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure};
         use std::sync::Arc;
-        
+
         // Force define cons primitive (override any existing definition)
-        env.define("cons".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-            name: "cons".to_string(),
-            arity_min: 2,
-            arity_max: Some(2),
-            implementation: PrimitiveImpl::RustFn(Self::primitive_cons),
-            effects: vec![Effect::Pure],
-        })));
-        
+        env.define(
+            "cons".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "cons".to_string(),
+                arity_min: 2,
+                arity_max: Some(2),
+                implementation: PrimitiveImpl::RustFn(Self::primitive_cons),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
         // Force define car primitive (override any existing definition)
-        env.define("car".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-            name: "car".to_string(),
-            arity_min: 1,
-            arity_max: Some(1),
-            implementation: PrimitiveImpl::RustFn(Self::primitive_car),
-            effects: vec![Effect::Pure],
-        })));
-        
+        env.define(
+            "car".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "car".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(Self::primitive_car),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
         // Force define cdr primitive (override any existing definition)
-        env.define("cdr".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-            name: "cdr".to_string(),
-            arity_min: 1,
-            arity_max: Some(1),
-            implementation: PrimitiveImpl::RustFn(Self::primitive_cdr),
-            effects: vec![Effect::Pure],
-        })));
-        
+        env.define(
+            "cdr".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "cdr".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(Self::primitive_cdr),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        // Install SRFI-71 procedures
+        // We need to manually install each procedure since env is behind Rc
+
+        env.define(
+            "uncons".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "uncons".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::uncons),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        env.define(
+            "unlist".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "unlist".to_string(),
+                arity_min: 1,
+                arity_max: Some(2),
+                implementation: PrimitiveImpl::RustFn(crate::stdlib::srfi71_let_syntax::unlist),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        env.define(
+            "values->list".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "values->list".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(
+                    crate::stdlib::srfi71_let_syntax::values_to_list,
+                ),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        env.define(
+            "values->vector".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "values->vector".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(
+                    crate::stdlib::srfi71_let_syntax::values_to_vector,
+                ),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        env.define(
+            "list->values".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "list->values".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(
+                    crate::stdlib::srfi71_let_syntax::list_to_values,
+                ),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
+        env.define(
+            "vector->values".to_string(),
+            Value::Primitive(Arc::new(PrimitiveProcedure {
+                name: "vector->values".to_string(),
+                arity_min: 1,
+                arity_max: Some(1),
+                implementation: PrimitiveImpl::RustFn(
+                    crate::stdlib::srfi71_let_syntax::vector_to_values,
+                ),
+                effects: vec![Effect::Pure],
+            })),
+        );
+
         println!("DEBUG: Force defined car, cdr, cons primitives in runtime");
-        
+
         Ok(())
     }
-    
+
     /// cons primitive implementation
     fn primitive_cons(args: &[Value]) -> Result<Value> {
         if args.len() != 2 {
@@ -174,21 +294,21 @@ impl Runtime {
         }
         Ok(Value::pair(args[0].clone(), args[1].clone()))
     }
-    
+
     /// car primitive implementation
     fn primitive_car(args: &[Value]) -> Result<Value> {
         println!("DEBUG: primitive_car called with {} args", args.len());
         if !args.is_empty() {
             println!("DEBUG: first arg is: {:?}", args[0]);
         }
-        
+
         if args.len() != 1 {
             return Err(Box::new(crate::diagnostics::Error::runtime_error(
                 format!("car expects 1 argument, got {}", args.len()),
                 None,
             )));
         }
-        
+
         match &args[0] {
             Value::Pair(car, _) => {
                 let result = (**car).clone();
@@ -204,7 +324,7 @@ impl Runtime {
             }
         }
     }
-    
+
     /// cdr primitive implementation
     fn primitive_cdr(args: &[Value]) -> Result<Value> {
         if args.len() != 1 {
@@ -213,7 +333,7 @@ impl Runtime {
                 None,
             )));
         }
-        
+
         match &args[0] {
             Value::Pair(_, cdr) => Ok((**cdr).clone()),
             _ => Err(Box::new(crate::diagnostics::Error::runtime_error(

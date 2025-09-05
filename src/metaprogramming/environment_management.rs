@@ -3,8 +3,8 @@
 //! This module provides the primary structures for managing environments
 //! in dynamic metaprogramming contexts.
 
-use crate::eval::{Value, Environment};
 use crate::diagnostics::{Error, Result};
+use crate::eval::{Environment, Value};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::SystemTime;
@@ -79,7 +79,7 @@ impl EnvironmentManipulator {
         // Environment manipulation primitives would be installed here
         Ok(())
     }
-    
+
     /// Creates a new environment manipulator.
     pub fn new() -> Self {
         Self {
@@ -117,13 +117,16 @@ impl EnvironmentManipulator {
         self.hierarchy.add_root(name.clone());
 
         // Track creation change
-        self.change_tracker.track_change(name, super::environment_tracking::EnvironmentChange {
-            change_type: super::environment_tracking::ChangeType::Create,
-            variable: "".to_string(),
-            old_value: None,
-            new_value: None,
-            timestamp: SystemTime::now(),
-        });
+        self.change_tracker.track_change(
+            name,
+            super::environment_tracking::EnvironmentChange {
+                change_type: super::environment_tracking::ChangeType::Create,
+                variable: "".to_string(),
+                old_value: None,
+                new_value: None,
+                timestamp: SystemTime::now(),
+            },
+        );
 
         Ok(())
     }
@@ -160,18 +163,18 @@ impl EnvironmentManipulator {
         };
 
         self.environments.insert(child_name.clone(), handle);
-        self.hierarchy.add_child(parent_name.to_string(), child_name.clone());
+        self.hierarchy
+            .add_child(parent_name.to_string(), child_name.clone());
 
         Ok(child_env)
     }
 
     /// Gets an environment by name.
     pub fn get_environment(&mut self, name: &str) -> Result<Rc<Environment>> {
-        let handle = self.environments.get_mut(name)
-            .ok_or_else(|| Error::runtime_error(
-                format!("Environment '{name}' not found"),
-                None,
-            ))?;
+        let handle = self
+            .environments
+            .get_mut(name)
+            .ok_or_else(|| Error::runtime_error(format!("Environment '{name}' not found"), None))?;
 
         handle.last_accessed = SystemTime::now();
         Ok(handle.environment.clone())
@@ -201,11 +204,12 @@ impl EnvironmentManipulator {
 
     /// Restores an environment from a snapshot.
     pub fn restore_from_snapshot(&mut self, snapshot_id: &str) -> Result<()> {
-        let snapshot = self.snapshots.get(snapshot_id)
-            .ok_or_else(|| Error::runtime_error(
-                format!("Snapshot '{snapshot_id}' not found"),
-                None,
-            ))?
+        let snapshot = self
+            .snapshots
+            .get(snapshot_id)
+            .ok_or_else(|| {
+                Error::runtime_error(format!("Snapshot '{snapshot_id}' not found"), None)
+            })?
             .clone();
 
         let env = self.get_environment(&snapshot.environment_name)?;
@@ -220,8 +224,13 @@ impl EnvironmentManipulator {
     }
 
     /// Gets all changes for an environment.
-    pub fn get_changes(&self, env_name: &str) -> Vec<&super::environment_tracking::EnvironmentChange> {
-        self.change_tracker.changes.get(env_name)
+    pub fn get_changes(
+        &self,
+        env_name: &str,
+    ) -> Vec<&super::environment_tracking::EnvironmentChange> {
+        self.change_tracker
+            .changes
+            .get(env_name)
             .map(|changes| changes.iter().collect())
             .unwrap_or_default()
     }
@@ -233,13 +242,16 @@ impl EnvironmentManipulator {
             self.hierarchy.remove_node(name);
 
             // Track destruction change
-            self.change_tracker.track_change(name.to_string(), super::environment_tracking::EnvironmentChange {
-                change_type: super::environment_tracking::ChangeType::Destroy,
-                variable: "".to_string(),
-                old_value: None,
-                new_value: None,
-                timestamp: SystemTime::now(),
-            });
+            self.change_tracker.track_change(
+                name.to_string(),
+                super::environment_tracking::EnvironmentChange {
+                    change_type: super::environment_tracking::ChangeType::Destroy,
+                    variable: "".to_string(),
+                    old_value: None,
+                    new_value: None,
+                    timestamp: SystemTime::now(),
+                },
+            );
 
             Ok(())
         } else {
@@ -262,14 +274,25 @@ pub trait EnvironmentExt {
 
 impl EnvironmentExt for Environment {
     fn clear_all_bindings(&self) {
-        // Implementation would clear all bindings in the environment
-        // This is a placeholder
+        // Clear all local bindings - does not affect parent environments
+        self.bindings.borrow_mut().clear();
     }
 
     fn get_all_bindings(&self) -> HashMap<String, Value> {
-        // Implementation would return all current bindings
-        // This is a placeholder
-        HashMap::new()
+        // Collect all bindings from current environment and its parents
+        let mut all_bindings = HashMap::new();
+
+        // Start with parent bindings (lower priority)
+        if let Some(parent) = &self.parent {
+            let parent_bindings = parent.get_all_bindings();
+            all_bindings.extend(parent_bindings);
+        }
+
+        // Add local bindings (higher priority - will overwrite parent bindings)
+        let local_bindings = self.bindings.borrow().clone();
+        all_bindings.extend(local_bindings);
+
+        all_bindings
     }
 }
 

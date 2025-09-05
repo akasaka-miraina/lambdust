@@ -9,52 +9,43 @@
 //! - Actionable optimization recommendations
 //! - Automated result collection and reporting
 
+use super::benchmark_config::{
+    BenchmarkSuiteConfig, ChartType, ImplementationConfig, OutlierDetection, OutputConfig,
+    OutputFormat, ParameterValue, PerformanceHints, ResourceConfig, ResultType, RuntimeConfig,
+    ScalingBehavior, StatisticalConfig, SystemResourceLimits, TestCase, TestCategory,
+    TestParameter, TestResourceLimits,
+};
+use super::execution_management::{ResourceEfficiency, ResourceSnapshot, SystemResourceUsage};
+use super::external_integration::{
+    DashboardConfig, ExternalReporting, GitHubConfig, NotificationConfig,
+};
+use super::regression_optimization::{
+    OptimizationRecommendation, PerformanceForecast, PerformanceImprovement, PerformanceRegression,
+    RegressionAnalysis, RegressionSeverity, TrendAnalysis, TrendDirection,
+};
+use super::results_measurements::{
+    CategoryResult, CategoryStatistics, ConfidenceInterval as TimingConfidenceInterval,
+    ImplementationResult, MemoryMeasurements, TestResult, TimingMeasurements, ValidationResult,
+};
+use super::statistical_analysis_results::{
+    CategoryComparison, CorrelationAnalysis, DistributionShape, DistributionStats,
+    ImplementationComparison, PerformanceRanking, StatisticalSignificance, StatisticalSummary,
+};
+use super::system_metadata::{
+    BenchmarkMetadata, BenchmarkResult, CPUStats, DiskIOStats, FailureReason, MemoryStats,
+    NetworkIOStats, ResourceStats, SystemInfo, TestFailure,
+};
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
-use rayon::prelude::*;
-use super::external_integration::{ExternalReporting, GitHubConfig, DashboardConfig, NotificationConfig};
-use super::benchmark_config::{
-    BenchmarkSuiteConfig, ImplementationConfig, RuntimeConfig, TestCategory, TestCase,
-    TestParameter, ParameterValue, ScalingBehavior, ResultType, TestResourceLimits,
-    PerformanceHints, StatisticalConfig, OutlierDetection, OutputConfig, OutputFormat,
-    ChartType, ResourceConfig, SystemResourceLimits,
-};
-use super::system_metadata::{
-    BenchmarkMetadata, SystemInfo, TestFailure, FailureReason, ResourceStats,
-    CPUStats, MemoryStats, DiskIOStats, NetworkIOStats, BenchmarkResult,
-};
-use super::results_measurements::{
-    ImplementationResult, CategoryResult, TestResult, TimingMeasurements,
-    MemoryMeasurements, ConfidenceInterval as TimingConfidenceInterval, 
-    ValidationResult, CategoryStatistics,
-};
-use super::statistical_analysis_results::{
-    ImplementationComparison, StatisticalSignificance, CategoryComparison,
-    StatisticalSummary, PerformanceRanking, DistributionStats, DistributionShape,
-    CorrelationAnalysis,
-};
-use super::regression_optimization::{
-    RegressionAnalysis, PerformanceRegression, PerformanceImprovement,
-    RegressionSeverity, TrendAnalysis, TrendDirection, PerformanceForecast,
-    OptimizationRecommendation,
-};
-use super::execution_management::{
-    SystemResourceUsage, ResourceSnapshot, ResourceEfficiency,
-};
-
-
-
-
-
-
 
 /// Complete results from a full benchmark suite execution.
-/// 
+///
 /// Contains all performance data, statistical analysis, and metadata
 /// from comparing multiple implementations across test categories.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,13 +65,6 @@ pub struct BenchmarkSuiteResult {
     /// System resource usage during benchmarking
     pub resource_usage: SystemResourceUsage,
 }
-
-
-
-
-
-
-
 
 impl Default for BenchmarkSuiteConfig {
     fn default() -> Self {
@@ -140,7 +124,7 @@ impl BenchmarkSuiteConfig {
             // Additional implementations would be defined here...
         ]
     }
-    
+
     /// Default test categories
     fn default_test_categories() -> Vec<TestCategory> {
         vec![
@@ -195,7 +179,7 @@ impl BenchmarkSuiteConfig {
             },
         ]
     }
-    
+
     /// Arithmetic test cases
     fn arithmetic_tests() -> Vec<TestCase> {
         vec![
@@ -209,16 +193,17 @@ impl BenchmarkSuiteConfig {
                             (loop (+ i 1) (+ sum (* i i)))
                             sum)))
                     (time (arithmetic-benchmark {n}))
-                "#.to_string(),
-                parameters: vec![
-                    TestParameter {
-                        name: "n".to_string(),
-                        values: vec![
-                            ParameterValue::Range { start: 1000, end: 100000, step: 10000 },
-                        ],
-                        scaling_behavior: ScalingBehavior::Linear,
-                    }
-                ],
+                "#
+                .to_string(),
+                parameters: vec![TestParameter {
+                    name: "n".to_string(),
+                    values: vec![ParameterValue::Range {
+                        start: 1000,
+                        end: 100000,
+                        step: 10000,
+                    }],
+                    scaling_behavior: ScalingBehavior::Linear,
+                }],
                 expected_result_type: ResultType::Number,
                 resource_limits: TestResourceLimits {
                     max_time_seconds: 30,
@@ -235,7 +220,7 @@ impl BenchmarkSuiteConfig {
             // Additional arithmetic tests...
         ]
     }
-    
+
     /// List operation test cases
     fn list_tests() -> Vec<TestCase> {
         vec![
@@ -249,16 +234,17 @@ impl BenchmarkSuiteConfig {
                             (loop (+ i 1) (cons i lst))
                             (length lst))))
                     (time (list-benchmark {n}))
-                "#.to_string(),
-                parameters: vec![
-                    TestParameter {
-                        name: "n".to_string(),
-                        values: vec![
-                            ParameterValue::Range { start: 1000, end: 50000, step: 5000 },
-                        ],
-                        scaling_behavior: ScalingBehavior::Linear,
-                    }
-                ],
+                "#
+                .to_string(),
+                parameters: vec![TestParameter {
+                    name: "n".to_string(),
+                    values: vec![ParameterValue::Range {
+                        start: 1000,
+                        end: 50000,
+                        step: 5000,
+                    }],
+                    scaling_behavior: ScalingBehavior::Linear,
+                }],
                 expected_result_type: ResultType::Number,
                 resource_limits: TestResourceLimits {
                     max_time_seconds: 60,
@@ -275,7 +261,7 @@ impl BenchmarkSuiteConfig {
             // Additional list tests...
         ]
     }
-    
+
     /// Recursion test cases
     fn recursion_tests() -> Vec<TestCase> {
         vec![
@@ -288,16 +274,17 @@ impl BenchmarkSuiteConfig {
                           n
                           (+ (fib (- n 1)) (fib (- n 2)))))
                     (time (fib {n}))
-                "#.to_string(),
-                parameters: vec![
-                    TestParameter {
-                        name: "n".to_string(),
-                        values: vec![
-                            ParameterValue::Range { start: 20, end: 35, step: 5 },
-                        ],
-                        scaling_behavior: ScalingBehavior::Exponential,
-                    }
-                ],
+                "#
+                .to_string(),
+                parameters: vec![TestParameter {
+                    name: "n".to_string(),
+                    values: vec![ParameterValue::Range {
+                        start: 20,
+                        end: 35,
+                        step: 5,
+                    }],
+                    scaling_behavior: ScalingBehavior::Exponential,
+                }],
                 expected_result_type: ResultType::Number,
                 resource_limits: TestResourceLimits {
                     max_time_seconds: 120,
@@ -308,14 +295,17 @@ impl BenchmarkSuiteConfig {
                     fast_path_candidates: vec!["+".to_string(), "-".to_string()],
                     memory_patterns: vec!["exponential stack growth".to_string()],
                     complexity: ScalingBehavior::Exponential,
-                    critical_operations: vec!["recursion".to_string(), "function calls".to_string()],
+                    critical_operations: vec![
+                        "recursion".to_string(),
+                        "function calls".to_string(),
+                    ],
                 },
             },
             // Additional recursion tests...
         ]
     }
-    
-    /// Memory management test cases  
+
+    /// Memory management test cases
     fn memory_tests() -> Vec<TestCase> {
         vec![
             TestCase {
@@ -329,16 +319,17 @@ impl BenchmarkSuiteConfig {
                               (loop (+ i 1) (cons big-list acc)))
                             (length acc))))
                     (time (allocation-benchmark {n}))
-                "#.to_string(),
-                parameters: vec![
-                    TestParameter {
-                        name: "n".to_string(),
-                        values: vec![
-                            ParameterValue::Range { start: 100, end: 1000, step: 100 },
-                        ],
-                        scaling_behavior: ScalingBehavior::Linear,
-                    }
-                ],
+                "#
+                .to_string(),
+                parameters: vec![TestParameter {
+                    name: "n".to_string(),
+                    values: vec![ParameterValue::Range {
+                        start: 100,
+                        end: 1000,
+                        step: 100,
+                    }],
+                    scaling_behavior: ScalingBehavior::Linear,
+                }],
                 expected_result_type: ResultType::Number,
                 resource_limits: TestResourceLimits {
                     max_time_seconds: 180,
@@ -347,7 +338,10 @@ impl BenchmarkSuiteConfig {
                 },
                 performance_hints: PerformanceHints {
                     fast_path_candidates: vec![],
-                    memory_patterns: vec!["high allocation rate".to_string(), "GC pressure".to_string()],
+                    memory_patterns: vec![
+                        "high allocation rate".to_string(),
+                        "GC pressure".to_string(),
+                    ],
                     complexity: ScalingBehavior::Linear,
                     critical_operations: vec!["allocation".to_string(), "GC".to_string()],
                 },
@@ -355,7 +349,7 @@ impl BenchmarkSuiteConfig {
             // Additional memory tests...
         ]
     }
-    
+
     /// I/O operation test cases
     fn io_tests() -> Vec<TestCase> {
         vec![
@@ -373,16 +367,17 @@ impl BenchmarkSuiteConfig {
                                 (loop (+ i 1)))
                               (string-length (get-output-string output-port))))))
                     (time (io-benchmark {n}))
-                "#.to_string(),
-                parameters: vec![
-                    TestParameter {
-                        name: "n".to_string(),
-                        values: vec![
-                            ParameterValue::Range { start: 1000, end: 10000, step: 1000 },
-                        ],
-                        scaling_behavior: ScalingBehavior::Linear,
-                    }
-                ],
+                "#
+                .to_string(),
+                parameters: vec![TestParameter {
+                    name: "n".to_string(),
+                    values: vec![ParameterValue::Range {
+                        start: 1000,
+                        end: 10000,
+                        step: 1000,
+                    }],
+                    scaling_behavior: ScalingBehavior::Linear,
+                }],
                 expected_result_type: ResultType::Number,
                 resource_limits: TestResourceLimits {
                     max_time_seconds: 60,
@@ -399,7 +394,7 @@ impl BenchmarkSuiteConfig {
             // Additional I/O tests...
         ]
     }
-    
+
     /// Macro expansion test cases
     fn macro_tests() -> Vec<TestCase> {
         vec![
@@ -414,21 +409,22 @@ impl BenchmarkSuiteConfig {
                            (if (< i n)
                                (begin expr (loop (+ i 1)))
                                'done)))))
-                    
+
                     (define (macro-benchmark n)
                       (repeat n (+ 1 2 3)))
-                    
+
                     (time (macro-benchmark {n}))
-                "#.to_string(),
-                parameters: vec![
-                    TestParameter {
-                        name: "n".to_string(),
-                        values: vec![
-                            ParameterValue::Range { start: 1000, end: 10000, step: 1000 },
-                        ],
-                        scaling_behavior: ScalingBehavior::Linear,
-                    }
-                ],
+                "#
+                .to_string(),
+                parameters: vec![TestParameter {
+                    name: "n".to_string(),
+                    values: vec![ParameterValue::Range {
+                        start: 1000,
+                        end: 10000,
+                        step: 1000,
+                    }],
+                    scaling_behavior: ScalingBehavior::Linear,
+                }],
                 expected_result_type: ResultType::Any,
                 resource_limits: TestResourceLimits {
                     max_time_seconds: 60,
@@ -445,7 +441,7 @@ impl BenchmarkSuiteConfig {
             // Additional macro tests...
         ]
     }
-    
+
     /// String manipulation test cases
     fn string_tests() -> Vec<TestCase> {
         vec![
@@ -459,16 +455,17 @@ impl BenchmarkSuiteConfig {
                             (loop (+ i 1) (string-append result (number->string i) " "))
                             (string-length result))))
                     (time (string-benchmark {n}))
-                "#.to_string(),
-                parameters: vec![
-                    TestParameter {
-                        name: "n".to_string(),
-                        values: vec![
-                            ParameterValue::Range { start: 100, end: 1000, step: 100 },
-                        ],
-                        scaling_behavior: ScalingBehavior::Quadratic, // Due to repeated concatenation
-                    }
-                ],
+                "#
+                .to_string(),
+                parameters: vec![TestParameter {
+                    name: "n".to_string(),
+                    values: vec![ParameterValue::Range {
+                        start: 100,
+                        end: 1000,
+                        step: 100,
+                    }],
+                    scaling_behavior: ScalingBehavior::Quadratic, // Due to repeated concatenation
+                }],
                 expected_result_type: ResultType::Number,
                 resource_limits: TestResourceLimits {
                     max_time_seconds: 60,
@@ -556,32 +553,32 @@ impl ComprehensiveBenchmarkSuite {
             samples: Vec::new(),
             start_time: SystemTime::now(),
         }));
-        
+
         Self {
             config,
             resource_monitor,
         }
     }
-    
+
     /// Execute the complete benchmark suite
     pub fn execute(&mut self) -> Result<BenchmarkSuiteResult, Box<dyn std::error::Error>> {
         println!("Starting comprehensive benchmark suite...");
-        
+
         let start_time = SystemTime::now();
-        
+
         // Start resource monitoring
         self.start_resource_monitoring();
-        
+
         // Collect system information
         let system_info = self.collect_system_info();
-        
+
         // Initialize results structure
         let mut implementation_results = HashMap::new();
-        
+
         // Execute benchmarks for each implementation
         for impl_config in &self.config.implementations {
             println!("Benchmarking {}...", impl_config.name);
-            
+
             match self.benchmark_implementation(impl_config) {
                 Ok(result) => {
                     implementation_results.insert(impl_config.id.clone(), result);
@@ -630,18 +627,19 @@ impl ComprehensiveBenchmarkSuite {
                 }
             }
         }
-        
+
         // Stop resource monitoring
         let resource_usage = self.stop_resource_monitoring();
-        
+
         let total_duration = start_time.elapsed().unwrap_or(Duration::ZERO);
-        
+
         // Perform cross-implementation analysis
         let comparisons = self.generate_comparisons(&implementation_results);
         let statistical_summary = self.generate_statistical_summary(&implementation_results);
         let regression_analysis = self.perform_regression_analysis(&implementation_results);
-        let recommendations = self.generate_recommendations(&implementation_results, &statistical_summary);
-        
+        let recommendations =
+            self.generate_recommendations(&implementation_results, &statistical_summary);
+
         // Create metadata
         let metadata = BenchmarkMetadata {
             timestamp: start_time,
@@ -651,7 +649,7 @@ impl ComprehensiveBenchmarkSuite {
             git_commit: self.get_git_commit(),
             environment: std::env::vars().collect(),
         };
-        
+
         let result = BenchmarkSuiteResult {
             metadata,
             implementation_results,
@@ -661,33 +659,40 @@ impl ComprehensiveBenchmarkSuite {
             recommendations,
             resource_usage,
         };
-        
+
         // Save results
         self.save_results(&result)?;
-        
-        println!("Benchmark suite completed in {:.2} seconds", total_duration.as_secs_f64());
-        
+
+        println!(
+            "Benchmark suite completed in {:.2} seconds",
+            total_duration.as_secs_f64()
+        );
+
         Ok(result)
     }
-    
+
     /// Benchmark a single implementation
-    fn benchmark_implementation(&self, impl_config: &ImplementationConfig) -> Result<ImplementationResult, Box<dyn std::error::Error>> {
+    fn benchmark_implementation(
+        &self,
+        impl_config: &ImplementationConfig,
+    ) -> Result<ImplementationResult, Box<dyn std::error::Error>> {
         let mut category_results = HashMap::new();
         let mut all_failures = Vec::new();
-        
+
         // Execute tests for each category
         for category in &self.config.test_categories {
             println!("  Category: {}", category.name);
-            
+
             let mut test_results = Vec::new();
             let mut category_failures = Vec::new();
-            
+
             for test_case in &category.tests {
                 println!("    Test: {}", test_case.name);
-                
+
                 // Generate parameter combinations
-                let param_combinations = self.generate_parameter_combinations(&test_case.parameters);
-                
+                let param_combinations =
+                    self.generate_parameter_combinations(&test_case.parameters);
+
                 for params in param_combinations {
                     match self.execute_single_test(impl_config, test_case, &params) {
                         Ok(result) => test_results.push(result),
@@ -695,27 +700,30 @@ impl ComprehensiveBenchmarkSuite {
                     }
                 }
             }
-            
+
             // Calculate category statistics
             let statistics = self.calculate_category_statistics(&test_results);
             let score = self.calculate_category_score(&test_results, category);
-            
-            category_results.insert(category.name.clone(), CategoryResult {
-                category: category.name.clone(),
-                test_results,
-                score,
-                statistics,
-            });
-            
+
+            category_results.insert(
+                category.name.clone(),
+                CategoryResult {
+                    category: category.name.clone(),
+                    test_results,
+                    score,
+                    statistics,
+                },
+            );
+
             all_failures.extend(category_failures);
         }
-        
+
         // Calculate overall score and ranking
         let overall_score = self.calculate_overall_score(&category_results);
-        
+
         // Calculate resource statistics (placeholder)
         let resource_stats = self.calculate_resource_stats(impl_config);
-        
+
         Ok(ImplementationResult {
             config: impl_config.clone(),
             category_results,
@@ -725,7 +733,7 @@ impl ComprehensiveBenchmarkSuite {
             resource_stats,
         })
     }
-    
+
     /// Execute a single test case
     fn execute_single_test(
         &self,
@@ -735,17 +743,17 @@ impl ComprehensiveBenchmarkSuite {
     ) -> BenchmarkResult<TestResult> {
         // Generate the test code with parameter substitution
         let test_code = self.substitute_parameters(&test_case.code_template, params)?;
-        
+
         // Create temporary test file
         let temp_file = self.create_temp_test_file(impl_config, &test_code)?;
-        
+
         // Execute the test with timing and resource monitoring
-        let (timing, memory, validation, success, error) = 
+        let (timing, memory, validation, success, error) =
             self.execute_test_with_monitoring(impl_config, &temp_file, test_case)?;
-        
+
         // Clean up temporary file
         let _ = fs::remove_file(&temp_file);
-        
+
         if !success {
             return Err(Box::new(TestFailure {
                 test_name: test_case.name.clone(),
@@ -756,7 +764,7 @@ impl ComprehensiveBenchmarkSuite {
                 stack_trace: None,
             }));
         }
-        
+
         Ok(TestResult {
             test_case: test_case.clone(),
             parameters: params.clone(),
@@ -767,18 +775,21 @@ impl ComprehensiveBenchmarkSuite {
             error,
         })
     }
-    
+
     /// Generate parameter combinations for a test
-    fn generate_parameter_combinations(&self, parameters: &[TestParameter]) -> Vec<HashMap<String, ParameterValue>> {
+    fn generate_parameter_combinations(
+        &self,
+        parameters: &[TestParameter],
+    ) -> Vec<HashMap<String, ParameterValue>> {
         if parameters.is_empty() {
             return vec![HashMap::new()];
         }
-        
+
         let mut combinations = vec![HashMap::new()];
-        
+
         for param in parameters {
             let mut new_combinations = Vec::new();
-            
+
             for value in &param.values {
                 for existing_combo in &combinations {
                     let mut new_combo = existing_combo.clone();
@@ -786,13 +797,13 @@ impl ComprehensiveBenchmarkSuite {
                     new_combinations.push(new_combo);
                 }
             }
-            
+
             combinations = new_combinations;
         }
-        
+
         combinations
     }
-    
+
     /// Substitute parameters in test code template
     fn substitute_parameters(
         &self,
@@ -800,7 +811,7 @@ impl ComprehensiveBenchmarkSuite {
         params: &HashMap<String, ParameterValue>,
     ) -> BenchmarkResult<String> {
         let mut result = template.to_string();
-        
+
         for (name, value) in params {
             let placeholder = format!("{{{name}}}");
             let value_str = match value {
@@ -814,17 +825,18 @@ impl ComprehensiveBenchmarkSuite {
                         category: "infrastructure".to_string(),
                         parameters: params.clone(),
                         reason: FailureReason::InfrastructureError,
-                        error_message: "Range parameters should be expanded before substitution".to_string(),
+                        error_message: "Range parameters should be expanded before substitution"
+                            .to_string(),
                         stack_trace: None,
                     }));
                 }
             };
             result = result.replace(&placeholder, &value_str);
         }
-        
+
         Ok(result)
     }
-    
+
     /// Create temporary test file for execution
     fn create_temp_test_file(
         &self,
@@ -835,12 +847,17 @@ impl ComprehensiveBenchmarkSuite {
             RuntimeConfig::Lambdust { .. } => ".ldust",
             _ => ".scm",
         };
-        
-        let temp_file = format!("/tmp/benchmark_{}_{}{}", 
-                               impl_config.id, 
-                               SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
-                               file_extension);
-        
+
+        let temp_file = format!(
+            "/tmp/benchmark_{}_{}{}",
+            impl_config.id,
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+            file_extension
+        );
+
         fs::write(&temp_file, test_code).map_err(|e| TestFailure {
             test_name: "file_creation".to_string(),
             category: "infrastructure".to_string(),
@@ -849,56 +866,69 @@ impl ComprehensiveBenchmarkSuite {
             error_message: format!("Failed to create temp file: {e}"),
             stack_trace: None,
         })?;
-        
+
         Ok(temp_file)
     }
-    
+
     /// Execute test with monitoring
     fn execute_test_with_monitoring(
         &self,
         impl_config: &ImplementationConfig,
         test_file: &str,
         test_case: &TestCase,
-    ) -> BenchmarkResult<(TimingMeasurements, MemoryMeasurements, ValidationResult, bool, Option<String>)> {
+    ) -> BenchmarkResult<(
+        TimingMeasurements,
+        MemoryMeasurements,
+        ValidationResult,
+        bool,
+        Option<String>,
+    )> {
         let mut iteration_times = Vec::new();
         let mut memory_measurements = Vec::new();
-        
+
         // Warmup iterations
         for _ in 0..self.config.statistical_config.warmup_iterations {
             let _ = self.execute_single_iteration(impl_config, test_file, test_case)?;
         }
-        
+
         // Actual measurement iterations
         for _ in 0..self.config.statistical_config.iterations {
             let start = Instant::now();
-            let (success, error, memory_usage) = self.execute_single_iteration(impl_config, test_file, test_case)?;
+            let (success, error, memory_usage) =
+                self.execute_single_iteration(impl_config, test_file, test_case)?;
             let duration = start.elapsed();
-            
+
             if !success {
-                return Ok((self.empty_timing(), self.empty_memory(), self.empty_validation(), false, error));
+                return Ok((
+                    self.empty_timing(),
+                    self.empty_memory(),
+                    self.empty_validation(),
+                    false,
+                    error,
+                ));
             }
-            
+
             iteration_times.push(duration);
             memory_measurements.push((duration, memory_usage));
         }
-        
+
         // Calculate timing statistics
         let timing = self.calculate_timing_statistics(iteration_times);
-        
+
         // Calculate memory statistics
         let memory = self.calculate_memory_statistics(memory_measurements);
-        
+
         // Validate result (simplified)
         let validation = ValidationResult {
-            type_correct: true, // Placeholder
-            value_correct: Some(true), // Placeholder
+            type_correct: true,                  // Placeholder
+            value_correct: Some(true),           // Placeholder
             actual_result: "result".to_string(), // Placeholder
             expected_result: None,
         };
-        
+
         Ok((timing, memory, validation, true, None))
     }
-    
+
     /// Execute a single iteration of a test
     fn execute_single_iteration(
         &self,
@@ -907,7 +937,11 @@ impl ComprehensiveBenchmarkSuite {
         _test_case: &TestCase,
     ) -> BenchmarkResult<(bool, Option<String>, u64)> {
         let mut cmd = match &impl_config.runtime {
-            RuntimeConfig::Native { binary_path, args, env_vars } => {
+            RuntimeConfig::Native {
+                binary_path,
+                args,
+                env_vars,
+            } => {
                 let mut command = Command::new(binary_path);
                 command.args(args);
                 for (key, value) in env_vars {
@@ -916,7 +950,11 @@ impl ComprehensiveBenchmarkSuite {
                 command.arg(test_file);
                 command
             }
-            RuntimeConfig::Lambdust { target_dir, profile, .. } => {
+            RuntimeConfig::Lambdust {
+                target_dir,
+                profile,
+                ..
+            } => {
                 let binary_path = format!("{target_dir}/{profile}/lambdust");
                 let mut command = Command::new(binary_path);
                 command.arg("--batch");
@@ -935,7 +973,7 @@ impl ComprehensiveBenchmarkSuite {
                 }));
             }
         };
-        
+
         match cmd.output() {
             Ok(output) => {
                 let success = output.status.success();
@@ -944,10 +982,10 @@ impl ComprehensiveBenchmarkSuite {
                 } else {
                     Some(String::from_utf8_lossy(&output.stderr).to_string())
                 };
-                
+
                 // Memory usage estimation (placeholder)
                 let memory_usage = output.stdout.len() as u64 + output.stderr.len() as u64;
-                
+
                 Ok((success, error, memory_usage))
             }
             Err(e) => Err(Box::new(TestFailure {
@@ -960,42 +998,53 @@ impl ComprehensiveBenchmarkSuite {
             })),
         }
     }
-    
+
     // Placeholder implementations for statistics calculations
     fn calculate_timing_statistics(&self, times: Vec<Duration>) -> TimingMeasurements {
         if times.is_empty() {
             return self.empty_timing();
         }
-        
+
         let sum: Duration = times.iter().sum();
         let mean = sum / times.len() as u32;
-        
+
         let mut sorted_times = times.clone();
         sorted_times.sort();
-        
+
         let median = sorted_times[sorted_times.len() / 2];
         let min = sorted_times[0];
         let max = sorted_times[sorted_times.len() - 1];
-        
+
         // Standard deviation calculation
-        let variance: f64 = times.iter()
+        let variance: f64 = times
+            .iter()
             .map(|t| {
                 let diff = t.as_secs_f64() - mean.as_secs_f64();
                 diff * diff
             })
-            .sum::<f64>() / times.len() as f64;
+            .sum::<f64>()
+            / times.len() as f64;
         let std_dev = Duration::from_secs_f64(variance.sqrt());
-        
+
         // Percentiles
         let mut percentiles = HashMap::new();
         percentiles.insert(50, median);
-        percentiles.insert(90, sorted_times[(sorted_times.len() * 90 / 100).min(sorted_times.len() - 1)]);
-        percentiles.insert(95, sorted_times[(sorted_times.len() * 95 / 100).min(sorted_times.len() - 1)]);
-        percentiles.insert(99, sorted_times[(sorted_times.len() * 99 / 100).min(sorted_times.len() - 1)]);
-        
+        percentiles.insert(
+            90,
+            sorted_times[(sorted_times.len() * 90 / 100).min(sorted_times.len() - 1)],
+        );
+        percentiles.insert(
+            95,
+            sorted_times[(sorted_times.len() * 95 / 100).min(sorted_times.len() - 1)],
+        );
+        percentiles.insert(
+            99,
+            sorted_times[(sorted_times.len() * 99 / 100).min(sorted_times.len() - 1)],
+        );
+
         // Operations per second
         let ops_per_second = 1.0 / mean.as_secs_f64();
-        
+
         TimingMeasurements {
             iteration_times: times,
             mean,
@@ -1012,23 +1061,31 @@ impl ComprehensiveBenchmarkSuite {
             ops_per_second,
         }
     }
-    
-    fn calculate_memory_statistics(&self, measurements: Vec<(Duration, u64)>) -> MemoryMeasurements {
+
+    fn calculate_memory_statistics(
+        &self,
+        measurements: Vec<(Duration, u64)>,
+    ) -> MemoryMeasurements {
         if measurements.is_empty() {
             return self.empty_memory();
         }
-        
+
         let peak_usage = measurements.iter().map(|(_, mem)| *mem).max().unwrap_or(0);
-        let avg_usage = measurements.iter().map(|(_, mem)| *mem).sum::<u64>() / measurements.len() as u64;
-        
+        let avg_usage =
+            measurements.iter().map(|(_, mem)| *mem).sum::<u64>() / measurements.len() as u64;
+
         MemoryMeasurements {
             peak_usage,
             usage_timeline: measurements,
             allocation_rate: avg_usage as f64, // Simplified
-            efficiency: if peak_usage > 0 { 1.0 / peak_usage as f64 } else { 0.0 },
+            efficiency: if peak_usage > 0 {
+                1.0 / peak_usage as f64
+            } else {
+                0.0
+            },
         }
     }
-    
+
     fn empty_timing(&self) -> TimingMeasurements {
         TimingMeasurements {
             iteration_times: Vec::new(),
@@ -1046,7 +1103,7 @@ impl ComprehensiveBenchmarkSuite {
             ops_per_second: 0.0,
         }
     }
-    
+
     fn empty_memory(&self) -> MemoryMeasurements {
         MemoryMeasurements {
             peak_usage: 0,
@@ -1055,7 +1112,7 @@ impl ComprehensiveBenchmarkSuite {
             efficiency: 0.0,
         }
     }
-    
+
     fn empty_validation(&self) -> ValidationResult {
         ValidationResult {
             type_correct: false,
@@ -1064,7 +1121,7 @@ impl ComprehensiveBenchmarkSuite {
             expected_result: None,
         }
     }
-    
+
     // Additional placeholder implementations
     fn calculate_category_statistics(&self, _test_results: &[TestResult]) -> CategoryStatistics {
         CategoryStatistics {
@@ -1076,15 +1133,19 @@ impl ComprehensiveBenchmarkSuite {
             category_ranking: 0,
         }
     }
-    
-    fn calculate_category_score(&self, _test_results: &[TestResult], _category: &TestCategory) -> f64 {
+
+    fn calculate_category_score(
+        &self,
+        _test_results: &[TestResult],
+        _category: &TestCategory,
+    ) -> f64 {
         75.0 // Placeholder
     }
-    
+
     fn calculate_overall_score(&self, _category_results: &HashMap<String, CategoryResult>) -> f64 {
         75.0 // Placeholder
     }
-    
+
     fn calculate_resource_stats(&self, _impl_config: &ImplementationConfig) -> ResourceStats {
         ResourceStats {
             cpu: CPUStats {
@@ -1110,12 +1171,18 @@ impl ComprehensiveBenchmarkSuite {
             network_io: None,
         }
     }
-    
-    fn generate_comparisons(&self, _results: &HashMap<String, ImplementationResult>) -> Vec<ImplementationComparison> {
+
+    fn generate_comparisons(
+        &self,
+        _results: &HashMap<String, ImplementationResult>,
+    ) -> Vec<ImplementationComparison> {
         Vec::new() // Placeholder
     }
-    
-    fn generate_statistical_summary(&self, _results: &HashMap<String, ImplementationResult>) -> StatisticalSummary {
+
+    fn generate_statistical_summary(
+        &self,
+        _results: &HashMap<String, ImplementationResult>,
+    ) -> StatisticalSummary {
         StatisticalSummary {
             performance_rankings: Vec::new(),
             category_leaders: HashMap::new(),
@@ -1131,40 +1198,43 @@ impl ComprehensiveBenchmarkSuite {
             },
         }
     }
-    
-    fn perform_regression_analysis(&self, _results: &HashMap<String, ImplementationResult>) -> Option<RegressionAnalysis> {
+
+    fn perform_regression_analysis(
+        &self,
+        _results: &HashMap<String, ImplementationResult>,
+    ) -> Option<RegressionAnalysis> {
         None // Placeholder
     }
-    
+
     fn generate_recommendations(
-        &self, 
+        &self,
         _results: &HashMap<String, ImplementationResult>,
         _summary: &StatisticalSummary,
     ) -> Vec<OptimizationRecommendation> {
         Vec::new() // Placeholder
     }
-    
+
     fn collect_system_info(&self) -> SystemInfo {
         SystemInfo {
             os: std::env::consts::OS.to_string(),
             architecture: std::env::consts::ARCH.to_string(),
             cpu_model: "Unknown".to_string(), // Would use system API
             cpu_cores: num_cpus::get() as u32,
-            total_memory_mb: 8192, // Placeholder
+            total_memory_mb: 8192,     // Placeholder
             available_memory_mb: 4096, // Placeholder
             hostname: "benchmark-host".to_string(),
         }
     }
-    
+
     fn get_git_commit(&self) -> Option<String> {
         // Would execute `git rev-parse HEAD`
         None
     }
-    
+
     fn start_resource_monitoring(&self) {
         // Would start background thread for resource monitoring
     }
-    
+
     fn stop_resource_monitoring(&self) -> SystemResourceUsage {
         // Would stop monitoring and return collected data
         SystemResourceUsage {
@@ -1195,33 +1265,44 @@ impl ComprehensiveBenchmarkSuite {
             },
         }
     }
-    
-    fn save_results(&self, result: &BenchmarkSuiteResult) -> Result<(), Box<dyn std::error::Error>> {
+
+    fn save_results(
+        &self,
+        result: &BenchmarkSuiteResult,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Create output directory
         fs::create_dir_all(&self.config.output_config.output_dir)?;
-        
-        let timestamp = result.metadata.timestamp
+
+        let timestamp = result
+            .metadata
+            .timestamp
             .duration_since(UNIX_EPOCH)?
             .as_secs();
-        
+
         // Save results in requested formats
         for format in &self.config.output_config.formats {
             match format {
                 OutputFormat::JSON => {
-                    let json_path = format!("{}/benchmark_results_{}.json", 
-                                          self.config.output_config.output_dir, timestamp);
+                    let json_path = format!(
+                        "{}/benchmark_results_{}.json",
+                        self.config.output_config.output_dir, timestamp
+                    );
                     let json_data = serde_json::to_string_pretty(result)?;
                     fs::write(json_path, json_data)?;
                 }
                 OutputFormat::CSV => {
-                    let csv_path = format!("{}/benchmark_results_{}.csv", 
-                                         self.config.output_config.output_dir, timestamp);
+                    let csv_path = format!(
+                        "{}/benchmark_results_{}.csv",
+                        self.config.output_config.output_dir, timestamp
+                    );
                     // CSV generation would be implemented here
                     fs::write(csv_path, "CSV data placeholder")?;
                 }
                 OutputFormat::HTML => {
-                    let html_path = format!("{}/benchmark_report_{}.html", 
-                                          self.config.output_config.output_dir, timestamp);
+                    let html_path = format!(
+                        "{}/benchmark_report_{}.html",
+                        self.config.output_config.output_dir, timestamp
+                    );
                     let html_report = self.generate_html_report(result);
                     fs::write(html_path, html_report)?;
                 }
@@ -1230,12 +1311,13 @@ impl ComprehensiveBenchmarkSuite {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn generate_html_report(&self, result: &BenchmarkSuiteResult) -> String {
-        format!(r#"
+        format!(
+            r#"
 <!DOCTYPE html>
 <html>
 <head>
@@ -1249,17 +1331,17 @@ impl ComprehensiveBenchmarkSuite {
 </head>
 <body>
     <h1>Lambdust Performance Benchmark Results</h1>
-    
+
     <div class="summary">
         <h2>Summary</h2>
         <p><strong>Benchmark Date:</strong> {}</p>
         <p><strong>Total Duration:</strong> {:.2} seconds</p>
         <p><strong>Implementations Tested:</strong> {}</p>
     </div>
-    
+
     <h2>Implementation Results</h2>
     {}
-    
+
     <h2>System Information</h2>
     <p><strong>OS:</strong> {}</p>
     <p><strong>Architecture:</strong> {}</p>
@@ -1268,26 +1350,39 @@ impl ComprehensiveBenchmarkSuite {
 </body>
 </html>
         "#,
-        // Format timestamp
-        result.metadata.timestamp.duration_since(UNIX_EPOCH).unwrap().as_secs(),
-        result.metadata.total_duration.as_secs_f64(),
-        result.implementation_results.len(),
-        // Implementation results
-        result.implementation_results.iter()
-            .map(|(id, impl_result)| format!(r#"
+            // Format timestamp
+            result
+                .metadata
+                .timestamp
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            result.metadata.total_duration.as_secs_f64(),
+            result.implementation_results.len(),
+            // Implementation results
+            result
+                .implementation_results
+                .iter()
+                .map(|(id, impl_result)| format!(
+                    r#"
                 <div class="implementation">
                     <h3>{}</h3>
                     <p class="score">Overall Score: {:.1}/100</p>
                     <p><strong>Ranking:</strong> #{}</p>
                     <p><strong>Failures:</strong> {}</p>
                 </div>
-            "#, impl_result.config.name, impl_result.overall_score, impl_result.ranking, impl_result.failures.len()))
-            .collect::<Vec<String>>()
-            .join(""),
-        result.metadata.system_info.os,
-        result.metadata.system_info.architecture,
-        result.metadata.system_info.cpu_cores,
-        result.metadata.system_info.total_memory_mb
+            "#,
+                    impl_result.config.name,
+                    impl_result.overall_score,
+                    impl_result.ranking,
+                    impl_result.failures.len()
+                ))
+                .collect::<Vec<String>>()
+                .join(""),
+            result.metadata.system_info.os,
+            result.metadata.system_info.architecture,
+            result.metadata.system_info.cpu_cores,
+            result.metadata.system_info.total_memory_mb
         )
     }
 }
@@ -1300,14 +1395,19 @@ pub fn run_comprehensive_benchmarks() -> Result<BenchmarkSuiteResult, Box<dyn st
 }
 
 /// Load configuration from file
-pub fn load_benchmark_config(path: &str) -> Result<BenchmarkSuiteConfig, Box<dyn std::error::Error>> {
+pub fn load_benchmark_config(
+    path: &str,
+) -> Result<BenchmarkSuiteConfig, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(path)?;
     let config: BenchmarkSuiteConfig = serde_json::from_str(&content)?;
     Ok(config)
 }
 
 /// Save configuration to file
-pub fn save_benchmark_config(config: &BenchmarkSuiteConfig, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn save_benchmark_config(
+    config: &BenchmarkSuiteConfig,
+    path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let content = serde_json::to_string_pretty(config)?;
     fs::write(path, content)?;
     Ok(())
@@ -1316,18 +1416,18 @@ pub fn save_benchmark_config(config: &BenchmarkSuiteConfig, path: &str) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_config_creation() {
         let config = BenchmarkSuiteConfig::default();
         assert!(!config.implementations.is_empty());
         assert!(!config.test_categories.is_empty());
     }
-    
+
     #[test]
     fn test_parameter_combination_generation() {
         let suite = ComprehensiveBenchmarkSuite::new(BenchmarkSuiteConfig::default());
-        
+
         let params = vec![
             TestParameter {
                 name: "n".to_string(),
@@ -1339,26 +1439,29 @@ mod tests {
             },
             TestParameter {
                 name: "m".to_string(),
-                values: vec![
-                    ParameterValue::Integer { value: 5 },
-                ],
+                values: vec![ParameterValue::Integer { value: 5 }],
                 scaling_behavior: ScalingBehavior::Constant,
             },
         ];
-        
+
         let combinations = suite.generate_parameter_combinations(&params);
         assert_eq!(combinations.len(), 2); // 2 * 1 = 2 combinations
     }
-    
+
     #[test]
     fn test_parameter_substitution() {
         let suite = ComprehensiveBenchmarkSuite::new(BenchmarkSuiteConfig::default());
-        
+
         let template = "(test {n} {s})";
         let mut params = HashMap::new();
         params.insert("n".to_string(), ParameterValue::Integer { value: 42 });
-        params.insert("s".to_string(), ParameterValue::String { value: "hello".to_string() });
-        
+        params.insert(
+            "s".to_string(),
+            ParameterValue::String {
+                value: "hello".to_string(),
+            },
+        );
+
         let result = suite.substitute_parameters(template, &params).unwrap();
         assert_eq!(result, "(test 42 \"hello\")");
     }

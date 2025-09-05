@@ -15,9 +15,9 @@ pub struct ParallelResult {
 impl ParallelResult {
     /// Creates a new parallel result.
     pub fn new(
-        results: Vec<Result<Value>>, 
-        elapsed: std::time::Duration, 
-        threads_used: usize
+        results: Vec<Result<Value>>,
+        elapsed: std::time::Duration,
+        threads_used: usize,
     ) -> Self {
         Self {
             results,
@@ -25,29 +25,31 @@ impl ParallelResult {
             threads_used,
         }
     }
-    
+
     /// Gets the results.
     pub fn results(&self) -> &[Result<Value>] {
         &self.results
     }
-    
+
     /// Gets the elapsed time.
     pub fn elapsed(&self) -> std::time::Duration {
         self.elapsed
     }
-    
+
     /// Gets the number of threads used.
     pub fn threads_used(&self) -> usize {
         self.threads_used
     }
-    
+
     /// Returns true if all results are successful.
     pub fn all_succeeded(&self) -> bool {
         self.results.iter().all(|r| r.is_ok())
     }
-    
+
     /// Returns the first error, if any.
     pub fn first_error(&self) -> Option<&crate::diagnostics::Error> {
-        self.results.iter().find_map(|r| r.as_ref().err().map(|e| e.as_ref()))
+        self.results
+            .iter()
+            .find_map(|r| r.as_ref().err().map(|e| e.as_ref()))
     }
 }

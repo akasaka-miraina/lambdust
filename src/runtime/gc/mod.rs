@@ -10,7 +10,7 @@
 //! - **Multiple Collection Algorithms**: Stop-the-world copying for young
 //!   generation, concurrent mark-and-sweep for old generation, and incremental
 //!   collection for low-latency scenarios
-//! - **Advanced Allocation**: Thread-local allocation buffers (TLABs), 
+//! - **Advanced Allocation**: Thread-local allocation buffers (TLABs),
 //!   generation-aware allocation, and allocation sampling
 //! - **Performance Integration**: Comprehensive metrics collection and
 //!   integration with JIT performance monitoring
@@ -76,52 +76,29 @@
 //! - Allocation throughput: High-performance thread-local allocation
 
 // Public module declarations
-pub mod parallel_gc;
-pub mod generation;
 pub mod allocator;
 pub mod collector;
+pub mod generation;
+pub mod parallel_gc;
 
 // Re-export main types for convenient access
 pub use parallel_gc::{
-    ParallelGc, 
-    ParallelGcConfig, 
-    CollectionPhase, 
-    GcStatistics, 
-    SafepointCoordinator,
-    AdaptiveTuningParams,
-    CollectionRequest,
+    AdaptiveTuningParams, CollectionPhase, CollectionRequest, GcStatistics, ParallelGc,
+    ParallelGcConfig, SafepointCoordinator,
 };
 
 pub use generation::{
-    GenerationManager,
-    YoungGeneration,
-    OldGeneration,
-    Generation,
-    ObjectHeader,
-    GenerationId,
-    GenerationStatistics,
-    CollectionResult,
-    MemoryRegion,
-    HeapStatistics,
+    CollectionResult, Generation, GenerationId, GenerationManager, GenerationStatistics,
+    HeapStatistics, MemoryRegion, ObjectHeader, OldGeneration, YoungGeneration,
 };
 
 pub use allocator::{
-    AllocationCoordinator,
-    TlabManager,
-    Tlab,
-    AllocationSampler,
-    AllocationSample,
-    AllocationStatistics,
-    TlabStatistics,
+    AllocationCoordinator, AllocationSample, AllocationSampler, AllocationStatistics, Tlab,
+    TlabManager, TlabStatistics,
 };
 
 pub use collector::{
-    CopyingCollector,
-    MarkSweepCollector,
-    IncrementalCollector,
-    RootSet,
-    WriteBarrier,
-    ObjectMarker,
+    CopyingCollector, IncrementalCollector, MarkSweepCollector, ObjectMarker, RootSet, WriteBarrier,
 };
 
 // Additional convenience types and functions
@@ -277,8 +254,19 @@ impl GcSystem {
     }
 
     /// Initialize the GC system with optional JIT metrics
-    pub fn initialize(&mut self, jit_metrics: Option<Arc<std::sync::RwLock<crate::jit::metrics::JitMetrics>>>) -> GcResult<()> {
+    #[cfg(feature = "jit")]
+    pub fn initialize(
+        &mut self,
+        jit_metrics: Option<Arc<std::sync::RwLock<crate::jit::metrics::JitMetrics>>>,
+    ) -> GcResult<()> {
         self.parallel_gc.initialize(jit_metrics)
+    }
+
+    /// Initialize the GC system (no JIT metrics when JIT disabled)
+    #[cfg(not(feature = "jit"))]
+    pub fn initialize(&mut self) -> GcResult<()> {
+        // No JIT integration when JIT is disabled
+        Ok(())
     }
 
     /// Perform a minor collection
@@ -297,7 +285,11 @@ impl GcSystem {
     }
 
     /// Allocate a new object
-    pub fn allocate(&self, value: crate::eval::value::Value, size: usize) -> GcResult<Arc<ObjectHeader>> {
+    pub fn allocate(
+        &self,
+        value: crate::eval::value::Value,
+        size: usize,
+    ) -> GcResult<Arc<ObjectHeader>> {
         self.allocation_coordinator.allocate(value, size)
     }
 
@@ -320,21 +312,31 @@ impl GcSystem {
 
         GcSystemStatistics {
             // GC statistics
-            minor_collections: gc_stats.minor_collections.load(std::sync::atomic::Ordering::Relaxed),
-            major_collections: gc_stats.major_collections.load(std::sync::atomic::Ordering::Relaxed),
-            avg_minor_pause_ms: gc_stats.avg_minor_pause_ns.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1_000_000.0,
-            avg_major_pause_ms: gc_stats.avg_major_pause_ns.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1_000_000.0,
-            
+            minor_collections: gc_stats
+                .minor_collections
+                .load(std::sync::atomic::Ordering::Relaxed),
+            major_collections: gc_stats
+                .major_collections
+                .load(std::sync::atomic::Ordering::Relaxed),
+            avg_minor_pause_ms: gc_stats
+                .avg_minor_pause_ns
+                .load(std::sync::atomic::Ordering::Relaxed) as f64
+                / 1_000_000.0,
+            avg_major_pause_ms: gc_stats
+                .avg_major_pause_ns
+                .load(std::sync::atomic::Ordering::Relaxed) as f64
+                / 1_000_000.0,
+
             // Heap statistics
             total_allocations: heap_stats.total_allocations,
             total_allocated_bytes: heap_stats.total_allocated_bytes,
             young_utilization: heap_stats.young_utilization,
             old_utilization: heap_stats.old_utilization,
-            
+
             // Allocation statistics
             allocation_rate: self.allocation_coordinator.allocation_rate(),
             failure_rate: allocation_stats.failure_rate(),
-            
+
             // TLAB statistics
             tlab_utilization: tlab_stats.average_utilization(),
             tlab_waste_percentage: tlab_stats.waste_percentage(),
@@ -357,9 +359,9 @@ pub struct GcSystemStatistics {
     pub major_collections: u64,
     /// Average minor collection pause time (milliseconds)
     pub avg_minor_pause_ms: f64,
-    /// Average major collection pause time (milliseconds)  
+    /// Average major collection pause time (milliseconds)
     pub avg_major_pause_ms: f64,
-    
+
     // Heap statistics
     /// Total allocations across all generations
     pub total_allocations: u64,
@@ -369,13 +371,13 @@ pub struct GcSystemStatistics {
     pub young_utilization: f64,
     /// Old generation utilization percentage
     pub old_utilization: f64,
-    
+
     // Performance statistics
     /// Current allocation rate (objects per second)
     pub allocation_rate: f64,
     /// Allocation failure rate percentage
     pub failure_rate: f64,
-    
+
     // TLAB statistics
     /// Average TLAB utilization percentage
     pub tlab_utilization: f64,
@@ -392,7 +394,7 @@ impl GcSystemStatistics {
             && self.failure_rate < 1.0          // Failure rate under 1%
             && self.tlab_utilization > 70.0     // Good TLAB utilization
             && self.young_utilization < 95.0    // Not overwhelmed
-            && self.old_utilization < 90.0      // Not overwhelmed
+            && self.old_utilization < 90.0 // Not overwhelmed
     }
 
     /// Get overall performance score (0.0 to 1.0)
@@ -409,8 +411,8 @@ impl GcSystemStatistics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::value::Value;
     use crate::ast::Literal;
+    use crate::eval::value::Value;
 
     #[test]
     fn test_gc_config_builder() {
@@ -440,13 +442,13 @@ mod tests {
             .young_generation_mb(16)
             .old_generation_mb(64)
             .build();
-            
+
         let gc_system = GcSystem::new(config).unwrap();
         let value = Value::Literal(Literal::Number(42.0));
-        
+
         let result = gc_system.allocate(value, 64);
         assert!(result.is_ok());
-        
+
         let header = result.unwrap();
         assert_eq!(header.size, 64);
         assert_eq!(header.generation, GenerationId::Young);

@@ -5,12 +5,12 @@
 //! advanced pattern matching, macro debugging capabilities, and enhanced
 //! hygiene controls.
 
-use super::code_generation::{AstTransformer, AstTemplate};
+use super::code_generation::{AstTemplate, AstTransformer};
 use crate::ast::Expr;
 use crate::diagnostics::{Error, Result, Span, Spanned};
-use crate::eval::{Value, Environment, Evaluator};
-use crate::macro_system::{MacroExpander, Pattern, HygieneContext};
-use crate::utils::{intern_symbol, SymbolId};
+use crate::eval::{Environment, Evaluator, Value};
+use crate::macro_system::{HygieneContext, MacroExpander, Pattern};
+use crate::utils::{SymbolId, intern_symbol};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 
@@ -39,7 +39,7 @@ pub enum AdvancedPattern {
         /// The underlying pattern to match
         pattern: Box<AdvancedPattern>,
         /// The guard condition that must be satisfied
-        guard: GuardExpression,
+        guard: Box<GuardExpression>,
     },
     /// Typed pattern with type constraint
     Typed {
@@ -100,7 +100,7 @@ pub enum GuardExpression {
         /// Variable name for left side of comparison
         left: String,
         /// Value for right side of comparison
-        right: GuardValue,
+        right: Box<GuardValue>,
     },
     /// Boolean combination
     And(Vec<GuardExpression>),
@@ -135,7 +135,7 @@ pub enum GuardValue {
     /// Variable reference in guard expression
     Variable(String),
     /// Nested expression in guard
-    Expression(Spanned<Expr>),
+    Expression(Box<Spanned<Expr>>),
 }
 
 /// Type constraints for patterns.
@@ -161,7 +161,7 @@ pub enum StructureType {
     /// Record structure type with name
     Record(String), // record type name
     /// General object structure type
-    Object,         // general object
+    Object, // general object
 }
 
 /// Macro debugging information.
@@ -441,13 +441,14 @@ impl EnhancedHygiene {
         macro_name: &str,
         definition_env: &Environment,
     ) -> Result<Spanned<Expr>> {
-        let policy = self.policies.get(macro_name).cloned()
+        let policy = self
+            .policies
+            .get(macro_name)
+            .cloned()
             .unwrap_or(HygienePolicy::Strict);
 
         match policy {
-            HygienePolicy::Strict => {
-                self.base_context.rename_identifiers(expr, definition_env)
-            }
+            HygienePolicy::Strict => self.base_context.rename_identifiers(expr, definition_env),
             HygienePolicy::None => Ok(expr),
             HygienePolicy::Relaxed { allowed_captures } => {
                 self.apply_relaxed_hygiene(expr, definition_env, &allowed_captures)
@@ -562,11 +563,12 @@ impl ProceduralMacro {
         input: &Spanned<Expr>,
         use_env: &Rc<Environment>,
     ) -> Result<Spanned<Expr>> {
-        let proc_macro = self.proc_macros.get(name)
-            .ok_or_else(|| Error::runtime_error(
+        let proc_macro = self.proc_macros.get(name).ok_or_else(|| {
+            Error::runtime_error(
                 format!("Unknown procedural macro: {name}"),
                 Some(input.span),
-            ))?;
+            )
+        })?;
 
         // Create evaluator for transformer execution
         let mut evaluator = Evaluator::with_environment(proc_macro.definition_env.clone());
@@ -577,28 +579,32 @@ impl ProceduralMacro {
         // Call the transformer procedure by evaluating a procedure call
         let call_expr = Spanned::new(
             Expr::Application {
-                operator: Box::new(Spanned::new(Expr::Identifier("transformer".to_string()), input.span)),
-                operands: vec![Spanned::new(Expr::Identifier("input".to_string()), input.span)],
+                operator: Box::new(Spanned::new(
+                    Expr::Identifier("transformer".to_string()),
+                    input.span,
+                )),
+                operands: vec![Spanned::new(
+                    Expr::Identifier("input".to_string()),
+                    input.span,
+                )],
             },
-            input.span
+            input.span,
         );
-        
+
         // Create temporary environment with transformer and input bound
         let temp_env = Rc::new(Environment::new(None, 0));
         temp_env.define("transformer".to_string(), proc_macro.transformer.clone());
         temp_env.define("input".to_string(), input_value);
-        
+
         let result_value = evaluator.eval(&call_expr, temp_env)?;
 
         // Convert result back to expression
         let result_expr = self.value_to_expr(&result_value, input.span)?;
 
         // Apply hygiene
-        let hygienic_result = self.hygiene.apply_hygiene(
-            result_expr,
-            name,
-            &proc_macro.definition_env,
-        )?;
+        let hygienic_result =
+            self.hygiene
+                .apply_hygiene(result_expr, name, &proc_macro.definition_env)?;
 
         // Record debug information
         let debug_info = MacroDebugInfo {
@@ -668,23 +674,25 @@ impl ProceduralMacro {
                 }
             }
 
-            AdvancedPattern::Range { min, max, inclusive: _ } => {
-                match &expr.inner {
-                    Expr::Literal(crate::ast::Literal::ExactInteger(n)) => {
-                        let n = *n as f64;
-                        let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
-                        let max_ok = n <= max.unwrap_or(f64::INFINITY);
-                        Ok(min_ok && max_ok)
-                    }
-                    Expr::Literal(crate::ast::Literal::InexactReal(n)) => {
-                        let n = *n;
-                        let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
-                        let max_ok = n <= max.unwrap_or(f64::INFINITY);
-                        Ok(min_ok && max_ok)
-                    }
-                    _ => Ok(false)
+            AdvancedPattern::Range {
+                min,
+                max,
+                inclusive: _,
+            } => match &expr.inner {
+                Expr::Literal(crate::ast::Literal::ExactInteger(n)) => {
+                    let n = *n as f64;
+                    let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
+                    let max_ok = n <= max.unwrap_or(f64::INFINITY);
+                    Ok(min_ok && max_ok)
                 }
-            }
+                Expr::Literal(crate::ast::Literal::InexactReal(n)) => {
+                    let n = *n;
+                    let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
+                    let max_ok = n <= max.unwrap_or(f64::INFINITY);
+                    Ok(min_ok && max_ok)
+                }
+                _ => Ok(false),
+            },
 
             AdvancedPattern::Alternative(patterns) => {
                 for pattern in patterns {
@@ -703,7 +711,11 @@ impl ProceduralMacro {
     }
 
     /// Evaluates a guard expression.
-    fn evaluate_guard(&self, guard: &GuardExpression, bindings: &HashMap<String, Value>) -> Result<bool> {
+    fn evaluate_guard(
+        &self,
+        guard: &GuardExpression,
+        bindings: &HashMap<String, Value>,
+    ) -> Result<bool> {
         match guard {
             GuardExpression::Predicate(pred_name) => {
                 // Would call predicate function with bindings
@@ -711,20 +723,20 @@ impl ProceduralMacro {
                 Ok(pred_name == "true")
             }
 
-            GuardExpression::Comparison { operator, left, right } => {
-                let left_value = bindings.get(left)
-                    .ok_or_else(|| Error::runtime_error(
-                        format!("Unbound variable in guard: {left}"),
-                        None,
-                    ))?;
+            GuardExpression::Comparison {
+                operator,
+                left,
+                right,
+            } => {
+                let left_value = bindings.get(left).ok_or_else(|| {
+                    Error::runtime_error(format!("Unbound variable in guard: {left}"), None)
+                })?;
 
-                let right_value = match right {
+                let right_value = match &**right {
                     GuardValue::Literal(val) => val,
-                    GuardValue::Variable(var) => bindings.get(var)
-                        .ok_or_else(|| Error::runtime_error(
-                            format!("Unbound variable in guard: {var}"),
-                            None,
-                        ))?,
+                    GuardValue::Variable(var) => bindings.get(var).ok_or_else(|| {
+                        Error::runtime_error(format!("Unbound variable in guard: {var}"), None)
+                    })?,
                     GuardValue::Expression(_) => {
                         // Would evaluate expression
                         return Ok(false);
@@ -752,17 +764,17 @@ impl ProceduralMacro {
                 Ok(false)
             }
 
-            GuardExpression::Not(guard) => {
-                Ok(!self.evaluate_guard(guard, bindings)?)
-            }
+            GuardExpression::Not(guard) => Ok(!self.evaluate_guard(guard, bindings)?),
         }
     }
 
     /// Compares two values using an operator.
     fn compare_values(&self, left: &Value, right: &Value, op: &ComparisonOp) -> Result<bool> {
         match (left, right) {
-            (Value::Literal(crate::ast::Literal::ExactInteger(a)), 
-             Value::Literal(crate::ast::Literal::ExactInteger(b))) => {
+            (
+                Value::Literal(crate::ast::Literal::ExactInteger(a)),
+                Value::Literal(crate::ast::Literal::ExactInteger(b)),
+            ) => {
                 let a = *a as f64;
                 let b = *b as f64;
                 match op {
@@ -774,19 +786,21 @@ impl ProceduralMacro {
                     ComparisonOp::GreaterEqual => Ok(a >= b),
                 }
             }
-            (Value::Literal(crate::ast::Literal::InexactReal(a)), 
-             Value::Literal(crate::ast::Literal::InexactReal(b))) => {
-                match op {
-                    ComparisonOp::Equal => Ok((a - b).abs() < f64::EPSILON),
-                    ComparisonOp::NotEqual => Ok((a - b).abs() >= f64::EPSILON),
-                    ComparisonOp::LessThan => Ok(a < b),
-                    ComparisonOp::LessEqual => Ok(a <= b),
-                    ComparisonOp::GreaterThan => Ok(a > b),
-                    ComparisonOp::GreaterEqual => Ok(a >= b),
-                }
-            }
-            (Value::Literal(crate::ast::Literal::ExactInteger(a)), 
-             Value::Literal(crate::ast::Literal::InexactReal(b))) => {
+            (
+                Value::Literal(crate::ast::Literal::InexactReal(a)),
+                Value::Literal(crate::ast::Literal::InexactReal(b)),
+            ) => match op {
+                ComparisonOp::Equal => Ok((a - b).abs() < f64::EPSILON),
+                ComparisonOp::NotEqual => Ok((a - b).abs() >= f64::EPSILON),
+                ComparisonOp::LessThan => Ok(a < b),
+                ComparisonOp::LessEqual => Ok(a <= b),
+                ComparisonOp::GreaterThan => Ok(a > b),
+                ComparisonOp::GreaterEqual => Ok(a >= b),
+            },
+            (
+                Value::Literal(crate::ast::Literal::ExactInteger(a)),
+                Value::Literal(crate::ast::Literal::InexactReal(b)),
+            ) => {
                 let a = *a as f64;
                 match op {
                     ComparisonOp::Equal => Ok((a - *b).abs() < f64::EPSILON),
@@ -797,8 +811,10 @@ impl ProceduralMacro {
                     ComparisonOp::GreaterEqual => Ok(a >= *b),
                 }
             }
-            (Value::Literal(crate::ast::Literal::InexactReal(a)), 
-             Value::Literal(crate::ast::Literal::ExactInteger(b))) => {
+            (
+                Value::Literal(crate::ast::Literal::InexactReal(a)),
+                Value::Literal(crate::ast::Literal::ExactInteger(b)),
+            ) => {
                 let b = *b as f64;
                 match op {
                     ComparisonOp::Equal => Ok((*a - b).abs() < f64::EPSILON),
@@ -828,14 +844,8 @@ impl ProceduralMacro {
     ) -> Result<Spanned<Expr>> {
         // Simplified template expansion
         match template {
-            AstTemplate::Literal(lit) => Ok(Spanned::new(
-                Expr::Literal(lit.clone()),
-                span,
-            )),
-            AstTemplate::Identifier(name) => Ok(Spanned::new(
-                Expr::Identifier(name.clone()),
-                span,
-            )),
+            AstTemplate::Literal(lit) => Ok(Spanned::new(Expr::Literal(lit.clone()), span)),
+            AstTemplate::Identifier(name) => Ok(Spanned::new(Expr::Identifier(name.clone()), span)),
             _ => Ok(Spanned::new(
                 Expr::Literal(crate::ast::Literal::Boolean(true)),
                 span,
@@ -857,7 +867,9 @@ impl ProceduralMacro {
         match value {
             Value::Literal(lit) => Ok(Spanned::new(Expr::Literal(lit.clone()), span)),
             Value::Symbol(sym) => Ok(Spanned::new(
-                Expr::Identifier(crate::utils::symbol_name(*sym).unwrap_or_else(|| format!("symbol-{}", sym.0))),
+                Expr::Identifier(
+                    crate::utils::symbol_name(*sym).unwrap_or_else(|| format!("symbol-{}", sym.0)),
+                ),
                 span,
             )),
             _ => Ok(Spanned::new(

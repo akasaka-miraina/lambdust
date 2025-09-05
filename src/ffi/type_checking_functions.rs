@@ -22,7 +22,7 @@ impl FfiFunction for IsNumberFunction {
             documentation: Some("Checks if a value is a number.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         Ok(args[0].is_number().to_lambdust())
     }
@@ -42,7 +42,7 @@ impl FfiFunction for IsStringFunction {
             documentation: Some("Checks if a value is a string.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         Ok(args[0].is_string().to_lambdust())
     }
@@ -62,7 +62,7 @@ impl FfiFunction for IsListFunction {
             documentation: Some("Checks if a value is a list.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         Ok(args[0].is_list().to_lambdust())
     }
@@ -82,7 +82,7 @@ impl FfiFunction for IsBooleanFunction {
             documentation: Some("Checks if a value is a boolean.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let is_bool = matches!(args[0], Value::Literal(crate::ast::Literal::Boolean(_)));
         Ok(is_bool.to_lambdust())

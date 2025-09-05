@@ -62,7 +62,8 @@ impl AtomicCounter {
 
     /// Compares and swaps the value.
     pub fn compare_and_swap(&self, current: i64, new: i64) -> i64 {
-        self.inner.compare_exchange(current, new, Ordering::SeqCst, Ordering::SeqCst)
+        self.inner
+            .compare_exchange(current, new, Ordering::SeqCst, Ordering::SeqCst)
             .unwrap_or_else(|x| x)
     }
 
@@ -118,7 +119,8 @@ impl AtomicFlag {
 
     /// Compares and swaps the value.
     pub fn compare_and_swap(&self, current: bool, new: bool) -> bool {
-        self.inner.compare_exchange(current, new, Ordering::SeqCst, Ordering::SeqCst)
+        self.inner
+            .compare_exchange(current, new, Ordering::SeqCst, Ordering::SeqCst)
             .unwrap_or_else(|x| x)
     }
 

@@ -2,21 +2,21 @@
 //!
 //! This module implements the bootstrap process that initializes the runtime environment
 //! with minimal Rust primitives and loads the Scheme-based standard library modules.
-//! 
+//!
 //! The bootstrap follows a carefully orchestrated sequence:
 //! 1. Initialize minimal Rust primitives required for Scheme compilation
-//! 2. Set up the module loading infrastructure  
+//! 2. Set up the module loading infrastructure
 //! 3. Load core Scheme libraries in dependency order
 //! 4. Provide runtime services for library management
 
-use crate::diagnostics::{Result, Error, error::helpers};
+use crate::diagnostics::{Error, Result, error::helpers};
 use crate::eval::Value;
+use crate::module_system::{BootstrapConfig, SchemeLibraryLoader};
 use crate::runtime::{GlobalEnvironmentManager, LibraryPathResolver};
-use crate::module_system::{SchemeLibraryLoader, BootstrapConfig};
-use crate::stdlib::StandardLibrary;
-use std::sync::Arc;
+use crate::stdlib::standard_library::StandardLibrary;
 use std::collections::HashMap;
-use std::time::{Instant, Duration};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 /// Core bootstrap system that manages the startup sequence.
 #[derive(Debug)]
@@ -123,7 +123,7 @@ impl BootstrapSystem {
         let config = BootstrapConfig::new_default();
         let library_resolver = LibraryPathResolver::new()?;
         let scheme_loader = SchemeLibraryLoader::new(global_env.clone())?;
-        
+
         Ok(Self {
             global_env,
             scheme_loader,
@@ -138,8 +138,9 @@ impl BootstrapSystem {
     pub fn with_config(config: BootstrapConfig) -> Result<Self> {
         let global_env = Arc::new(GlobalEnvironmentManager::new());
         let library_resolver = LibraryPathResolver::new()?;
-        let scheme_loader = SchemeLibraryLoader::with_bootstrap_config(global_env.clone(), config.clone())?;
-        
+        let scheme_loader =
+            SchemeLibraryLoader::with_bootstrap_config(global_env.clone(), config.clone())?;
+
         Ok(Self {
             global_env,
             scheme_loader,
@@ -153,22 +154,22 @@ impl BootstrapSystem {
     /// Runs the complete bootstrap sequence.
     pub fn bootstrap(&mut self) -> Result<Arc<GlobalEnvironmentManager>> {
         let start_time = Instant::now();
-        
+
         // Phase 1: Initialize minimal primitives
         self.run_phase(BootstrapPhase::InitializePrimitives)?;
-        
+
         // Phase 2: Set up module loading infrastructure
         self.run_phase(BootstrapPhase::SetupModuleSystem)?;
-        
+
         // Phase 3: Load core Scheme libraries
         self.run_phase(BootstrapPhase::LoadCoreLibraries)?;
-        
+
         // Phase 4: Finalize environment
         self.run_phase(BootstrapPhase::FinalizeEnvironment)?;
-        
+
         // Record total bootstrap time
         self.stats.total_time = start_time.elapsed();
-        
+
         Ok(self.global_env.clone())
     }
 
@@ -198,7 +199,7 @@ impl BootstrapSystem {
     /// Phase 1: Initialize minimal Rust primitives required for Scheme compilation.
     fn initialize_minimal_primitives(&mut self) -> Result<()> {
         let root_env = self.global_env.root_environment();
-        
+
         // Load minimal primitives into the environment
         for (name, primitive) in self.minimal_primitives.primitives.iter() {
             let value = Value::minimal_primitive(
@@ -209,7 +210,7 @@ impl BootstrapSystem {
             );
             root_env.define(name.clone(), value);
         }
-        
+
         self.stats.primitives_count = self.minimal_primitives.primitives.len();
         Ok(())
     }
@@ -255,41 +256,47 @@ impl BootstrapSystem {
                     loaded_count += 1;
                 }
                 Err(e) => {
-                    eprintln!("Warning: Failed to load library {}: {}", 
-                             crate::module_system::format_module_id(library_id), e);
+                    eprintln!(
+                        "Warning: Failed to load library {}: {}",
+                        crate::module_system::format_module_id(library_id),
+                        e
+                    );
                     // Continue with other libraries - some failures are acceptable
                 }
             }
         }
-        
+
         self.stats.libraries_count = loaded_count;
         Ok(())
     }
 
     /// Phase 4: Finalize the environment setup.
     fn finalize_environment(&mut self) -> Result<()> {
-        // Install any remaining standard library functions that weren't 
+        // Install any remaining standard library functions that weren't
         // migrated to Scheme yet
         let stdlib = StandardLibrary::new();
         stdlib.populate_environment(&self.global_env.root_environment());
-        
+
         // Create initial snapshot for potential rollbacks
         let _snapshot_generation = self.global_env.create_environment_snapshot()?;
-        
+
         // Estimate memory usage (simplified)
         self.stats.memory_usage_bytes = self.estimate_memory_usage();
-        
+
         Ok(())
     }
 
     /// Installs a compiled library's exports into the global environment.
-    fn install_library_exports(&self, library: &crate::module_system::CompiledSchemeLibrary) -> Result<()> {
+    fn install_library_exports(
+        &self,
+        library: &crate::module_system::CompiledSchemeLibrary,
+    ) -> Result<()> {
         let root_env = self.global_env.root_environment();
-        
+
         for (name, value) in &library.module.exports {
             root_env.define(name.clone(), value.clone());
         }
-        
+
         Ok(())
     }
 
@@ -340,7 +347,7 @@ impl MinimalPrimitivesRegistry {
             primitives: HashMap::new(),
             categories: HashMap::new(),
         };
-        
+
         registry.register_essential_primitives();
         registry
     }
@@ -486,18 +493,17 @@ impl MinimalPrimitivesRegistry {
     fn register_primitive(&mut self, primitive: MinimalPrimitive) {
         let name = primitive.name.clone();
         let category = primitive.category.clone();
-        
+
         self.primitives.insert(name.clone(), primitive);
-        
-        self.categories.entry(category)
-            .or_default()
-            .push(name);
+
+        self.categories.entry(category).or_default().push(name);
     }
 
     /// Gets all primitives in a category.
     pub fn primitives_in_category(&self, category: &PrimitiveCategory) -> Vec<&MinimalPrimitive> {
         if let Some(names) = self.categories.get(category) {
-            names.iter()
+            names
+                .iter()
                 .filter_map(|name| self.primitives.get(name))
                 .collect()
         } else {
@@ -531,7 +537,7 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
         return Ok(Value::integer(0));
     }
-    
+
     let mut result = 0i64;
     for arg in args {
         if let Some(n) = extract_integer_value(arg) {
@@ -546,9 +552,11 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
 /// Subtraction primitive (-)
 fn primitive_subtract(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(helpers::runtime_error_simple("- requires at least one argument"));
+        return Err(helpers::runtime_error_simple(
+            "- requires at least one argument",
+        ));
     }
-    
+
     if args.len() == 1 {
         // Negation
         if let Some(n) = extract_integer_value(&args[0]) {
@@ -561,14 +569,20 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
         let mut result = if let Some(n) = extract_integer_value(&args[0]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("- expects numeric arguments", None)));
+            return Err(Box::new(Error::runtime_error(
+                "- expects numeric arguments",
+                None,
+            )));
         };
-        
+
         for arg in &args[1..] {
             if let Some(n) = extract_integer_value(arg) {
                 result -= n;
             } else {
-                return Err(Box::new(Error::runtime_error("- expects numeric arguments", None)));
+                return Err(Box::new(Error::runtime_error(
+                    "- expects numeric arguments",
+                    None,
+                )));
             }
         }
         Ok(Value::integer(result))
@@ -580,13 +594,16 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
         return Ok(Value::integer(1));
     }
-    
+
     let mut result = 1i64;
     for arg in args {
         if let Some(n) = extract_integer_value(arg) {
             result *= n;
         } else {
-            return Err(Box::new(Error::runtime_error("* expects numeric arguments", None)));
+            return Err(Box::new(Error::runtime_error(
+                "* expects numeric arguments",
+                None,
+            )));
         }
     }
     Ok(Value::integer(result))
@@ -595,22 +612,31 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
 /// Numeric equality primitive (=)
 fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::runtime_error("= requires at least 2 arguments", None)));
+        return Err(Box::new(Error::runtime_error(
+            "= requires at least 2 arguments",
+            None,
+        )));
     }
-    
+
     let first = if let Some(n) = extract_integer_value(&args[0]) {
         n
     } else {
-        return Err(Box::new(Error::runtime_error("= expects numeric arguments", None)));
+        return Err(Box::new(Error::runtime_error(
+            "= expects numeric arguments",
+            None,
+        )));
     };
-    
+
     for arg in &args[1..] {
         if let Some(n_val) = extract_integer_value(arg) {
             if first != n_val {
                 return Ok(Value::boolean(false));
             }
         } else {
-            return Err(Box::new(Error::runtime_error("= expects numeric arguments", None)));
+            return Err(Box::new(Error::runtime_error(
+                "= expects numeric arguments",
+                None,
+            )));
         }
     }
     Ok(Value::boolean(true))
@@ -619,22 +645,31 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
 /// Less-than primitive (<)
 fn primitive_less_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::runtime_error("< requires at least 2 arguments", None)));
+        return Err(Box::new(Error::runtime_error(
+            "< requires at least 2 arguments",
+            None,
+        )));
     }
-    
+
     for i in 0..args.len() - 1 {
         let current = if let Some(n) = extract_integer_value(&args[i]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("< expects numeric arguments", None)));
+            return Err(Box::new(Error::runtime_error(
+                "< expects numeric arguments",
+                None,
+            )));
         };
-        
+
         let next = if let Some(n) = extract_integer_value(&args[i + 1]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("< expects numeric arguments", None)));
+            return Err(Box::new(Error::runtime_error(
+                "< expects numeric arguments",
+                None,
+            )));
         };
-        
+
         if current >= next {
             return Ok(Value::boolean(false));
         }
@@ -645,7 +680,10 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
 /// cons primitive
 fn primitive_cons(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::runtime_error("cons requires exactly 2 arguments", None)));
+        return Err(Box::new(Error::runtime_error(
+            "cons requires exactly 2 arguments",
+            None,
+        )));
     }
     Ok(Value::pair(args[0].clone(), args[1].clone()))
 }
@@ -653,9 +691,12 @@ fn primitive_cons(args: &[Value]) -> Result<Value> {
 /// car primitive
 fn primitive_car(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("car requires exactly 1 argument", None)));
+        return Err(Box::new(Error::runtime_error(
+            "car requires exactly 1 argument",
+            None,
+        )));
     }
-    
+
     match &args[0] {
         Value::Pair(car, _) => Ok((**car).clone()),
         _ => Err(Box::new(Error::runtime_error("car expects a pair", None))),
@@ -665,9 +706,12 @@ fn primitive_car(args: &[Value]) -> Result<Value> {
 /// cdr primitive
 fn primitive_cdr(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("cdr requires exactly 1 argument", None)));
+        return Err(Box::new(Error::runtime_error(
+            "cdr requires exactly 1 argument",
+            None,
+        )));
     }
-    
+
     match &args[0] {
         Value::Pair(_, cdr) => Ok((**cdr).clone()),
         _ => Err(Box::new(Error::runtime_error("cdr expects a pair", None))),
@@ -677,56 +721,77 @@ fn primitive_cdr(args: &[Value]) -> Result<Value> {
 /// null? primitive
 fn primitive_null_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("null? requires exactly 1 argument", None)));
+        return Err(Box::new(Error::runtime_error(
+            "null? requires exactly 1 argument",
+            None,
+        )));
     }
-    
+
     Ok(Value::boolean(matches!(args[0], Value::Nil)))
 }
 
 /// pair? primitive
 fn primitive_pair_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("pair? requires exactly 1 argument", None)));
+        return Err(Box::new(Error::runtime_error(
+            "pair? requires exactly 1 argument",
+            None,
+        )));
     }
-    
+
     Ok(Value::boolean(matches!(args[0], Value::Pair(_, _))))
 }
 
 /// string? primitive
 fn primitive_string_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("string? requires exactly 1 argument", None)));
+        return Err(Box::new(Error::runtime_error(
+            "string? requires exactly 1 argument",
+            None,
+        )));
     }
-    
-    Ok(Value::boolean(matches!(args[0], Value::Literal(crate::ast::Literal::String(_)))))
+
+    Ok(Value::boolean(matches!(
+        args[0],
+        Value::Literal(crate::ast::Literal::String(_))
+    )))
 }
 
 /// apply primitive (simplified)
 fn primitive_apply(_args: &[Value]) -> Result<Value> {
     // Simplified implementation - in practice this would need access to the evaluator
-    Err(Box::new(Error::runtime_error("apply not fully implemented in minimal primitives", None)))
+    Err(Box::new(Error::runtime_error(
+        "apply not fully implemented in minimal primitives",
+        None,
+    )))
 }
 
 /// error primitive
 fn primitive_error(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(Box::new(Error::runtime_error("error requires at least 1 argument", None)));
+        return Err(Box::new(Error::runtime_error(
+            "error requires at least 1 argument",
+            None,
+        )));
     }
-    
+
     let message = match &args[0] {
-        Value::Literal(crate::ast::Literal::String(s)) => s.clone(),
+        Value::Literal(crate::ast::Literal::String(s)) => (**s).clone(),
         _ => format!("{}", args[0]),
     };
-    
-    Err(Error::runtime_error(message, None).boxed())
+
+    Err(Box::new(Error::runtime_error(message, None)))
 }
 
 /// display primitive (R7RS-compliant)
 fn primitive_display(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(Box::new(Error::runtime_error("display requires 1 or 2 arguments", None)));
+        return Err(Box::new(Error::runtime_error(
+            "display requires 1 or 2 arguments",
+            None,
+        )));
     }
-    
+
     // Use the R7RS-compliant display formatting method from Value
     let output = args[0].display_string();
     println!("{output}");
@@ -748,9 +813,9 @@ impl Value {
         arity_min: usize,
         arity_max: Option<usize>,
     ) -> Self {
-        use crate::eval::value::{PrimitiveProcedure, PrimitiveImpl};
         use crate::effects::Effect;
-        
+        use crate::eval::value::{PrimitiveImpl, PrimitiveProcedure};
+
         Value::Primitive(Arc::new(PrimitiveProcedure {
             name,
             arity_min,
@@ -768,12 +833,12 @@ mod tests {
     #[test]
     fn test_minimal_primitives_registry() {
         let registry = MinimalPrimitivesRegistry::new();
-        
+
         assert!(!registry.primitives.is_empty());
         assert!(registry.get_primitive("+").is_some());
         assert!(registry.get_primitive("cons").is_some());
         assert!(registry.get_primitive("nonexistent").is_none());
-        
+
         let arithmetic_prims = registry.primitives_in_category(&PrimitiveCategory::Arithmetic);
         assert!(!arithmetic_prims.is_empty());
     }
@@ -788,7 +853,7 @@ mod tests {
     fn test_bootstrap_config() {
         let config = BootstrapConfig::new_default();
         assert!(!config.essential_primitives.is_empty());
-        
+
         let minimal_config = BootstrapConfig::minimal();
         assert!(minimal_config.essential_primitives.len() < config.essential_primitives.len());
     }
@@ -799,17 +864,17 @@ mod tests {
         let test_string = Value::string("Hello World");
         let result = test_string.display_string();
         assert_eq!(result, "Hello World"); // Should NOT have quotes
-        
+
         // Test characters without #\ prefix
         let test_char = Value::Literal(crate::ast::Literal::Character('x'));
         let result = test_char.display_string();
         assert_eq!(result, "x"); // Should NOT have #\ prefix
-        
+
         // Test numbers still format correctly
         let test_number = Value::integer(42);
         let result = test_number.display_string();
         assert_eq!(result, "42");
-        
+
         // Test booleans still format correctly
         let test_bool = Value::boolean(true);
         let result = test_bool.display_string();
@@ -822,16 +887,16 @@ mod tests {
         let args = vec![Value::integer(1), Value::integer(2), Value::integer(3)];
         let result = primitive_add(&args).unwrap();
         assert_eq!(result, Value::integer(6));
-        
+
         // Test empty addition
         let result = primitive_add(&[]).unwrap();
         assert_eq!(result, Value::integer(0));
-        
+
         // Test subtraction
         let args = vec![Value::integer(10), Value::integer(3)];
         let result = primitive_subtract(&args).unwrap();
         assert_eq!(result, Value::integer(7));
-        
+
         // Test negation
         let args = vec![Value::integer(5)];
         let result = primitive_subtract(&args).unwrap();
@@ -844,16 +909,16 @@ mod tests {
         let args = vec![Value::integer(1), Value::integer(2)];
         let result = primitive_cons(&args).unwrap();
         assert!(matches!(result, Value::Pair(_, _)));
-        
+
         // Test car
         let pair = Value::pair(Value::integer(1), Value::integer(2));
         let result = primitive_car(&[pair]).unwrap();
         assert_eq!(result, Value::integer(1));
-        
+
         // Test null?
         let result = primitive_null_p(&[Value::Nil]).unwrap();
         assert_eq!(result, Value::boolean(true));
-        
+
         let result = primitive_null_p(&[Value::integer(42)]).unwrap();
         assert_eq!(result, Value::boolean(false));
     }
@@ -863,15 +928,15 @@ mod tests {
         // Test string?
         let result = primitive_string_p(&[Value::string("hello")]).unwrap();
         assert_eq!(result, Value::boolean(true));
-        
+
         let result = primitive_string_p(&[Value::integer(42)]).unwrap();
         assert_eq!(result, Value::boolean(false));
-        
+
         // Test pair?
         let pair = Value::pair(Value::integer(1), Value::integer(2));
         let result = primitive_pair_p(&[pair]).unwrap();
         assert_eq!(result, Value::boolean(true));
-        
+
         let result = primitive_pair_p(&[Value::integer(42)]).unwrap();
         assert_eq!(result, Value::boolean(false));
     }
@@ -882,16 +947,16 @@ mod tests {
         let args = vec![Value::integer(5), Value::integer(5), Value::integer(5)];
         let result = primitive_numeric_equal(&args).unwrap();
         assert_eq!(result, Value::boolean(true));
-        
+
         let args = vec![Value::integer(5), Value::integer(6)];
         let result = primitive_numeric_equal(&args).unwrap();
         assert_eq!(result, Value::boolean(false));
-        
+
         // Test less-than
         let args = vec![Value::integer(1), Value::integer(2), Value::integer(3)];
         let result = primitive_less_than(&args).unwrap();
         assert_eq!(result, Value::boolean(true));
-        
+
         let args = vec![Value::integer(1), Value::integer(3), Value::integer(2)];
         let result = primitive_less_than(&args).unwrap();
         assert_eq!(result, Value::boolean(false));

@@ -1,9 +1,9 @@
 //! The main lexer for Lambdust source code.
 
-use crate::diagnostics::{Error, Result, Span, SourceMap};
+use crate::diagnostics::{Error, Result, SourceMap, Span};
 use std::sync::Arc;
 
-use super::{Token, TokenKind, InternalLexer};
+use super::{InternalLexer, Token, TokenKind};
 
 /// The main lexer for Lambdust source code.
 #[derive(Debug)]

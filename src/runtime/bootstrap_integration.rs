@@ -3,13 +3,13 @@
 //! This module provides the integration layer between the main binary and the bootstrap system,
 //! including performance measurement, error handling, and graceful degradation.
 
-use super::{BootstrapSystem, GlobalEnvironmentManager, LibraryPathResolver, LibraryPathConfig};
+use super::{BootstrapSystem, GlobalEnvironmentManager, LibraryPathConfig, LibraryPathResolver};
+use crate::diagnostics::{Error, Result};
 use crate::module_system::BootstrapConfig;
-use crate::diagnostics::{Result, Error};
-use crate::stdlib::StandardLibrary;
-use std::sync::Arc;
-use std::time::{Instant, Duration};
+use crate::stdlib::standard_library::StandardLibrary;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 /// Performance metrics for bootstrap process.
 #[derive(Debug, Clone)]
@@ -102,7 +102,10 @@ impl BootstrapIntegration {
         self.metrics.bootstrap_mode = self.config.mode;
 
         if self.config.verbose {
-            println!("Lambdust bootstrap starting in {:?} mode...", self.config.mode);
+            println!(
+                "Lambdust bootstrap starting in {:?} mode...",
+                self.config.mode
+            );
         }
 
         // Attempt bootstrap based on configured mode
@@ -179,23 +182,23 @@ impl BootstrapIntegration {
     /// Falls back to the legacy Rust standard library population.
     fn fallback_to_rust_stdlib(&mut self) -> Result<Arc<GlobalEnvironmentManager>> {
         let fallback_start = Instant::now();
-        
+
         // Create a GlobalEnvironmentManager for tracking purposes
         let global_env_manager = Arc::new(GlobalEnvironmentManager::new());
-        
+
         // Get the thread-local global environment and populate it
         let thread_local_env = crate::eval::environment::global_environment();
         let thread_safe_env = thread_local_env.to_thread_safe();
-        
+
         let stdlib = StandardLibrary::new();
         stdlib.populate_environment(&thread_safe_env);
-        
+
         self.metrics.fallback_stdlib_time = fallback_start.elapsed();
         self.metrics.used_fallback = true;
-        
+
         // Estimate primitives count from stdlib
         self.metrics.minimal_primitives_count = stdlib.builtins().len();
-        
+
         Ok(global_env_manager)
     }
 
@@ -204,7 +207,7 @@ impl BootstrapIntegration {
         // Add custom search paths
         // Note: This would need to be implemented in BootstrapConfig
         // config.add_search_paths(&self.config.library_paths);
-        
+
         if self.config.lazy_loading {
             BootstrapConfig::lazy_config()
         } else {
@@ -215,21 +218,30 @@ impl BootstrapIntegration {
     /// Reports bootstrap performance metrics to the user.
     fn report_bootstrap_metrics(&self) {
         let metrics = &self.metrics;
-        
+
         println!("Bootstrap completed successfully:");
         println!("• Total startup time: {:?}", metrics.total_startup_time);
         println!("• Primitives loaded: {}", metrics.minimal_primitives_count);
-        
+
         if metrics.scheme_libraries_loaded > 0 {
-            println!("• Scheme libraries loaded: {}", metrics.scheme_libraries_loaded);
+            println!(
+                "• Scheme libraries loaded: {}",
+                metrics.scheme_libraries_loaded
+            );
             println!("• Library loading time: {:?}", metrics.scheme_loading_time);
         }
-        
+
         if metrics.used_fallback {
-            println!("• Used fallback Rust stdlib: {:?}", metrics.fallback_stdlib_time);
+            println!(
+                "• Used fallback Rust stdlib: {:?}",
+                metrics.fallback_stdlib_time
+            );
         }
-        
-        println!("• Estimated memory usage: {} KB", metrics.memory_usage_bytes / 1024);
+
+        println!(
+            "• Estimated memory usage: {} KB",
+            metrics.memory_usage_bytes / 1024
+        );
     }
 
     /// Gets the bootstrap metrics.
@@ -264,10 +276,12 @@ impl BootstrapIntegration {
             Err(e) => {
                 // Fallback to legacy method if resolver creation fails
                 let mut found_paths = Vec::new();
-                
+
                 // Check relative path from current directory
                 let current_stdlib = std::env::current_dir()
-                    .map_err(|err| Error::io_error(format!("Failed to get current directory: {err}")))?
+                    .map_err(|err| {
+                        Error::io_error(format!("Failed to get current directory: {err}"))
+                    })?
                     .join("stdlib");
                 if current_stdlib.exists() && current_stdlib.is_dir() {
                     found_paths.push(current_stdlib);
@@ -302,18 +316,16 @@ impl BootstrapIntegration {
     /// Determines bootstrap mode using a specific library path configuration.
     pub fn determine_bootstrap_mode_with_config(lib_config: LibraryPathConfig) -> BootstrapMode {
         match LibraryPathResolver::with_config(lib_config) {
-            Ok(resolver) => {
-                match resolver.validate_library_setup() {
-                    Ok(validation) => {
-                        if validation.is_usable() {
-                            BootstrapMode::Full
-                        } else {
-                            BootstrapMode::Minimal
-                        }
+            Ok(resolver) => match resolver.validate_library_setup() {
+                Ok(validation) => {
+                    if validation.is_usable() {
+                        BootstrapMode::Full
+                    } else {
+                        BootstrapMode::Minimal
                     }
-                    Err(_) => BootstrapMode::Minimal
                 }
-            }
+                Err(_) => BootstrapMode::Minimal,
+            },
             Err(_) => {
                 // Fallback to legacy verification
                 if Self::verify_stdlib_directory().is_ok() {
@@ -374,11 +386,18 @@ impl BootstrapConfig {
     pub fn minimal_config() -> Self {
         Self {
             essential_primitives: vec![
-                "+".to_string(), "-".to_string(), "*".to_string(),
-                "cons".to_string(), "car".to_string(), "cdr".to_string(),
-                "=".to_string(), "<".to_string(),
-                "null?".to_string(), "pair?".to_string(),
-                "display".to_string(), "error".to_string(),
+                "+".to_string(),
+                "-".to_string(),
+                "*".to_string(),
+                "cons".to_string(),
+                "car".to_string(),
+                "cdr".to_string(),
+                "=".to_string(),
+                "<".to_string(),
+                "null?".to_string(),
+                "pair?".to_string(),
+                "display".to_string(),
+                "error".to_string(),
             ],
             core_libraries: Vec::new(), // No core libraries in minimal mode
             load_order: Vec::new(),
@@ -402,7 +421,10 @@ mod tests {
     fn test_bootstrap_config_modes() {
         let default_config = BootstrapIntegrationConfig::default();
         // Should automatically determine mode
-        assert!(matches!(default_config.mode, BootstrapMode::Full | BootstrapMode::Minimal));
+        assert!(matches!(
+            default_config.mode,
+            BootstrapMode::Full | BootstrapMode::Minimal
+        ));
 
         let minimal_bootstrap_config = BootstrapConfig::minimal_config();
         assert!(minimal_bootstrap_config.lazy_loading);

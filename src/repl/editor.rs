@@ -2,22 +2,21 @@
 
 #![allow(dead_code, missing_docs)]
 
-use crate::{Result, Error};
-use crate::repl::{ReplConfig, CompletionProvider, SyntaxHighlighter};
+use crate::repl::{CompletionProvider, ReplConfig, SyntaxHighlighter};
+use crate::{Error, Result};
 
 #[cfg(feature = "enhanced-repl")]
 use {
-    reedline::{Reedline, Signal, ReedlineEvent, ReedlineMenu, DefaultPrompt, 
-               Prompt, PromptHistorySearch, PromptViMode, PromptEditMode,
-               MenuBuilder},
     crossterm::event::{KeyCode, KeyModifiers},
     nu_ansi_term::{Color, Style},
+    reedline::{
+        DefaultPrompt, MenuBuilder, Prompt, PromptEditMode, PromptHistorySearch, PromptViMode,
+        Reedline, ReedlineEvent, ReedlineMenu, Signal,
+    },
 };
 
 #[cfg(not(feature = "enhanced-repl"))]
-use {
-    rustyline::{DefaultEditor, error::ReadlineError},
-};
+use rustyline::{DefaultEditor, error::ReadlineError};
 
 /// Enhanced editor that provides advanced line editing capabilities
 pub struct EnhancedEditor {
@@ -50,12 +49,12 @@ impl EnhancedEditor {
                 paren_depth: 0,
             })
         }
-        
+
         #[cfg(not(feature = "enhanced-repl"))]
         {
             let editor = DefaultEditor::new()
                 .map_err(|e| Error::io_error(format!("Failed to create editor: {e}")))?;
-            
+
             Ok(Self {
                 editor,
                 config,
@@ -67,17 +66,16 @@ impl EnhancedEditor {
     }
 
     pub fn read_line(
-        &mut self, 
-        prompt: &str, 
-        _completion_provider: &mut CompletionProvider, 
-        _highlighter: &SyntaxHighlighter
+        &mut self,
+        prompt: &str,
+        _completion_provider: &mut CompletionProvider,
+        _highlighter: &SyntaxHighlighter,
     ) -> Result<Option<String>> {
-        
         #[cfg(feature = "enhanced-repl")]
         {
             self.read_line_enhanced(prompt, _completion_provider, _highlighter)
         }
-        
+
         #[cfg(not(feature = "enhanced-repl"))]
         {
             self.read_line_basic(prompt)
@@ -86,21 +84,23 @@ impl EnhancedEditor {
 
     #[cfg(feature = "enhanced-repl")]
     fn read_line_enhanced(
-        &mut self, 
-        prompt: &str, 
-        _completion_provider: &mut CompletionProvider, 
-        _highlighter: &SyntaxHighlighter
+        &mut self,
+        prompt: &str,
+        _completion_provider: &mut CompletionProvider,
+        _highlighter: &SyntaxHighlighter,
     ) -> Result<Option<String>> {
         let prompt = LambdustPrompt::new(prompt.to_string());
-        
+
         loop {
-            let sig = self.editor.read_line(&prompt)
+            let sig = self
+                .editor
+                .read_line(&prompt)
                 .map_err(|e| Error::io_error(format!("Failed to read line: {e}")))?;
 
             match sig {
                 Signal::Success(buffer) => {
                     let line = buffer.trim();
-                    
+
                     if line.is_empty() {
                         continue;
                     }
@@ -163,7 +163,7 @@ impl EnhancedEditor {
             match self.editor.readline(&effective_prompt) {
                 Ok(line) => {
                     let line = line.trim();
-                    
+
                     if line.is_empty() {
                         continue;
                     }
@@ -256,7 +256,7 @@ impl EnhancedEditor {
             // History is handled automatically by reedline
             Ok(())
         }
-        
+
         #[cfg(not(feature = "enhanced-repl"))]
         {
             let _ = self.editor.add_history_entry(line);
@@ -270,10 +270,11 @@ impl EnhancedEditor {
             // TODO: Implement history saving for reedline
             Ok(())
         }
-        
+
         #[cfg(not(feature = "enhanced-repl"))]
         {
-            self.editor.save_history(path.as_ref())
+            self.editor
+                .save_history(path.as_ref())
                 .map_err(|e| Box::new(Error::io_error(format!("Failed to save history: {e}"))))
         }
     }
@@ -284,7 +285,7 @@ impl EnhancedEditor {
             // TODO: Implement history loading for reedline
             Ok(())
         }
-        
+
         #[cfg(not(feature = "enhanced-repl"))]
         {
             let _ = self.editor.load_history(path.as_ref());
@@ -367,15 +368,16 @@ impl BracketMatcher {
         }
 
         let current_char = chars[position];
-        
+
         // Find if current character is a bracket
-        let (open_char, close_char, direction) = if let Some(idx) = self.open_brackets.iter().position(|&c| c == current_char) {
-            (self.open_brackets[idx], self.close_brackets[idx], 1isize)
-        } else if let Some(idx) = self.close_brackets.iter().position(|&c| c == current_char) {
-            (self.open_brackets[idx], self.close_brackets[idx], -1isize)
-        } else {
-            return None;
-        };
+        let (open_char, close_char, direction) =
+            if let Some(idx) = self.open_brackets.iter().position(|&c| c == current_char) {
+                (self.open_brackets[idx], self.close_brackets[idx], 1isize)
+            } else if let Some(idx) = self.close_brackets.iter().position(|&c| c == current_char) {
+                (self.open_brackets[idx], self.close_brackets[idx], -1isize)
+            } else {
+                return None;
+            };
 
         let mut depth = 0;
         let mut i = position as isize;
@@ -420,9 +422,13 @@ impl BracketMatcher {
         None
     }
 
-    pub fn highlight_matching_brackets(&self, text: &str, cursor_position: usize) -> Vec<(usize, usize)> {
+    pub fn highlight_matching_brackets(
+        &self,
+        text: &str,
+        cursor_position: usize,
+    ) -> Vec<(usize, usize)> {
         let mut highlights = Vec::new();
-        
+
         if let Some(matching_pos) = self.find_matching_bracket(text, cursor_position) {
             highlights.push((cursor_position, cursor_position + 1));
             highlights.push((matching_pos, matching_pos + 1));
@@ -485,17 +491,17 @@ mod tests {
     #[test]
     fn test_bracket_matching() {
         let matcher = BracketMatcher::new();
-        
+
         // Test simple parentheses
         let text = "(+ 1 2)";
         assert_eq!(matcher.find_matching_bracket(text, 0), Some(6));
         assert_eq!(matcher.find_matching_bracket(text, 6), Some(0));
-        
+
         // Test nested parentheses
         let text = "(+ 1 (- 3 2))";
         assert_eq!(matcher.find_matching_bracket(text, 0), Some(12));
         assert_eq!(matcher.find_matching_bracket(text, 5), Some(11));
-        
+
         // Test no matching bracket
         let text = "(+ 1 2";
         assert_eq!(matcher.find_matching_bracket(text, 0), None);
@@ -504,13 +510,13 @@ mod tests {
     #[test]
     fn test_indentation_calculation() {
         let helper = IndentationHelper::new(2);
-        
+
         // Simple expression - no extra indentation needed
         assert_eq!(helper.calculate_indentation("(+ 1 2)"), 0);
-        
+
         // One open paren - should indent
         assert_eq!(helper.calculate_indentation("(+"), 2);
-        
+
         // Nested expression
         assert_eq!(helper.calculate_indentation("(let ((x"), 4);
     }
@@ -519,14 +525,14 @@ mod tests {
     fn test_multiline_detection() {
         let config = ReplConfig::default();
         let mut editor = EnhancedEditor::new(config).unwrap();
-        
+
         // Complete expression - no more input needed
         assert!(!editor.needs_more_input("(+ 1 2)"));
-        
+
         // Incomplete expression - more input needed
         editor.paren_depth = 0; // Reset
         assert!(editor.needs_more_input("(+ 1"));
-        
+
         // String continuation
         editor.paren_depth = 0; // Reset
         assert!(editor.needs_more_input("\"hello"));

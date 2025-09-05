@@ -1,6 +1,6 @@
 //! Comprehensive performance statistics for the bytecode system.
 
-use super::{CompilerStats, VmStats, OptimizationStats, OverallPerformanceMetrics};
+use super::{CompilerStats, OptimizationStats, OverallPerformanceMetrics, VmStats};
 
 /// Comprehensive performance statistics for the bytecode system.
 #[derive(Debug, Clone)]

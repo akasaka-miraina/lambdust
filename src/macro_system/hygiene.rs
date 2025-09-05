@@ -5,11 +5,15 @@
 //! captured by identifiers in the macro use context. This follows the R7RS
 //! standard for hygienic macro expansion.
 
-use crate::ast::{CaseLambdaClause, Expr, Formals, Binding, CondClause, CaseClause, GuardClause, KeywordParam, ParameterBinding};
+use crate::ast::{
+    Binding, CaseClause, CaseLambdaClause, CondClause, Expr, Formals, GuardClause, KeywordParam,
+    ParameterBinding,
+};
 use crate::diagnostics::{Result, Spanned};
 use crate::eval::Environment;
 // use crate::utils::{intern_symbol, symbol_name, SymbolId};
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 // use std::rc::Rc;
 
 /// A unique identifier for tracking macro expansion contexts.
@@ -21,7 +25,7 @@ impl MacroContext {
     pub fn new(id: u64) -> Self {
         MacroContext(id)
     }
-    
+
     /// Gets the context ID.
     pub fn id(&self) -> u64 {
         self.0
@@ -29,7 +33,7 @@ impl MacroContext {
 }
 
 /// Information about an identifier's hygiene properties.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct IdentifierInfo {
     /// The original name of the identifier
     pub original_name: String,
@@ -54,7 +58,7 @@ impl IdentifierInfo {
             is_syntax: false,
         }
     }
-    
+
     /// Creates identifier info for a macro-introduced identifier.
     pub fn macro_introduced(name: String, context: MacroContext, scope_id: u64) -> Self {
         Self {
@@ -65,7 +69,7 @@ impl IdentifierInfo {
             is_syntax: false,
         }
     }
-    
+
     /// Creates identifier info for a syntax identifier.
     pub fn syntax(name: String, context: MacroContext) -> Self {
         Self {
@@ -76,7 +80,7 @@ impl IdentifierInfo {
             is_syntax: true,
         }
     }
-    
+
     /// Gets the effective name of this identifier.
     pub fn effective_name(&self) -> &str {
         self.renamed_name.as_ref().unwrap_or(&self.original_name)
@@ -96,13 +100,15 @@ pub struct HygieneContext {
     scope_counter: u64,
     /// Current scope ID
     current_scope: u64,
+    /// Unique context ID for hashing
+    context_id: u64,
 }
 
 impl HygieneContext {
     /// Creates a new hygiene context.
     pub fn new() -> Self {
         let mut reserved_names = HashSet::new();
-        
+
         // Add special forms that should never be renamed
         reserved_names.insert("quote".to_string());
         reserved_names.insert("lambda".to_string());
@@ -114,28 +120,36 @@ impl HygieneContext {
         reserved_names.insert("call/cc".to_string());
         reserved_names.insert("primitive".to_string());
         reserved_names.insert("::".to_string());
-        
+
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        std::ptr::addr_of!(reserved_names).hash(&mut hasher);
+        let context_id = hasher.finish();
+
         Self {
             current_context: None,
             identifier_info: HashMap::new(),
             reserved_names,
             scope_counter: 0,
             current_scope: 0,
+            context_id,
         }
     }
-    
+
     /// Enters a new macro expansion context.
     pub fn enter_macro_context(&mut self, context: MacroContext) -> MacroContext {
         let old_context = self.current_context;
         self.current_context = Some(context);
         old_context.unwrap_or(context)
     }
-    
+
     /// Exits the current macro expansion context.
     pub fn exit_macro_context(&mut self, previous: MacroContext) {
         self.current_context = Some(previous);
     }
-    
+
     /// Enters a new lexical scope.
     pub fn enter_scope(&mut self) -> u64 {
         self.scope_counter += 1;
@@ -143,12 +157,17 @@ impl HygieneContext {
         self.current_scope = self.scope_counter;
         old_scope
     }
-    
+
     /// Exits the current lexical scope.
     pub fn exit_scope(&mut self, previous: u64) {
         self.current_scope = previous;
     }
-    
+
+    /// Gets the unique context ID for this hygiene context.
+    pub fn get_context_id(&self) -> u64 {
+        self.context_id
+    }
+
     /// Renames identifiers in an expression to preserve hygiene.
     pub fn rename_identifiers(
         &mut self,
@@ -157,60 +176,70 @@ impl HygieneContext {
     ) -> Result<Spanned<Expr>> {
         self.rename_expr(expr)
     }
-    
+
     /// Renames identifiers in an expression.
     fn rename_expr(&mut self, expr: Spanned<Expr>) -> Result<Spanned<Expr>> {
         let renamed_inner = match expr.inner {
-            Expr::Identifier(name) => {
-                Expr::Identifier(self.rename_identifier(&name))
-            }
-            Expr::Symbol(name) => {
-                Expr::Symbol(self.rename_identifier(&name))
-            }
+            Expr::Identifier(name) => Expr::Identifier(self.rename_identifier(&name)),
+            Expr::Symbol(name) => Expr::Symbol(self.rename_identifier(&name)),
             Expr::List(elements) => {
-                let renamed_elements = elements.into_iter()
+                let renamed_elements = elements
+                    .into_iter()
                     .map(|e| self.rename_expr(e))
                     .collect::<Result<Vec<_>>>()?;
                 Expr::List(renamed_elements)
             }
-            
-            Expr::Lambda { formals, metadata, body } => {
+
+            Expr::Lambda {
+                formals,
+                metadata,
+                body,
+                ..
+            } => {
                 let old_scope = self.enter_scope();
                 let renamed_formals = self.rename_formals(formals)?;
                 let renamed_metadata = self.rename_metadata(metadata)?;
                 let renamed_body = self.rename_body(body)?;
                 self.exit_scope(old_scope);
-                
+
                 Expr::Lambda {
                     formals: renamed_formals,
                     metadata: renamed_metadata,
                     body: renamed_body,
+                    return_type: None,
                 }
             }
-            
-            Expr::CaseLambda { clauses, metadata } => {
+
+            Expr::CaseLambda {
+                clauses, metadata, ..
+            } => {
                 let renamed_metadata = self.rename_metadata(metadata)?;
                 let mut renamed_clauses = Vec::new();
-                
+
                 for clause in clauses {
                     let old_scope = self.enter_scope();
                     let renamed_formals = self.rename_formals(clause.formals.clone())?;
                     let renamed_body = self.rename_body(clause.body.clone())?;
                     self.exit_scope(old_scope);
-                    
+
                     renamed_clauses.push(CaseLambdaClause {
                         formals: renamed_formals,
                         body: renamed_body,
                     });
                 }
-                
+
                 Expr::CaseLambda {
                     clauses: renamed_clauses,
                     metadata: renamed_metadata,
+                    return_type: None,
                 }
             }
-            
-            Expr::If { test, consequent, alternative } => {
+
+            Expr::If {
+                test,
+                consequent,
+                alternative,
+            } => {
                 let renamed_test = self.rename_expr(*test)?;
                 let renamed_consequent = self.rename_expr(*consequent)?;
                 let renamed_alternative = if let Some(alt) = alternative {
@@ -218,51 +247,57 @@ impl HygieneContext {
                 } else {
                     None
                 };
-                
+
                 Expr::If {
                     test: Box::new(renamed_test),
                     consequent: Box::new(renamed_consequent),
                     alternative: renamed_alternative,
                 }
             }
-            
-            Expr::Define { name, value, metadata } => {
+
+            Expr::Define {
+                name,
+                value,
+                metadata,
+                ..
+            } => {
                 let renamed_name = self.rename_identifier(&name);
                 let renamed_value = self.rename_expr(*value)?;
                 let renamed_metadata = self.rename_metadata(metadata)?;
-                
+
                 Expr::Define {
                     name: renamed_name,
                     value: Box::new(renamed_value),
                     metadata: renamed_metadata,
+                    return_type: None,
                 }
             }
-            
+
             Expr::Set { name, value } => {
                 let renamed_name = self.rename_identifier(&name);
                 let renamed_value = self.rename_expr(*value)?;
-                
+
                 Expr::Set {
                     name: renamed_name,
                     value: Box::new(renamed_value),
                 }
             }
-            
+
             Expr::DefineSyntax { name, transformer } => {
                 let renamed_name = self.rename_identifier(&name);
                 let renamed_transformer = self.rename_expr(*transformer)?;
-                
+
                 Expr::DefineSyntax {
                     name: renamed_name,
                     transformer: Box::new(renamed_transformer),
                 }
             }
-            
+
             Expr::CallCC(proc) => {
                 let renamed_proc = self.rename_expr(*proc)?;
                 Expr::CallCC(Box::new(renamed_proc))
             }
-            
+
             Expr::Primitive { name, args } => {
                 let renamed_args = self.rename_args(args)?;
                 Expr::Primitive {
@@ -270,151 +305,165 @@ impl HygieneContext {
                     args: renamed_args,
                 }
             }
-            
-            Expr::TypeAnnotation { expr: inner_expr, type_expr } => {
+
+            Expr::TypeAnnotation {
+                expr: inner_expr,
+                type_expr,
+            } => {
                 let renamed_expr = self.rename_expr(*inner_expr)?;
                 let renamed_type = self.rename_expr(*type_expr)?;
-                
+
                 Expr::TypeAnnotation {
                     expr: Box::new(renamed_expr),
                     type_expr: Box::new(renamed_type),
                 }
             }
-            
+
             Expr::Application { operator, operands } => {
                 let renamed_operator = self.rename_expr(*operator)?;
                 let renamed_operands = self.rename_args(operands)?;
-                
+
                 Expr::Application {
                     operator: Box::new(renamed_operator),
                     operands: renamed_operands,
                 }
             }
-            
+
             Expr::Pair { car, cdr } => {
                 let renamed_car = self.rename_expr(*car)?;
                 let renamed_cdr = self.rename_expr(*cdr)?;
-                
+
                 Expr::Pair {
                     car: Box::new(renamed_car),
                     cdr: Box::new(renamed_cdr),
                 }
             }
-            
+
             Expr::Begin(exprs) => {
                 let renamed_exprs = self.rename_body(exprs)?;
                 Expr::Begin(renamed_exprs)
             }
-            
+
             Expr::Let { bindings, body } => {
                 let old_scope = self.enter_scope();
                 let renamed_bindings = self.rename_bindings(bindings)?;
                 let renamed_body = self.rename_body(body)?;
                 self.exit_scope(old_scope);
-                
+
                 Expr::Let {
                     bindings: renamed_bindings,
                     body: renamed_body,
                 }
             }
-            
+
             Expr::LetStar { bindings, body } => {
                 let old_scope = self.enter_scope();
                 let renamed_bindings = self.rename_bindings(bindings)?;
                 let renamed_body = self.rename_body(body)?;
                 self.exit_scope(old_scope);
-                
+
                 Expr::LetStar {
                     bindings: renamed_bindings,
                     body: renamed_body,
                 }
             }
-            
+
             Expr::LetRec { bindings, body } => {
                 let old_scope = self.enter_scope();
                 let renamed_bindings = self.rename_bindings(bindings)?;
                 let renamed_body = self.rename_body(body)?;
                 self.exit_scope(old_scope);
-                
+
                 Expr::LetRec {
                     bindings: renamed_bindings,
                     body: renamed_body,
                 }
             }
-            
+
             Expr::Cond(clauses) => {
                 let renamed_clauses = self.rename_cond_clauses(clauses)?;
                 Expr::Cond(renamed_clauses)
             }
-            
-            Expr::Case { expr: case_expr, clauses } => {
+
+            Expr::Case {
+                expr: case_expr,
+                clauses,
+            } => {
                 let renamed_expr = self.rename_expr(*case_expr)?;
                 let renamed_clauses = self.rename_case_clauses(clauses)?;
-                
+
                 Expr::Case {
                     expr: Box::new(renamed_expr),
                     clauses: renamed_clauses,
                 }
             }
-            
+
             Expr::And(exprs) => {
                 let renamed_exprs = self.rename_body(exprs)?;
                 Expr::And(renamed_exprs)
             }
-            
+
             Expr::Or(exprs) => {
                 let renamed_exprs = self.rename_body(exprs)?;
                 Expr::Or(renamed_exprs)
             }
-            
+
             Expr::When { test, body } => {
                 let renamed_test = self.rename_expr(*test)?;
                 let renamed_body = self.rename_body(body)?;
-                
+
                 Expr::When {
                     test: Box::new(renamed_test),
                     body: renamed_body,
                 }
             }
-            
+
             Expr::Unless { test, body } => {
                 let renamed_test = self.rename_expr(*test)?;
                 let renamed_body = self.rename_body(body)?;
-                
+
                 Expr::Unless {
                     test: Box::new(renamed_test),
                     body: renamed_body,
                 }
             }
-            
-            Expr::Guard { variable, clauses, body } => {
+
+            Expr::Guard {
+                variable,
+                clauses,
+                body,
+            } => {
                 // Don't rename the exception variable - it's bound in the handler environment
-                let renamed_clauses = clauses.into_iter().map(|clause| {
-                    let renamed_test = self.rename_expr(clause.test)?;
-                    let renamed_body = self.rename_body(clause.body)?;
-                    let renamed_arrow = if let Some(arrow) = clause.arrow {
-                        Some(self.rename_expr(arrow)?)
-                    } else {
-                        None
-                    };
-                    Ok(GuardClause {
-                        test: renamed_test,
-                        body: renamed_body,
-                        arrow: renamed_arrow,
+                let renamed_clauses = clauses
+                    .into_iter()
+                    .map(|clause| {
+                        let renamed_test = self.rename_expr(clause.test)?;
+                        let renamed_body = self.rename_body(clause.body)?;
+                        let renamed_arrow = if let Some(arrow) = clause.arrow {
+                            Some(self.rename_expr(arrow)?)
+                        } else {
+                            None
+                        };
+                        Ok(GuardClause {
+                            test: renamed_test,
+                            body: renamed_body,
+                            arrow: renamed_arrow,
+                        })
                     })
-                }).collect::<Result<Vec<_>>>()?;
-                
+                    .collect::<Result<Vec<_>>>()?;
+
                 let renamed_body = self.rename_body(body)?;
-                
+
                 Expr::Guard {
                     variable, // Don't rename the variable
                     clauses: renamed_clauses,
                     body: renamed_body,
                 }
             }
-            
+
             Expr::Parameterize { bindings, body } => {
-                let renamed_bindings = bindings.into_iter()
+                let renamed_bindings = bindings
+                    .into_iter()
                     .map(|b| -> Result<ParameterBinding> {
                         Ok(ParameterBinding {
                             parameter: self.rename_expr(b.parameter)?,
@@ -422,7 +471,8 @@ impl HygieneContext {
                         })
                     })
                     .collect::<Result<Vec<_>>>()?;
-                let renamed_body = body.into_iter()
+                let renamed_body = body
+                    .into_iter()
                     .map(|e| self.rename_expr(e))
                     .collect::<Result<Vec<_>>>()?;
                 Expr::Parameterize {
@@ -430,43 +480,55 @@ impl HygieneContext {
                     body: renamed_body,
                 }
             }
-            
+
             Expr::Import { import_specs } => {
-                let renamed_specs = import_specs.into_iter()
+                let renamed_specs = import_specs
+                    .into_iter()
                     .map(|spec| self.rename_expr(spec))
                     .collect::<Result<Vec<_>>>()?;
-                Expr::Import { import_specs: renamed_specs }
-            }
-            
-            Expr::DefineLibrary { name, imports, exports, body } => {
-                let renamed_imports = imports.into_iter()
-                    .map(|spec| self.rename_expr(spec))
-                    .collect::<Result<Vec<_>>>()?;
-                let renamed_exports = exports.into_iter()
-                    .map(|spec| self.rename_expr(spec))
-                    .collect::<Result<Vec<_>>>()?;
-                let renamed_body = body.into_iter()
-                    .map(|expr| self.rename_expr(expr))
-                    .collect::<Result<Vec<_>>>()?;
-                Expr::DefineLibrary { 
-                    name: name.clone(),
-                    imports: renamed_imports, 
-                    exports: renamed_exports, 
-                    body: renamed_body 
+                Expr::Import {
+                    import_specs: renamed_specs,
                 }
             }
-            
+
+            Expr::DefineLibrary {
+                name,
+                imports,
+                exports,
+                body,
+            } => {
+                let renamed_imports = imports
+                    .into_iter()
+                    .map(|spec| self.rename_expr(spec))
+                    .collect::<Result<Vec<_>>>()?;
+                let renamed_exports = exports
+                    .into_iter()
+                    .map(|spec| self.rename_expr(spec))
+                    .collect::<Result<Vec<_>>>()?;
+                let renamed_body = body
+                    .into_iter()
+                    .map(|expr| self.rename_expr(expr))
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::DefineLibrary {
+                    name: name.clone(),
+                    imports: renamed_imports,
+                    exports: renamed_exports,
+                    body: renamed_body,
+                }
+            }
+
             // Syntax rules handling
             Expr::SyntaxRules { literals, rules } => {
                 // For syntax-rules, we need to be careful about hygiene
                 // Patterns and templates should preserve their structure but rename bound identifiers
-                let renamed_rules = rules.iter()
+                let renamed_rules = rules
+                    .iter()
                     .map(|(pattern, template)| {
                         // For now, don't rename within patterns/templates as they have special semantics
                         Ok((pattern.clone(), template.clone()))
                     })
                     .collect::<Result<Vec<_>>>()?;
-                
+
                 Expr::SyntaxRules {
                     literals: literals.clone(), // Keep literals unchanged
                     rules: renamed_rules,
@@ -478,51 +540,228 @@ impl HygieneContext {
                 // Don't rename inside quoted expressions
                 Expr::Quote(inner_expr)
             }
-            
+
             Expr::Quasiquote(inner_expr) => {
                 // Recursively rename in quasiquote, but preserve unquote contexts
                 let renamed_inner = self.rename_expr(*inner_expr)?;
                 Expr::Quasiquote(Box::new(renamed_inner))
             }
-            
+
             Expr::Unquote(inner_expr) => {
                 // Rename inside unquote expressions
                 let renamed_inner = self.rename_expr(*inner_expr)?;
                 Expr::Unquote(Box::new(renamed_inner))
             }
-            
+
             Expr::UnquoteSplicing(inner_expr) => {
                 // Rename inside unquote-splicing expressions
                 let renamed_inner = self.rename_expr(*inner_expr)?;
                 Expr::UnquoteSplicing(Box::new(renamed_inner))
             }
 
+            // Contract-related expressions
+            Expr::DefineContract {
+                name,
+                formals,
+                contract,
+                return_type,
+                body,
+            } => {
+                let old_scope = self.enter_scope();
+                let renamed_formals = formals.map(|f| self.rename_formals(f)).transpose()?;
+                let renamed_body = self.rename_body(body)?;
+                self.exit_scope(old_scope);
+
+                Expr::DefineContract {
+                    name, // Contract names are not renamed
+                    formals: renamed_formals,
+                    contract, // Contract expressions use a different AST type, keep as is for now
+                    return_type, // Same for return type
+                    body: renamed_body,
+                }
+            }
+
+            Expr::Contract(contract) => {
+                // Contract expressions use a different AST type, keep as is for now
+                Expr::Contract(contract)
+            }
+
+            Expr::ContractApplication {
+                contract,
+                expr: contract_expr,
+            } => {
+                // Only rename the expression being contracted, not the contract itself
+                let renamed_expr = self.rename_expr(*contract_expr)?;
+                Expr::ContractApplication {
+                    contract, // Contract expressions use a different AST type, keep as is
+                    expr: Box::new(renamed_expr),
+                }
+            }
+
+            // Additional patterns that don't contain identifiers to rename
+            Expr::ExternalForm { tag, args } => {
+                let renamed_args = args
+                    .into_iter()
+                    .map(|arg| self.rename_expr(arg))
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::ExternalForm {
+                    tag,
+                    args: renamed_args,
+                }
+            }
+
+            Expr::Delay { expression } => {
+                let renamed_expr = self.rename_expr(*expression)?;
+                Expr::Delay {
+                    expression: Box::new(renamed_expr),
+                }
+            }
+
+            Expr::Lazy { expression } => {
+                let renamed_expr = self.rename_expr(*expression)?;
+                Expr::Lazy {
+                    expression: Box::new(renamed_expr),
+                }
+            }
+
+            Expr::Eager { expression } => {
+                let renamed_expr = self.rename_expr(*expression)?;
+                Expr::Eager {
+                    expression: Box::new(renamed_expr),
+                }
+            }
+
+            Expr::Cut {
+                procedure,
+                arguments,
+            } => {
+                let renamed_proc = self.rename_expr(*procedure)?;
+                let renamed_args = arguments
+                    .into_iter()
+                    .map(|arg| -> Result<crate::ast::CutArgument> {
+                        match arg {
+                            crate::ast::CutArgument::Slot => Ok(crate::ast::CutArgument::Slot),
+                            crate::ast::CutArgument::RestSlot => {
+                                Ok(crate::ast::CutArgument::RestSlot)
+                            }
+                            crate::ast::CutArgument::Expression(e) => {
+                                Ok(crate::ast::CutArgument::Expression(Box::new(
+                                    self.rename_expr(*e)?,
+                                )))
+                            }
+                        }
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::Cut {
+                    procedure: Box::new(renamed_proc),
+                    arguments: renamed_args,
+                }
+            }
+
+            Expr::Cute {
+                procedure,
+                arguments,
+            } => {
+                let renamed_proc = self.rename_expr(*procedure)?;
+                let renamed_args = arguments
+                    .into_iter()
+                    .map(|arg| -> Result<crate::ast::CutArgument> {
+                        match arg {
+                            crate::ast::CutArgument::Slot => Ok(crate::ast::CutArgument::Slot),
+                            crate::ast::CutArgument::RestSlot => {
+                                Ok(crate::ast::CutArgument::RestSlot)
+                            }
+                            crate::ast::CutArgument::Expression(e) => {
+                                Ok(crate::ast::CutArgument::Expression(Box::new(
+                                    self.rename_expr(*e)?,
+                                )))
+                            }
+                        }
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::Cute {
+                    procedure: Box::new(renamed_proc),
+                    arguments: renamed_args,
+                }
+            }
+
+            Expr::AndLetStar { clauses, body } => {
+                let renamed_clauses = clauses
+                    .into_iter()
+                    .map(|clause| match clause {
+                        crate::ast::AndLetClause::Binding {
+                            variable,
+                            expression,
+                        } => Ok(crate::ast::AndLetClause::Binding {
+                            variable: self.rename_identifier(&variable),
+                            expression: self.rename_expr(expression)?,
+                        }),
+                        crate::ast::AndLetClause::Test { expression } => {
+                            Ok(crate::ast::AndLetClause::Test {
+                                expression: self.rename_expr(expression)?,
+                            })
+                        }
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let renamed_body = body
+                    .into_iter()
+                    .map(|e| self.rename_expr(e))
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::AndLetStar {
+                    clauses: renamed_clauses,
+                    body: renamed_body,
+                }
+            }
+
+            Expr::CondExpand {
+                clauses,
+                else_clause,
+            } => {
+                // For cond-expand, we might want to conditionally rename based on feature availability
+                // For now, rename everything
+                let renamed_clauses = clauses
+                    .into_iter()
+                    .map(|clause| {
+                        Ok(crate::ast::CondExpandClause {
+                            feature_requirement: clause.feature_requirement, // Don't rename feature names
+                            body: self.rename_body(clause.body)?,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let renamed_else = if let Some(else_body) = else_clause {
+                    Some(self.rename_body(else_body)?)
+                } else {
+                    None
+                };
+                Expr::CondExpand {
+                    clauses: renamed_clauses,
+                    else_clause: renamed_else,
+                }
+            }
+
             // These don't contain identifiers to rename
             Expr::Literal(_) | Expr::Keyword(_) => expr.inner,
         };
-        
+
         Ok(Spanned::new(renamed_inner, expr.span))
     }
-    
+
     /// Renames an identifier according to hygiene rules.
     fn rename_identifier(&mut self, name: &str) -> String {
         // Don't rename reserved names
         if self.reserved_names.contains(name) {
             return name.to_string();
         }
-        
+
         // Check if we already have hygiene info for this identifier
         if let Some(info) = self.identifier_info.get(name) {
             return info.effective_name().to_string();
         }
-        
+
         // If we're in a macro context, create a hygienically renamed identifier
         if let Some(context) = self.current_context {
-            let info = IdentifierInfo::macro_introduced(
-                name.to_string(),
-                context,
-                self.current_scope,
-            );
+            let info =
+                IdentifierInfo::macro_introduced(name.to_string(), context, self.current_scope);
             let effective_name = info.effective_name().to_string();
             self.identifier_info.insert(name.to_string(), info);
             effective_name
@@ -533,24 +772,26 @@ impl HygieneContext {
             name.to_string()
         }
     }
-    
+
     /// Renames formal parameters.
     fn rename_formals(&mut self, formals: Formals) -> Result<Formals> {
         match formals {
             Formals::Fixed(params) => {
-                let renamed_params = params.into_iter()
+                let renamed_params = params
+                    .into_iter()
                     .map(|p| self.rename_identifier(&p))
                     .collect();
                 Ok(Formals::Fixed(renamed_params))
             }
-            
+
             Formals::Variable(param) => {
                 let renamed_param = self.rename_identifier(&param);
                 Ok(Formals::Variable(renamed_param))
             }
-            
+
             Formals::Mixed { fixed, rest } => {
-                let renamed_fixed = fixed.into_iter()
+                let renamed_fixed = fixed
+                    .into_iter()
                     .map(|p| self.rename_identifier(&p))
                     .collect();
                 let renamed_rest = self.rename_identifier(&rest);
@@ -559,25 +800,68 @@ impl HygieneContext {
                     rest: renamed_rest,
                 })
             }
-            
-            Formals::Keyword { fixed, rest, keywords } => {
-                let renamed_fixed = fixed.into_iter()
+
+            Formals::Keyword {
+                fixed,
+                rest,
+                keywords,
+            } => {
+                let renamed_fixed = fixed
+                    .into_iter()
                     .map(|p| self.rename_identifier(&p))
                     .collect();
                 let renamed_rest = rest.map(|r| self.rename_identifier(&r));
-                let renamed_keywords = keywords.into_iter()
+                let renamed_keywords = keywords
+                    .into_iter()
                     .map(|kw| self.rename_keyword_param(kw))
                     .collect::<Result<Vec<_>>>()?;
-                
+
                 Ok(Formals::Keyword {
                     fixed: renamed_fixed,
                     rest: renamed_rest,
                     keywords: renamed_keywords,
                 })
             }
+
+            Formals::Typed(typed_params) => {
+                let renamed_typed_params = typed_params
+                    .into_iter()
+                    .map(|tp| crate::ast::TypedParam {
+                        name: self.rename_identifier(&tp.name),
+                        type_annotation: tp.type_annotation,
+                    })
+                    .collect();
+                Ok(Formals::Typed(renamed_typed_params))
+            }
+
+            Formals::TypedVariable(typed_param) => {
+                let renamed_typed_param = crate::ast::TypedParam {
+                    name: self.rename_identifier(&typed_param.name),
+                    type_annotation: typed_param.type_annotation,
+                };
+                Ok(Formals::TypedVariable(renamed_typed_param))
+            }
+
+            Formals::TypedMixed { fixed, rest } => {
+                let renamed_fixed = fixed
+                    .into_iter()
+                    .map(|tp| crate::ast::TypedParam {
+                        name: self.rename_identifier(&tp.name),
+                        type_annotation: tp.type_annotation,
+                    })
+                    .collect();
+                let renamed_rest = crate::ast::TypedParam {
+                    name: self.rename_identifier(&rest.name),
+                    type_annotation: rest.type_annotation,
+                };
+                Ok(Formals::TypedMixed {
+                    fixed: renamed_fixed,
+                    rest: renamed_rest,
+                })
+            }
         }
     }
-    
+
     /// Renames a keyword parameter.
     fn rename_keyword_param(&mut self, param: KeywordParam) -> Result<KeywordParam> {
         let renamed_name = self.rename_identifier(&param.name);
@@ -586,13 +870,13 @@ impl HygieneContext {
         } else {
             None
         };
-        
+
         Ok(KeywordParam {
             name: renamed_name,
             default: renamed_default,
         })
     }
-    
+
     /// Renames metadata expressions.
     fn rename_metadata(
         &mut self,
@@ -604,24 +888,23 @@ impl HygieneContext {
         }
         Ok(renamed)
     }
-    
+
     /// Renames a sequence of expressions.
     fn rename_body(&mut self, body: Vec<Spanned<Expr>>) -> Result<Vec<Spanned<Expr>>> {
         body.into_iter()
             .map(|expr| self.rename_expr(expr))
             .collect()
     }
-    
+
     /// Renames argument expressions.
     fn rename_args(&mut self, args: Vec<Spanned<Expr>>) -> Result<Vec<Spanned<Expr>>> {
-        args.into_iter()
-            .map(|arg| self.rename_expr(arg))
-            .collect()
+        args.into_iter().map(|arg| self.rename_expr(arg)).collect()
     }
-    
+
     /// Renames variable bindings.
     fn rename_bindings(&mut self, bindings: Vec<Binding>) -> Result<Vec<Binding>> {
-        bindings.into_iter()
+        bindings
+            .into_iter()
             .map(|binding| {
                 let renamed_name = self.rename_identifier(&binding.name);
                 let renamed_value = self.rename_expr(binding.value)?;
@@ -632,10 +915,11 @@ impl HygieneContext {
             })
             .collect()
     }
-    
+
     /// Renames cond clauses.
     fn rename_cond_clauses(&mut self, clauses: Vec<CondClause>) -> Result<Vec<CondClause>> {
-        clauses.into_iter()
+        clauses
+            .into_iter()
             .map(|clause| {
                 let renamed_test = self.rename_expr(clause.test)?;
                 let renamed_body = self.rename_body(clause.body)?;
@@ -646,10 +930,11 @@ impl HygieneContext {
             })
             .collect()
     }
-    
+
     /// Renames case clauses.
     fn rename_case_clauses(&mut self, clauses: Vec<CaseClause>) -> Result<Vec<CaseClause>> {
-        clauses.into_iter()
+        clauses
+            .into_iter()
             .map(|clause| {
                 let renamed_values = self.rename_body(clause.values)?;
                 let renamed_body = self.rename_body(clause.body)?;
@@ -660,39 +945,37 @@ impl HygieneContext {
             })
             .collect()
     }
-    
+
     /// Checks if two identifiers are the same after hygiene transformation.
     pub fn identifiers_equal(&self, name1: &str, name2: &str) -> bool {
         // Simple case: if the names are identical, they're equal
         if name1 == name2 {
             return true;
         }
-        
+
         // Check if both names have the same pattern (both renamed or both original)
         let is_renamed1 = name1.contains('#');
         let is_renamed2 = name2.contains('#');
-        
+
         // If one is renamed and the other isn't, they can't be equal
         if is_renamed1 != is_renamed2 {
             return false;
         }
-        
+
         // If both are renamed, check if they have the same original and context
         if is_renamed1 && is_renamed2 {
             let original1 = self.find_original_identifier(name1);
             let original2 = self.find_original_identifier(name2);
-            
+
             if original1 != original2 {
                 return false;
             }
-            
+
             let info1 = self.identifier_info.get(&original1);
             let info2 = self.identifier_info.get(&original2);
-            
+
             match (info1, info2) {
-                (Some(i1), Some(i2)) => {
-                    i1.context == i2.context
-                }
+                (Some(i1), Some(i2)) => i1.context == i2.context,
                 _ => false,
             }
         } else {
@@ -700,7 +983,7 @@ impl HygieneContext {
             false
         }
     }
-    
+
     /// Finds the original identifier for a potentially renamed identifier.
     fn find_original_identifier(&self, name: &str) -> String {
         // Check if this name ends with #<number> pattern
@@ -716,12 +999,12 @@ impl HygieneContext {
         }
         name.to_string()
     }
-    
+
     /// Gets hygiene information for an identifier.
     pub fn get_identifier_info(&self, name: &str) -> Option<&IdentifierInfo> {
         self.identifier_info.get(name)
     }
-    
+
     /// Marks an identifier as syntax (from a syntax template).
     pub fn mark_syntax(&mut self, name: &str) {
         if let Some(context) = self.current_context {
@@ -739,14 +1022,14 @@ impl Default for HygieneContext {
 
 #[cfg(test)]
 mod tests {
+    use super::super::next_hygiene_id;
     use super::*;
     use crate::diagnostics::Span;
-    use super::super::next_hygiene_id;
-    
+
     fn make_spanned<T>(value: T) -> Spanned<T> {
         Spanned::new(value, Span::new(0, 1))
     }
-    
+
     #[test]
     fn test_hygiene_context_creation() {
         let ctx = HygieneContext::new();
@@ -754,63 +1037,64 @@ mod tests {
         assert!(ctx.reserved_names.contains("if"));
         assert!(ctx.reserved_names.contains("define"));
     }
-    
+
     #[test]
     fn test_identifier_renaming() {
         let mut ctx = HygieneContext::new();
         let macro_ctx = MacroContext::new(next_hygiene_id());
-        
+
         // Outside macro context
         let name1 = ctx.rename_identifier("foo");
         assert_eq!(name1, "foo");
-        
+
         // Inside macro context
         ctx.enter_macro_context(macro_ctx);
         let name2 = ctx.rename_identifier("bar");
         assert!(name2.starts_with("bar#"));
         assert_ne!(name2, "bar");
     }
-    
+
     #[test]
     fn test_reserved_names_not_renamed() {
         let mut ctx = HygieneContext::new();
         let macro_ctx = MacroContext::new(next_hygiene_id());
         ctx.enter_macro_context(macro_ctx);
-        
+
         let lambda_name = ctx.rename_identifier("lambda");
         assert_eq!(lambda_name, "lambda");
-        
+
         let if_name = ctx.rename_identifier("if");
         assert_eq!(if_name, "if");
     }
-    
+
     #[test]
     fn test_identifier_equality() {
         let mut ctx = HygieneContext::new();
         let macro_ctx = MacroContext::new(next_hygiene_id());
-        
+
         ctx.enter_macro_context(macro_ctx);
         let renamed1 = ctx.rename_identifier("foo");
         let renamed2 = ctx.rename_identifier("foo");
-        
+
         assert!(ctx.identifiers_equal(&renamed1, &renamed2));
         assert!(!ctx.identifiers_equal(&renamed1, "foo"));
     }
-    
+
     #[test]
     fn test_lambda_renaming() {
         let mut ctx = HygieneContext::new();
         let macro_ctx = MacroContext::new(next_hygiene_id());
         ctx.enter_macro_context(macro_ctx);
-        
+
         let lambda_expr = make_spanned(Expr::Lambda {
             formals: Formals::Fixed(vec!["x".to_string(), "y".to_string()]),
+            return_type: None,
             metadata: HashMap::new(),
             body: vec![make_spanned(Expr::Identifier("x".to_string()))],
         });
-        
+
         let renamed = ctx.rename_expr(lambda_expr).unwrap();
-        
+
         match renamed.inner {
             Expr::Lambda { formals, body, .. } => {
                 match formals {
@@ -820,7 +1104,7 @@ mod tests {
                     }
                     _ => panic!("Expected fixed formals"),
                 }
-                
+
                 match &body[0].inner {
                     Expr::Identifier(name) => {
                         assert!(name.starts_with("x#"));
@@ -830,5 +1114,11 @@ mod tests {
             }
             _ => panic!("Expected lambda expression"),
         }
+    }
+}
+
+impl Hash for HygieneContext {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.context_id.hash(state);
     }
 }

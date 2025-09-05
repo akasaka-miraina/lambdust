@@ -5,7 +5,7 @@
 //! achieving significant binary size reduction while maintaining essential
 //! diagnostic functionality.
 
-use crate::diagnostics::{Span, ErrorLabel, LabelStyle};
+use crate::diagnostics::{ErrorLabel, LabelStyle, Span};
 use std::fmt;
 
 /// Lightweight diagnostic trait to replace miette::Diagnostic.
@@ -17,32 +17,32 @@ pub trait LightweightDiagnostic: std::error::Error {
     fn code(&self) -> Option<&str> {
         None
     }
-    
+
     /// Returns help text for this diagnostic.
     fn help(&self) -> Option<&str> {
         None
     }
-    
+
     /// Returns the URL for more information about this diagnostic.
     fn url(&self) -> Option<&str> {
         None
     }
-    
+
     /// Returns the source code related to this diagnostic.
     fn source_code(&self) -> Option<&str> {
         None
     }
-    
+
     /// Returns the labels (spans with messages) for this diagnostic.
     fn labels(&self) -> Vec<DiagnosticLabel> {
         Vec::new()
     }
-    
+
     /// Returns related diagnostics.
     fn related(&self) -> Vec<&dyn LightweightDiagnostic> {
         Vec::new()
     }
-    
+
     /// Returns the severity level of this diagnostic.
     fn severity(&self) -> DiagnosticSeverity {
         DiagnosticSeverity::Error
@@ -93,7 +93,7 @@ impl DiagnosticLabel {
             style: DiagnosticLabelStyle::Primary,
         }
     }
-    
+
     /// Creates a new secondary diagnostic label.
     pub fn secondary(span: Span, message: impl Into<String>) -> Self {
         Self {
@@ -102,7 +102,7 @@ impl DiagnosticLabel {
             style: DiagnosticLabelStyle::Secondary,
         }
     }
-    
+
     /// Creates a new label with just a span (no message).
     pub fn span_only(span: Span) -> Self {
         Self {
@@ -143,7 +143,7 @@ impl DiagnosticReporter {
             show_source: true,
         }
     }
-    
+
     /// Creates a plain diagnostic reporter without colors or source.
     pub fn plain() -> Self {
         Self {
@@ -151,73 +151,118 @@ impl DiagnosticReporter {
             show_source: false,
         }
     }
-    
+
     /// Sets whether to use colors in output.
     pub fn with_colors(mut self, use_colors: bool) -> Self {
         self.use_colors = use_colors;
         self
     }
-    
+
     /// Sets whether to show source code snippets.
     pub fn with_source(mut self, show_source: bool) -> Self {
         self.show_source = show_source;
         self
     }
-    
+
     /// Reports a diagnostic to stderr.
     pub fn report(&self, diagnostic: &dyn LightweightDiagnostic) {
         eprintln!("{}", self.format_diagnostic(diagnostic));
     }
-    
+
     /// Formats a diagnostic as a string.
     pub fn format_diagnostic(&self, diagnostic: &dyn LightweightDiagnostic) -> String {
         let mut output = String::new();
-        
+
         // Severity and message
         let severity_str = match diagnostic.severity() {
-            DiagnosticSeverity::Error => if self.use_colors { "\x1b[31merror\x1b[0m" } else { "error" },
-            DiagnosticSeverity::Warning => if self.use_colors { "\x1b[33mwarning\x1b[0m" } else { "warning" },
-            DiagnosticSeverity::Info => if self.use_colors { "\x1b[36minfo\x1b[0m" } else { "info" },
-            DiagnosticSeverity::Note => if self.use_colors { "\x1b[37mnote\x1b[0m" } else { "note" },
-            DiagnosticSeverity::Help => if self.use_colors { "\x1b[32mhelp\x1b[0m" } else { "help" },
+            DiagnosticSeverity::Error => {
+                if self.use_colors {
+                    "\x1b[31merror\x1b[0m"
+                } else {
+                    "error"
+                }
+            }
+            DiagnosticSeverity::Warning => {
+                if self.use_colors {
+                    "\x1b[33mwarning\x1b[0m"
+                } else {
+                    "warning"
+                }
+            }
+            DiagnosticSeverity::Info => {
+                if self.use_colors {
+                    "\x1b[36minfo\x1b[0m"
+                } else {
+                    "info"
+                }
+            }
+            DiagnosticSeverity::Note => {
+                if self.use_colors {
+                    "\x1b[37mnote\x1b[0m"
+                } else {
+                    "note"
+                }
+            }
+            DiagnosticSeverity::Help => {
+                if self.use_colors {
+                    "\x1b[32mhelp\x1b[0m"
+                } else {
+                    "help"
+                }
+            }
         };
-        
+
         // Main error message
         if let Some(code) = diagnostic.code() {
             output.push_str(&format!("{severity_str}[{code}]: {diagnostic}\n"));
         } else {
             output.push_str(&format!("{severity_str}: {diagnostic}\n"));
         }
-        
+
         // Labels with spans
         let labels = diagnostic.labels();
         if !labels.is_empty() && self.show_source {
             for label in labels {
                 if let Some(message) = &label.message {
-                    output.push_str(&format!("   {} {}\n", 
-                        if self.use_colors { "\x1b[36m-->\x1b[0m" } else { "-->" },
+                    output.push_str(&format!(
+                        "   {} {}\n",
+                        if self.use_colors {
+                            "\x1b[36m-->\x1b[0m"
+                        } else {
+                            "-->"
+                        },
                         message
                     ));
                 }
             }
         }
-        
+
         // Help text
         if let Some(help) = diagnostic.help() {
-            output.push_str(&format!("   {} {}\n", 
-                if self.use_colors { "\x1b[32m=\x1b[0m" } else { "=" },
+            output.push_str(&format!(
+                "   {} {}\n",
+                if self.use_colors {
+                    "\x1b[32m=\x1b[0m"
+                } else {
+                    "="
+                },
                 help
             ));
         }
-        
+
         // URL for more info
         if let Some(url) = diagnostic.url() {
-            output.push_str(&format!("   {} For more information: {}\n", 
-                if self.use_colors { "\x1b[36m=\x1b[0m" } else { "=" },
+            output.push_str(&format!(
+                "   {} For more information: {}\n",
+                if self.use_colors {
+                    "\x1b[36m=\x1b[0m"
+                } else {
+                    "="
+                },
                 url
             ));
         }
-        
+
         output
     }
 }
@@ -269,7 +314,7 @@ macro_rules! derive_diagnostic {
                     )*
                 }
             }
-            
+
             fn help(&self) -> Option<&str> {
                 match self {
                     $(
@@ -279,7 +324,7 @@ macro_rules! derive_diagnostic {
                     )*
                 }
             }
-            
+
             fn labels(&self) -> Vec<DiagnosticLabel> {
                 match self {
                     $(
@@ -295,12 +340,12 @@ macro_rules! derive_diagnostic {
     // Helper: Extract code
     (@code $code:expr) => { Some($code) };
     (@code) => { None };
-    
+
     // Helper: Extract help
     (@help $help:expr) => { Some($help) };
     (@help) => { None };
-    
-    // Helper: Extract labels  
+
+    // Helper: Extract labels
     (@labels $($field:ident: $msg:expr)*) => {
         {
             let mut labels = Vec::new();
@@ -314,7 +359,7 @@ macro_rules! derive_diagnostic {
         }
     };
     (@labels) => { Vec::new() };
-    
+
     // Helper: Check if field is a Span
     (@maybe_span $field:ident) => {
         // This is a compile-time check - if $field is a Span, it will work
@@ -336,7 +381,7 @@ mod tests {
     fn test_diagnostic_label() {
         let span = Span::new(0, 5);
         let label = DiagnosticLabel::primary(span, "test error");
-        
+
         assert_eq!(label.style, DiagnosticLabelStyle::Primary);
         assert_eq!(label.message.as_ref().unwrap(), "test error");
         assert_eq!(label.span.start, 0);
@@ -348,38 +393,38 @@ mod tests {
         struct TestDiagnostic {
             message: String,
         }
-        
+
         impl fmt::Display for TestDiagnostic {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "{}", self.message)
             }
         }
-        
+
         impl fmt::Debug for TestDiagnostic {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "TestDiagnostic {{ message: {:?} }}", self.message)
             }
         }
-        
+
         impl std::error::Error for TestDiagnostic {}
-        
+
         impl LightweightDiagnostic for TestDiagnostic {
             fn code(&self) -> Option<&str> {
                 Some("TEST001")
             }
-            
+
             fn help(&self) -> Option<&str> {
                 Some("This is a test diagnostic")
             }
         }
-        
+
         let diagnostic = TestDiagnostic {
             message: "Test error message".to_string(),
         };
-        
+
         let reporter = DiagnosticReporter::plain();
         let output = reporter.format_diagnostic(&diagnostic);
-        
+
         assert!(output.contains("error[TEST001]: Test error message"));
         assert!(output.contains("This is a test diagnostic"));
     }

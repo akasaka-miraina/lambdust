@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Examples - Lambdust Documentation</title>
+    <meta name="description" content="Real-world Lambdust code examples demonstrating language features and programming patterns.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                Examples
+            </div>
+
+            <h1>Code Examples</h1>
+            
+            <p>Learn Lambdust through practical examples that demonstrate real-world usage patterns, language features, and best practices.</p>
+
+            <h2>Example Categories</h2>
+
+            <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 2rem 0;">
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="basic-programs.html">Basic Programs</a></h3>
+                    <p>Simple programs to get started with Lambdust syntax and core concepts.</p>
+                    <ul style="margin-top: 1rem; color: #64748b; font-size: 0.875rem;">
+                        <li>Hello World variations</li>
+                        <li>Mathematical computations</li>
+                        <li>List processing</li>
+                        <li>String manipulation</li>
+                    </ul>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="type-system.html">Type System Examples</a></h3>
+                    <p>Gradual typing, dependent types, and advanced type system features.</p>
+                    <ul style="margin-top: 1rem; color: #64748b; font-size: 0.875rem;">
+                        <li>Gradual type evolution</li>
+                        <li>Dependent type safety</li>
+                        <li>Type inference</li>
+                        <li>Generic programming</li>
+                    </ul>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="effects.html">Effect System</a></h3>
+                    <p>Monadic programming, I/O operations, and algebraic effects.</p>
+                    <ul style="margin-top: 1rem; color: #64748b; font-size: 0.875rem;">
+                        <li>File I/O patterns</li>
+                        <li>State management</li>
+                        <li>Error handling</li>
+                        <li>Concurrent programming</li>
+                    </ul>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="data-structures.html">Data Structures</a></h3>
+                    <p>Implementing and using efficient functional data structures.</p>
+                    <ul style="margin-top: 1rem; color: #64748b; font-size: 0.875rem;">
+                        <li>Persistent data structures</li>
+                        <li>Trees and graphs</li>
+                        <li>Queues and stacks</li>
+                        <li>Hash tables</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>Featured Examples</h2>
+
+            <h3>Fibonacci with Type Evolution</h3>
+            <p>See how a simple function evolves from dynamic to fully typed:</p>
+
+            <div class="example-box">
+                <h4>Dynamic to Static Evolution</h4>
+                <pre><code>;; Stage 1: Dynamic implementation
+(define fibonacci
+  (lambda (n)
+    (if (&lt; n 2) n
+        (+ (fibonacci (- n 1))
+           (fibonacci (- n 2))))))
+
+;; Stage 2: Add input type
+(define fibonacci
+  (lambda ((n : Integer))
+    (if (&lt; n 2) n
+        (+ (fibonacci (- n 1))
+           (fibonacci (- n 2))))))
+
+;; Stage 3: Full type annotation
+(define fibonacci : (Integer → Integer)
+  (lambda ((n : Integer))
+    (if (&lt; n 2) n
+        (+ (fibonacci (- n 1))
+           (fibonacci (- n 2))))))
+
+;; Stage 4: Optimized with memoization
+(define fibonacci-memo : (Integer → State (Map Integer Integer) Integer)
+  (lambda ((n : Integer))
+    (do-state
+      [cache ← get-state]
+      (match (map-lookup cache n)
+        [(Some result) (return result)]
+        [None 
+         (if (&lt; n 2) 
+             (do-state
+               [_ ← (modify-state (lambda (m) (map-insert m n n)))]
+               (return n))
+             (do-state
+               [f1 ← (fibonacci-memo (- n 1))]
+               [f2 ← (fibonacci-memo (- n 2))]
+               [result ← (pure (+ f1 f2))]
+               [_ ← (modify-state (lambda (m) (map-insert m n result)))]
+               (return result)))]))))</code></pre>
+            </div>
+
+            <h3>Safe Matrix Operations with Dependent Types</h3>
+            <p>Compile-time dimension checking for matrix operations:</p>
+
+            <div class="example-box">
+                <h4>Type-Safe Linear Algebra</h4>
+                <pre><code>;; Matrix type with dimensions in the type
+(define-type (Matrix rows cols T)
+  (matrix-with-dimensions rows cols T))
+
+;; Safe matrix creation
+(define make-matrix : (∀ (r c : Nat) (T : Type) 
+                        → T → Matrix r c T)
+  (lambda (default-value)
+    (create-matrix r c default-value)))
+
+;; Matrix multiplication with dimension constraints
+(define matrix-multiply : (∀ (a b c : Nat) (T : Type)
+                            → Matrix a b T 
+                            → Matrix b c T 
+                            → Matrix a c T)
+  (lambda (m1 m2)
+    (let ([result (make-matrix (zero T))])
+      (for-range 0 a (lambda (i)
+        (for-range 0 c (lambda (j)
+          (let ([sum (fold-range 0 b (lambda (k acc)
+                       (+ acc (* (matrix-ref m1 i k)
+                                (matrix-ref m2 k j))))
+                     (zero T))])
+            (matrix-set! result i j sum)))))
+      result)))
+
+;; Usage - this compiles successfully
+(let ([m1 : (Matrix 3 4 Real) (make-matrix 1.0)]
+      [m2 : (Matrix 4 2 Real) (make-matrix 2.0)])
+  (matrix-multiply m1 m2))  ; Result: Matrix 3 2 Real
+
+;; This would be a compile-time error:
+;; (matrix-multiply m1 (make-matrix 3 3 2.0))  ; Error: 4 ≠ 3</code></pre>
+            </div>
+
+            <h3>File Processing with Effect Handling</h3>
+            <p>Safe file operations with comprehensive error handling:</p>
+
+            <div class="example-box">
+                <h4>Robust File Processing</h4>
+                <pre><code>;; Define custom error types
+(define-type FileError
+  (FileNotFound String)
+  (PermissionDenied String)
+  (InvalidFormat String))
+
+;; Safe file reading with error handling
+(define read-config-file : (String → IO (Either FileError Config))
+  (lambda (filename)
+    (with-handler
+      [(IOError (FileNotFound path)) → 
+       (return (Left (FileNotFound path)))]
+      [(IOError (PermissionDenied path)) → 
+       (return (Left (PermissionDenied path)))]
+      [(ParseError msg) → 
+       (return (Left (InvalidFormat msg)))]
+      
+      (do-io
+        [exists? ← (file-exists? filename)]
+        (if (not exists?)
+            (return (Left (FileNotFound filename)))
+            (do-io
+              [content ← (read-file filename)]
+              [config ← (parse-config content)]
+              (return (Right config))))))))
+
+;; Process multiple configuration files
+(define process-configs : (List String → IO (Either FileError (List Config)))
+  (lambda (filenames)
+    (do-io
+      [results ← (map-io read-config-file filenames)]
+      (return (sequence-either results)))))
+
+;; Usage with proper error reporting
+(define main : (IO Unit)
+  (lambda ()
+    (do-io
+      [result ← (process-configs '("app.conf" "db.conf" "cache.conf"))]
+      (match result
+        [(Left (FileNotFound path)) 
+         (println (format "Error: Configuration file not found: ~a" path))]
+        [(Left (PermissionDenied path))
+         (println (format "Error: Permission denied for file: ~a" path))]
+        [(Left (InvalidFormat msg))
+         (println (format "Error: Invalid configuration format: ~a" msg))]
+        [(Right configs)
+         (do-io
+           [_ ← (println "All configuration files loaded successfully")]
+           (start-application configs))]))))</code></pre>
+            </div>
+
+            <h2>Learning Path</h2>
+
+            <p>We recommend exploring examples in this order:</p>
+
+            <ol>
+                <li><strong><a href="basic-programs.html">Basic Programs</a></strong> - Start with simple syntax and concepts</li>
+                <li><strong><a href="type-system.html">Type System</a></strong> - Learn gradual typing and type evolution</li>
+                <li><strong><a href="effects.html">Effect System</a></strong> - Understand monadic programming</li>
+                <li><strong><a href="data-structures.html">Data Structures</a></strong> - Implement functional data structures</li>
+                <li><strong><a href="real-world.html">Real-world Applications</a></strong> - Complete programs and applications</li>
+            </ol>
+
+            <h2>Running Examples</h2>
+
+            <p>All examples can be run directly in the Lambdust REPL or saved as <code>.ldust</code> files:</p>
+
+            <pre><code># Run in REPL
+$ lambdust
+λ> (define fibonacci (lambda (n) ...))
+λ> (fibonacci 10)
+
+# Run from file
+$ echo '(define main (lambda () (println "Hello, World!")))' > hello.ldust
+$ lambdust hello.ldust
+
+# Load in REPL
+λ> :load examples/fibonacci.ldust
+λ> (fibonacci 20)</code></pre>
+
+            <h2>Example Repository</h2>
+
+            <p>All examples are available in the official repository:</p>
+
+            <ul>
+                <li><strong>GitHub</strong>: <a href="https://github.com/lambdust-lang/examples">lambdust-lang/examples</a></li>
+                <li><strong>Clone locally</strong>: <code>git clone https://github.com/lambdust-lang/examples.git</code></li>
+                <li><strong>Browse online</strong>: View and download individual examples</li>
+            </ul>
+
+            <h2>Contributing Examples</h2>
+
+            <p>Help grow the example collection:</p>
+
+            <div class="example-box">
+                <h4>How to Contribute</h4>
+                <ol>
+                    <li><strong>Fork the examples repository</strong></li>
+                    <li><strong>Add your example</strong> with clear documentation</li>
+                    <li><strong>Include type annotations</strong> and comments</li>
+                    <li><strong>Add test cases</strong> where appropriate</li>
+                    <li><strong>Submit a pull request</strong></li>
+                </ol>
+                
+                <p><strong>Good examples include:</strong></p>
+                <ul>
+                    <li>Clear, well-commented code</li>
+                    <li>Demonstration of specific language features</li>
+                    <li>Real-world applicability</li>
+                    <li>Progressive complexity (simple to advanced)</li>
+                </ul>
+            </div>
+
+            <div class="page-nav">
+                <a href="../index.html">← Documentation Home</a>
+                <a href="basic-programs.html">Basic Programs →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="index.html">Examples</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,4 +1,4 @@
-use super::{Type, TypeVar, Constraint};
+use super::{Constraint, Type, TypeVar};
 use std::collections::HashMap;
 
 /// Type scheme for polymorphic types.
@@ -21,7 +21,7 @@ impl TypeScheme {
             type_,
         }
     }
-    
+
     /// Creates a polymorphic type scheme.
     pub fn polymorphic(vars: Vec<TypeVar>, constraints: Vec<Constraint>, type_: Type) -> Self {
         Self {
@@ -30,42 +30,43 @@ impl TypeScheme {
             type_,
         }
     }
-    
+
     /// Instantiates this type scheme with fresh type variables.
     pub fn instantiate(&self) -> Type {
         if self.vars.is_empty() {
             return self.type_.clone();
         }
-        
+
         // Create fresh variables for each quantified variable
-        let fresh_vars: HashMap<TypeVar, Type> = self.vars
+        let fresh_vars: HashMap<TypeVar, Type> = self
+            .vars
             .iter()
             .map(|var| (var.clone(), Type::fresh_var()))
             .collect();
-        
+
         // Substitute in the type
         Self::substitute_vars(&self.type_, &fresh_vars)
     }
-    
+
     fn substitute_vars(type_: &Type, subst: &HashMap<TypeVar, Type>) -> Type {
         match type_ {
-            Type::Variable(var) => {
-                subst.get(var).cloned().unwrap_or_else(|| type_.clone())
-            }
-            Type::Pair(a, b) => {
-                Type::pair(
-                    Self::substitute_vars(a, subst),
-                    Self::substitute_vars(b, subst),
-                )
-            }
+            Type::Variable(var) => subst.get(var).cloned().unwrap_or_else(|| type_.clone()),
+            Type::Pair(a, b) => Type::pair(
+                Self::substitute_vars(a, subst),
+                Self::substitute_vars(b, subst),
+            ),
             Type::List(t) => Type::list(Self::substitute_vars(t, subst)),
             Type::Vector(t) => Type::vector(Self::substitute_vars(t, subst)),
-            Type::Function { params, return_type } => {
-                Type::function(
-                    params.iter().map(|p| Self::substitute_vars(p, subst)).collect(),
-                    Self::substitute_vars(return_type, subst),
-                )
-            }
+            Type::Function {
+                params,
+                return_type,
+            } => Type::function(
+                params
+                    .iter()
+                    .map(|p| Self::substitute_vars(p, subst))
+                    .collect(),
+                Self::substitute_vars(return_type, subst),
+            ),
             // Handle other cases as needed
             _ => type_.clone(), // For now, just clone for unhandled cases
         }

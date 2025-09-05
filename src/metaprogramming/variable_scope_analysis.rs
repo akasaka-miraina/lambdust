@@ -1,7 +1,7 @@
 //! Variable usage and scope analysis components.
 
-use crate::diagnostics::Span;
 use super::analysis_types::ScopeType;
+use crate::diagnostics::Span;
 use std::collections::HashMap;
 
 /// Variable usage analysis.

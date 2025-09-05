@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::runtime::Handle;
 
 /// Runtime handle for async operations in the concurrency system.
-/// 
+///
 /// This provides access to the global tokio runtime for executing
 /// asynchronous operations and managing futures.
 pub struct ConcurrencyRuntime {
@@ -16,12 +16,14 @@ impl ConcurrencyRuntime {
     pub fn global() -> Arc<Self> {
         use std::sync::OnceLock;
         static RUNTIME: OnceLock<Arc<ConcurrencyRuntime>> = OnceLock::new();
-        
-        RUNTIME.get_or_init(|| {
-            Arc::new(ConcurrencyRuntime {
-                handle: tokio::runtime::Handle::current(),
+
+        RUNTIME
+            .get_or_init(|| {
+                Arc::new(ConcurrencyRuntime {
+                    handle: tokio::runtime::Handle::current(),
+                })
             })
-        }).clone()
+            .clone()
     }
 
     /// Gets the tokio runtime handle.

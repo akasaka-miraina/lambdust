@@ -22,7 +22,7 @@ impl FfiFunction for AddFunction {
             documentation: Some("Adds two numbers together.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let a = f64::from_lambdust(&args[0])?;
         let b = f64::from_lambdust(&args[1])?;
@@ -44,7 +44,7 @@ impl FfiFunction for SubtractFunction {
             documentation: Some("Subtracts the second number from the first.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let a = f64::from_lambdust(&args[0])?;
         let b = f64::from_lambdust(&args[1])?;
@@ -66,7 +66,7 @@ impl FfiFunction for MultiplyFunction {
             documentation: Some("Multiplies two numbers.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let a = f64::from_lambdust(&args[0])?;
         let b = f64::from_lambdust(&args[1])?;
@@ -88,7 +88,7 @@ impl FfiFunction for DivideFunction {
             documentation: Some("Divides the first number by the second.".to_string()),
         })
     }
-    
+
     fn call(&self, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let a = f64::from_lambdust(&args[0])?;
         let b = f64::from_lambdust(&args[1])?;

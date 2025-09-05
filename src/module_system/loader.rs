@@ -6,12 +6,14 @@
 //! - User modules from configurable search paths
 //! - File-based modules with explicit paths
 
-use super::{Module, ModuleId, ModuleNamespace, ModuleError, ModuleProvider, ModuleSource, ModuleMetadata};
+use super::{
+    Module, ModuleError, ModuleId, ModuleMetadata, ModuleNamespace, ModuleProvider, ModuleSource,
+};
 use crate::diagnostics::{Error, Result};
 use crate::runtime::LibraryPathResolver;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Module loader responsible for finding and loading modules.
 pub struct ModuleLoader {
@@ -29,7 +31,10 @@ impl std::fmt::Debug for ModuleLoader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ModuleLoader")
             .field("search_paths", &self.search_paths)
-            .field("builtin_providers", &format!("{} providers", self.builtin_providers.len()))
+            .field(
+                "builtin_providers",
+                &format!("{} providers", self.builtin_providers.len()),
+            )
             .field("stdlib_path", &self.stdlib_path)
             .field("library_resolver", &self.library_resolver)
             .finish()
@@ -46,13 +51,13 @@ impl ModuleLoader {
             stdlib_path: library_resolver.primary_lib_dir().map(|p| p.to_path_buf()),
             library_resolver,
         };
-        
+
         // Initialize search paths from library resolver
         loader.initialize_from_library_resolver();
-        
+
         // Initialize built-in providers
         loader.register_builtin_providers();
-        
+
         Ok(loader)
     }
 
@@ -78,7 +83,11 @@ impl ModuleLoader {
     }
 
     /// Registers a built-in module provider.
-    pub fn register_builtin_provider(&mut self, namespace: String, provider: Box<dyn ModuleProvider>) {
+    pub fn register_builtin_provider(
+        &mut self,
+        namespace: String,
+        provider: Box<dyn ModuleProvider>,
+    ) {
         self.builtin_providers.insert(namespace, provider);
     }
 
@@ -86,12 +95,12 @@ impl ModuleLoader {
     fn load_builtin_module(&self, id: &ModuleId) -> Result<Module> {
         if id.components.is_empty() {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                "Built-in module name cannot be empty".to_string()
+                "Built-in module name cannot be empty".to_string(),
             ))));
         }
 
         let module_name = &id.components[0];
-        
+
         // Check if we have a built-in provider for this module
         if let Some(provider) = self.builtin_providers.get(module_name) {
             return provider.get_module(id);
@@ -105,7 +114,7 @@ impl ModuleLoader {
     fn load_r7rs_module(&self, id: &ModuleId) -> Result<Module> {
         if id.components.is_empty() {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                "R7RS module name cannot be empty".to_string()
+                "R7RS module name cannot be empty".to_string(),
             ))));
         }
 
@@ -117,7 +126,7 @@ impl ModuleLoader {
     fn load_srfi_module(&self, id: &ModuleId) -> Result<Module> {
         if id.components.is_empty() {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                "SRFI module name cannot be empty".to_string()
+                "SRFI module name cannot be empty".to_string(),
             ))));
         }
 
@@ -133,17 +142,24 @@ impl ModuleLoader {
     /// Loads a single SRFI module.
     fn load_single_srfi(&self, id: &ModuleId, srfi_number: &str) -> Result<Module> {
         let srfi_filename = format!("{srfi_number}.scm");
-        
+
         // Try using the library resolver first for modules/srfi/
-        match self.library_resolver.resolve_library_file("modules/srfi", &srfi_filename) {
+        match self
+            .library_resolver
+            .resolve_library_file("modules/srfi", &srfi_filename)
+        {
             Ok(module_path) => self.load_from_file(id, &module_path),
             Err(_) => {
                 // Fallback to old method for backward compatibility
-                let stdlib_path = self.stdlib_path.as_ref().ok_or_else(|| {
-                    Error::from(ModuleError::NotFound(id.clone()))
-                })?;
+                let stdlib_path = self
+                    .stdlib_path
+                    .as_ref()
+                    .ok_or_else(|| Error::from(ModuleError::NotFound(id.clone())))?;
 
-                let module_path = stdlib_path.join("modules").join("srfi").join(&srfi_filename);
+                let module_path = stdlib_path
+                    .join("modules")
+                    .join("srfi")
+                    .join(&srfi_filename);
 
                 if !module_path.exists() {
                     return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()))));
@@ -159,27 +175,26 @@ impl ModuleLoader {
         let mut combined_exports = HashMap::new();
         let mut all_dependencies = Vec::new();
         let mut metadata = ModuleMetadata::default();
-        
+
         // Load each SRFI individually
         for srfi_number in &id.components {
-            let single_srfi_id = super::name::srfi_module(
-                srfi_number.parse::<u32>().map_err(|_| {
-                    Error::from(ModuleError::InvalidDefinition(
-                        format!("Invalid SRFI number: {srfi_number}")
-                    ))
-                })?
-            );
-            
+            let single_srfi_id =
+                super::name::srfi_module(srfi_number.parse::<u32>().map_err(|_| {
+                    Error::from(ModuleError::InvalidDefinition(format!(
+                        "Invalid SRFI number: {srfi_number}"
+                    )))
+                })?);
+
             let srfi_module = self.load_single_srfi(&single_srfi_id, srfi_number)?;
-            
+
             // Combine exports (later SRFIs override earlier ones in case of conflicts)
             for (name, value) in srfi_module.exports {
                 combined_exports.insert(name, value);
             }
-            
+
             // Combine dependencies
             all_dependencies.extend(srfi_module.dependencies);
-            
+
             // Update metadata (combine descriptions)
             if let Some(desc) = srfi_module.metadata.description {
                 if let Some(existing_desc) = &metadata.description {
@@ -189,19 +204,20 @@ impl ModuleLoader {
                 }
             }
         }
-        
+
         // Remove duplicate dependencies
         all_dependencies.sort();
         all_dependencies.dedup();
-        
+
         // Create combined module
         Ok(Module {
             id: id.clone(),
             exports: combined_exports,
             dependencies: all_dependencies,
-            source: Some(ModuleSource::Source(
-                format!("Combined SRFI modules: {}", id.components.join(", "))
-            )),
+            source: Some(ModuleSource::Source(format!(
+                "Combined SRFI modules: {}",
+                id.components.join(", ")
+            ))),
             metadata,
         })
     }
@@ -209,7 +225,7 @@ impl ModuleLoader {
     /// Loads a user-defined module.
     fn load_user_module(&self, id: &ModuleId) -> Result<Module> {
         let module_filename = format!("{}.scm", id.components.join("-"));
-        
+
         // Search in all configured search paths
         for search_path in &self.search_paths {
             let module_path = search_path.join(&module_filename);
@@ -233,7 +249,7 @@ impl ModuleLoader {
     fn load_file_module(&self, id: &ModuleId) -> Result<Module> {
         if id.components.len() != 1 {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                "File module must specify exactly one path".to_string()
+                "File module must specify exactly one path".to_string(),
             ))));
         }
 
@@ -248,7 +264,11 @@ impl ModuleLoader {
     /// Loads a module from a specific file path.
     fn load_from_file(&self, id: &ModuleId, path: &Path) -> Result<Module> {
         let _source_code = fs::read_to_string(path).map_err(|e| {
-            Error::io_error(format!("Failed to read module file {}: {}", path.display(), e))
+            Error::io_error(format!(
+                "Failed to read module file {}: {}",
+                path.display(),
+                e
+            ))
         })?;
 
         // TODO: Parse and compile the module source code
@@ -265,15 +285,19 @@ impl ModuleLoader {
     /// Loads a module from the standard library path.
     fn load_from_stdlib_path(&self, id: &ModuleId, subdir: &str) -> Result<Module> {
         let module_filename = format!("{}.scm", id.components.join("-"));
-        
+
         // Try using the library resolver first
-        match self.library_resolver.resolve_library_file(subdir, &module_filename) {
+        match self
+            .library_resolver
+            .resolve_library_file(subdir, &module_filename)
+        {
             Ok(module_path) => self.load_from_file(id, &module_path),
             Err(_) => {
                 // Fallback to old method for backward compatibility
-                let stdlib_path = self.stdlib_path.as_ref().ok_or_else(|| {
-                    Error::from(ModuleError::NotFound(id.clone()))
-                })?;
+                let stdlib_path = self
+                    .stdlib_path
+                    .as_ref()
+                    .ok_or_else(|| Error::from(ModuleError::NotFound(id.clone())))?;
 
                 let module_path = stdlib_path.join(subdir).join(&module_filename);
 
@@ -312,16 +336,12 @@ impl ModuleLoader {
     /// Registers built-in module providers.
     fn register_builtin_providers(&mut self) {
         // Register providers for built-in modules
-        self.builtin_providers.insert(
-            "string".to_string(),
-            Box::new(BuiltinStringModuleProvider)
-        );
-        
-        self.builtin_providers.insert(
-            "list".to_string(),
-            Box::new(BuiltinListModuleProvider)
-        );
-        
+        self.builtin_providers
+            .insert("string".to_string(), Box::new(BuiltinStringModuleProvider));
+
+        self.builtin_providers
+            .insert("list".to_string(), Box::new(BuiltinListModuleProvider));
+
         // Add more built-in providers as needed
     }
 
@@ -390,10 +410,10 @@ impl ModuleProvider for BuiltinStringModuleProvider {
 
         // Create string module with exports
         let exports = HashMap::new();
-        
+
         // Add string operations (these would be implemented as proper procedures)
         // For now, we'll add placeholder entries
-        
+
         // String predicates and operations will be added here
         // exports.insert("string?".to_string(), Value::Primitive(...));
         // exports.insert("string-length".to_string(), Value::Primitive(...));
@@ -412,8 +432,8 @@ impl ModuleProvider for BuiltinStringModuleProvider {
     }
 
     fn has_module(&self, id: &ModuleId) -> bool {
-        id.namespace == ModuleNamespace::Builtin 
-            && id.components.len() == 1 
+        id.namespace == ModuleNamespace::Builtin
+            && id.components.len() == 1
             && id.components[0] == "string"
     }
 
@@ -435,7 +455,7 @@ impl ModuleProvider for BuiltinListModuleProvider {
         }
 
         let exports = HashMap::new();
-        
+
         // List operations will be added here
         // exports.insert("list?".to_string(), Value::Primitive(...));
         // exports.insert("length".to_string(), Value::Primitive(...));
@@ -454,8 +474,8 @@ impl ModuleProvider for BuiltinListModuleProvider {
     }
 
     fn has_module(&self, id: &ModuleId) -> bool {
-        id.namespace == ModuleNamespace::Builtin 
-            && id.components.len() == 1 
+        id.namespace == ModuleNamespace::Builtin
+            && id.components.len() == 1
             && id.components[0] == "list"
     }
 
@@ -471,7 +491,7 @@ impl ModuleProvider for BuiltinListModuleProvider {
 #[cfg(not(test))]
 mod dirs {
     use std::path::PathBuf;
-    
+
     pub fn home_dir() -> Option<PathBuf> {
         std::env::var_os("HOME").map(PathBuf::from)
     }
@@ -481,7 +501,7 @@ mod dirs {
 #[cfg(test)]
 mod dirs {
     use std::path::PathBuf;
-    
+
     pub fn home_dir() -> Option<PathBuf> {
         Some(PathBuf::from("/tmp/test-home"))
     }
@@ -489,8 +509,8 @@ mod dirs {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::name;
+    use super::*;
 
     #[test]
     fn test_module_loader_creation() {
@@ -502,7 +522,7 @@ mod tests {
     fn test_builtin_string_module() {
         let provider = BuiltinStringModuleProvider;
         let id = name::builtin_module("string");
-        
+
         assert!(provider.has_module(&id));
         let module = provider.get_module(&id);
         assert!(module.is_ok());
@@ -512,7 +532,7 @@ mod tests {
     fn test_search_path_management() {
         let mut loader = ModuleLoader::new().unwrap();
         let test_path = PathBuf::from("/test/path");
-        
+
         loader.add_search_path(&test_path);
         assert!(loader.search_paths.contains(&test_path));
     }

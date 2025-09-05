@@ -1,0 +1,16 @@
+tests/property_tests.rs
+tests/srfi35_conditions_tests.rs
+tests/charset_optimization_tests.rs
+tests/srfi9_high_performance_tests.rs
+tests/srfi26_cut_cute_tests.rs
+tests/srfi71_completeness_validation.rs
+tests/srfi31_optimization_tests.rs
+tests/srfi11_r7rs_compliance_tests.rs
+tests/gradual_type_inference_tests.rs
+tests/srfi14_r7rs_compliance_tests.rs
+tests/srfi37_args_fold_tests.rs
+tests/gc_r7rs_compliance_verification.rs
+tests/srfi26_r7rs_compliance_validation.rs
+tests/r7rs_compliance_validation.rs
+tests/srfi133_phase1_tests.rs
+tests/r7rs_core_compliance_tests.rs

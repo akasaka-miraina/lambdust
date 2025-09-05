@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REPL Guide - Lambdust Documentation</title>
+    <meta name="description" content="Complete guide to Lambdust's interactive Read-Eval-Print Loop (REPL) for rapid development and experimentation.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Quick Start</a> → 
+                REPL Guide
+            </div>
+
+            <h1>REPL Guide</h1>
+            
+            <p>The Lambdust REPL (Read-Eval-Print Loop) is an interactive environment for experimenting, testing, and developing Lambdust programs. It's one of the most powerful tools for learning and rapid prototyping.</p>
+
+            <div class="type-signature">
+                Read → Eval → Print → Loop — Interactive Development Cycle
+            </div>
+
+            <h2>Starting the REPL</h2>
+
+            <div class="example-box">
+                <h4>Basic REPL Startup</h4>
+                <pre><code># Start the REPL
+lambdust repl
+
+# Output:
+# Lambdust REPL v0.2.0
+# Type :help for commands, :quit to exit
+# λ> </code></pre>
+            </div>
+
+            <h3>REPL Options</h3>
+            <pre><code># Start with specific settings
+lambdust repl --no-banner          # Hide startup banner
+lambdust repl --history-file ~/.lambdust_history  # Custom history
+lambdust repl --load lib.ldust     # Preload libraries
+lambdust repl --strict-types       # Enable strict type checking</code></pre>
+
+            <h2>Basic Usage</h2>
+
+            <h3>Simple Expressions</h3>
+            <pre><code>λ> (+ 1 2 3)
+6
+
+λ> (* 4 5)
+20
+
+λ> "Hello, REPL!"
+"Hello, REPL!"
+
+λ> (cons 1 '(2 3))
+(1 2 3)</code></pre>
+
+            <h3>Variable Definitions</h3>
+            <pre><code>λ> (define x 42)
+x
+
+λ> x
+42
+
+λ> (define greeting "Hello, World!")
+greeting
+
+λ> greeting
+"Hello, World!"</code></pre>
+
+            <h3>Function Definitions</h3>
+            <pre><code>λ> (define (square x) (* x x))
+square
+
+λ> (square 5)
+25
+
+λ> (define factorial 
+     (lambda (n)
+       (if (<= n 1) 1 (* n (factorial (- n 1))))))
+factorial
+
+λ> (factorial 6)
+720</code></pre>
+
+            <h2>REPL Commands</h2>
+
+            <p>The REPL provides special commands that start with <code>:</code>:</p>
+
+            <h3>Help and Information</h3>
+            <pre><code>λ> :help
+Available commands:
+  :help                 Show this help message
+  :quit, :q             Exit the REPL
+  :type EXPR            Show the type of an expression
+  :info NAME            Show information about a binding
+  :doc NAME             Show documentation for a function
+  :env                  List all bindings in current environment
+
+λ> :type (+ 1 2)
+Integer
+
+λ> :info map
+map : ∀ α β. (α → β) → List α → List β
+Built-in function for applying a function to each element of a list</code></pre>
+
+            <h3>Environment Management</h3>
+            <pre><code>λ> :env
+Current bindings:
+  x : Integer = 42
+  greeting : String = "Hello, World!"
+  square : Integer → Integer
+  factorial : Integer → Integer
+
+λ> :clear
+Environment cleared.
+
+λ> :reset
+REPL reset to initial state.</code></pre>
+
+            <h3>Loading Files</h3>
+            <pre><code>λ> :load math-utils.ldust
+Loading math-utils.ldust...
+Loaded successfully.
+
+λ> :reload
+Reloading all loaded files...
+
+λ> :loaded
+Currently loaded files:
+  - math-utils.ldust</code></pre>
+
+            <h2>Type System Integration</h2>
+
+            <h3>Type Annotations</h3>
+            <pre><code>λ> (define add : (Integer → Integer → Integer)
+     (lambda ((x : Integer) (y : Integer)) (+ x y)))
+add
+
+λ> :type add
+Integer → Integer → Integer
+
+λ> (add 3 4)
+7
+
+λ> (add 3.5 4)
+Type error: Expected Integer, got Real</code></pre>
+
+            <h3>Gradual Typing</h3>
+            <pre><code>λ> (define process-input
+     (lambda (x)
+       (if (number? x)
+           (* x 2)
+           (string-length x))))
+process-input
+
+λ> :type process-input
+Dynamic → Dynamic
+
+λ> (process-input 5)
+10
+
+λ> (process-input "hello")
+5</code></pre>
+
+            <h2>Advanced REPL Features</h2>
+
+            <h3>Multi-line Input</h3>
+            <pre><code>λ> (define complex-function
+...   (lambda (x y z)
+...     (let ([sum (+ x y z)]
+...           [product (* x y z)])
+...       (if (> sum product)
+...           sum
+...           product))))
+complex-function
+
+λ> (complex-function 2 3 4)
+9</code></pre>
+
+            <h3>History and Editing</h3>
+            <pre><code># Use arrow keys to navigate history
+λ> (+ 1 2)
+3
+λ> [Up Arrow] - recalls (+ 1 2)
+
+# Edit previous commands
+λ> (+ 1 2 3 4 5)  # Press Ctrl+A to go to beginning
+λ> (* 1 2 3 4 5)  # Edit + to *
+
+# Search history
+λ> [Ctrl+R] factorial  # Search for commands containing "factorial"</code></pre>
+
+            <h3>Tab Completion</h3>
+            <pre><code>λ> str[Tab]
+string-append  string-length  string-ref  string-set!
+
+λ> (string-ap[Tab]
+(string-append
+
+λ> ma[Tab]
+map  max  make-vector  make-list</code></pre>
+
+            <h2>Debugging in the REPL</h2>
+
+            <h3>Error Investigation</h3>
+            <pre><code>λ> (/ 10 0)
+Error: Division by zero
+  at: (/ 10 0)
+  in: REPL input
+
+λ> :trace on
+Tracing enabled.
+
+λ> (define buggy-function
+     (lambda (x) (/ x (- x x))))
+buggy-function
+
+λ> (buggy-function 5)
+Trace: entering buggy-function with x = 5
+Trace: evaluating (- x x) = 0
+Trace: evaluating (/ x (- x x)) = (/ 5 0)
+Error: Division by zero
+  at: (/ x (- x x))
+  in: buggy-function</code></pre>
+
+            <h3>Step-by-Step Evaluation</h3>
+            <pre><code>λ> :step on
+Step mode enabled.
+
+λ> (factorial 3)
+Step 1: (factorial 3)
+Step 2: (* 3 (factorial 2))
+Step 3: (* 3 (* 2 (factorial 1)))
+Step 4: (* 3 (* 2 1))
+Step 5: (* 3 2)
+Step 6: 6
+6</code></pre>
+
+            <h2>Working with Libraries</h2>
+
+            <h3>Standard Library Exploration</h3>
+            <pre><code>λ> (import (scheme base))
+Imported: scheme base
+
+λ> :doc map
+map : ∀ α β. (α → β) → List α → List β
+
+Applies a function to each element of a list, returning a new list.
+
+Examples:
+  (map square '(1 2 3 4))  ; => (1 4 9 16)
+  (map + '(1 2) '(3 4))    ; => (4 6)
+
+λ> (map (lambda (x) (* x x)) '(1 2 3 4 5))
+(1 4 9 16 25)</code></pre>
+
+            <h3>Custom Library Development</h3>
+            <pre><code>λ> (define-library (my utils)
+     (export double triple)
+     (import (scheme base))
+     (begin
+       (define (double x) (* x 2))
+       (define (triple x) (* x 3))))
+Library (my utils) defined.
+
+λ> (import (my utils))
+Imported: my utils
+
+λ> (double 21)
+42
+
+λ> (triple 14)
+42</code></pre>
+
+            <h2>Performance Analysis</h2>
+
+            <h3>Timing and Profiling</h3>
+            <pre><code>λ> :time on
+Timing enabled.
+
+λ> (factorial 10)
+Result: 3628800
+Time: 0.245ms
+
+λ> :profile (factorial 20)
+Profiling (factorial 20)...
+Function calls:
+  factorial: 21 calls, 1.234ms total
+  *: 20 calls, 0.145ms total
+  -: 20 calls, 0.089ms total
+  <=: 21 calls, 0.067ms total
+Total time: 1.535ms
+Result: 2432902008176640000</code></pre>
+
+            <h3>Memory Usage</h3>
+            <pre><code>λ> :memory
+Current memory usage:
+  Heap: 2.4 MB
+  Stack: 0.1 MB
+  Total: 2.5 MB
+
+λ> (define big-list (make-list 1000000 42))
+big-list
+
+λ> :memory
+Current memory usage:
+  Heap: 10.2 MB (+7.8 MB)
+  Stack: 0.1 MB
+  Total: 10.3 MB
+
+λ> :gc
+Garbage collection forced.
+Collected: 0.3 MB
+Current memory usage: 9.9 MB</code></pre>
+
+            <h2>Interactive Development Workflow</h2>
+
+            <h3>Rapid Prototyping</h3>
+            <pre><code># 1. Start with a rough idea
+λ> (define process-data
+     (lambda (data)
+       ;; TODO: implement
+       data))
+
+# 2. Implement step by step
+λ> (define process-data
+     (lambda (data)
+       (map (lambda (x) (* x 2)) data)))
+
+# 3. Test immediately
+λ> (process-data '(1 2 3 4))
+(2 4 6 8)
+
+# 4. Refine and add types
+λ> (define process-data : (List Number → List Number)
+     (lambda ((data : List Number))
+       (map (lambda ((x : Number)) (* x 2)) data)))
+
+# 5. Test edge cases
+λ> (process-data '())
+()
+
+λ> (process-data '(-1 0 1))
+(-2 0 2)</code></pre>
+
+            <h3>Exploratory Programming</h3>
+            <pre><code># Explore APIs
+λ> :doc string-append
+λ> (string-append "Hello" " " "World")
+"Hello World"
+
+# Try different approaches
+λ> (define join-strings
+     (lambda (strings)
+       (fold-left string-append "" strings)))
+
+λ> (join-strings '("a" "b" "c"))
+"abc"
+
+# Compare performance
+λ> :time (join-strings (make-list 1000 "x"))
+Result: "xxx...xxx"
+Time: 15.2ms
+
+# Try alternative implementation
+λ> (define join-strings-fast
+     (lambda (strings)
+       (string-join strings "")))
+
+λ> :time (join-strings-fast (make-list 1000 "x"))
+Result: "xxx...xxx"
+Time: 0.8ms</code></pre>
+
+            <h2>REPL Configuration</h2>
+
+            <h3>Customization Options</h3>
+            <pre><code># Create ~/.lambdust/repl.ldust for custom settings
+(configure-repl
+  :prompt "λdust> "
+  :history-size 10000
+  :auto-indent #t
+  :syntax-highlighting #t
+  :completion #t
+  :pager #t)</code></pre>
+
+            <h3>Useful Aliases</h3>
+            <pre><code>λ> (define-syntax pp
+     (syntax-rules ()
+       [(pp expr) (begin (display 'expr) (display " = ") (display expr) (newline))]))
+
+λ> (pp (+ 2 3))
+(+ 2 3) = 5
+
+λ> (define q :quit)  ; Quick exit alias
+λ> q
+Goodbye!</code></pre>
+
+            <h2>Integration with Editors</h2>
+
+            <h3>VS Code Integration</h3>
+            <pre><code># Start REPL server for editor integration
+lambdust repl --server --port 7888
+
+# In VS Code, use Ctrl+Shift+P:
+# "Lambdust: Connect to REPL"
+# "Lambdust: Send Selection to REPL"
+# "Lambdust: Send File to REPL"</code></pre>
+
+            <h3>Emacs Integration</h3>
+            <pre><code>;; In Emacs with lambdust-mode
+M-x lambdust-repl          ; Start REPL
+C-c C-e                    ; Evaluate expression
+C-c C-r                    ; Evaluate region
+C-c C-l                    ; Load file</code></pre>
+
+            <h2>Best Practices</h2>
+
+            <ol>
+                <li><strong>Use the REPL for experimentation</strong>: Try ideas quickly before writing files</li>
+                <li><strong>Keep definitions small</strong>: Test individual functions before combining them</li>
+                <li><strong>Use :type frequently</strong>: Understand what types your expressions have</li>
+                <li><strong>Save useful definitions</strong>: Copy successful experiments to files</li>
+                <li><strong>Learn the shortcuts</strong>: Tab completion and history save time</li>
+                <li><strong>Use :help</strong>: Discover new commands and features</li>
+            </ol>
+
+            <h2>Troubleshooting</h2>
+
+            <div class="warning-box">
+                <h4>Common Issues</h4>
+                <ul>
+                    <li><strong>Infinite loops</strong>: Use Ctrl+C to interrupt</li>
+                    <li><strong>Memory issues</strong>: Use :gc to force garbage collection</li>
+                    <li><strong>Type errors</strong>: Use :type to understand mismatches</li>
+                    <li><strong>File loading problems</strong>: Check file paths and syntax</li>
+                </ul>
+            </div>
+
+            <h3>Recovery Commands</h3>
+            <pre><code>λ> [Ctrl+C]        # Interrupt current computation
+λ> :reset          # Reset REPL to clean state
+λ> :clear          # Clear all definitions
+λ> :gc             # Force garbage collection
+λ> :memory         # Check memory usage</code></pre>
+
+            <h2>Next Steps</h2>
+
+            <p>Now that you're comfortable with the REPL:</p>
+
+            <ol>
+                <li><strong><a href="../language-guide/syntax.html">Learn advanced syntax</a></strong> - Master language features</li>
+                <li><strong><a href="../type-system/gradual-typing.html">Explore types</a></strong> - Leverage the type system</li>
+                <li><strong><a href="../standard-library/index.html">Study the standard library</a></strong> - Built-in functionality</li>
+                <li><strong><a href="../examples/index.html">Try examples</a></strong> - Real-world applications</li>
+            </ol>
+
+            <div class="page-nav">
+                <a href="first-program.html">← First Program</a>
+                <a href="../language-guide/index.html">Language Guide →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

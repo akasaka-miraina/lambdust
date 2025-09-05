@@ -1,10 +1,10 @@
 //! Monadic transformation - pure domain logic for transforming computations
 
-use crate::eval::Value;
 use crate::diagnostics::Error;
+use crate::eval::Value;
 use std::sync::Arc;
 
-use super::{monadic_computation::MonadicComputation, monad_type::MonadType};
+use super::{monad_type::MonadType, monadic_computation::MonadicComputation};
 
 /// Monadic transformation - pure domain logic for transforming computations
 #[derive(Clone)]
@@ -16,7 +16,7 @@ pub enum MonadicTransformation<T: Clone> {
         /// Function name for debugging purposes.
         function_name: String, // for debugging
     },
-    
+
     /// Bind transformation (monadic composition)
     Bind {
         /// The monadic bind function to apply.
@@ -24,13 +24,13 @@ pub enum MonadicTransformation<T: Clone> {
         /// Function name for debugging purposes.
         function_name: String,
     },
-    
+
     /// Lift transformation (lift into another monad)
     Lift {
         /// The target monad type to lift into.
         target_monad: MonadType,
     },
-    
+
     /// Filter transformation (Maybe monad)
     Filter {
         /// The predicate function for filtering.

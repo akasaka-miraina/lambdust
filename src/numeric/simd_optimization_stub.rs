@@ -82,6 +82,27 @@ impl<T> AlignedBuffer<T> {
 unsafe impl<T: Send> Send for AlignedBuffer<T> {}
 unsafe impl<T: Sync> Sync for AlignedBuffer<T> {}
 
+/// Results from SIMD performance benchmarking (stub implementation)
+#[derive(Debug, Clone)]
+pub struct SimdBenchmarkResults {
+    /// Operation being benchmarked
+    pub operation: String,
+    /// Array size used in benchmark
+    pub array_size: usize,
+    /// Number of iterations performed
+    pub iterations: u64,
+    /// Total time for SIMD implementation
+    pub simd_time: std::time::Duration,
+    /// Total time for scalar implementation
+    pub scalar_time: std::time::Duration,
+    /// Speedup factor (scalar_time / simd_time)
+    pub speedup_factor: f64,
+    /// SIMD operations per second
+    pub simd_ops_per_sec: f64,
+    /// Scalar operations per second
+    pub scalar_ops_per_sec: f64,
+}
+
 /// Stub SIMD numeric operations - all operations fall back to scalar
 pub struct SimdNumericOps {
     cpu_features: CpuFeatures,
@@ -100,7 +121,7 @@ impl SimdNumericOps {
             },
         }
     }
-    
+
     /// Creates a new SIMD numeric operations instance with default settings
     pub fn with_default() -> Self {
         Self::new()
@@ -159,7 +180,11 @@ impl SimdNumericOps {
     }
 
     /// Attempts to optimize a Scheme numeric operation (stub implementation)
-    pub fn optimize_scheme_numeric_operation(&mut self, _op: &str, _args: &[Value]) -> Result<Option<Value>> {
+    pub fn optimize_scheme_numeric_operation(
+        &mut self,
+        _op: &str,
+        _args: &[Value],
+    ) -> Result<Option<Value>> {
         Ok(None) // No optimization available
     }
 
@@ -172,7 +197,7 @@ impl SimdNumericOps {
     pub fn reset_performance_stats(&mut self) {
         // No-op
     }
-    
+
     /// Optimized addition of two numeric arrays (stub implementation)
     pub fn add_numeric_arrays_optimized(&mut self, a: &[f64], b: &[f64]) -> Result<Vec<f64>> {
         if a.len() != b.len() {
@@ -184,18 +209,23 @@ impl SimdNumericOps {
         let result: Vec<f64> = a.iter().zip(b.iter()).map(|(x, y)| x + y).collect();
         Ok(result)
     }
-    
+
     #[cfg(feature = "simd-benchmarks")]
     /// Benchmarks SIMD performance (stub implementation for non-SIMD architectures)
-    pub fn benchmark_simd_performance(&mut self, size: usize) -> crate::numeric::simd_benchmarks::SimdBenchmarkResults {
+    pub fn benchmark_simd_performance(
+        &mut self,
+        size: usize,
+    ) -> SimdBenchmarkResults {
         // Simple stub implementation
-        crate::numeric::simd_benchmarks::SimdBenchmarkResults {
+        SimdBenchmarkResults {
             operation: "benchmark".to_string(),
             array_size: size,
-            simd_time_ns: 1000,
-            scalar_time_ns: 1000,
-            speedup: 1.0,
-            bandwidth_utilization: 0.5,
+            iterations: 1000,
+            simd_time: std::time::Duration::from_nanos(1000),
+            scalar_time: std::time::Duration::from_nanos(1000),
+            speedup_factor: 1.0,
+            simd_ops_per_sec: 1000000.0,
+            scalar_ops_per_sec: 1000000.0,
         }
     }
 }

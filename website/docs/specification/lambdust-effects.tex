@@ -1,0 +1,635 @@
+%% Effect System  
+\chapter{Effect System}
+\label{ch:effects}
+
+Lambdust provides structured side effect management through algebraic effects with handlers, revolutionizing how programs handle I/O, exceptions, state, and other side effects. Traditional approaches to side effects often lead to "callback hell," complex error handling, and code that is difficult to reason about. Algebraic effects solve these problems by making effects explicit, composable, and locally scoped.
+
+Unlike traditional exception handling, which can only propagate errors upward, algebraic effects allow handlers to resume computation with different values, enabling powerful abstractions like backtracking, cooperative threading, and probabilistic programming. Unlike monads, which can be difficult to compose and require complex monad transformer stacks, algebraic effects compose naturally and can be added or removed without restructuring entire programs.
+
+This system enables safe, composable, and reasoning-friendly side effects while maintaining complete R7RS compatibility. Programs can use traditional Scheme I/O operations unchanged, or adopt structured effects for better composability and testing.
+
+\section{Effects Overview}
+\label{sec:effects-overview}
+
+The effect system treats side effects as first-class language constructs that can be declared, performed, handled, and composed in a principled manner:
+
+\begin{itemize}
+\item \textbf{Effect Declaration}: Effects are declared with operation signatures, making all possible side effects explicit in the type system. This eliminates hidden dependencies and makes code more predictable. For example, a \code{FileSystem} effect might declare \code{read-file} and \code{write-file} operations with their respective type signatures.
+
+\item \textbf{Effect Performance}: Code performs effects using the \code{perform} construct, which suspends the current computation and transfers control to the nearest matching handler. This is more flexible than exceptions because it allows bidirectional communication between the performing code and the handler.
+
+\item \textbf{Effect Handling}: Effects are intercepted and handled with full resumption capabilities. Handlers can examine the operation being performed, its arguments, and the continuation representing the rest of the computation. They can then decide whether to resume with a value, perform a different effect, or propagate the effect to outer handlers.
+
+\item \textbf{Effect Tracking}: The type system tracks which effects computations may perform, preventing effect leakage and enabling local reasoning. Functions that don't perform any effects are guaranteed to be pure, while functions that perform effects have those effects recorded in their type signatures.
+
+\item \textbf{Effect Composition}: Multiple effects compose naturally without the complexity of monad transformers. A computation can use file I/O, state manipulation, and exception handling simultaneously, and handlers can be nested and combined in arbitrary ways to implement complex control flow patterns.
+\end{itemize}
+
+\section{Effect Declaration}
+\label{sec:effect-declaration}
+
+\indexentry{effect declaration}
+\indexentry{define-effect}
+
+Effects are declared by specifying their operations and signatures:
+
+\begin{grammar}
+\production{\var{effect-declaration}}{\produces}{(define-effect \var{effect-name} \arbno{\var{operation-signature}})}{}
+\\
+\production{\var{operation-signature}}{\produces}{(\var{operation-name} :: \var{function-type})}{}
+\end{grammar}
+
+\begin{example}[Effect Declarations]
+\begin{lambdustcode}
+;; State effect with get and set operations
+(define-effect State
+  (get :: (-> Unit Any))
+  (set :: (-> Any Unit)))
+
+;; Exception effect with raise operation  
+(define-effect Exception
+  (raise :: (-> String Nothing)))
+
+;; I/O effect with read and write operations
+(define-effect IO
+  (read-line :: (-> Unit String))
+  (write-line :: (-> String Unit))
+  (read-file :: (-> String String)) 
+  (write-file :: (-> String String Unit)))
+
+;; Nondeterminism effect
+(define-effect Choose
+  (choose :: (-> (List Any) Any))
+  (fail :: (-> Unit Nothing)))
+
+;; Async effect for concurrent operations
+(define-effect Async  
+  (async :: (Pi (A : Type) (-> (-> Unit A) (Future A))))
+  (await :: (Pi (A : Type) (-> (Future A) A))))
+\end{lambdustcode}
+\end{example}
+
+\section{Effect Performance}
+\label{sec:effect-performance}
+
+\indexentry{perform}
+\indexentry{effect performance}
+
+Effects are performed using the \code{perform} construct:
+
+\begin{grammar}
+\production{\var{effect-performance}}{\produces}{(perform \var{effect-name} \var{operation} \arbno{\var{argument}})}{}
+\end{grammar}
+
+\begin{example}[Effect Performance]
+\begin{lambdustcode}
+;; Using the State effect
+(define (increment)
+  (let ((current (perform State get)))
+    (perform State set (+ current 1))))
+
+;; Using the Exception effect
+(define (safe-divide x y)
+  (if (= y 0)
+      (perform Exception raise "Division by zero")
+      (/ x y)))
+
+;; Using the Choose effect for nondeterminism
+(define (choose-positive-number)
+  (let ((n (perform Choose choose '(1 2 3 -1 -2))))
+    (if (> n 0) 
+        n
+        (perform Choose fail))))
+
+;; Using multiple effects  
+(define (interactive-counter)
+  (perform IO write-line "Current count:")
+  (let ((current (perform State get)))
+    (perform IO write-line (number->string current))
+    (perform IO write-line "Enter increment:")
+    (let ((input (perform IO read-line)))
+      (let ((increment (string->number input)))
+        (if increment
+            (perform State set (+ current increment))
+            (perform Exception raise "Invalid number"))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Effect Handlers}
+\label{sec:effect-handlers}
+
+\indexentry{handle}
+\indexentry{effect handler}
+\indexentry{continuation}
+
+Effects are handled using the \code{handle} construct with resumable continuations:
+
+\begin{grammar}
+\production{\var{effect-handling}}{\produces}{(handle \var{computation} \arbno{\var{effect-handler}})}{}
+\\
+\production{\var{effect-handler}}{\produces}{(\var{effect-name} \arbno{\var{operation-clause}})}{}
+\\
+\production{\var{operation-clause}}{\produces}{(\var{operation-name} (\arbno{\var{parameter}}) \var{resume-variable} \var{handler-body})}{}
+\end{grammar}
+
+\begin{example}[Effect Handlers]
+\begin{lambdustcode}
+;; Handle State effect with mutable reference
+(define (run-stateful initial computation)
+  (let ((state (make-box initial)))
+    (handle computation
+      (State 
+        ((get () k) 
+         (k (unbox state)))
+        ((set new-value k)
+         (set-box! state new-value)
+         (k 'unit))))))
+
+;; Handle Exception effect with error recovery
+(define (try-catch computation error-handler) 
+  (handle computation
+    (Exception
+      ((raise message k)
+       (error-handler message)))))
+
+;; Handle Choose effect with backtracking
+(define (run-nondeterministic computation)
+  (handle computation
+    (Choose
+      ((choose choices k)
+       (map k choices))           ; Try all choices
+      ((fail () k)
+       '()))))                    ; Return empty list
+
+;; Multiple effect handlers
+(define (run-program computation)
+  (let ((state (make-box 0)))
+    (handle 
+      (handle computation
+        (Exception
+          ((raise msg k) 
+           (begin (display "Error: ") (display msg) (newline)
+                  #f))))
+      (State
+        ((get () k) (k (unbox state)))
+        ((set val k) (set-box! state val) (k 'unit)))
+      (IO  
+        ((read-line () k) (k (read-line)))
+        ((write-line text k) (begin (display text) (newline) (k 'unit)))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Effect Types}
+\label{sec:effect-types}
+
+\indexentry{effect type}
+\indexentry{effectful function}
+
+The type system tracks effects in function types:
+
+\begin{grammar}
+\production{\var{effectful-type}}{\produces}{(\var{parameter-types} \~> [\var{effect-set}] \var{return-type})}{}
+\production{}{\alternative}{(\var{parameter-types} \goesto{} \var{return-type})}{ ; Pure function}
+\\
+\production{\var{effect-set}}{\produces}{\{\arbno{\var{effect-name}}\}}{}
+\end{grammar}
+
+\begin{example}[Effect Types]
+\begin{lambdustcode}
+;; Pure function (no effects)
+(define add :: (-> Number Number Number))
+
+;; Function with State effect
+(define increment :: (-> Unit ~> {State} Unit))
+
+;; Function with multiple effects  
+(define interactive-program :: (-> Unit ~> {State, IO, Exception} Unit))
+
+;; Higher-order function preserving effects
+(define twice :: (Pi (A : Type) (E : EffectSet)
+                     (-> (-> A ~> E A) A ~> E A)))
+(define (twice E f x) (f (f x)))
+
+;; Effect polymorphic function
+(define (map-with-effects :: (Pi (A B : Type) (E : EffectSet)
+                                 (-> (-> A ~> E B) (List A) ~> E (List B))))
+  (lambda (f lst)
+    (if (null? lst)
+        '()
+        (cons (f (car lst)) 
+              (map-with-effects f (cdr lst))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Built-in Effects}
+\label{sec:builtin-effects}
+
+\indexentry{built-in effects}
+
+Lambdust provides several built-in effects:
+
+\section{State Effect}
+\label{sec:state-effect}
+
+\begin{example}[State Effect Usage]
+\begin{lambdustcode}
+;; Counter with state effect
+(define counter-program :: (-> Unit ~> {State} Natural))
+(define (counter-program)
+  (perform State set 0)
+  (perform State set (+ (perform State get) 1))
+  (perform State set (+ (perform State get) 1))  
+  (perform State get))
+
+;; Run with initial state
+(define result (run-stateful 0 counter-program))  ; Returns 2
+
+;; State transformer monad-style
+(define (state-computation :: (-> Number ~> {State} Number))
+  (lambda (x)
+    (let ((current (perform State get)))
+      (perform State set (+ current x))
+      (perform State get))))
+\end{lambdustcode}
+\end{example}
+
+\section{Exception Effect}
+\label{sec:exception-effect}
+
+\begin{example}[Exception Effect Usage]
+\begin{lambdustcode}
+;; Safe division with exceptions
+(define (safe-operations :: (-> Number Number ~> {Exception} Number))
+  (lambda (x y)
+    (let ((result1 (safe-divide x y)))
+      (let ((result2 (safe-divide result1 2)))
+        result2))))
+
+;; Exception handling with multiple handlers
+(define (robust-computation)
+  (try-catch 
+    (lambda () 
+      (let ((input (string->number (read-line))))
+        (if input
+            (safe-divide 100 input)
+            (perform Exception raise "Invalid input"))))
+    (lambda (msg)
+      (begin (display "Recovered from error: ") (display msg) (newline)
+             0))))
+\end{lambdustcode}
+\end{example}
+
+\section{I/O Effect}
+\label{sec:io-effect}
+
+\begin{example}[I/O Effect Usage]
+\begin{lambdustcode}
+;; File processing with I/O effects
+(define (process-file :: (-> String String ~> {IO, Exception} Unit))
+  (lambda (input-file output-file)
+    (let ((content (perform IO read-file input-file)))
+      (let ((processed (string-upcase content)))
+        (perform IO write-file output-file processed)))))
+
+;; Interactive program  
+(define (interactive-shell :: (-> Unit ~> {IO, State} Unit))
+  (lambda ()
+    (perform IO write-line "Enter command:")
+    (let ((command (perform IO read-line)))
+      (cond 
+        ((equal? command "quit") 'done)
+        ((equal? command "status") 
+         (let ((count (perform State get)))
+           (perform IO write-line (string-append "Count: " (number->string count)))
+           (interactive-shell)))
+        (else 
+         (perform State set (+ (perform State get) 1))
+         (interactive-shell))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Effect Composition}
+\label{sec:effect-composition}
+
+\indexentry{effect composition}
+\indexentry{effect lifting}
+
+Effects compose naturally and can be lifted between contexts:
+
+\begin{example}[Effect Composition]
+\begin{lambdustcode}
+;; Computation using multiple effects
+(define (complex-computation :: (-> Unit ~> {State, IO, Exception, Choose} Natural))
+  (lambda ()
+    (perform IO write-line "Starting computation")
+    (let ((choice (perform Choose choose '(1 2 3 4 5))))
+      (perform State set choice)
+      (if (even? choice)
+          (begin 
+            (perform IO write-line "Even choice")
+            (perform State get))
+          (perform Exception raise "Odd choice not supported")))))
+
+;; Effect lifting  
+(define (lift-io-to-full :: (-> (-> Unit ~> {IO} A) (-> Unit ~> {State, IO, Exception} A)))
+  (lambda (computation)
+    (lambda () (computation))))
+
+;; Effect combination
+(define (combine-effects computation1 computation2)
+  (lambda ()
+    (let ((result1 (computation1)))
+      (let ((result2 (computation2)))
+        (list result1 result2)))))
+
+;; Higher-order effect handling
+(define (with-logging :: (Pi (E : EffectSet) (A : Type)
+                            (-> (-> Unit ~> E A) (-> Unit ~> {IO, E} A))))
+  (lambda (E A computation)
+    (lambda () 
+      (perform IO write-line "Starting operation")
+      (let ((result (computation)))
+        (perform IO write-line "Operation completed") 
+        result))))
+\end{lambdustcode}
+\end{example}
+
+\section{Effect Scoping}
+\label{sec:effect-scoping}
+
+\indexentry{effect scoping}
+\indexentry{effect masking}
+
+Effects can be scoped and masked for fine-grained control:
+
+\begin{example}[Effect Scoping]
+\begin{lambdustcode}
+;; Mask certain effects in a computation
+(define (mask-io :: (Pi (E : EffectSet) (A : Type)
+                       (-> (-> Unit ~> {IO, E} A) (-> Unit ~> E A))))
+  (lambda (E A computation)
+    (lambda ()
+      ;; IO effects are handled internally and not propagated
+      (handle (computation)
+        (IO
+          ((read-line () k) (k ""))
+          ((write-line text k) (k 'unit)))))))
+
+;; Local state that doesn't escape
+(define (with-local-state :: (Pi (E : EffectSet) (A : Type)  
+                                 (-> (-> Unit ~> {State, E} A) (-> Unit ~> E A))))
+  (lambda (E A initial computation)
+    (lambda ()
+      (run-stateful initial computation))))
+
+;; Effect restriction - only allow certain operations
+(define (restrict-io :: (-> (-> Unit ~> {IO} A) (-> Unit ~> {RestrictedIO} A)))
+  (lambda (computation)
+    (lambda ()
+      (handle (computation)
+        (IO
+          ((read-line () k) (perform RestrictedIO safe-read-line k))
+          ((write-line text k) (perform RestrictedIO safe-write-line text k))
+          ((read-file path k) (perform Exception raise "File read not allowed"))
+          ((write-file path content k) (perform Exception raise "File write not allowed")))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Monadic Effects}
+\label{sec:monadic-effects}
+
+\indexentry{monad}
+\indexentry{monadic effect}
+
+Effects naturally form monads and can interoperate with monadic code:
+
+\begin{example}[Monadic Effects]
+\begin{lambdustcode}
+;; State monad using effects
+(define-monad (State s)
+  (return :: (Pi (A : Type) (-> A (State s A))))
+  (bind :: (Pi (A B : Type) (-> (State s A) (-> A (State s B)) (State s B)))))
+
+(define (return-state x) 
+  (lambda () x))
+
+(define (bind-state m f)
+  (lambda ()
+    (let ((a (m)))
+      ((f a)))))
+
+;; Do-notation for effects  
+(define-syntax do-effects
+  (syntax-rules (<-)
+    ((do-effects expr) expr)
+    ((do-effects (var <- computation) rest ...)
+     (perform-bind computation (lambda (var) (do-effects rest ...))))
+    ((do-effects computation rest ...)
+     (begin computation (do-effects rest ...)))))
+
+;; Usage with do-notation
+(define counter-with-do :: (-> Unit ~> {State} Natural))
+(define (counter-with-do)
+  (do-effects
+    (perform State set 0)
+    (count1 <- perform State get) 
+    (perform State set (+ count1 1))
+    (count2 <- perform State get)
+    (perform State set (+ count2 1))
+    (perform State get)))
+
+;; Effect/monad transformer stack
+(define-effect-transformer (StateT s m)
+  (run-state-t :: (Pi (A : Type) (-> (StateT s m A) s (m (Pair A s))))))
+
+;; Lift between effect layers
+(define (lift-effect :: (Pi (E1 E2 : EffectSet) (A : Type)
+                           (-> (-> Unit ~> E1 A) (-> Unit ~> {E1, E2} A))))
+  (lambda (E1 E2 A computation)
+    (lambda () (computation))))
+\end{lambdustcode}
+\end{example}
+
+\section{Effect Inference}
+\label{sec:effect-inference}
+
+\indexentry{effect inference}
+
+The type system automatically infers effect requirements:
+
+\begin{example}[Effect Inference]
+\begin{lambdustcode}
+;; Effect inference in action
+(define inferred-function   ; Inferred type: (-> Natural ~> {State, IO} Unit)
+  (lambda (n)
+    (perform IO write-line "Processing...")    ; Adds IO to effect set
+    (perform State set n)                      ; Adds State to effect set
+    (if (> n 10)
+        (perform IO write-line "Large number") ; IO already in set
+        'unit)))
+
+;; Higher-order function effect inference
+(define (map-with-side-effects f lst)    ; Inferred effects from f
+  (if (null? lst)
+      '()
+      (begin 
+        (f (car lst))                    ; f's effects propagate here
+        (cons (f (car lst)) 
+              (map-with-side-effects f (cdr lst))))))
+
+;; Effect constraints in polymorphic functions
+(define (conditional-effect :: (Pi (A : Type) (E : EffectSet)
+                                  (-> Boolean (-> Unit ~> E A) (-> Unit ~> {} A) ~> E A)))
+  (lambda (A E condition effectful-branch pure-branch)
+    (if condition 
+        (effectful-branch)    ; May have effects E
+        (pure-branch))))      ; No effects
+
+;; Usage determines concrete effects
+(define example-usage 
+  (conditional-effect Boolean {IO}
+                     #t
+                     (lambda () (perform IO write-line "Hello"))  ; IO effect
+                     (lambda () #f)))                             ; No effects
+\end{lambdustcode}
+\end{example}
+
+\section{Effect Safety}
+\label{sec:effect-safety}
+
+\indexentry{effect safety}
+\indexentry{purity}
+
+The effect system ensures effect safety through static checking:
+
+\begin{example}[Effect Safety]
+\begin{lambdustcode}
+;; Pure functions cannot perform effects
+(define pure-function :: (-> Natural Natural))
+(define (pure-function n)
+  ;; This would be a compile-time error:
+  ;; (perform IO write-line "Hello")  ; Error: IO effect not allowed in pure context
+  (+ n 1))
+
+;; Effect boundaries are enforced
+(define (safe-wrapper :: (-> Natural Natural))
+  (lambda (n)
+    (handle 
+      ;; This computation may have IO effects
+      (lambda () 
+        (perform IO write-line "Processing...")
+        (+ n 1))
+      (IO
+        ;; But we handle them, so safe-wrapper is pure
+        ((write-line text k) (k 'unit))))))
+
+;; Effect masking prevents effect escape
+(define (contained-effects :: (-> Natural Natural))
+  (lambda (n)
+    (with-local-state 0    ; State effects don't escape
+      (lambda ()
+        (perform State set n)
+        (let ((doubled (perform State get)))
+          (perform State set (* doubled 2))
+          (perform State get))))))
+
+;; Effect tracking in data structures  
+(define effectful-list :: (List (-> Unit ~> {IO} Unit)))
+(define pure-list :: (List (-> Unit Unit)))
+
+;; Cannot mix effectful and pure without explicit conversion
+;; (append effectful-list pure-list)  ; Type error
+
+;; Must use effect lifting
+(define mixed-list 
+  (append effectful-list 
+          (map (lift-effect {} {IO}) pure-list)))
+\end{lambdustcode}
+\end{example}
+
+\section{Performance Considerations}
+\label{sec:performance-considerations}
+
+\indexentry{effect performance}
+\indexentry{effect optimization}
+
+The effect system is designed for efficiency:
+
+\begin{example}[Effect Optimization]
+\begin{lambdustcode}
+;; Zero-cost abstractions for pure code
+(define (pure-computation x y)   ; No effect overhead
+  (+ (* x x) (* y y)))
+
+;; Effect specialization  
+(define (specialized-state-code :: (-> Unit ~> {State} Natural))
+  ;; State operations can be compiled to direct memory access
+  (lambda ()
+    (perform State get)))
+
+;; Effect fusion for multiple operations
+(define (fused-operations :: (-> Unit ~> {State} Unit))
+  (lambda ()
+    ;; Multiple state operations can be optimized together
+    (perform State set 0)
+    (perform State set (+ (perform State get) 1))
+    (perform State set (+ (perform State get) 1))))
+
+;; Handler inlining for known effects
+(define optimized-result
+  ;; When handler is statically known, can be inlined
+  (run-stateful 0 
+    (lambda () 
+      (perform State set 42)
+      (perform State get))))
+\end{lambdustcode}
+\end{example}
+
+\section{R7RS Integration}
+\label{sec:effects-r7rs}
+
+\indexentry{R7RS compatibility}
+\indexentry{effect compatibility}
+
+Effects integrate seamlessly with R7RS code:
+
+\begin{compatibility}[R7RS Effect Compatibility]
+All R7RS procedures are treated as potentially effectful with a universal \lambdusteffect{Dynamic} effect, ensuring compatibility while allowing gradual adoption of structured effects.
+\end{compatibility}
+
+\begin{example}[R7RS Integration]
+\begin{lambdustcode}
+;; R7RS procedures have Dynamic effect
+(define r7rs-display :: (-> Any ~> {Dynamic} Unit))
+(define r7rs-read :: (-> Unit ~> {Dynamic} Any))
+
+;; Gradual migration from R7RS to structured effects
+;; Step 1: Use R7RS procedures directly  
+(define (step1-program)
+  (display "Hello")     ; Dynamic effect
+  (newline))           ; Dynamic effect
+
+;; Step 2: Add effect annotations
+(define (step2-program :: (-> Unit ~> {Dynamic} Unit))
+  (lambda ()
+    (display "Hello")
+    (newline)))
+
+;; Step 3: Use structured effects
+(define (step3-program :: (-> Unit ~> {IO} Unit))
+  (lambda ()
+    (perform IO write-line "Hello")))
+
+;; Effect boundaries handle R7RS integration
+(define (mixed-program :: (-> Unit ~> {IO} Unit))
+  (lambda ()
+    (perform IO write-line "Structured output")
+    (handle 
+      (lambda () (display "R7RS output"))   ; Dynamic effect
+      (Dynamic 
+        ;; Convert R7RS effects to structured effects  
+        ((io-operation args k) (perform IO write-line (apply format args)) (k 'unit))))))
+\end{lambdustcode}
+\end{example}
+
+The effect system provides powerful abstractions for managing side effects while maintaining the flexibility and compatibility that makes Scheme practical for real-world programming.

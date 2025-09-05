@@ -3,18 +3,13 @@
 //! This module provides facilities for dynamic module loading, unloading,
 //! dependency tracking, and hook system management.
 
-use crate::eval::{Value, Environment};
-use crate::module_system::{
-    loader::ModuleLoader, 
-    ModuleId, 
-    cache::ModuleCache,
-    Module
-};
 use crate::diagnostics::{Error, Result};
+use crate::eval::{Environment, Value};
+use crate::module_system::{Module, ModuleId, cache::ModuleCache, loader::ModuleLoader};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::SystemTime;
-use std::path::PathBuf;
 
 /// Module manager for dynamic module operations.
 #[derive(Debug)]
@@ -76,10 +71,22 @@ pub struct ModuleHooks {
 impl std::fmt::Debug for ModuleHooks {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ModuleHooks")
-            .field("pre_load", &format!("{count} hook(s)", count = self.pre_load.len()))
-            .field("post_load", &format!("{count} hook(s)", count = self.post_load.len()))
-            .field("pre_unload", &format!("{count} hook(s)", count = self.pre_unload.len()))
-            .field("post_unload", &format!("{count} hook(s)", count = self.post_unload.len()))
+            .field(
+                "pre_load",
+                &format!("{count} hook(s)", count = self.pre_load.len()),
+            )
+            .field(
+                "post_load",
+                &format!("{count} hook(s)", count = self.post_load.len()),
+            )
+            .field(
+                "pre_unload",
+                &format!("{count} hook(s)", count = self.pre_unload.len()),
+            )
+            .field(
+                "post_unload",
+                &format!("{count} hook(s)", count = self.post_unload.len()),
+            )
             .finish()
     }
 }
@@ -97,7 +104,11 @@ impl ModuleManager {
     }
 
     /// Loads a module dynamically.
-    pub fn load_module(&mut self, module_id: ModuleId, path: Option<PathBuf>) -> Result<Rc<Environment>> {
+    pub fn load_module(
+        &mut self,
+        module_id: ModuleId,
+        path: Option<PathBuf>,
+    ) -> Result<Rc<Environment>> {
         // Call pre-load hooks
         for hook in &self.hooks.pre_load {
             hook(&module_id)?;
@@ -118,7 +129,7 @@ impl ModuleManager {
         } else {
             module_id.clone()
         };
-        
+
         let module = self.loader.load(&effective_module_id)?;
 
         // Create module environment
@@ -152,7 +163,7 @@ impl ModuleManager {
     pub fn unload_module(&mut self, module_id: &ModuleId) -> Result<()> {
         if let Some(loaded) = self.loaded_modules.get_mut(module_id) {
             loaded.load_count = loaded.load_count.saturating_sub(1);
-            
+
             if loaded.load_count == 0 {
                 // Call pre-unload hooks
                 for hook in &self.hooks.pre_unload {
@@ -183,8 +194,11 @@ impl ModuleManager {
 
     /// Adds a dependency relationship.
     pub fn add_dependency(&mut self, dependent: ModuleId, dependency: ModuleId) {
-        self.dependencies.entry(dependent.clone()).or_default().push(dependency.clone());
-        
+        self.dependencies
+            .entry(dependent.clone())
+            .or_default()
+            .push(dependency.clone());
+
         // Update dependent tracking in loaded modules
         if let Some(dep_module) = self.loaded_modules.get_mut(&dependency) {
             if !dep_module.dependents.contains(&dependent) {
@@ -195,7 +209,8 @@ impl ModuleManager {
 
     /// Gets dependencies of a module.
     pub fn get_dependencies(&self, module_id: &ModuleId) -> Vec<&ModuleId> {
-        self.dependencies.get(module_id)
+        self.dependencies
+            .get(module_id)
             .map(|deps| deps.iter().collect())
             .unwrap_or_default()
     }

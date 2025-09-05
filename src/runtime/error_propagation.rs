@@ -4,13 +4,13 @@
 //! preservation and proper error coordination between threads.
 
 use crate::diagnostics::{Error as DiagnosticError, Result, Span};
-use std::sync::{Arc, RwLock, Mutex};
-use std::thread::ThreadId;
+use crossbeam::channel::{Receiver, Sender, unbounded};
 use std::collections::{HashMap, VecDeque};
-use std::time::{SystemTime, Duration};
-use std::sync::atomic::{AtomicU64, Ordering};
-use crossbeam::channel::{Sender, Receiver, unbounded};
 use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
+use std::thread::ThreadId;
+use std::time::{Duration, SystemTime};
 
 /// Error propagation coordinator for multithreaded environments.
 #[derive(Debug)]
@@ -210,14 +210,10 @@ pub enum ErrorPropagationMessage {
     },
     /// Request error context from a thread
     #[allow(dead_code)] // Part of Stage 3 error propagation infrastructure
-    RequestErrorContext {
-        requesting_thread: ThreadId,
-    },
+    RequestErrorContext { requesting_thread: ThreadId },
     /// Response with error context
     #[allow(dead_code)] // Part of Stage 3 error propagation infrastructure
-    ErrorContextResponse {
-        context: ThreadErrorContext,
-    },
+    ErrorContextResponse { context: ThreadErrorContext },
     /// Shutdown notification due to fatal error
     FatalErrorShutdown {
         #[allow(dead_code)] // Part of Stage 3 error propagation infrastructure
@@ -381,16 +377,24 @@ impl ErrorPropagationCoordinator {
 
         // Record error event
         if self.policies.track_error_history {
-            self.record_error_event(ErrorEventType::ErrorOccurred, thread_id, thread_error.clone(), None);
+            self.record_error_event(
+                ErrorEventType::ErrorOccurred,
+                thread_id,
+                thread_error.clone(),
+                None,
+            );
         }
 
         // Determine if error should be propagated
-        if self.policies.enable_cross_thread_propagation && self.should_propagate_error(&thread_error) {
+        if self.policies.enable_cross_thread_propagation
+            && self.should_propagate_error(&thread_error)
+        {
             self.initiate_error_propagation(thread_error.clone())?;
         }
 
         // Check if this is a fatal error requiring shutdown
-        if thread_error.severity == ErrorSeverity::Fatal && self.policies.fatal_errors_shutdown_all {
+        if thread_error.severity == ErrorSeverity::Fatal && self.policies.fatal_errors_shutdown_all
+        {
             self.initiate_fatal_error_shutdown(thread_error)?;
         }
 
@@ -400,7 +404,7 @@ impl ErrorPropagationCoordinator {
     /// Initiates error propagation to other threads.
     fn initiate_error_propagation(&self, error: ThreadError) -> Result<()> {
         let target_threads = self.determine_propagation_targets(&error);
-        
+
         if target_threads.is_empty() {
             return Ok(());
         }
@@ -415,7 +419,7 @@ impl ErrorPropagationCoordinator {
 
         // Send propagation messages
         {
-            let channels = self.error_channels.read().unwrap();
+            let channels = self.error_channels.try_read().unwrap();
             let message = ErrorPropagationMessage::PropagateError {
                 error: error.clone(),
                 target_threads: target_threads.clone(),
@@ -449,12 +453,15 @@ impl ErrorPropagationCoordinator {
     fn initiate_fatal_error_shutdown(&self, error: ThreadError) -> Result<()> {
         let message = ErrorPropagationMessage::FatalErrorShutdown {
             error: error.clone(),
-            message: format!("Fatal error in thread {:?}: {}", error.originating_thread, error.diagnostic_error),
+            message: format!(
+                "Fatal error in thread {:?}: {}",
+                error.originating_thread, error.diagnostic_error
+            ),
         };
 
         // Broadcast shutdown message to all threads
         {
-            let channels = self.error_channels.read().unwrap();
+            let channels = self.error_channels.try_read().unwrap();
             for channel in channels.values() {
                 let _ = channel.sender.try_send(message.clone());
             }
@@ -503,8 +510,12 @@ impl ErrorPropagationCoordinator {
     fn determine_propagation_targets(&self, error: &ThreadError) -> Vec<ThreadId> {
         match &self.policies.default_propagation_strategy {
             PropagationStrategy::Broadcast => {
-                let contexts = self.thread_error_contexts.read().unwrap();
-                contexts.keys().filter(|&&tid| tid != error.originating_thread).copied().collect()
+                let contexts = self.thread_error_contexts.try_read().unwrap();
+                contexts
+                    .keys()
+                    .filter(|&&tid| tid != error.originating_thread)
+                    .copied()
+                    .collect()
             }
             PropagationStrategy::Targeted(threads) => threads.clone(),
             PropagationStrategy::Parent => {
@@ -513,8 +524,12 @@ impl ErrorPropagationCoordinator {
             }
             PropagationStrategy::SeverityBased => {
                 if error.severity >= ErrorSeverity::Critical {
-                    let contexts = self.thread_error_contexts.read().unwrap();
-                    contexts.keys().filter(|&&tid| tid != error.originating_thread).copied().collect()
+                    let contexts = self.thread_error_contexts.try_read().unwrap();
+                    contexts
+                        .keys()
+                        .filter(|&&tid| tid != error.originating_thread)
+                        .copied()
+                        .collect()
                 } else {
                     Vec::new()
                 }
@@ -530,7 +545,7 @@ impl ErrorPropagationCoordinator {
     fn determine_error_severity(&self, error: &DiagnosticError) -> ErrorSeverity {
         // Simple heuristic based on error message
         let message = error.to_string().to_lowercase();
-        
+
         if message.contains("fatal") || message.contains("panic") {
             ErrorSeverity::Fatal
         } else if message.contains("critical") || message.contains("thread") {
@@ -545,7 +560,7 @@ impl ErrorPropagationCoordinator {
     /// Determines the category of a diagnostic error.
     fn determine_error_category(&self, error: &DiagnosticError) -> ErrorCategory {
         let message = error.to_string().to_lowercase();
-        
+
         if message.contains("syntax") || message.contains("parse") {
             ErrorCategory::Syntax
         } else if message.contains("type") {
@@ -593,7 +608,7 @@ impl ErrorPropagationCoordinator {
 
     /// Gets error statistics across all threads.
     pub fn get_error_statistics(&self) -> ErrorStatistics {
-        let contexts = self.thread_error_contexts.read().unwrap();
+        let contexts = self.thread_error_contexts.try_read().unwrap();
         let history = self.error_history.lock().unwrap();
 
         let mut stats = ErrorStatistics {
@@ -613,8 +628,14 @@ impl ErrorPropagationCoordinator {
                 stats.total_errors += context.error_stack.len();
 
                 for error in &context.error_stack {
-                    *stats.errors_by_severity.entry(error.severity.clone()).or_insert(0) += 1;
-                    *stats.errors_by_category.entry(error.category.clone()).or_insert(0) += 1;
+                    *stats
+                        .errors_by_severity
+                        .entry(error.severity.clone())
+                        .or_insert(0) += 1;
+                    *stats
+                        .errors_by_category
+                        .entry(error.category.clone())
+                        .or_insert(0) += 1;
                 }
             }
         }
@@ -643,7 +664,7 @@ impl ErrorPropagationCoordinator {
 
     /// Gets the error context for a specific thread.
     pub fn get_thread_error_context(&self, thread_id: ThreadId) -> Option<ThreadErrorContext> {
-        let contexts = self.thread_error_contexts.read().unwrap();
+        let contexts = self.thread_error_contexts.try_read().unwrap();
         contexts.get(&thread_id).cloned()
     }
 

@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 //! Scheme-specific optimization pipeline for JIT compilation
 //!
 //! This module implements a comprehensive optimization pipeline that applies
@@ -5,8 +6,8 @@
 //! optimization, type specialization, and SIMD vectorization. The pipeline
 //! is designed to work with Lambdust's unique features and R7RS requirements.
 
-use crate::ast::{Expr, Literal, Formals};
-use crate::diagnostics::{Result, Error};
+use crate::ast::{Expr, Formals, Literal};
+use crate::diagnostics::{Error, Result};
 use crate::jit::code_generator::{NativeCode, SchemeType};
 use crate::jit::hotspot_detector::ExecutionProfile;
 use std::collections::{HashMap, HashSet};
@@ -16,13 +17,13 @@ use std::collections::{HashMap, HashSet};
 pub enum OptimizationLevel {
     /// No optimizations - fastest compilation
     None,
-    
+
     /// Basic optimizations - constant folding, simple inlining
     Basic,
-    
+
     /// Balanced optimizations - good performance/compilation time ratio
     Balanced,
-    
+
     /// Aggressive optimizations - maximum performance
     Aggressive,
 }
@@ -64,37 +65,37 @@ impl OptimizationLevel {
 pub enum SchemeOptimization {
     /// Constant folding and propagation
     ConstantFolding,
-    
+
     /// Dead code elimination
     DeadCodeElimination,
-    
+
     /// Simple function inlining
     SimpleInlining,
-    
+
     /// Aggressive function inlining with specialization
     AggressiveInlining,
-    
+
     /// Tail call optimization (crucial for Scheme)
     TailCallOptimization,
-    
+
     /// Closure optimization and environment analysis
     ClosureOptimization,
-    
+
     /// Type specialization for primitive operations
     TypeSpecialization,
-    
+
     /// SIMD vectorization for numeric operations
     SIMDVectorization,
-    
+
     /// Loop optimization and unrolling
     LoopOptimization,
-    
+
     /// Branch prediction and profile-guided optimization
     BranchPrediction,
-    
+
     /// Continuation optimization
     ContinuationOptimization,
-    
+
     /// Memory allocation optimization
     AllocationOptimization,
 }
@@ -103,10 +104,10 @@ pub enum SchemeOptimization {
 pub struct OptimizationPipeline {
     /// Optimization level
     level: OptimizationLevel,
-    
+
     /// Individual optimization passes
     passes: Vec<Box<dyn OptimizationPass>>,
-    
+
     /// Statistics
     stats: OptimizationStats,
 }
@@ -124,13 +125,13 @@ impl OptimizationPipeline {
             passes: Vec::new(),
             stats: OptimizationStats::default(),
         };
-        
+
         // Initialize optimization passes based on level
         pipeline.initialize_passes()?;
-        
+
         Ok(pipeline)
     }
-    
+
     /// Initializes optimization passes based on level
     fn initialize_passes(&mut self) -> Result<()> {
         for optimization in self.level.enabled_optimizations() {
@@ -166,27 +167,33 @@ impl OptimizationPipeline {
                     self.passes.push(Box::new(BranchPredictionPass::new()));
                 }
                 SchemeOptimization::ContinuationOptimization => {
-                    self.passes.push(Box::new(ContinuationOptimizationPass::new()));
+                    self.passes
+                        .push(Box::new(ContinuationOptimizationPass::new()));
                 }
                 SchemeOptimization::AllocationOptimization => {
-                    self.passes.push(Box::new(AllocationOptimizationPass::new()));
+                    self.passes
+                        .push(Box::new(AllocationOptimizationPass::new()));
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Optimizes native code using the configured pipeline
-    pub fn optimize(&mut self, mut native_code: NativeCode, profile: &ExecutionProfile) -> Result<NativeCode> {
+    pub fn optimize(
+        &mut self,
+        mut native_code: NativeCode,
+        profile: &ExecutionProfile,
+    ) -> Result<NativeCode> {
         for pass in &mut self.passes {
             native_code = pass.apply(native_code, profile)?;
             self.stats.passes_applied += 1;
         }
-        
+
         Ok(native_code)
     }
-    
+
     /// Returns optimization statistics
     pub fn stats(&self) -> &OptimizationStats {
         &self.stats
@@ -197,7 +204,7 @@ impl OptimizationPipeline {
 trait OptimizationPass: Send + Sync {
     /// Applies the optimization pass to native code
     fn apply(&mut self, code: NativeCode, profile: &ExecutionProfile) -> Result<NativeCode>;
-    
+
     /// Returns the name of this optimization pass
     fn name(&self) -> &'static str;
 }
@@ -221,13 +228,13 @@ impl OptimizationPass for ConstantFoldingPass {
         // 1. Analyze the machine code for constant arithmetic operations
         // 2. Replace them with pre-computed constants
         // 3. Update metadata and statistics
-        
+
         self.folded_constants += 1;
-        
+
         // Placeholder - return optimized code
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         "ConstantFolding"
     }
@@ -250,12 +257,12 @@ impl OptimizationPass for DeadCodeEliminationPass {
     fn apply(&mut self, code: NativeCode, _profile: &ExecutionProfile) -> Result<NativeCode> {
         // Analyze code for unreachable instructions and unused values
         // Remove dead code and update jump targets
-        
+
         self.eliminated_instructions += 1;
-        
+
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         "DeadCodeElimination"
     }
@@ -280,22 +287,22 @@ impl OptimizationPass for InliningPass {
     fn apply(&mut self, code: NativeCode, profile: &ExecutionProfile) -> Result<NativeCode> {
         // Analyze function calls for inlining opportunities
         // Consider factors: function size, call frequency, specialization opportunities
-        
+
         let inline_threshold = if self.aggressive { 200 } else { 50 };
-        
+
         // In real implementation:
         // 1. Identify function calls
         // 2. Analyze callee size and complexity
         // 3. Consider profile data (hot paths)
         // 4. Perform inlining with proper variable renaming
-        
+
         if profile.execution_count > 100 {
             self.inlined_functions += 1;
         }
-        
+
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         if self.aggressive {
             "AggressiveInlining"
@@ -312,9 +319,7 @@ struct TailCallOptimizationPass {
 
 impl TailCallOptimizationPass {
     fn new() -> Self {
-        Self {
-            optimized_calls: 0,
-        }
+        Self { optimized_calls: 0 }
     }
 }
 
@@ -323,18 +328,18 @@ impl OptimizationPass for TailCallOptimizationPass {
         // Identify tail calls in the generated code
         // Replace call+return patterns with jumps
         // This is critical for Scheme's iterative constructs implemented via recursion
-        
+
         // In real implementation:
         // 1. Scan for call instructions followed by return
         // 2. Verify no stack cleanup needed between call and return
         // 3. Replace with jump instruction
         // 4. Update stack frame management
-        
+
         self.optimized_calls += 1;
-        
+
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         "TailCallOptimization"
     }
@@ -357,19 +362,19 @@ impl OptimizationPass for TypeSpecializationPass {
     fn apply(&mut self, code: NativeCode, profile: &ExecutionProfile) -> Result<NativeCode> {
         // Analyze runtime type information from profile
         // Generate specialized code paths for common type combinations
-        
+
         // For example, if we know both arguments to + are integers:
         // - Replace generic addition with integer-specific code
         // - Eliminate type checks and boxing/unboxing
         // - Use native integer arithmetic instructions
-        
+
         if profile.execution_count > 50 {
             self.specialized_operations += 1;
         }
-        
+
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         "TypeSpecialization"
     }
@@ -395,12 +400,12 @@ impl OptimizationPass for ClosureOptimizationPass {
         // 2. Optimize environment representation (flat vs. linked)
         // 3. Eliminate unnecessary environment allocations
         // 4. Convert closures to direct calls where possible
-        
+
         self.optimized_closures += 1;
-        
+
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         "ClosureOptimization"
     }
@@ -425,17 +430,17 @@ impl OptimizationPass for SIMDVectorizationPass {
         // 1. Vector arithmetic operations
         // 2. Array operations (map, fold, etc.)
         // 3. Numeric loops with known iteration counts
-        
+
         // Transform to use SIMD instructions:
         // - Replace scalar arithmetic with vector operations
         // - Handle remainder elements in scalar code
         // - Ensure proper alignment and data layout
-        
+
         self.vectorized_operations += 1;
-        
+
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         "SIMDVectorization"
     }
@@ -448,9 +453,7 @@ struct LoopOptimizationPass {
 
 impl LoopOptimizationPass {
     fn new() -> Self {
-        Self {
-            optimized_loops: 0,
-        }
+        Self { optimized_loops: 0 }
     }
 }
 
@@ -461,12 +464,12 @@ impl OptimizationPass for LoopOptimizationPass {
         // 2. Loop invariant code motion
         // 3. Strength reduction (replace expensive ops with cheaper ones)
         // 4. Loop fusion and distribution
-        
+
         self.optimized_loops += 1;
-        
+
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         "LoopOptimization"
     }
@@ -491,14 +494,14 @@ impl OptimizationPass for BranchPredictionPass {
         // 1. Arrange code to minimize taken branches
         // 2. Use profile data to predict branch directions
         // 3. Optimize branch instruction selection
-        
+
         if profile.execution_count > 100 {
             self.optimized_branches += 1;
         }
-        
+
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         "BranchPrediction"
     }
@@ -524,12 +527,12 @@ impl OptimizationPass for ContinuationOptimizationPass {
         // 2. Heap continuations only when necessary
         // 3. Continuation specialization
         // 4. Eliminate unnecessary continuation captures
-        
+
         self.optimized_continuations += 1;
-        
+
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         "ContinuationOptimization"
     }
@@ -555,12 +558,12 @@ impl OptimizationPass for AllocationOptimizationPass {
         // 2. Object pooling for frequently allocated objects
         // 3. Elimination of unnecessary allocations
         // 4. Bulk allocation optimization
-        
+
         self.optimized_allocations += 1;
-        
+
         Ok(code)
     }
-    
+
     fn name(&self) -> &'static str {
         "AllocationOptimization"
     }
@@ -571,40 +574,40 @@ impl OptimizationPass for AllocationOptimizationPass {
 pub struct OptimizationStats {
     /// Total optimization passes applied
     pub passes_applied: u64,
-    
+
     /// Constants folded
     pub constants_folded: u64,
-    
+
     /// Instructions eliminated
     pub instructions_eliminated: u64,
-    
+
     /// Functions inlined
     pub functions_inlined: u64,
-    
+
     /// Tail calls optimized
     pub tail_calls_optimized: u64,
-    
+
     /// Operations specialized by type
     pub type_specializations: u64,
-    
+
     /// Closures optimized
     pub closures_optimized: u64,
-    
+
     /// SIMD operations generated
     pub simd_operations: u64,
-    
+
     /// Loops optimized
     pub loops_optimized: u64,
-    
+
     /// Branches optimized
     pub branches_optimized: u64,
-    
+
     /// Continuations optimized
     pub continuations_optimized: u64,
-    
+
     /// Allocations optimized
     pub allocations_optimized: u64,
-    
+
     /// Total optimization time
     pub total_optimization_time_ms: f64,
 }
@@ -612,19 +615,19 @@ pub struct OptimizationStats {
 impl OptimizationStats {
     /// Returns the total number of optimizations applied
     pub fn total_optimizations(&self) -> u64 {
-        self.constants_folded +
-        self.instructions_eliminated +
-        self.functions_inlined +
-        self.tail_calls_optimized +
-        self.type_specializations +
-        self.closures_optimized +
-        self.simd_operations +
-        self.loops_optimized +
-        self.branches_optimized +
-        self.continuations_optimized +
-        self.allocations_optimized
+        self.constants_folded
+            + self.instructions_eliminated
+            + self.functions_inlined
+            + self.tail_calls_optimized
+            + self.type_specializations
+            + self.closures_optimized
+            + self.simd_operations
+            + self.loops_optimized
+            + self.branches_optimized
+            + self.continuations_optimized
+            + self.allocations_optimized
     }
-    
+
     /// Returns the optimization density (optimizations per pass)
     pub fn optimization_density(&self) -> f64 {
         if self.passes_applied == 0 {
@@ -638,37 +641,37 @@ impl OptimizationStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::jit::{ExecutionProfile, NativeCode};
     use crate::jit::code_generator::{CodeMetadata, FunctionSignature, MemoryLayout};
-    
+    use crate::jit::{ExecutionProfile, NativeCode};
+
     #[test]
     fn test_optimization_levels() {
         let none_opts = OptimizationLevel::None.enabled_optimizations();
         assert!(none_opts.is_empty());
-        
+
         let aggressive_opts = OptimizationLevel::Aggressive.enabled_optimizations();
         assert!(aggressive_opts.len() > 5);
         assert!(aggressive_opts.contains(&SchemeOptimization::TailCallOptimization));
         assert!(aggressive_opts.contains(&SchemeOptimization::SIMDVectorization));
     }
-    
+
     #[test]
     fn test_optimization_pipeline_creation() {
         let pipeline = OptimizationPipeline::new(OptimizationLevel::Balanced);
         assert!(pipeline.is_ok());
-        
+
         let pipeline = pipeline.unwrap();
-        assert!(pipeline.passes.len() > 0);
+        assert!(!pipeline.passes.is_empty());
     }
-    
+
     #[test]
     fn test_optimization_stats() {
         let mut stats = OptimizationStats::default();
         stats.constants_folded = 10;
         stats.functions_inlined = 5;
-        
+
         assert_eq!(stats.total_optimizations(), 15);
-        
+
         stats.passes_applied = 3;
         assert_eq!(stats.optimization_density(), 5.0);
     }

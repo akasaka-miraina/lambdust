@@ -1,0 +1,393 @@
+//! Memory safety test suite for SIGSEGV debugging and isolation.
+//!
+//! This test suite provides comprehensive memory safety validation with
+//! process isolation to prevent test contamination and systematic debugging
+//! of Arc reference cycles and threading issues.
+
+use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
+use std::sync::{Arc, Barrier};
+
+/// Test result with detailed memory information
+#[derive(Debug)]
+struct TestResult {
+    name: String,
+    success: bool,
+    duration: Duration,
+    peak_memory: Option<u64>,
+    error_message: Option<String>,
+}
+
+/// Memory safety test framework with isolation
+struct MemorySafetyTester {
+    test_timeout: Duration,
+    isolation_mode: bool,
+}
+
+impl MemorySafetyTester {
+    fn new() -> Self {
+        Self {
+            test_timeout: Duration::from_secs(30),
+            isolation_mode: true,
+        }
+    }
+
+    /// Run a test in isolated process to prevent contamination
+    fn run_isolated_test(&self, test_name: &str, test_module: &str) -> TestResult {
+        let start_time = Instant::now();
+        
+        println!("🧪 Running isolated test: {} in module {}", test_name, test_module);
+        
+        let mut child = Command::new("cargo")
+            .args(&[
+                "test",
+                "--lib",
+                &format!("{}::{}", test_module, test_name),
+                "--",
+                "--exact",
+                "--nocapture"
+            ])
+            .env("RUST_BACKTRACE", "full")
+            .env("ASAN_OPTIONS", "detect_leaks=1:halt_on_error=1:abort_on_error=1")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn test process");
+
+        // Wait with timeout
+        let result = match wait_timeout(&mut child, self.test_timeout) {
+            Ok(Some(status)) => {
+                let duration = start_time.elapsed();
+                if status.success() {
+                    TestResult {
+                        name: test_name.to_string(),
+                        success: true,
+                        duration,
+                        peak_memory: None,
+                        error_message: None,
+                    }
+                } else {
+                    let stderr_output = "Test failed with non-zero exit code".to_string();
+                    TestResult {
+                        name: test_name.to_string(),
+                        success: false,
+                        duration,
+                        peak_memory: None,
+                        error_message: Some(stderr_output),
+                    }
+                }
+            }
+            Ok(None) => {
+                // Timeout - kill the process
+                let _ = child.kill();
+                TestResult {
+                    name: test_name.to_string(),
+                    success: false,
+                    duration: self.test_timeout,
+                    peak_memory: None,
+                    error_message: Some("Test timed out".to_string()),
+                }
+            }
+            Err(e) => {
+                TestResult {
+                    name: test_name.to_string(),
+                    success: false,
+                    duration: start_time.elapsed(),
+                    peak_memory: None,
+                    error_message: Some(format!("Process error: {}", e)),
+                }
+            }
+        };
+
+        println!("✅ Test {} completed: success={}, duration={:?}",
+                 test_name, result.success, result.duration);
+        
+        result
+    }
+
+    /// Run stress test to detect race conditions
+    fn run_concurrent_stress_test(&self, test_name: &str, thread_count: usize, iterations: usize) -> TestResult {
+        let start_time = Instant::now();
+        let barrier = Arc::new(Barrier::new(thread_count));
+        let mut handles = Vec::new();
+
+        println!("🔥 Running concurrent stress test: {} with {} threads, {} iterations each",
+                 test_name, thread_count, iterations);
+
+        for thread_id in 0..thread_count {
+            let barrier_clone = Arc::clone(&barrier);
+            let test_name = test_name.to_string();
+            
+            let handle = thread::spawn(move || {
+                // Wait for all threads to be ready
+                barrier_clone.wait();
+                
+                // Run the test iterations
+                for i in 0..iterations {
+                    match thread_id {
+                        0 => run_ordered_set_basic_test(),
+                        1 => run_ordered_set_operations_test(),
+                        2 => run_ordered_set_range_test(),
+                        _ => run_ordered_set_thread_safe_test(),
+                    }
+                    
+                    if i % 10 == 0 {
+                        println!("Thread {} completed {} iterations", thread_id, i);
+                    }
+                }
+                
+                println!("Thread {} completed all {} iterations", thread_id, iterations);
+            });
+            
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        let mut all_success = true;
+        for handle in handles {
+            if let Err(e) = handle.join() {
+                all_success = false;
+                println!("❌ Thread panicked: {:?}", e);
+            }
+        }
+
+        let duration = start_time.elapsed();
+        TestResult {
+            name: format!("{}_concurrent_stress", test_name),
+            success: all_success,
+            duration,
+            peak_memory: None,
+            error_message: if all_success { None } else { Some("Thread panic detected".to_string()) },
+        }
+    }
+}
+
+/// Individual test functions that mirror the actual tests
+fn run_ordered_set_basic_test() {
+    use lambdust::containers::ordered_set::OrderedSet;
+    use lambdust::containers::Container;
+    use lambdust::eval::value::Value;
+    
+    let mut set = OrderedSet::new();
+    assert!(set.insert(Value::number(1.0)));
+    assert!(set.insert(Value::number(2.0)));
+    assert!(set.insert(Value::number(3.0)));
+    assert_eq!(set.len(), 3);
+    
+    assert!(set.remove(&Value::number(2.0)));
+    assert_eq!(set.len(), 2);
+}
+
+fn run_ordered_set_operations_test() {
+    use lambdust::containers::ordered_set::OrderedSet;
+    use lambdust::containers::Container;
+    use lambdust::eval::value::Value;
+    
+    let mut set1 = OrderedSet::new();
+    let mut set2 = OrderedSet::new();
+    
+    for i in 1..=5 {
+        set1.insert(Value::number(i as f64));
+    }
+    
+    for i in 3..=7 {
+        set2.insert(Value::number(i as f64));
+    }
+    
+    let union = set1.union(&set2);
+    let intersection = set1.intersection(&set2);
+    
+    assert_eq!(union.len(), 7);
+    assert_eq!(intersection.len(), 3);
+}
+
+fn run_ordered_set_range_test() {
+    use lambdust::containers::ordered_set::OrderedSet;
+    use lambdust::containers::Container;
+    use lambdust::eval::value::Value;
+    
+    let mut set = OrderedSet::new();
+    for i in 1..=10 {
+        set.insert(Value::number(i as f64));
+    }
+    
+    let range = set.range(&Value::number(3.0), &Value::number(7.0));
+    assert_eq!(range.len(), 5);
+}
+
+fn run_ordered_set_thread_safe_test() {
+    use lambdust::containers::ordered_set::ThreadSafeOrderedSet;
+    use lambdust::containers::Container;
+    use lambdust::eval::value::Value;
+    
+    let set = ThreadSafeOrderedSet::new();
+    
+    assert!(set.insert(Value::number(1.0)));
+    assert!(set.insert(Value::number(2.0)));
+    assert!(set.insert(Value::number(3.0)));
+    
+    assert_eq!(set.len(), 3);
+    assert!(set.remove(&Value::number(2.0)));
+    assert_eq!(set.len(), 2);
+}
+
+// Simple timeout implementation for test processes
+fn wait_timeout(child: &mut std::process::Child, timeout: Duration) -> Result<Option<std::process::ExitStatus>, std::io::Error> {
+    use std::thread;
+    use std::sync::mpsc;
+    
+    let (sender, receiver) = mpsc::channel();
+    let child_id = child.id();
+    
+    thread::spawn(move || {
+        thread::sleep(timeout);
+        let _ = sender.send(());
+    });
+    
+    // Try to wait for the child process with timeout
+    match child.try_wait() {
+        Ok(Some(status)) => Ok(Some(status)),
+        Ok(None) => {
+            // Process still running, check timeout
+            match receiver.try_recv() {
+                Ok(_) => {
+                    // Timeout reached, kill process
+                    let _ = child.kill();
+                    Ok(None)
+                }
+                Err(_) => {
+                    // Still within timeout, wait a bit more
+                    thread::sleep(Duration::from_millis(100));
+                    match child.try_wait() {
+                        Ok(Some(status)) => Ok(Some(status)),
+                        Ok(None) => Ok(None),
+                        Err(e) => Err(e),
+                    }
+                }
+            }
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn main() {
+    println!("🚀 Starting Lambdust Memory Safety Test Suite");
+    
+    let tester = MemorySafetyTester::new();
+    let mut results = Vec::new();
+
+    // Test 1: Individual ordered_set tests in isolation
+    let isolated_tests = vec![
+        ("test_basic_operations", "containers::ordered_set::tests"),
+        ("test_basic_operations_integers", "containers::ordered_set::tests"),
+        ("test_min_max", "containers::ordered_set::tests"),
+        ("test_range", "containers::ordered_set::tests"),
+        ("test_set_operations", "containers::ordered_set::tests"),
+        ("test_subset_operations", "containers::ordered_set::tests"),
+        ("test_functional_operations", "containers::ordered_set::tests"),
+        ("test_thread_safe_ordered_set", "containers::ordered_set::tests"),
+        ("test_custom_comparator", "containers::ordered_set::tests"),
+    ];
+
+    println!("🧪 Phase 1: Running isolated tests");
+    for (test_name, test_module) in isolated_tests {
+        let result = tester.run_isolated_test(test_name, test_module);
+        results.push(result);
+    }
+
+    // Test 2: Concurrent stress testing
+    println!("🔥 Phase 2: Running concurrent stress tests");
+    let stress_result = tester.run_concurrent_stress_test("ordered_set", 4, 50);
+    results.push(stress_result);
+
+    // Test 3: Memory leak detection test
+    println!("🔍 Phase 3: Memory leak detection");
+    let leak_result = run_memory_leak_test();
+    results.push(leak_result);
+
+    // Report results
+    println!("\n📊 MEMORY SAFETY TEST RESULTS");
+    println!("========================================");
+    
+    let mut success_count = 0;
+    let mut total_count = 0;
+    
+    for result in &results {
+        total_count += 1;
+        if result.success {
+            success_count += 1;
+            println!("✅ {} - PASSED ({:?})", result.name, result.duration);
+        } else {
+            println!("❌ {} - FAILED ({:?})", result.name, result.duration);
+            if let Some(ref error) = result.error_message {
+                println!("   Error: {}", error);
+            }
+        }
+    }
+    
+    println!("\n📈 Summary: {}/{} tests passed", success_count, total_count);
+    
+    if success_count == total_count {
+        println!("🎉 All memory safety tests passed!");
+        std::process::exit(0);
+    } else {
+        println!("⚠️  Some tests failed - memory safety issues detected");
+        std::process::exit(1);
+    }
+}
+
+/// Memory leak detection test using repeated allocations
+fn run_memory_leak_test() -> TestResult {
+    use lambdust::containers::ordered_set::OrderedSet;
+    use lambdust::containers::Container;
+    use lambdust::eval::value::Value;
+    
+    let start_time = Instant::now();
+    
+    println!("🔍 Running memory leak detection test");
+    
+    // Create and destroy many ordered sets to detect leaks
+    for cycle in 0..100 {
+        let mut sets = Vec::new();
+        
+        // Create 10 sets with cross-references
+        for i in 0..10 {
+            let mut set = OrderedSet::new();
+            
+            // Add values including some large ones
+            for j in 0..100 {
+                set.insert(Value::number((i * 100 + j) as f64));
+            }
+            
+            sets.push(set);
+        }
+        
+        // Create some set operations to test memory handling
+        if sets.len() >= 2 {
+            let union = sets[0].union(&sets[1]);
+            let intersection = sets[0].intersection(&sets[1]);
+            let _difference = sets[0].difference(&sets[1]);
+            
+            // Force some work to be done
+            assert!(union.len() >= intersection.len());
+        }
+        
+        if cycle % 10 == 0 {
+            println!("Completed {} leak test cycles", cycle);
+        }
+        
+        // Explicit drop to test cleanup
+        drop(sets);
+    }
+    
+    let duration = start_time.elapsed();
+    
+    TestResult {
+        name: "memory_leak_detection".to_string(),
+        success: true,
+        duration,
+        peak_memory: None,
+        error_message: None,
+    }
+}

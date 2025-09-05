@@ -15,7 +15,7 @@
 //! **Key Methods:**
 //! - `new()` - Compile pattern
 //! - `is_match()` - Test for match
-//! - `find()` - Find first match  
+//! - `find()` - Find first match
 //! - `find_iter()` - Iterate over all matches
 //! - `captures()` - Extract captures (basic support)
 //! - `replace()` / `replace_all()` - String replacement
@@ -35,10 +35,10 @@
 //! - Basic capture group support only
 //! - No regex sets or multi-pattern matching
 
-use std::fmt;
-use std::borrow::Cow;
-use crate::regex::{NfaEngine, PatternParser, Matcher};
 use crate::regex::matcher::Match as InternalMatch;
+use crate::regex::{Matcher, NfaEngine, PatternParser};
+use std::borrow::Cow;
+use std::fmt;
 
 /// Error type compatible with `regex::Error`.
 #[derive(Debug, Clone)]
@@ -92,32 +92,32 @@ impl<'t> Match<'t> {
     pub fn new(text: &'t str, start: usize, end: usize) -> Self {
         Self { text, start, end }
     }
-    
+
     /// Returns the start position of the match.
     pub fn start(&self) -> usize {
         self.start
     }
-    
+
     /// Returns the end position of the match.
     pub fn end(&self) -> usize {
         self.end
     }
-    
+
     /// Returns the matched text.
     pub fn as_str(&self) -> &'t str {
         &self.text[self.start..self.end]
     }
-    
+
     /// Returns the length of the match.
     pub fn len(&self) -> usize {
         self.end - self.start
     }
-    
+
     /// Tests if the match is empty.
     pub fn is_empty(&self) -> bool {
         self.start == self.end
     }
-    
+
     /// Returns the range of the match.
     pub fn range(&self) -> std::ops::Range<usize> {
         self.start..self.end
@@ -139,27 +139,27 @@ impl<'t> Captures<'t> {
             matches: Vec::new(),
         }
     }
-    
+
     /// Gets the full match.
     pub fn get(&self, i: usize) -> Option<Match<'t>> {
         self.matches.get(i).copied().flatten()
     }
-    
+
     /// Gets the full match by name (not yet supported).
     pub fn name(&self, _name: &str) -> Option<Match<'t>> {
         None // Not implemented in Phase 1
     }
-    
+
     /// Returns an iterator over all matches.
     pub fn iter(&self) -> impl Iterator<Item = Option<Match<'t>>> + '_ {
         self.matches.iter().copied()
     }
-    
+
     /// Returns the number of captured groups.
     pub fn len(&self) -> usize {
         self.matches.len()
     }
-    
+
     /// Tests if there are no captures.
     pub fn is_empty(&self) -> bool {
         self.matches.is_empty()
@@ -185,19 +185,19 @@ impl LightRegex {
     pub fn new(pattern: &str) -> Result<Self, Error> {
         let parsed = PatternParser::new(pattern).parse()?;
         let engine = NfaEngine::from_pattern(&parsed)?;
-        
+
         Ok(Self {
             engine,
             pattern: pattern.to_string(),
         })
     }
-    
+
     /// Tests if the regex matches anywhere in the text.
     pub fn is_match(&self, text: &str) -> bool {
         let mut matcher = Matcher::new(&self.engine);
         matcher.find(text).is_some()
     }
-    
+
     /// Finds the first match in the text.
     pub fn find<'t>(&self, text: &'t str) -> Option<Match<'t>> {
         let mut matcher = Matcher::new(&self.engine);
@@ -207,12 +207,12 @@ impl LightRegex {
             None
         }
     }
-    
+
     /// Returns an iterator over all non-overlapping matches.
     pub fn find_iter<'r, 't>(&'r self, text: &'t str) -> FindMatches<'r, 't> {
         FindMatches::new(self, text)
     }
-    
+
     /// Finds all matches and returns an iterator over capture groups.
     pub fn captures<'t>(&self, text: &'t str) -> Option<Captures<'t>> {
         if let Some(m) = self.find(text) {
@@ -223,12 +223,12 @@ impl LightRegex {
             None
         }
     }
-    
+
     /// Returns an iterator over all capture groups in the text.
     pub fn captures_iter<'r, 't>(&'r self, text: &'t str) -> CaptureMatches<'r, 't> {
         CaptureMatches::new(self, text)
     }
-    
+
     /// Replaces the first match with replacement text.
     pub fn replace<'t>(&self, text: &'t str, rep: &str) -> Cow<'t, str> {
         if let Some(m) = self.find(text) {
@@ -241,20 +241,20 @@ impl LightRegex {
             Cow::Borrowed(text)
         }
     }
-    
+
     /// Replaces all matches with replacement text.
     pub fn replace_all<'t>(&self, text: &'t str, rep: &str) -> Cow<'t, str> {
         let mut result = String::new();
         let mut last_end = 0;
         let mut found_any = false;
-        
+
         for m in self.find_iter(text) {
             found_any = true;
             result.push_str(&text[last_end..m.start()]);
             result.push_str(rep);
             last_end = m.end();
         }
-        
+
         if found_any {
             result.push_str(&text[last_end..]);
             Cow::Owned(result)
@@ -262,7 +262,7 @@ impl LightRegex {
             Cow::Borrowed(text)
         }
     }
-    
+
     /// Replaces all matches using a replacer function.
     pub fn replace_all_fn<'t, F>(&self, text: &'t str, mut replacer: F) -> Cow<'t, str>
     where
@@ -271,14 +271,14 @@ impl LightRegex {
         let mut result = String::new();
         let mut last_end = 0;
         let mut found_any = false;
-        
+
         for m in self.find_iter(text) {
             found_any = true;
             result.push_str(&text[last_end..m.start()]);
             result.push_str(&replacer(&m));
             last_end = m.end();
         }
-        
+
         if found_any {
             result.push_str(&text[last_end..]);
             Cow::Owned(result)
@@ -286,17 +286,17 @@ impl LightRegex {
             Cow::Borrowed(text)
         }
     }
-    
+
     /// Splits text by the regex.
     pub fn split<'r, 't>(&'r self, text: &'t str) -> Split<'r, 't> {
         Split::new(self, text)
     }
-    
+
     /// Splits text by the regex with a limit.
     pub fn splitn<'r, 't>(&'r self, text: &'t str, limit: usize) -> SplitN<'r, 't> {
         SplitN::new(self, text, limit)
     }
-    
+
     /// Returns the original pattern string.
     pub fn as_str(&self) -> &str {
         &self.pattern
@@ -322,12 +322,12 @@ impl<'r, 't> FindMatches<'r, 't> {
 
 impl<'r, 't> Iterator for FindMatches<'r, 't> {
     type Item = Match<'t>;
-    
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.last_end > self.text.len() {
             return None;
         }
-        
+
         let mut matcher = Matcher::new(&self.regex.engine);
         for start_pos in self.last_end..=self.text.len() {
             if let Some(internal_match) = matcher.find_at(self.text, start_pos) {
@@ -355,7 +355,7 @@ impl<'r, 't> CaptureMatches<'r, 't> {
 
 impl<'r, 't> Iterator for CaptureMatches<'r, 't> {
     type Item = Captures<'t>;
-    
+
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(m) = self.matches.next() {
             let mut captures = Captures::new(self.matches.text);
@@ -386,12 +386,12 @@ impl<'r, 't> Split<'r, 't> {
 
 impl<'r, 't> Iterator for Split<'r, 't> {
     type Item = &'t str;
-    
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished {
             return None;
         }
-        
+
         if let Some(m) = self.finder.next() {
             let text = &self.finder.text[self.last..m.start()];
             self.last = m.end();
@@ -422,7 +422,7 @@ impl<'r, 't> SplitN<'r, 't> {
 
 impl<'r, 't> Iterator for SplitN<'r, 't> {
     type Item = &'t str;
-    
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.count >= self.limit {
             // Return rest of string as final segment
@@ -459,31 +459,31 @@ impl RegexBuilder {
             unicode: true,
         }
     }
-    
+
     /// Configures case-insensitive matching.
     pub fn case_insensitive(mut self, yes: bool) -> Self {
         self.case_insensitive = yes;
         self
     }
-    
+
     /// Configures multi-line mode.
     pub fn multi_line(mut self, yes: bool) -> Self {
         self.multi_line = yes;
         self
     }
-    
+
     /// Configures whether . matches newlines.
     pub fn dot_matches_new_line(mut self, yes: bool) -> Self {
         self.dot_matches_new_line = yes;
         self
     }
-    
+
     /// Configures Unicode mode.
     pub fn unicode(mut self, yes: bool) -> Self {
         self.unicode = yes;
         self
     }
-    
+
     /// Builds the regex.
     pub fn build(self) -> Result<LightRegex, Error> {
         // For Phase 1, ignore most flags and use basic compilation
@@ -502,7 +502,7 @@ mod tests {
         assert!(re.is_match("hello world"));
         assert!(!re.is_match("goodbye world"));
     }
-    
+
     #[test]
     fn test_find_match() {
         let re = LightRegex::new(r"\d+").unwrap();
@@ -511,7 +511,7 @@ mod tests {
         assert_eq!(m.end(), 6);
         assert_eq!(m.as_str(), "123");
     }
-    
+
     #[test]
     fn test_find_iter() {
         let re = LightRegex::new(r"\d+").unwrap();
@@ -521,28 +521,28 @@ mod tests {
         assert_eq!(matches[1].as_str(), "23");
         assert_eq!(matches[2].as_str(), "456");
     }
-    
+
     #[test]
     fn test_replace() {
         let re = LightRegex::new(r"\d+").unwrap();
         let result = re.replace("abc123def", "XXX");
         assert_eq!(result, "abcXXXdef");
     }
-    
+
     #[test]
     fn test_replace_all() {
         let re = LightRegex::new(r"\d+").unwrap();
         let result = re.replace_all("a1b2c3", "X");
         assert_eq!(result, "aXbXcX");
     }
-    
+
     #[test]
     fn test_split() {
         let re = LightRegex::new(r"\s+").unwrap();
         let parts: Vec<_> = re.split("a  b   c").collect();
         assert_eq!(parts, vec!["a", "b", "c", ""]);
     }
-    
+
     #[test]
     fn test_splitn() {
         let re = LightRegex::new(r"\s+").unwrap();
@@ -551,7 +551,7 @@ mod tests {
         assert_eq!(parts[0], "a");
         assert_eq!(parts[1], "b c d");
     }
-    
+
     #[test]
     fn test_captures() {
         let re = LightRegex::new(r"\d+").unwrap();
@@ -559,14 +559,14 @@ mod tests {
         let m = caps.get(0).unwrap();
         assert_eq!(m.as_str(), "123");
     }
-    
+
     #[test]
     fn test_regex_builder() {
         let re = RegexBuilder::new("hello")
             .case_insensitive(true)
             .build()
             .unwrap();
-        
+
         // For now, flags are ignored, but API should work
         assert!(re.is_match("hello"));
     }

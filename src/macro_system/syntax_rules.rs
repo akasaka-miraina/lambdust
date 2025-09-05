@@ -4,7 +4,7 @@
 //! as specified in R7RS-small. It includes pattern parsing, template construction,
 //! ellipsis handling, and proper hygiene management.
 
-use super::{Pattern, Template, MacroTransformer};
+use super::{MacroTransformer, Pattern, Template};
 use crate::ast::Expr;
 use crate::diagnostics::{Error, Result, Spanned};
 use crate::eval::Environment;
@@ -40,17 +40,17 @@ pub struct SyntaxRule {
 }
 
 /// Parses a syntax-rules expression into a transformer.
-/// 
+///
 /// syntax-rules has the form:
-/// (syntax-rules (literal ...) 
+/// (syntax-rules (literal ...)
 ///   (pattern template) ...)
-/// 
-/// or with SRFI-46 custom ellipsis:
-/// (syntax-rules [ellipsis] (literal ...)
+///
+/// or with SRFI-46 custom ellipsis symbol:
+/// (syntax-rules [custom-ellipsis] (literal ...)
 ///   (pattern template) ...)
-/// 
+///
 /// Where:
-/// - ellipsis (optional) is a custom ellipsis identifier
+/// - custom-ellipsis (optional) is a custom ellipsis identifier
 /// - literals are identifiers that must match exactly in patterns
 /// - each (pattern template) pair defines a transformation rule
 pub fn parse_syntax_rules(
@@ -73,14 +73,14 @@ pub fn parse_syntax_rules(
                     operator.span,
                 )));
             }
-            
+
             if operands.len() < 2 {
                 return Err(Box::new(Error::macro_error(
                     "syntax-rules requires at least literals list and one rule".to_string(),
                     expr.span,
                 )));
             }
-            
+
             // Check for SRFI-46 custom ellipsis: (syntax-rules [ellipsis] (literals...) ...)
             let (custom_ellipsis, literals_index) = if operands.len() >= 3 {
                 if let Some(ellipsis) = parse_custom_ellipsis(&operands[0])? {
@@ -91,26 +91,31 @@ pub fn parse_syntax_rules(
             } else {
                 (None, 0) // Standard R7RS syntax
             };
-            
+
             // Parse literals list
             let literals = parse_literals_list(&operands[literals_index])?;
-            
+
             // Parse rules (starting after literals)
             let mut rules = Vec::new();
             let ellipsis_token = custom_ellipsis.as_deref().unwrap_or("...");
             let srfi_149_mode = true; // Default to SRFI-149 enabled
             for rule_expr in &operands[literals_index + 1..] {
-                let rule = parse_syntax_rule_with_mode(rule_expr, &literals, ellipsis_token, srfi_149_mode)?;
+                let rule = parse_syntax_rule_with_mode(
+                    rule_expr,
+                    &literals,
+                    ellipsis_token,
+                    srfi_149_mode,
+                )?;
                 rules.push(rule);
             }
-            
+
             if rules.is_empty() {
                 return Err(Box::new(Error::macro_error(
                     "syntax-rules must have at least one rule".to_string(),
                     expr.span,
                 )));
             }
-            
+
             Ok(SyntaxRulesTransformer {
                 literals,
                 rules,
@@ -146,37 +151,41 @@ fn parse_literals_list(expr: &Spanned<Expr>) -> Result<Vec<String>> {
     match &expr.inner {
         // Empty list
         Expr::List(elements) if elements.is_empty() => Ok(Vec::new()),
-        
+
         // List of identifiers
         Expr::List(elements) => {
             let mut literals = Vec::new();
             for element in elements {
                 match &element.inner {
                     Expr::Identifier(name) => literals.push(name.clone()),
-                    _ => return Err(Box::new(Error::macro_error(
-                        "Literals must be identifiers".to_string(),
-                        element.span,
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::macro_error(
+                            "Literals must be identifiers".to_string(),
+                            element.span,
+                        )));
+                    }
                 }
             }
             Ok(literals)
         }
-        
+
         // Application form: (lit1 lit2 ...)
         Expr::Application { operands, .. } => {
             let mut literals = Vec::new();
             for operand in operands {
                 match &operand.inner {
                     Expr::Identifier(name) => literals.push(name.clone()),
-                    _ => return Err(Box::new(Error::macro_error(
-                        "Literals must be identifiers".to_string(),
-                        operand.span,
-                    ))),
+                    _ => {
+                        return Err(Box::new(Error::macro_error(
+                            "Literals must be identifiers".to_string(),
+                            operand.span,
+                        )));
+                    }
                 }
             }
             Ok(literals)
         }
-        
+
         _ => Err(Box::new(Error::macro_error(
             "Expected list of literal identifiers".to_string(),
             expr.span,
@@ -204,7 +213,7 @@ fn parse_syntax_rule_with_mode(
         Expr::List(elements) if elements.len() == 2 => {
             let pattern = parse_pattern(&elements[0], literals, ellipsis_token)?;
             let mut template = parse_template(&elements[1], ellipsis_token)?;
-            
+
             // SRFI-149: Apply advanced template features if enabled
             if srfi_149_mode {
                 // Analyze ellipsis depth mismatch and apply extra ellipses if needed
@@ -212,18 +221,18 @@ fn parse_syntax_rule_with_mode(
                 if template.needs_extra_ellipses(pattern_depth) {
                     template = template.with_extra_ellipses(pattern_depth);
                 }
-                
+
                 // Apply ambiguity resolution rules
                 let pattern_var_depths = pattern.variable_depths();
                 template.resolve_ambiguities(&pattern_var_depths);
             }
-            
+
             Ok(SyntaxRule { pattern, template })
         }
         Expr::Application { operands, .. } if operands.len() == 2 => {
             let pattern = parse_pattern(&operands[0], literals, ellipsis_token)?;
             let mut template = parse_template(&operands[1], ellipsis_token)?;
-            
+
             // SRFI-149: Apply advanced template features if enabled
             if srfi_149_mode {
                 // Analyze ellipsis depth mismatch and apply extra ellipses if needed
@@ -231,12 +240,12 @@ fn parse_syntax_rule_with_mode(
                 if template.needs_extra_ellipses(pattern_depth) {
                     template = template.with_extra_ellipses(pattern_depth);
                 }
-                
+
                 // Apply ambiguity resolution rules
                 let pattern_var_depths = pattern.variable_depths();
                 template.resolve_ambiguities(&pattern_var_depths);
             }
-            
+
             Ok(SyntaxRule { pattern, template })
         }
         _ => Err(Box::new(Error::macro_error(
@@ -247,7 +256,11 @@ fn parse_syntax_rule_with_mode(
 }
 
 /// Parses a pattern from an expression.
-fn parse_pattern(expr: &Spanned<Expr>, literals: &[String], ellipsis_token: &str) -> Result<Pattern> {
+fn parse_pattern(
+    expr: &Spanned<Expr>,
+    literals: &[String],
+    ellipsis_token: &str,
+) -> Result<Pattern> {
     match &expr.inner {
         // Identifiers can be variables or literals
         Expr::Identifier(name) => {
@@ -257,23 +270,23 @@ fn parse_pattern(expr: &Spanned<Expr>, literals: &[String], ellipsis_token: &str
                 Ok(Pattern::Variable(name.clone()))
             }
         }
-        
+
         // Literals match exactly
         Expr::Literal(lit) => Ok(Pattern::Literal(lit.clone())),
-        
+
         // Keywords match exactly
         Expr::Keyword(kw) => Ok(Pattern::Keyword(kw.clone())),
-        
+
         // Lists can be patterns with ellipsis
         Expr::List(elements) => parse_list_pattern(elements, literals, ellipsis_token),
-        
+
         // Applications are treated as lists
         Expr::Application { operator, operands } => {
             let mut all_elements = vec![(**operator).clone()];
             all_elements.extend(operands.iter().cloned());
             parse_list_pattern(&all_elements, literals, ellipsis_token)
         }
-        
+
         // Pairs (dotted lists)
         Expr::Pair { car, cdr } => {
             let car_pattern = parse_pattern(car, literals, ellipsis_token)?;
@@ -283,7 +296,7 @@ fn parse_pattern(expr: &Spanned<Expr>, literals: &[String], ellipsis_token: &str
                 cdr: Box::new(cdr_pattern),
             })
         }
-        
+
         _ => Err(Box::new(Error::macro_error(
             format!("Unsupported pattern type: {:?}", expr.inner),
             expr.span,
@@ -300,11 +313,11 @@ fn parse_list_pattern(
     if elements.is_empty() {
         return Ok(Pattern::Nil);
     }
-    
+
     // Look for ellipsis (custom or default "...")
     let mut patterns = Vec::new();
     let mut i = 0;
-    
+
     while i < elements.len() {
         // Check if next element is ellipsis
         if i + 1 < elements.len() {
@@ -312,13 +325,13 @@ fn parse_list_pattern(
                 if name == ellipsis_token {
                     // Found ellipsis - create ellipsis pattern
                     let ellipsis_pattern = parse_pattern(&elements[i], literals, ellipsis_token)?;
-                    
+
                     // Collect remaining patterns after ellipsis (tail patterns - SRFI-46 support)
                     let mut rest_patterns = Vec::new();
                     for rest_elem in &elements[i + 2..] {
                         rest_patterns.push(parse_pattern(rest_elem, literals, ellipsis_token)?);
                     }
-                    
+
                     let rest = if rest_patterns.is_empty() {
                         None
                     } else if rest_patterns.len() == 1 {
@@ -326,7 +339,7 @@ fn parse_list_pattern(
                     } else {
                         Some(Box::new(Pattern::List(rest_patterns)))
                     };
-                    
+
                     return Ok(Pattern::Ellipsis {
                         patterns,
                         ellipsis_pattern: Box::new(ellipsis_pattern),
@@ -335,12 +348,12 @@ fn parse_list_pattern(
                 }
             }
         }
-        
+
         // Regular pattern
         patterns.push(parse_pattern(&elements[i], literals, ellipsis_token)?);
         i += 1;
     }
-    
+
     Ok(Pattern::List(patterns))
 }
 
@@ -349,23 +362,23 @@ fn parse_template(expr: &Spanned<Expr>, ellipsis_token: &str) -> Result<Template
     match &expr.inner {
         // Identifiers become variable references or literals
         Expr::Identifier(name) => Ok(Template::Variable(name.clone())),
-        
+
         // Literals are copied literally
         Expr::Literal(lit) => Ok(Template::Literal(lit.clone())),
-        
+
         // Keywords are copied literally
         Expr::Keyword(kw) => Ok(Template::Keyword(kw.clone())),
-        
+
         // Lists can contain ellipsis expansion
         Expr::List(elements) => parse_list_template(elements, ellipsis_token),
-        
+
         // Applications are treated as lists
         Expr::Application { operator, operands } => {
             let mut all_elements = vec![(**operator).clone()];
             all_elements.extend(operands.iter().cloned());
             parse_list_template(&all_elements, ellipsis_token)
         }
-        
+
         // Pairs (dotted lists)
         Expr::Pair { car, cdr } => {
             let car_template = parse_template(car, ellipsis_token)?;
@@ -375,7 +388,7 @@ fn parse_template(expr: &Spanned<Expr>, ellipsis_token: &str) -> Result<Template
                 cdr: Box::new(cdr_template),
             })
         }
-        
+
         _ => Err(Box::new(Error::macro_error(
             format!("Unsupported template type: {:?}", expr.inner),
             expr.span,
@@ -388,11 +401,11 @@ fn parse_list_template(elements: &[Spanned<Expr>], ellipsis_token: &str) -> Resu
     if elements.is_empty() {
         return Ok(Template::Nil);
     }
-    
+
     // Look for ellipsis (custom or default "...")
     let mut templates = Vec::new();
     let mut i = 0;
-    
+
     while i < elements.len() {
         // Check for ellipsis patterns - SRFI-149: detect multiple consecutive ellipses
         if i + 1 < elements.len() {
@@ -400,11 +413,11 @@ fn parse_list_template(elements: &[Spanned<Expr>], ellipsis_token: &str) -> Resu
                 if name == ellipsis_token {
                     // Found ellipsis - check for SRFI-149 multiple consecutive ellipses
                     let ellipsis_template = parse_template(&elements[i], ellipsis_token)?;
-                    
+
                     // Count consecutive ellipses for SRFI-149 nested ellipsis detection
                     let mut depth = 1;
                     let mut next_pos = i + 2;
-                    
+
                     while next_pos < elements.len() {
                         if let Expr::Identifier(next_name) = &elements[next_pos].inner {
                             if next_name == ellipsis_token {
@@ -417,13 +430,13 @@ fn parse_list_template(elements: &[Spanned<Expr>], ellipsis_token: &str) -> Resu
                             break;
                         }
                     }
-                    
+
                     // Collect remaining templates after all ellipses (tail template support)
                     let mut rest_templates = Vec::new();
                     for rest_elem in &elements[next_pos..] {
                         rest_templates.push(parse_template(rest_elem, ellipsis_token)?);
                     }
-                    
+
                     let rest = if rest_templates.is_empty() {
                         None
                     } else if rest_templates.len() == 1 {
@@ -431,7 +444,7 @@ fn parse_list_template(elements: &[Spanned<Expr>], ellipsis_token: &str) -> Resu
                     } else {
                         Some(Template::List(rest_templates))
                     };
-                    
+
                     // SRFI-149: Create appropriate template type based on depth
                     return if depth == 1 {
                         // Standard ellipsis
@@ -452,28 +465,26 @@ fn parse_list_template(elements: &[Spanned<Expr>], ellipsis_token: &str) -> Resu
                 }
             }
         }
-        
+
         // Regular template
         templates.push(parse_template(&elements[i], ellipsis_token)?);
         i += 1;
     }
-    
+
     Ok(Template::List(templates))
 }
 
 /// Converts a syntax-rules transformer to a macro transformer.
-/// 
+///
 /// Since MacroTransformer supports only single pattern/template pairs,
 /// we use the first rule and rely on expand_syntax_rules for proper
 /// multi-rule handling.
-pub fn syntax_rules_to_macro_transformer(
-    syntax_rules: SyntaxRulesTransformer,
-) -> MacroTransformer {
+pub fn syntax_rules_to_macro_transformer(syntax_rules: SyntaxRulesTransformer) -> MacroTransformer {
     let primary_rule = syntax_rules.rules.first().cloned().unwrap_or(SyntaxRule {
         pattern: Pattern::Wildcard,
         template: Template::Nil,
     });
-    
+
     MacroTransformer {
         pattern: primary_rule.pattern,
         template: primary_rule.template,
@@ -496,7 +507,7 @@ pub fn expand_syntax_rules(
             return Ok(expanded);
         }
     }
-    
+
     Err(Box::new(Error::macro_error(
         "No pattern matched in syntax-rules".to_string(),
         input.span,
@@ -538,16 +549,20 @@ fn validate_pattern_inner(
             }
             Ok(())
         }
-        Pattern::Ellipsis { patterns, ellipsis_pattern, rest } => {
+        Pattern::Ellipsis {
+            patterns,
+            ellipsis_pattern,
+            rest,
+        } => {
             // Pre-patterns
             for pat in patterns {
                 validate_pattern_inner(pat, literals, bound_vars)?;
             }
-            
+
             // Ellipsis pattern (in separate scope)
             let mut ellipsis_vars = HashSet::new();
             validate_pattern_inner(ellipsis_pattern, literals, &mut ellipsis_vars)?;
-            
+
             // Check for conflicts between ellipsis and outer scope
             for var in &ellipsis_vars {
                 if bound_vars.contains(var) {
@@ -557,12 +572,12 @@ fn validate_pattern_inner(
                     )));
                 }
             }
-            
+
             // Rest pattern
             if let Some(rest_pat) = rest {
                 validate_pattern_inner(rest_pat, literals, bound_vars)?;
             }
-            
+
             Ok(())
         }
         Pattern::Pair { car, cdr } => {
@@ -575,7 +590,7 @@ fn validate_pattern_inner(
             for alt in alternatives {
                 let mut alt_vars = HashSet::new();
                 validate_pattern_inner(alt, literals, &mut alt_vars)?;
-                
+
                 if let Some(ref expected_vars) = first_vars {
                     if alt_vars != *expected_vars {
                         return Err(Box::new(Error::macro_error(
@@ -586,7 +601,7 @@ fn validate_pattern_inner(
                 } else {
                     first_vars = Some(alt_vars.clone());
                 }
-                
+
                 // Add to bound vars
                 bound_vars.extend(alt_vars);
             }
@@ -636,27 +651,35 @@ pub fn validate_template(
             }
             Ok(())
         }
-        Template::Ellipsis { templates, ellipsis_template, rest } => {
+        Template::Ellipsis {
+            templates,
+            ellipsis_template,
+            rest,
+        } => {
             // Pre-templates
             for tmpl in templates {
                 validate_template(tmpl, pattern_vars, ellipsis_vars)?;
             }
-            
+
             // Ellipsis template must only use ellipsis variables
             validate_template(ellipsis_template, &HashSet::new(), ellipsis_vars)?;
-            
+
             // Rest template
             if let Some(rest_tmpl) = rest {
                 validate_template(rest_tmpl, pattern_vars, ellipsis_vars)?;
             }
-            
+
             Ok(())
         }
         Template::Pair { car, cdr } => {
             validate_template(car, pattern_vars, ellipsis_vars)?;
             validate_template(cdr, pattern_vars, ellipsis_vars)
         }
-        Template::Conditional { condition, then_branch, else_branch } => {
+        Template::Conditional {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
             validate_template(condition, pattern_vars, ellipsis_vars)?;
             validate_template(then_branch, pattern_vars, ellipsis_vars)?;
             if let Some(else_tmpl) = else_branch {
@@ -680,22 +703,35 @@ pub fn validate_template(
     }
 }
 
+impl SyntaxRulesTransformer {
+    /// Creates a new syntax-rules transformer with specified SRFI-149 mode.
+    pub fn with_srfi_149_mode(mut self, enable_srfi_149: bool) -> Self {
+        self.srfi_149_mode = enable_srfi_149;
+        self
+    }
+
+    /// Checks if SRFI-149 advanced template features are enabled.
+    pub fn is_srfi_149_enabled(&self) -> bool {
+        self.srfi_149_mode
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::diagnostics::Span;
-    
+
     fn make_spanned<T>(value: T) -> Spanned<T> {
         Spanned::new(value, Span::new(0, 1))
     }
-    
+
     #[test]
     fn test_parse_literals_list() {
         // Empty list
         let expr = make_spanned(Expr::List(vec![]));
         let literals = parse_literals_list(&expr).unwrap();
         assert!(literals.is_empty());
-        
+
         // List with identifiers
         let expr = make_spanned(Expr::List(vec![
             make_spanned(Expr::Identifier("else".to_string())),
@@ -704,31 +740,31 @@ mod tests {
         let literals = parse_literals_list(&expr).unwrap();
         assert_eq!(literals, vec!["else", "=>"]);
     }
-    
+
     #[test]
     fn test_parse_simple_pattern() {
         let literals = vec!["else".to_string()];
-        
+
         // Variable pattern
         let expr = make_spanned(Expr::Identifier("x".to_string()));
         let pattern = parse_pattern(&expr, &literals, "...").unwrap();
         assert!(matches!(pattern, Pattern::Variable(_)));
-        
+
         // Literal pattern
         let expr = make_spanned(Expr::Identifier("else".to_string()));
         let pattern = parse_pattern(&expr, &literals, "...").unwrap();
         assert!(matches!(pattern, Pattern::Identifier(_)));
-        
+
         // Literal value
         let expr = make_spanned(Expr::Literal(crate::ast::Literal::Number(42.0)));
         let pattern = parse_pattern(&expr, &literals, "...").unwrap();
         assert!(matches!(pattern, Pattern::Literal(_)));
     }
-    
+
     #[test]
     fn test_parse_list_pattern() {
         let literals = vec![];
-        
+
         // Simple list pattern
         let elements = vec![
             make_spanned(Expr::Identifier("if".to_string())),
@@ -736,7 +772,7 @@ mod tests {
             make_spanned(Expr::Identifier("then".to_string())),
         ];
         let pattern = parse_list_pattern(&elements, &literals, "...").unwrap();
-        
+
         match pattern {
             Pattern::List(patterns) => {
                 assert_eq!(patterns.len(), 3);
@@ -745,11 +781,11 @@ mod tests {
             _ => panic!("Expected list pattern"),
         }
     }
-    
+
     #[test]
     fn test_parse_ellipsis_pattern() {
         let literals = vec![];
-        
+
         // Pattern with ellipsis: (x y ...)
         let elements = vec![
             make_spanned(Expr::Identifier("x".to_string())),
@@ -757,9 +793,13 @@ mod tests {
             make_spanned(Expr::Identifier("...".to_string())),
         ];
         let pattern = parse_list_pattern(&elements, &literals, "...").unwrap();
-        
+
         match pattern {
-            Pattern::Ellipsis { patterns, ellipsis_pattern, rest } => {
+            Pattern::Ellipsis {
+                patterns,
+                ellipsis_pattern,
+                rest,
+            } => {
                 assert_eq!(patterns.len(), 1);
                 if let Pattern::Variable(_) = ellipsis_pattern.as_ref() {
                     // Expected pattern type
@@ -771,54 +811,38 @@ mod tests {
             _ => panic!("Expected ellipsis pattern"),
         }
     }
-    
+
     #[test]
     fn test_validate_pattern() {
         let literals = vec!["else".to_string()];
-        
+
         // Valid pattern
         let pattern = Pattern::List(vec![
             Pattern::Variable("x".to_string()),
             Pattern::Identifier("else".to_string()),
         ]);
         assert!(validate_pattern(&pattern, &literals).is_ok());
-        
+
         // Invalid pattern (variable conflicts with literal)
         let pattern = Pattern::Variable("else".to_string());
         assert!(validate_pattern(&pattern, &literals).is_err());
     }
-    
+
     #[test]
     fn test_validate_template() {
         let mut pattern_vars = HashSet::new();
         pattern_vars.insert("x".to_string());
         let ellipsis_vars = HashSet::new();
-        
+
         // Valid template
         let template = Template::List(vec![
             Template::Identifier("if".to_string()),
             Template::Variable("x".to_string()),
         ]);
         assert!(validate_template(&template, &pattern_vars, &ellipsis_vars).is_ok());
-        
+
         // Invalid template (unbound variable)
         let template = Template::Variable("y".to_string());
         assert!(validate_template(&template, &pattern_vars, &ellipsis_vars).is_err());
-    }
-}
-
-impl SyntaxRulesTransformer {
-    /// Creates a new syntax-rules transformer with specified SRFI-149 mode.
-    pub fn with_srfi_149_mode(
-        mut self,
-        enable_srfi_149: bool,
-    ) -> Self {
-        self.srfi_149_mode = enable_srfi_149;
-        self
-    }
-
-    /// Checks if SRFI-149 advanced template features are enabled.
-    pub fn is_srfi_149_enabled(&self) -> bool {
-        self.srfi_149_mode
     }
 }

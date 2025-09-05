@@ -2,17 +2,20 @@
 //!
 //! This module implements the core collection algorithms including:
 //! - Stop-the-world copying collector for young generation
-//! - Concurrent mark-and-sweep for old generation  
+//! - Concurrent mark-and-sweep for old generation
 //! - Incremental collection with write barriers
 //! - Object promotion logic between generations
 
 use crate::eval::value::Value;
-use crate::runtime::gc::generation::{ObjectHeader, GenerationId, CollectionResult};
-use crate::runtime::gc::parallel_gc::{SafepointCoordinator, GcStatistics};
+use crate::runtime::gc::generation::{CollectionResult, GenerationId, ObjectHeader};
+use crate::runtime::gc::parallel_gc::{GcStatistics, SafepointCoordinator};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::{Arc, RwLock, Mutex, atomic::{AtomicBool, AtomicUsize, Ordering}};
-use std::time::{Duration, Instant};
+use std::sync::{
+    Arc, Mutex, RwLock,
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+};
 use std::thread;
+use std::time::{Duration, Instant};
 
 /// Thread-safe wrapper for ObjectHeader pointers
 /// SAFETY: These pointers are managed by the garbage collector and are only
@@ -25,7 +28,7 @@ impl GcPtr {
     pub fn new(ptr: *mut ObjectHeader) -> Self {
         GcPtr(ptr)
     }
-    
+
     /// Extract the raw pointer from GcPtr
     pub fn as_ptr(self) -> *mut ObjectHeader {
         self.0
@@ -58,28 +61,51 @@ impl RootSet {
 
     /// Add a global root
     pub fn add_global_root(&self, obj: *mut ObjectHeader) -> Result<(), String> {
-        let mut roots = self.global_roots.write().map_err(|_| "Failed to write global roots")?;
+        let mut roots = self
+            .global_roots
+            .write()
+            .map_err(|_| "Failed to write global roots")?;
         roots.insert(GcPtr::new(obj));
         Ok(())
     }
 
     /// Remove a global root
     pub fn remove_global_root(&self, obj: *mut ObjectHeader) -> Result<(), String> {
-        let mut roots = self.global_roots.write().map_err(|_| "Failed to write global roots")?;
+        let mut roots = self
+            .global_roots
+            .write()
+            .map_err(|_| "Failed to write global roots")?;
         roots.remove(&GcPtr::new(obj));
         Ok(())
     }
 
     /// Add a thread-local root
-    pub fn add_thread_root(&self, thread_id: thread::ThreadId, obj: *mut ObjectHeader) -> Result<(), String> {
-        let mut roots = self.thread_roots.write().map_err(|_| "Failed to write thread roots")?;
-        roots.entry(thread_id).or_insert_with(HashSet::new).insert(GcPtr::new(obj));
+    pub fn add_thread_root(
+        &self,
+        thread_id: thread::ThreadId,
+        obj: *mut ObjectHeader,
+    ) -> Result<(), String> {
+        let mut roots = self
+            .thread_roots
+            .write()
+            .map_err(|_| "Failed to write thread roots")?;
+        roots
+            .entry(thread_id)
+            .or_insert_with(HashSet::new)
+            .insert(GcPtr::new(obj));
         Ok(())
     }
 
     /// Remove a thread-local root
-    pub fn remove_thread_root(&self, thread_id: thread::ThreadId, obj: *mut ObjectHeader) -> Result<(), String> {
-        let mut roots = self.thread_roots.write().map_err(|_| "Failed to write thread roots")?;
+    pub fn remove_thread_root(
+        &self,
+        thread_id: thread::ThreadId,
+        obj: *mut ObjectHeader,
+    ) -> Result<(), String> {
+        let mut roots = self
+            .thread_roots
+            .write()
+            .map_err(|_| "Failed to write thread roots")?;
         if let Some(thread_roots) = roots.get_mut(&thread_id) {
             thread_roots.remove(&GcPtr::new(obj));
             if thread_roots.is_empty() {
@@ -91,7 +117,10 @@ impl RootSet {
 
     /// Add to remembered set (for inter-generational pointers)
     pub fn add_to_remembered_set(&self, obj: *mut ObjectHeader) -> Result<(), String> {
-        let mut remembered = self.remembered_set.write().map_err(|_| "Failed to write remembered set")?;
+        let mut remembered = self
+            .remembered_set
+            .write()
+            .map_err(|_| "Failed to write remembered set")?;
         remembered.insert(GcPtr::new(obj));
         Ok(())
     }
@@ -101,17 +130,26 @@ impl RootSet {
         let mut all_roots = Vec::new();
 
         // Global roots
-        let global_roots = self.global_roots.read().map_err(|_| "Failed to read global roots")?;
+        let global_roots = self
+            .global_roots
+            .try_read()
+            .map_err(|_| "Failed to read global roots")?;
         all_roots.extend(global_roots.iter().map(|ptr| ptr.as_ptr()));
 
         // Thread-local roots
-        let thread_roots = self.thread_roots.read().map_err(|_| "Failed to read thread roots")?;
+        let thread_roots = self
+            .thread_roots
+            .try_read()
+            .map_err(|_| "Failed to read thread roots")?;
         for thread_roots in thread_roots.values() {
             all_roots.extend(thread_roots.iter().map(|ptr| ptr.as_ptr()));
         }
 
         // Remembered set
-        let remembered = self.remembered_set.read().map_err(|_| "Failed to read remembered set")?;
+        let remembered = self
+            .remembered_set
+            .try_read()
+            .map_err(|_| "Failed to read remembered set")?;
         all_roots.extend(remembered.iter().map(|ptr| ptr.as_ptr()));
 
         Ok(all_roots)
@@ -119,7 +157,10 @@ impl RootSet {
 
     /// Clear remembered set (typically after collection)
     pub fn clear_remembered_set(&self) -> Result<(), String> {
-        let mut remembered = self.remembered_set.write().map_err(|_| "Failed to write remembered set")?;
+        let mut remembered = self
+            .remembered_set
+            .write()
+            .map_err(|_| "Failed to write remembered set")?;
         remembered.clear();
         Ok(())
     }
@@ -159,14 +200,20 @@ impl WriteBarrier {
         }
 
         let card = (address as usize) / self.card_size;
-        let mut dirty_cards = self.dirty_cards.write().map_err(|_| "Failed to write dirty cards")?;
+        let mut dirty_cards = self
+            .dirty_cards
+            .write()
+            .map_err(|_| "Failed to write dirty cards")?;
         dirty_cards.insert(card);
         Ok(())
     }
 
     /// Get and clear dirty cards
     pub fn get_and_clear_dirty_cards(&self) -> Result<Vec<usize>, String> {
-        let mut dirty_cards = self.dirty_cards.write().map_err(|_| "Failed to write dirty cards")?;
+        let mut dirty_cards = self
+            .dirty_cards
+            .write()
+            .map_err(|_| "Failed to write dirty cards")?;
         let cards: Vec<usize> = dirty_cards.iter().cloned().collect();
         dirty_cards.clear();
         Ok(cards)
@@ -207,20 +254,29 @@ impl ObjectMarker {
     /// Start marking from roots
     pub fn mark_from_roots(&self, roots: Vec<*mut ObjectHeader>) -> Result<(), String> {
         self.marking_complete.store(false, Ordering::Relaxed);
-        
+
         // Clear previous marking state
         {
-            let mut marked = self.marked_objects.write().map_err(|_| "Failed to write marked objects")?;
+            let mut marked = self
+                .marked_objects
+                .write()
+                .map_err(|_| "Failed to write marked objects")?;
             marked.clear();
         }
         {
-            let mut queue = self.mark_queue.lock().map_err(|_| "Failed to lock mark queue")?;
+            let mut queue = self
+                .mark_queue
+                .lock()
+                .map_err(|_| "Failed to lock mark queue")?;
             queue.clear();
         }
 
         // Add roots to work queue
         {
-            let mut queue = self.mark_queue.lock().map_err(|_| "Failed to lock mark queue")?;
+            let mut queue = self
+                .mark_queue
+                .lock()
+                .map_err(|_| "Failed to lock mark queue")?;
             for root in roots {
                 if !root.is_null() {
                     queue.push_back(GcPtr::new(root));
@@ -238,7 +294,10 @@ impl ObjectMarker {
     fn process_marking(&self) -> Result<(), String> {
         loop {
             let obj = {
-                let mut queue = self.mark_queue.lock().map_err(|_| "Failed to lock mark queue")?;
+                let mut queue = self
+                    .mark_queue
+                    .lock()
+                    .map_err(|_| "Failed to lock mark queue")?;
                 queue.pop_front()
             };
 
@@ -258,16 +317,19 @@ impl ObjectMarker {
 
     /// Mark a single object as live
     fn mark_object(&self, obj: *mut ObjectHeader) -> Result<bool, String> {
-        let mut marked = self.marked_objects.write().map_err(|_| "Failed to write marked objects")?;
+        let mut marked = self
+            .marked_objects
+            .write()
+            .map_err(|_| "Failed to write marked objects")?;
         let was_new = marked.insert(GcPtr::new(obj));
-        
+
         // Also set the mark bit in the object header
         unsafe {
             if !obj.is_null() {
                 (*obj).mark();
             }
         }
-        
+
         Ok(was_new)
     }
 
@@ -276,28 +338,31 @@ impl ObjectMarker {
         // In a real implementation, this would scan the object's references
         // based on its type and add them to the mark queue.
         // For now, we'll simulate with a simplified approach.
-        
+
         unsafe {
             if obj.is_null() {
                 return Ok(());
             }
 
             let header = &*obj;
-            
+
             // Based on the value type, scan for references
             match header.value.as_ref() {
                 Value::Pair(car, cdr) => {
                     // For pairs, we would need to mark both car and cdr
                     // This is simplified - in reality we'd need proper object scanning
-                    let mut queue = self.mark_queue.lock().map_err(|_| "Failed to lock mark queue")?;
-                    
-                    // Note: This is a simplified example - in a real GC, 
+                    let mut queue = self
+                        .mark_queue
+                        .lock()
+                        .map_err(|_| "Failed to lock mark queue")?;
+
+                    // Note: This is a simplified example - in a real GC,
                     // we'd need proper pointer discovery mechanisms
                     drop(queue);
                 }
                 Value::Vector(vec) => {
                     // For vectors, mark all contained values
-                    let _vec_guard = vec.read().map_err(|_| "Failed to read vector")?;
+                    let _vec_guard = vec.try_borrow().map_err(|_| "Failed to read vector")?;
                     // Similar scanning logic would go here
                 }
                 _ => {
@@ -311,7 +376,7 @@ impl ObjectMarker {
 
     /// Check if an object is marked
     pub fn is_marked(&self, obj: *mut ObjectHeader) -> bool {
-        if let Ok(marked) = self.marked_objects.read() {
+        if let Ok(marked) = self.marked_objects.try_read() {
             marked.contains(&GcPtr::new(obj))
         } else {
             false
@@ -320,18 +385,27 @@ impl ObjectMarker {
 
     /// Get all marked objects
     pub fn get_marked_objects(&self) -> Result<Vec<*mut ObjectHeader>, String> {
-        let marked = self.marked_objects.read().map_err(|_| "Failed to read marked objects")?;
+        let marked = self
+            .marked_objects
+            .try_read()
+            .map_err(|_| "Failed to read marked objects")?;
         Ok(marked.iter().map(|ptr| ptr.as_ptr()).collect())
     }
 
     /// Reset marker state
     pub fn reset(&self) -> Result<(), String> {
         {
-            let mut marked = self.marked_objects.write().map_err(|_| "Failed to write marked objects")?;
+            let mut marked = self
+                .marked_objects
+                .write()
+                .map_err(|_| "Failed to write marked objects")?;
             marked.clear();
         }
         {
-            let mut queue = self.mark_queue.lock().map_err(|_| "Failed to lock mark queue")?;
+            let mut queue = self
+                .mark_queue
+                .lock()
+                .map_err(|_| "Failed to lock mark queue")?;
             queue.clear();
         }
         self.marking_complete.store(false, Ordering::Relaxed);
@@ -378,18 +452,18 @@ impl CopyingCollector {
     /// Perform a stop-the-world copying collection
     pub fn collect(&self) -> Result<CollectionResult, String> {
         let start_time = Instant::now();
-        
+
         // Request safepoint - stop all mutator threads
         self.safepoint.request_safepoint()?;
-        
+
         let result = self.perform_copying_collection();
-        
+
         // Release safepoint - allow threads to continue
         self.safepoint.release_safepoint();
-        
+
         let collection_time = start_time.elapsed();
         self.statistics.record_minor_collection(collection_time);
-        
+
         match result {
             Ok(mut result) => {
                 result.collection_time = collection_time;
@@ -403,19 +477,19 @@ impl CopyingCollector {
     fn perform_copying_collection(&self) -> Result<CollectionResult, String> {
         // Get all roots
         let roots = self.root_set.get_all_roots()?;
-        
+
         // In a real copying collector, we would:
         // 1. Scan from roots to identify live objects
         // 2. Copy live objects to to-space
         // 3. Update all pointers to point to new locations
         // 4. Promote objects that are old enough to old generation
         // 5. Flip from-space and to-space
-        
+
         // For now, simulate the collection
         let objects_collected = 100; // Simulated
-        let bytes_reclaimed = 8192;  // Simulated
-        let objects_promoted = 10;   // Simulated
-        let bytes_promoted = 1024;   // Simulated
+        let bytes_reclaimed = 8192; // Simulated
+        let objects_promoted = 10; // Simulated
+        let bytes_promoted = 1024; // Simulated
 
         Ok(CollectionResult {
             objects_collected,
@@ -434,7 +508,7 @@ impl CopyingCollector {
         // 2. Copy object data
         // 3. Set forwarding pointer in original object
         // 4. Return new location
-        
+
         // For now, just return the original pointer (no-op)
         Ok(_obj)
     }
@@ -444,7 +518,7 @@ impl CopyingCollector {
         // In a real implementation, this would:
         // 1. Check if the object has been moved (has forwarding pointer)
         // 2. Update the pointer to the new location
-        
+
         // For now, no-op
         Ok(())
     }
@@ -467,13 +541,10 @@ pub struct MarkSweepCollector {
 
 impl MarkSweepCollector {
     /// Create a new mark-and-sweep collector
-    pub fn new(
-        root_set: Arc<RootSet>,
-        statistics: Arc<GcStatistics>,
-    ) -> Self {
+    pub fn new(root_set: Arc<RootSet>, statistics: Arc<GcStatistics>) -> Self {
         let marker = Arc::new(ObjectMarker::new());
         let write_barrier = Arc::new(WriteBarrier::new(4096)); // 4KB cards
-        
+
         MarkSweepCollector {
             root_set,
             marker,
@@ -486,12 +557,13 @@ impl MarkSweepCollector {
     /// Perform a mark-and-sweep collection
     pub fn collect(&self, concurrent: bool) -> Result<CollectionResult, String> {
         let start_time = Instant::now();
-        
+
         if concurrent && self.concurrent_enabled.load(Ordering::Relaxed) {
             self.collect_concurrent()
         } else {
             self.collect_stop_the_world()
-        }.map(|mut result| {
+        }
+        .map(|mut result| {
             let collection_time = start_time.elapsed();
             self.statistics.record_major_collection(collection_time);
             result.collection_time = collection_time;
@@ -504,26 +576,26 @@ impl MarkSweepCollector {
         // Phase 1: Initial mark (stop-the-world)
         // This phase marks objects directly reachable from roots
         let roots = self.root_set.get_all_roots()?;
-        
+
         // Enable write barrier for concurrent phase
         self.write_barrier.set_active(true);
-        
+
         // Phase 2: Concurrent mark
         // Mark all reachable objects while mutators are running
         self.marker.mark_from_roots(roots)?;
-        
+
         // Phase 3: Final mark (stop-the-world)
         // Process objects modified during concurrent phase
         let dirty_cards = self.write_barrier.get_and_clear_dirty_cards()?;
         self.process_dirty_cards(dirty_cards)?;
-        
+
         // Phase 4: Concurrent sweep
         // Deallocate unmarked objects
         let sweep_result = self.sweep_unmarked_objects()?;
-        
+
         // Disable write barrier
         self.write_barrier.set_active(false);
-        
+
         Ok(sweep_result)
     }
 
@@ -532,7 +604,7 @@ impl MarkSweepCollector {
         // Get all roots and mark from them
         let roots = self.root_set.get_all_roots()?;
         self.marker.mark_from_roots(roots)?;
-        
+
         // Sweep unmarked objects
         self.sweep_unmarked_objects()
     }
@@ -543,7 +615,7 @@ impl MarkSweepCollector {
         // 1. For each dirty card, scan objects in that memory region
         // 2. Mark any newly discovered objects
         // 3. Process transitively until no new objects are found
-        
+
         // For now, no-op
         Ok(())
     }
@@ -555,10 +627,10 @@ impl MarkSweepCollector {
         // 2. Deallocate objects that are not marked
         // 3. Reset mark bits on live objects
         // 4. Update free space tracking
-        
+
         // For now, simulate sweep
-        let objects_collected = 50;   // Simulated
-        let bytes_reclaimed = 16384;  // Simulated
+        let objects_collected = 50; // Simulated
+        let bytes_reclaimed = 16384; // Simulated
 
         Ok(CollectionResult {
             objects_collected,
@@ -635,7 +707,10 @@ impl IncrementalCollector {
         let budget = Duration::from_micros(self.step_budget_us as u64);
 
         let current_state = {
-            let state = self.state.read().map_err(|_| "Failed to read incremental state")?;
+            let state = self
+                .state
+                .try_read()
+                .map_err(|_| "Failed to read incremental state")?;
             state.clone()
         };
 
@@ -648,39 +723,58 @@ impl IncrementalCollector {
             IncrementalState::Marking { progress } => {
                 // Continue marking phase
                 let new_progress = self.perform_marking_step(progress, budget)?;
-                
+
                 if new_progress >= 1.0 {
                     // Marking complete, move to sweeping
-                    let mut state = self.state.write().map_err(|_| "Failed to write incremental state")?;
+                    let mut state = self
+                        .state
+                        .write()
+                        .map_err(|_| "Failed to write incremental state")?;
                     *state = IncrementalState::Sweeping { progress: 0.0 };
                     Ok(false)
                 } else {
                     // Update progress
-                    let mut state = self.state.write().map_err(|_| "Failed to write incremental state")?;
-                    *state = IncrementalState::Marking { progress: new_progress };
+                    let mut state = self
+                        .state
+                        .write()
+                        .map_err(|_| "Failed to write incremental state")?;
+                    *state = IncrementalState::Marking {
+                        progress: new_progress,
+                    };
                     Ok(false)
                 }
             }
             IncrementalState::Sweeping { progress } => {
                 // Continue sweeping phase
                 let new_progress = self.perform_sweeping_step(progress, budget)?;
-                
+
                 if new_progress >= 1.0 {
                     // Sweeping complete, finalize
-                    let mut state = self.state.write().map_err(|_| "Failed to write incremental state")?;
+                    let mut state = self
+                        .state
+                        .write()
+                        .map_err(|_| "Failed to write incremental state")?;
                     *state = IncrementalState::Finalizing;
                     Ok(false)
                 } else {
                     // Update progress
-                    let mut state = self.state.write().map_err(|_| "Failed to write incremental state")?;
-                    *state = IncrementalState::Sweeping { progress: new_progress };
+                    let mut state = self
+                        .state
+                        .write()
+                        .map_err(|_| "Failed to write incremental state")?;
+                    *state = IncrementalState::Sweeping {
+                        progress: new_progress,
+                    };
                     Ok(false)
                 }
             }
             IncrementalState::Finalizing => {
                 // Finalize collection
                 self.finalize_incremental_collection()?;
-                let mut state = self.state.write().map_err(|_| "Failed to write incremental state")?;
+                let mut state = self
+                    .state
+                    .write()
+                    .map_err(|_| "Failed to write incremental state")?;
                 *state = IncrementalState::Idle;
                 Ok(true) // Collection complete
             }
@@ -689,30 +783,41 @@ impl IncrementalCollector {
 
     /// Start a new incremental collection
     fn start_incremental_collection(&self) -> Result<(), String> {
-        let mut state = self.state.write().map_err(|_| "Failed to write incremental state")?;
+        let mut state = self
+            .state
+            .write()
+            .map_err(|_| "Failed to write incremental state")?;
         *state = IncrementalState::Marking { progress: 0.0 };
         Ok(())
     }
 
     /// Perform one step of the marking phase
-    fn perform_marking_step(&self, current_progress: f64, _budget: Duration) -> Result<f64, String> {
+    fn perform_marking_step(
+        &self,
+        current_progress: f64,
+        _budget: Duration,
+    ) -> Result<f64, String> {
         // In a real implementation, this would:
         // 1. Mark objects for a limited time budget
         // 2. Track progress through the object graph
         // 3. Return updated progress percentage
-        
+
         // For now, simulate progress
         let progress_increment = 0.1; // 10% per step
         Ok((current_progress + progress_increment).min(1.0))
     }
 
     /// Perform one step of the sweeping phase
-    fn perform_sweeping_step(&self, current_progress: f64, _budget: Duration) -> Result<f64, String> {
+    fn perform_sweeping_step(
+        &self,
+        current_progress: f64,
+        _budget: Duration,
+    ) -> Result<f64, String> {
         // In a real implementation, this would:
         // 1. Sweep unmarked objects for a limited time budget
         // 2. Track progress through memory regions
         // 3. Return updated progress percentage
-        
+
         // For now, simulate progress
         let progress_increment = 0.2; // 20% per step
         Ok((current_progress + progress_increment).min(1.0))
@@ -724,14 +829,14 @@ impl IncrementalCollector {
         // 1. Reset object mark bits
         // 2. Update heap statistics
         // 3. Clear collection state
-        
+
         // For now, no-op
         Ok(())
     }
 
     /// Check if incremental collection is in progress
     pub fn is_collection_in_progress(&self) -> bool {
-        if let Ok(state) = self.state.read() {
+        if let Ok(state) = self.state.try_read() {
             !matches!(*state, IncrementalState::Idle)
         } else {
             false
@@ -740,7 +845,7 @@ impl IncrementalCollector {
 
     /// Get current collection progress (0.0 to 1.0)
     pub fn get_collection_progress(&self) -> f64 {
-        if let Ok(state) = self.state.read() {
+        if let Ok(state) = self.state.try_read() {
             match *state {
                 IncrementalState::Idle => 0.0,
                 IncrementalState::Marking { progress } => progress * 0.5, // Marking is first half

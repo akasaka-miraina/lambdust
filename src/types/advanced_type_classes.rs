@@ -10,8 +10,8 @@
 
 #![allow(missing_docs)]
 
-use super::{Type, TypeVar, Kind, Constraint};
-use super::type_classes::{TypeClass, TypeClassInstance, TypeClassEnv};
+use super::type_classes::{TypeClass, TypeClassEnv, TypeClassInstance};
+use super::{Constraint, Kind, Type, TypeVar};
 use crate::diagnostics::{Error, Result, Span};
 use std::collections::HashMap;
 use std::fmt;
@@ -191,7 +191,7 @@ impl AdvancedTypeClass {
     ) -> bool {
         // Two instances overlap if there exists a substitution that makes
         // their heads unifiable
-        
+
         if inst1.type_args.len() != inst2.type_args.len() {
             return false;
         }
@@ -211,10 +211,18 @@ impl AdvancedTypeClass {
         match (_t1, _t2) {
             (Type::Variable(_), _) | (_, Type::Variable(_)) => true,
             (Type::Constructor { name: n1, .. }, Type::Constructor { name: n2, .. }) => n1 == n2,
-            (Type::Application { constructor: c1, argument: a1 }, 
-             Type::Application { constructor: c2, argument: a2 }) => {
-                Self::types_potentially_unifiable(c1, c2) && 
-                Self::types_potentially_unifiable(a1, a2)
+            (
+                Type::Application {
+                    constructor: c1,
+                    argument: a1,
+                },
+                Type::Application {
+                    constructor: c2,
+                    argument: a2,
+                },
+            ) => {
+                Self::types_potentially_unifiable(c1, c2)
+                    && Self::types_potentially_unifiable(a1, a2)
             }
             _ => _t1 == _t2,
         }
@@ -225,7 +233,7 @@ impl AdvancedTypeClass {
         for fundep in &self.fundeps {
             // Check that the functional dependency is satisfied
             // This is a complex check that requires examining all instances
-            
+
             // Simplified validation for now
             if fundep.determiners.is_empty() || fundep.determined.is_empty() {
                 return Err(Box::new(Error::type_error(
@@ -240,11 +248,7 @@ impl AdvancedTypeClass {
 
 impl AdvancedTypeClassInstance {
     /// Creates a new advanced instance.
-    pub fn new(
-        class: String,
-        type_args: Vec<Type>,
-        span: Option<Span>,
-    ) -> Self {
+    pub fn new(class: String, type_args: Vec<Type>, span: Option<Span>) -> Self {
         Self {
             base: TypeClassInstance::new(class, type_args[0].clone(), span),
             type_args,
@@ -288,26 +292,25 @@ impl TypeFamily {
     /// Gets the name of this type family.
     pub fn name(&self) -> &str {
         match self {
-            TypeFamily::Open { name, .. } |
-            TypeFamily::Closed { name, .. } |
-            TypeFamily::Associated { name, .. } => name,
+            TypeFamily::Open { name, .. }
+            | TypeFamily::Closed { name, .. }
+            | TypeFamily::Associated { name, .. } => name,
         }
     }
 
     /// Gets the kind of this type family.
     pub fn kind(&self) -> &Kind {
         match self {
-            TypeFamily::Open { kind, .. } |
-            TypeFamily::Closed { kind, .. } |
-            TypeFamily::Associated { kind, .. } => kind,
+            TypeFamily::Open { kind, .. }
+            | TypeFamily::Closed { kind, .. }
+            | TypeFamily::Associated { kind, .. } => kind,
         }
     }
 
     /// Reduces a type family application.
     pub fn reduce(&self, args: &[Type]) -> Option<Type> {
         let equations = match self {
-            TypeFamily::Open { equations, .. } |
-            TypeFamily::Closed { equations, .. } => equations,
+            TypeFamily::Open { equations, .. } | TypeFamily::Closed { equations, .. } => equations,
             TypeFamily::Associated { .. } => return None, // Need instance context
         };
 
@@ -396,7 +399,7 @@ impl AdvancedTypeClassEnv {
                 if !class.coherence.allow_overlapping {
                     self.check_no_overlapping_instances(instances)?;
                 }
-                
+
                 if !class.coherence.allow_orphans {
                     self.check_no_orphan_instances(instances)?;
                 }
@@ -424,10 +427,7 @@ impl AdvancedTypeClassEnv {
         Ok(())
     }
 
-    fn check_no_orphan_instances(
-        &self,
-        _instances: &[AdvancedTypeClassInstance],
-    ) -> Result<()> {
+    fn check_no_orphan_instances(&self, _instances: &[AdvancedTypeClassInstance]) -> Result<()> {
         // Orphan instance checking requires module system information
         // which we don't have in this simplified implementation
         Ok(())
@@ -436,68 +436,50 @@ impl AdvancedTypeClassEnv {
     /// Creates built-in advanced type classes for R7RS-large.
     pub fn create_builtin_advanced_classes(&mut self) {
         // Foldable type class
-        let foldable = AdvancedTypeClass::new(
-            "Foldable".to_string(),
-            vec![TypeVar::with_name("t")],
-        );
+        let foldable =
+            AdvancedTypeClass::new("Foldable".to_string(), vec![TypeVar::with_name("t")]);
         self.add_advanced_class(foldable);
 
         // Traversable type class
-        let traversable = AdvancedTypeClass::new(
-            "Traversable".to_string(),
-            vec![TypeVar::with_name("t")],
-        );
+        let traversable =
+            AdvancedTypeClass::new("Traversable".to_string(), vec![TypeVar::with_name("t")]);
         self.add_advanced_class(traversable);
 
         // MonadFail type class
-        let monad_fail = AdvancedTypeClass::new(
-            "MonadFail".to_string(),
-            vec![TypeVar::with_name("m")],
-        );
+        let monad_fail =
+            AdvancedTypeClass::new("MonadFail".to_string(), vec![TypeVar::with_name("m")]);
         self.add_advanced_class(monad_fail);
 
         // Alternative type class
-        let alternative = AdvancedTypeClass::new(
-            "Alternative".to_string(),
-            vec![TypeVar::with_name("f")],
-        );
+        let alternative =
+            AdvancedTypeClass::new("Alternative".to_string(), vec![TypeVar::with_name("f")]);
         self.add_advanced_class(alternative);
 
         // Category type class (for arrow types)
-        let category = AdvancedTypeClass::new(
-            "Category".to_string(),
-            vec![TypeVar::with_name("cat")],
-        );
+        let category =
+            AdvancedTypeClass::new("Category".to_string(), vec![TypeVar::with_name("cat")]);
         self.add_advanced_class(category);
 
         // Arrow type class
-        let arrow = AdvancedTypeClass::new(
-            "Arrow".to_string(),
-            vec![TypeVar::with_name("arr")],
-        );
+        let arrow = AdvancedTypeClass::new("Arrow".to_string(), vec![TypeVar::with_name("arr")]);
         self.add_advanced_class(arrow);
     }
 
     /// Creates built-in type families for R7RS-large.
     pub fn create_builtin_type_families(&mut self) {
         // Element type family
-        let elem_family = TypeFamily::open(
-            "Elem".to_string(), 
-            Kind::arrow(Kind::Type, Kind::Type)
-        );
+        let elem_family = TypeFamily::open("Elem".to_string(), Kind::arrow(Kind::Type, Kind::Type));
         self.add_type_family(elem_family);
 
         // Index type family
-        let index_family = TypeFamily::open(
-            "Index".to_string(),
-            Kind::arrow(Kind::Type, Kind::Type)
-        );
+        let index_family =
+            TypeFamily::open("Index".to_string(), Kind::arrow(Kind::Type, Kind::Type));
         self.add_type_family(index_family);
 
         // Container type family
         let container_family = TypeFamily::open(
             "Container".to_string(),
-            Kind::arrow(Kind::Type, Kind::arrow(Kind::Type, Kind::Type))
+            Kind::arrow(Kind::Type, Kind::arrow(Kind::Type, Kind::Type)),
         );
         self.add_type_family(container_family);
     }
@@ -514,8 +496,7 @@ impl FunctionalDependency {
 
     /// Checks if this functional dependency is valid.
     pub fn is_valid(&self, arity: usize) -> bool {
-        self.determiners.iter().all(|&i| i < arity) &&
-        self.determined.iter().all(|&i| i < arity)
+        self.determiners.iter().all(|&i| i < arity) && self.determined.iter().all(|&i| i < arity)
     }
 }
 
@@ -557,36 +538,40 @@ impl Default for AdvancedTypeClassEnv {
 impl fmt::Display for AdvancedTypeClass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "class")?;
-        
+
         if !self.type_params.is_empty() {
             write!(f, " (")?;
             for (i, param) in self.type_params.iter().enumerate() {
-                if i > 0 { write!(f, " ")?; }
+                if i > 0 {
+                    write!(f, " ")?;
+                }
                 write!(f, "{param}")?;
             }
             write!(f, ")")?;
         }
-        
+
         write!(f, " {}", self.base.name)?;
-        
+
         if !self.fundeps.is_empty() {
             write!(f, " |")?;
             for (i, fundep) in self.fundeps.iter().enumerate() {
-                if i > 0 { write!(f, ",")?; }
+                if i > 0 {
+                    write!(f, ",")?;
+                }
                 write!(f, " {fundep}")?;
             }
         }
-        
+
         write!(f, " where")?;
-        
+
         for (method_name, method_type) in &self.base.methods {
             write!(f, "\n  {} : {}", method_name, method_type.type_)?;
         }
-        
+
         for (assoc_name, assoc_type) in &self.associated_types {
             write!(f, "\n  type {} : {}", assoc_name, assoc_type.kind)?;
         }
-        
+
         Ok(())
     }
 }
@@ -594,7 +579,9 @@ impl fmt::Display for AdvancedTypeClass {
 impl fmt::Display for FunctionalDependency {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, &det) in self.determiners.iter().enumerate() {
-            if i > 0 { write!(f, " ")?; }
+            if i > 0 {
+                write!(f, " ")?;
+            }
             write!(f, "{det}")?;
         }
         write!(f, " ->")?;
@@ -611,7 +598,11 @@ impl fmt::Display for TypeFamily {
             TypeFamily::Open { name, kind, .. } => {
                 write!(f, "type family {name} : {kind}")
             }
-            TypeFamily::Closed { name, kind, equations } => {
+            TypeFamily::Closed {
+                name,
+                kind,
+                equations,
+            } => {
                 write!(f, "type family {name} : {kind} where")?;
                 for equation in equations {
                     write!(f, "\n  {equation}")?;
@@ -628,19 +619,23 @@ impl fmt::Display for TypeFamily {
 impl fmt::Display for TypeFamilyEquation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, lhs_type) in self.lhs.iter().enumerate() {
-            if i > 0 { write!(f, " ")?; }
+            if i > 0 {
+                write!(f, " ")?;
+            }
             write!(f, "{lhs_type}")?;
         }
         write!(f, " = {}", self.rhs)?;
-        
+
         if !self.constraints.is_empty() {
             write!(f, " where")?;
             for (i, constraint) in self.constraints.iter().enumerate() {
-                if i > 0 { write!(f, ",")?; }
+                if i > 0 {
+                    write!(f, ",")?;
+                }
                 write!(f, " {} {}", constraint.class, constraint.type_)?;
             }
         }
-        
+
         Ok(())
     }
 }
@@ -651,10 +646,8 @@ mod tests {
 
     #[test]
     fn test_advanced_type_class_creation() {
-        let mut monad_plus = AdvancedTypeClass::new(
-            "MonadPlus".to_string(),
-            vec![TypeVar::with_name("m")]
-        );
+        let mut monad_plus =
+            AdvancedTypeClass::new("MonadPlus".to_string(), vec![TypeVar::with_name("m")]);
 
         let fundep = FunctionalDependency::new(vec![0], vec![]);
         monad_plus = monad_plus.with_fundep(fundep);
@@ -668,15 +661,21 @@ mod tests {
     fn test_type_family_creation() {
         let mut equations = Vec::new();
         equations.push(TypeFamilyEquation {
-            lhs: vec![Type::Constructor { name: "Int".to_string(), kind: Kind::Type }],
-            rhs: Type::Constructor { name: "Int".to_string(), kind: Kind::Type },
+            lhs: vec![Type::Constructor {
+                name: "Int".to_string(),
+                kind: Kind::Type,
+            }],
+            rhs: Type::Constructor {
+                name: "Int".to_string(),
+                kind: Kind::Type,
+            },
             constraints: vec![],
         });
 
         let family = TypeFamily::closed(
             "Identity".to_string(),
             Kind::arrow(Kind::Type, Kind::Type),
-            equations
+            equations,
         );
 
         assert_eq!(family.name(), "Identity");

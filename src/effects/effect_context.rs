@@ -18,7 +18,7 @@ impl EffectContext {
             handlers: Vec::new(),
         }
     }
-    
+
     /// Creates an effect context with pure computation.
     pub fn pure() -> Self {
         Self {
@@ -26,7 +26,7 @@ impl EffectContext {
             handlers: Vec::new(),
         }
     }
-    
+
     /// Adds an effect to this context.
     pub fn add_effect(&mut self, effect: Effect) {
         if !self.effects.contains(&effect) {
@@ -34,32 +34,32 @@ impl EffectContext {
             self.effects.sort();
         }
     }
-    
+
     /// Adds an effect handler to this context.
     pub fn add_handler(&mut self, handler: EffectHandlerRef) {
         self.handlers.push(handler);
     }
-    
+
     /// Gets all effects in this context.
     pub fn effects(&self) -> &[Effect] {
         &self.effects
     }
-    
+
     /// Gets all handlers in this context.
     pub fn handlers(&self) -> &[EffectHandlerRef] {
         &self.handlers
     }
-    
+
     /// Returns true if this context is pure.
     pub fn is_pure(&self) -> bool {
         self.effects.len() == 1 && self.effects[0] == Effect::Pure
     }
-    
+
     /// Returns true if this context has the given effect.
     pub fn has_effect(&self, effect: &Effect) -> bool {
         self.effects.contains(effect)
     }
-    
+
     /// Creates a new context with additional effects.
     pub fn with_effects(&self, effects: Vec<Effect>) -> Self {
         let mut new_context = self.clone();
@@ -68,7 +68,7 @@ impl EffectContext {
         }
         new_context
     }
-    
+
     /// Creates a new context without the specified effects.
     pub fn without_effects(&self, effects: Vec<Effect>) -> Self {
         let mut new_effects = self.effects.clone();
@@ -80,7 +80,7 @@ impl EffectContext {
             handlers: self.handlers.clone(),
         }
     }
-    
+
     /// Combines this context with another.
     pub fn combine(&self, other: &EffectContext) -> EffectContext {
         let mut combined = self.clone();
@@ -92,10 +92,12 @@ impl EffectContext {
         }
         combined
     }
-    
+
     /// Finds a handler for the given effect.
     pub fn find_handler(&self, effect: &Effect) -> Option<&EffectHandlerRef> {
-        self.handlers.iter().find(|h| h.handler().can_handle(effect))
+        self.handlers
+            .iter()
+            .find(|h| h.handler().can_handle(effect))
     }
 }
 
@@ -112,7 +114,9 @@ impl fmt::Display for EffectContext {
         } else {
             write!(f, "[")?;
             for (i, effect) in self.effects.iter().enumerate() {
-                if i > 0 { write!(f, ", ")?; }
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
                 write!(f, "{effect}")?;
             }
             write!(f, "]")

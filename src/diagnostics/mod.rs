@@ -6,30 +6,40 @@
 
 #![allow(missing_docs)]
 
+pub mod custom_error;
 pub mod error;
+pub mod error_macros;
+pub mod gc_diagnostics;
+pub mod lightweight_diagnostic;
 pub mod position;
-pub mod span;
 pub mod source_map;
+pub mod span;
 pub mod stack_trace;
 pub mod suggestions;
-pub mod gc_diagnostics;
-pub mod custom_error;
-pub mod lightweight_diagnostic;
+pub mod unified_error;
 
+pub use custom_error::{
+    ErrorLabel, EvalUnifiedError, LabelStyle, RuntimeError as CustomRuntimeError,
+    utils as error_utils,
+};
 pub use error::*;
+pub use gc_diagnostics::{
+    DiagnosticId, DiagnosticStatistics, ErrorContext, ErrorKind, GcAwareError, GcDiagnosticConfig,
+    GcDiagnosticManager, PreservedError,
+};
+pub use lightweight_diagnostic::{
+    DiagnosticLabel, DiagnosticLabelStyle, DiagnosticReporter, DiagnosticSeverity,
+    LightweightDiagnostic, report_diagnostic,
+};
 pub use position::*;
-pub use span::{Span, Spanned, spanned};
 pub use source_map::*;
+pub use span::{Span, Spanned, spanned};
 pub use stack_trace::*;
 pub use suggestions::*;
-pub use gc_diagnostics::{
-    GcDiagnosticManager, GcDiagnosticConfig, DiagnosticId, PreservedError,
-    ErrorKind, ErrorContext, GcAwareError, DiagnosticStatistics
-};
-pub use custom_error::{LambdustError, ErrorLabel, LabelStyle, RuntimeError, utils as error_utils};
-pub use lightweight_diagnostic::{
-    LightweightDiagnostic, DiagnosticLabel, DiagnosticLabelStyle, DiagnosticSeverity,
-    DiagnosticReporter, report_diagnostic
+pub use unified_error::{
+    ErrorCategory, ErrorContext as UnifiedErrorContext, ErrorSeverity, ExceptionError, FfiError,
+    InternalError, IntoErrorCategory, IoError, JitError, LexicalError, MacroError, ModuleError,
+    RuntimeError, SyntaxError, TypeError, UnifiedError, UnifiedResult,
 };
 
 /// Result type used throughout the Lambdust implementation.
@@ -39,55 +49,37 @@ pub type Result<T> = std::result::Result<T, Box<Error>>;
 #[derive(Debug, Clone)]
 pub enum Error {
     /// Lexical analysis errors
-    LexError {
-        message: String,
-        span: Span,
-    },
+    LexError { message: String, span: Span },
 
     /// Parsing errors
-    ParseError {
-        message: String,
-        span: Span,
-    },
+    ParseError { message: String, span: Span },
 
     /// Type checking errors
-    TypeError {
-        message: String,
-        span: Span,
-    },
+    TypeError { message: String, span: Span },
 
     /// Macro expansion errors
-    MacroError {
-        message: String,
-        span: Span,
-    },
+    MacroError { message: String, span: Span },
 
     /// Runtime evaluation errors
-    RuntimeError {
-        message: String,
-        span: Option<Span>,
-    },
+    RuntimeError { message: String, span: Option<Span> },
 
     /// FFI errors
-    FfiError {
-        message: String,
-    },
+    FfiError { message: String },
 
     /// IO and system errors
-    IoError {
-        message: String,
-    },
+    IoError { message: String },
 
     /// Internal compiler errors (bugs)
-    InternalError {
-        message: String,
-    },
+    InternalError { message: String },
 
     /// R7RS Exception (raised by raise/error procedures)
     Exception {
         exception: crate::stdlib::exceptions::ExceptionObject,
         span: Option<Span>,
     },
+
+    /// Threading and concurrency errors (for adaptive pointer architecture)
+    Threading { message: String },
 }
 
 impl Error {
@@ -138,6 +130,14 @@ impl Error {
         }
     }
 
+    /// Creates a new error with span information (generic constructor).
+    pub fn new_spanned(message: impl Into<String>, span: Span) -> Self {
+        Self::ParseError {
+            message: message.into(),
+            span,
+        }
+    }
+
     /// Creates a new IO error.
     pub fn io_error(message: impl Into<String>) -> Self {
         Self::IoError {
@@ -169,7 +169,10 @@ impl Error {
     }
 
     /// Creates a new exception error with span.
-    pub fn exception_with_span(exception: crate::stdlib::exceptions::ExceptionObject, span: Span) -> Self {
+    pub fn exception_with_span(
+        exception: crate::stdlib::exceptions::ExceptionObject,
+        span: Span,
+    ) -> Self {
         Self::Exception {
             exception,
             span: Some(span),
@@ -179,8 +182,17 @@ impl Error {
     /// Creates an arity error for a function called with wrong number of arguments.
     pub fn arity_error(function_name: &str, expected: usize, actual: usize) -> Self {
         Self::RuntimeError {
-            message: format!("Function '{function_name}' expects {expected} arguments, got {actual}"),
+            message: format!(
+                "Function '{function_name}' expects {expected} arguments, got {actual}"
+            ),
             span: None,
+        }
+    }
+
+    /// Creates a new threading error for adaptive pointer architecture.
+    pub fn threading_error(message: impl Into<String>) -> Self {
+        Self::Threading {
+            message: message.into(),
         }
     }
 }
@@ -198,12 +210,13 @@ impl std::fmt::Display for Error {
             Self::IoError { message } => write!(f, "IO error: {message}"),
             Self::InternalError { message } => write!(f, "Internal error: {message}"),
             Self::Exception { exception, .. } => write!(f, "Exception: {exception}"),
+            Self::Threading { message } => write!(f, "Threading error: {message}"),
         }
     }
 }
 
-// LambdustError trait implementation
-impl LambdustError for Error {
+// EvalUnifiedError trait implementation
+impl EvalUnifiedError for Error {
     fn error_code(&self) -> &'static str {
         match self {
             Self::LexError { .. } => "lambdust::lexer::error",
@@ -215,28 +228,36 @@ impl LambdustError for Error {
             Self::IoError { .. } => "lambdust::io::error",
             Self::InternalError { .. } => "lambdust::internal::error",
             Self::Exception { .. } => "lambdust::exception::error",
+            Self::Threading { .. } => "lambdust::threading::error",
         }
     }
-    
+
     fn help(&self) -> Option<&str> {
         match self {
-            Self::InternalError { .. } => Some("This is likely a bug in the Lambdust implementation. Please report it."),
+            Self::InternalError { .. } => {
+                Some("This is likely a bug in the Lambdust implementation. Please report it.")
+            }
             _ => None,
         }
     }
-    
+
     fn labels(&self) -> Vec<ErrorLabel> {
         match self {
             Self::LexError { span, .. } => vec![ErrorLabel::primary(*span, "here")],
             Self::ParseError { span, .. } => vec![ErrorLabel::primary(*span, "here")],
             Self::TypeError { span, .. } => vec![ErrorLabel::primary(*span, "here")],
             Self::MacroError { span, .. } => vec![ErrorLabel::primary(*span, "here")],
-            Self::RuntimeError { span: Some(span), .. } => vec![ErrorLabel::primary(*span, "here")],
-            Self::Exception { span: Some(span), .. } => vec![ErrorLabel::primary(*span, "raised here")],
+            Self::RuntimeError {
+                span: Some(span), ..
+            } => vec![ErrorLabel::primary(*span, "here")],
+            Self::Exception {
+                span: Some(span), ..
+            } => vec![ErrorLabel::primary(*span, "raised here")],
+            Self::Threading { .. } => Vec::new(),
             _ => Vec::new(),
         }
     }
-    
+
     fn is_critical(&self) -> bool {
         matches!(self, Self::InternalError { .. })
     }
@@ -258,28 +279,35 @@ impl LightweightDiagnostic for Error {
             Self::IoError { .. } => Some("lambdust::io::error"),
             Self::InternalError { .. } => Some("lambdust::internal::error"),
             Self::Exception { .. } => Some("lambdust::exception::error"),
+            Self::Threading { .. } => Some("lambdust::threading::error"),
         }
     }
-    
+
     fn help(&self) -> Option<&str> {
         match self {
-            Self::InternalError { .. } => Some("This is likely a bug in the Lambdust implementation. Please report it."),
+            Self::InternalError { .. } => {
+                Some("This is likely a bug in the Lambdust implementation. Please report it.")
+            }
             _ => None,
         }
     }
-    
+
     fn labels(&self) -> Vec<DiagnosticLabel> {
         match self {
             Self::LexError { span, .. } => vec![DiagnosticLabel::primary(*span, "here")],
             Self::ParseError { span, .. } => vec![DiagnosticLabel::primary(*span, "here")],
             Self::TypeError { span, .. } => vec![DiagnosticLabel::primary(*span, "here")],
             Self::MacroError { span, .. } => vec![DiagnosticLabel::primary(*span, "here")],
-            Self::RuntimeError { span: Some(span), .. } => vec![DiagnosticLabel::primary(*span, "here")],
-            Self::Exception { span: Some(span), .. } => vec![DiagnosticLabel::primary(*span, "raised here")],
+            Self::RuntimeError {
+                span: Some(span), ..
+            } => vec![DiagnosticLabel::primary(*span, "here")],
+            Self::Exception {
+                span: Some(span), ..
+            } => vec![DiagnosticLabel::primary(*span, "raised here")],
             _ => Vec::new(),
         }
     }
-    
+
     fn severity(&self) -> DiagnosticSeverity {
         match self {
             Self::InternalError { .. } => DiagnosticSeverity::Error,
@@ -315,15 +343,23 @@ impl Error {
     /// Creates an unexpected token error.
     pub fn unexpected_token(token: &crate::lexer::Token, expected: &str) -> Self {
         Self::ParseError {
-            message: format!("Unexpected token '{}', expected {}", token.lexeme, expected),
+            message: format!(
+                "Unexpected token '{}', expected {}",
+                token.lexeme(),
+                expected
+            ),
             span: token.span,
         }
     }
 
     /// Creates an expected token error.
-    pub fn expected_token(token: &crate::lexer::Token, expected: &crate::lexer::TokenKind, context: &str) -> Self {
+    pub fn expected_token(
+        token: &crate::lexer::Token,
+        expected: &crate::lexer::TokenKind,
+        context: &str,
+    ) -> Self {
         Self::ParseError {
-            message: format!("{}, found '{}'", context, token.lexeme),
+            message: format!("{}, found '{}'", context, token.lexeme()),
             span: token.span,
         }
     }
@@ -335,7 +371,7 @@ impl Error {
         }
     }
 
-    /// Converts this Error into a Box<Error> for use with the Result type.
+    /// Converts this `Error` into a `Box<Error>` for use with the Result type.
     pub fn boxed(self) -> Box<Error> {
         Box::new(self)
     }
@@ -402,7 +438,7 @@ mod tests {
         let span1 = Span::new(5, 3);
         let span2 = Span::new(10, 2);
         let combined = span1.combine(span2);
-        
+
         assert_eq!(combined.start, 5);
         assert_eq!(combined.end(), 12);
         assert_eq!(combined.len, 7);
@@ -412,9 +448,12 @@ mod tests {
     fn test_error_creation() {
         let span = Span::new(0, 5);
         let error = Error::lex_error("test error", span);
-        
+
         match error {
-            Error::LexError { message, span: error_span } => {
+            Error::LexError {
+                message,
+                span: error_span,
+            } => {
                 assert_eq!(message, "test error");
                 assert_eq!(error_span, span);
             }
