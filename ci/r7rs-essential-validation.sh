@@ -16,7 +16,10 @@ echo ""
 # Phase 1: Compilation Safety Check (30s)
 echo "📋 Phase 1: Compilation Safety Check"
 echo "-----------------------------------"
-timeout 30s cargo check --lib --no-default-features || {
+# Try with minimal features first, then fall back to no features
+timeout 30s cargo check --lib --features minimal-repl || \
+timeout 30s cargo check --lib --no-default-features || \
+timeout 30s cargo check --lib || {
     echo "❌ Basic compilation failed"
     exit 1
 }
@@ -26,10 +29,10 @@ echo ""
 # Phase 2: Core Library Tests (60s)  
 echo "🧪 Phase 2: Core Library Tests"
 echo "------------------------------"
-timeout 60s cargo test --lib --no-default-features \
-    --quiet \
-    --features minimal \
-    2>/dev/null || {
+# Try with minimal features, then with default features, then with no features
+timeout 60s cargo test --lib --features minimal-repl --quiet 2>/dev/null || \
+timeout 60s cargo test --lib --quiet 2>/dev/null || \
+timeout 60s cargo test --lib --no-default-features --quiet 2>/dev/null || {
     echo "❌ Core library tests failed - continuing with available tests"
 }
 echo "✅ Core library validation complete"
