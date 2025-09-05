@@ -7,6 +7,8 @@
 //! - Test isolation and crash monitoring
 //! - CI/CD integration for crash reporting
 
+#![allow(missing_docs)]
+
 pub mod signal_handler;
 pub mod memory_tracker;
 pub mod platform_detector;

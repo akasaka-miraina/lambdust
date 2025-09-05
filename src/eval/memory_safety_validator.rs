@@ -13,11 +13,17 @@ use crate::debug::CrashInfo;
 
 /// Memory safety validation configuration
 pub struct MemorySafetyConfig {
+    /// Enable null pointer dereference checks
     pub enable_null_checks: bool,
+    /// Enable memory alignment checks
     pub enable_alignment_checks: bool,
+    /// Enable buffer bounds checks
     pub enable_bounds_checks: bool,
+    /// Enable use-after-free detection
     pub enable_use_after_free_detection: bool,
+    /// Panic on memory safety violations
     pub panic_on_violation: bool,
+    /// Log memory safety violations
     pub log_violations: bool,
 }
 
@@ -41,35 +47,61 @@ static INIT_ONCE: std::sync::Once = std::sync::Once::new();
 /// Memory safety violation types
 #[derive(Debug, Clone, PartialEq)]
 pub enum SafetyViolation {
+    /// Null pointer dereference detected
     NullPointerDereference {
+        /// Memory address that was accessed
         address: usize,
+        /// Function where violation occurred
         function: &'static str,
+        /// Line number where violation occurred
         line: u32,
     },
+    /// Unaligned memory access detected
     UnalignedAccess {
+        /// Memory address that was accessed
         address: usize,
+        /// Required memory alignment
         required_alignment: usize,
+        /// Actual memory alignment
         actual_alignment: usize,
+        /// Function where violation occurred
         function: &'static str,
+        /// Line number where violation occurred
         line: u32,
     },
+    /// Use after free detected
     UseAfterFree {
+        /// Memory address that was accessed
         address: usize,
+        /// Original size of the allocation
         original_size: usize,
+        /// Function where violation occurred
         function: &'static str,
+        /// Line number where violation occurred
         line: u32,
     },
+    /// Buffer overflow detected
     BufferOverflow {
+        /// Memory address that was accessed
         address: usize,
+        /// Start address of the buffer
         buffer_start: usize,
+        /// Size of the buffer
         buffer_size: usize,
+        /// Offset of the access from buffer start
         access_offset: isize,
+        /// Function where violation occurred
         function: &'static str,
+        /// Line number where violation occurred
         line: u32,
     },
+    /// Double free detected
     DoubleFree {
+        /// Memory address that was freed
         address: usize,
+        /// Function where violation occurred
         function: &'static str,
+        /// Line number where violation occurred
         line: u32,
     },
 }
@@ -91,6 +123,7 @@ struct AllocationRecord {
 }
 
 impl MemorySafetyValidator {
+    /// Create a new memory safety validator with the given configuration
     pub fn new(config: MemorySafetyConfig) -> Self {
         Self {
             config,
@@ -282,7 +315,9 @@ impl MemorySafetyValidator {
 /// Validation statistics
 #[derive(Debug, Clone)]
 pub struct ValidationStatistics {
+    /// Total number of memory safety violations detected
     pub total_violations: usize,
+    /// Number of active tracked allocations
     pub tracked_allocations: usize,
 }
 
@@ -297,6 +332,7 @@ pub fn init_memory_safety(config: MemorySafetyConfig) {
 
 /// Get the global validator
 pub fn get_validator() -> Option<&'static MemorySafetyValidator> {
+    #[allow(static_mut_refs)]
     unsafe { VALIDATOR.as_ref() }
 }
 

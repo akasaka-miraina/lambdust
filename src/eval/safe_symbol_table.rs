@@ -206,8 +206,11 @@ impl SymbolCache {
 /// Statistics about symbol table usage
 #[derive(Debug, Clone)]
 pub struct SymbolTableStats {
+    /// Total number of symbols in the table
     pub total_symbols: usize,
+    /// Number of symbols currently cached
     pub cached_symbols: usize, 
+    /// Cache hit ratio (0.0-1.0)
     pub cache_hit_ratio: f64,
 }
 
@@ -220,10 +223,12 @@ pub fn intern_symbol(string: &str) -> SymbolId {
     GLOBAL_SYMBOL_TABLE.intern(string)
 }
 
+/// Convert a SymbolId back to its string representation
 pub fn symbol_to_string(id: SymbolId) -> Option<Arc<str>> {
     GLOBAL_SYMBOL_TABLE.get_string(id)
 }
 
+/// Check if a symbol exists in the global symbol table
 pub fn symbol_exists(string: &str) -> bool {
     GLOBAL_SYMBOL_TABLE.contains(string)
 }

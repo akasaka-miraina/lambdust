@@ -298,10 +298,18 @@ impl LookupCache {
 #[derive(Debug, Clone)]
 pub enum EnvironmentError {
     /// Variable not found in environment chain
-    VariableNotFound { symbol: SymbolId },
+    VariableNotFound { 
+        /// The symbol that was not found
+        symbol: SymbolId 
+    },
     
     /// Maximum environment depth exceeded (stack overflow prevention)
-    MaxDepthExceeded { max_depth: usize, attempted_depth: usize },
+    MaxDepthExceeded { 
+        /// Maximum allowed depth
+        max_depth: usize, 
+        /// Depth that was attempted
+        attempted_depth: usize 
+    },
     
     /// Environment lock is poisoned
     LockPoisoned,
@@ -334,11 +342,17 @@ impl std::error::Error for EnvironmentError {}
 /// Environment statistics for debugging and monitoring
 #[derive(Debug, Clone)]
 pub struct EnvironmentStats {
+    /// Environment chain depth
     pub depth: usize,
+    /// Number of local variable bindings
     pub local_bindings: usize,
+    /// Number of cached lookup entries
     pub cached_lookups: usize,
+    /// Cache hit ratio (0.0-1.0)
     pub cache_hit_ratio: f64,
+    /// Environment generation number
     pub generation: Generation,
+    /// Unique environment identifier
     pub environment_id: u64,
 }
 

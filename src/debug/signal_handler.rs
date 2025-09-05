@@ -13,26 +13,44 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Information captured during a crash
 #[derive(Debug, Clone)]
 pub struct CrashInfo {
+    /// Signal number that caused the crash
     pub signal: i32,
+    /// Human-readable signal name
     pub signal_name: &'static str,
+    /// Timestamp when crash occurred
     pub timestamp: u64,
+    /// Process ID of the crashed process
     pub process_id: u32,
+    /// Thread ID where crash occurred
     pub thread_id: u64,
+    /// Memory address that caused the fault
     pub fault_address: Option<usize>,
+    /// Instruction pointer at time of crash
     pub instruction_pointer: Option<usize>,
+    /// Stack pointer at time of crash
     pub stack_pointer: Option<usize>,
+    /// Stack trace from crash point
     pub backtrace: Vec<String>,
+    /// CPU register values at crash time
     pub register_dump: HashMap<String, usize>,
+    /// Memory usage information
     pub memory_info: MemoryInfo,
+    /// Platform and environment information
     pub platform_info: String,
+    /// Test context if crash occurred during testing
     pub test_context: Option<String>,
 }
 
+/// Memory usage information at time of crash
 #[derive(Debug, Clone)]
 pub struct MemoryInfo {
+    /// Size of heap memory in bytes
     pub heap_size: usize,
+    /// Size of stack memory in bytes
     pub stack_size: usize,
+    /// Virtual memory usage in bytes
     pub virtual_memory: usize,
+    /// Physical memory usage in bytes
     pub physical_memory: usize,
 }
 
@@ -59,6 +77,7 @@ impl Default for SigsegvHandler {
 }
 
 impl SigsegvHandler {
+    /// Create a new SIGSEGV handler with custom log path
     pub fn new(crash_log_path: String) -> Self {
         Self {
             crash_log_path,
@@ -67,11 +86,13 @@ impl SigsegvHandler {
         }
     }
 
+    /// Set maximum backtrace depth
     pub fn with_max_backtrace_depth(mut self, depth: usize) -> Self {
         self.max_backtrace_depth = depth;
         self
     }
 
+    /// Enable or disable register dump collection
     pub fn with_register_dump(mut self, enable: bool) -> Self {
         self.enable_register_dump = enable;
         self
